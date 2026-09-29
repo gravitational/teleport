@@ -24,6 +24,7 @@ import (
 	"net/netip"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/net/http/httpguts"
@@ -63,6 +64,10 @@ type AppsConfig struct {
 	// DeniedHosts is the list of IP addresses and CIDR ranges that proxied
 	// application targets are not allowed to resolve to.
 	DeniedHosts []netip.Prefix
+
+	// ResponseHeaderTimeout caps how long to wait for an HTTP application
+	// target to start sending response headers. Zero means the default applies.
+	ResponseHeaderTimeout time.Duration
 
 	// MonitorCloseChannel will be signaled when a monitor closes a connection.
 	// Used only for testing. Optional.

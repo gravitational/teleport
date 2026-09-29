@@ -46,10 +46,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// responseHeaderTimeout caps how long to wait for an upstream to start
+// defaultResponseHeaderTimeout caps how long to wait for an upstream to start
 // sending response headers, so a wedged upstream does not hold the
-// connection indefinitely.
-const responseHeaderTimeout = time.Hour
+// connection indefinitely. It can be overridden with
+// app_service.response_header_timeout.
+const defaultResponseHeaderTimeout = time.Hour
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
@@ -71,6 +72,9 @@ type transportConfig struct {
 	emitter          apievents.Emitter
 	identity         *tlsca.Identity
 	targetHostPolicy common.TargetHostPolicy
+	// responseHeaderTimeout caps how long to wait for the upstream to start
+	// sending response headers.
+	responseHeaderTimeout time.Duration
 }
 
 // Check validates configuration.
@@ -101,6 +105,9 @@ func (c *transportConfig) Check() error {
 	}
 	if c.getUserCertFunc == nil {
 		return trace.BadParameter("get user cert function missing")
+	}
+	if c.responseHeaderTimeout <= 0 {
+		c.responseHeaderTimeout = defaultResponseHeaderTimeout
 	}
 
 	return nil
@@ -136,7 +143,7 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	tr.ResponseHeaderTimeout = responseHeaderTimeout
+	tr.ResponseHeaderTimeout = c.responseHeaderTimeout
 	if c.targetHostPolicy.Enabled() {
 		dialer := common.NewTargetDialer(c.targetHostPolicy, common.TargetHostAuditConfig{
 			Emitter:  c.emitter,

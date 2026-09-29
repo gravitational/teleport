@@ -1004,6 +1004,47 @@ func TestApplyConfigAppsLimiter(t *testing.T) {
 	require.Equal(t, time.Minute, cfg.Apps.Limiter.Rates[0].Period)
 }
 
+func TestApplyConfigAppsResponseHeaderTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		desc      string
+		timeout   types.Duration
+		want      time.Duration
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			desc:      "unset",
+			want:      0,
+			assertErr: require.NoError,
+		},
+		{
+			desc:      "custom",
+			timeout:   types.Duration(3 * time.Hour),
+			want:      3 * time.Hour,
+			assertErr: require.NoError,
+		},
+		{
+			desc:      "negative",
+			timeout:   types.Duration(-time.Minute),
+			assertErr: require.Error,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			fc := &FileConfig{
+				Apps: Apps{
+					Service:               Service{EnabledFlag: "yes"},
+					ResponseHeaderTimeout: tc.timeout,
+				},
+			}
+			cfg := servicecfg.MakeDefaultConfig()
+			err := ApplyFileConfig(fc, cfg)
+			tc.assertErr(t, err)
+			if err == nil {
+				require.Equal(t, tc.want, cfg.Apps.ResponseHeaderTimeout)
+			}
+		})
+	}
+}
+
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
 // it's fields are not read in.
 func TestApplyConfigNoneEnabled(t *testing.T) {
@@ -2753,6 +2794,24 @@ app_service:
 `,
 			name:   "denied target hosts",
 			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  response_header_timeout: 90m
+`,
+			name:   "response header timeout",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  response_header_timeout: not-a-duration
+`,
+			name:   "invalid response header timeout",
+			outErr: require.Error,
 		},
 		{
 			inConfigString: `

@@ -2086,6 +2086,11 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err, "parsing app_service.denied_hosts")
 	}
 
+	if fc.Apps.ResponseHeaderTimeout < 0 {
+		return trace.BadParameter("app_service.response_header_timeout must not be negative")
+	}
+	cfg.Apps.ResponseHeaderTimeout = time.Duration(fc.Apps.ResponseHeaderTimeout)
+
 	// Configure resource watcher selectors if present.
 	for _, matcher := range fc.Apps.ResourceMatchers {
 		if matcher.AWS.AssumeRoleARN != "" {

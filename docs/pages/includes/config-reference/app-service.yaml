@@ -39,6 +39,11 @@ app_service:
       - 127.0.0.0/8
       - ::1/128
 
+    # Optional: how long the Application Service waits for an HTTP application
+    # to start sending response headers before failing the request. Increase it
+    # for applications with long-running requests. Defaults to 1h.
+    response_header_timeout: 1h
+
     # Matchers for dynamic application resources
     #
     # All application resources have a predefined "teleport.dev/origin" label with

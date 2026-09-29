@@ -130,6 +130,11 @@ type ConnectionsHandlerConfig struct {
 
 	// TargetHostPolicy restricts application target dials by resolved IP.
 	TargetHostPolicy common.TargetHostPolicy
+
+	// ResponseHeaderTimeout caps how long to wait for an HTTP application
+	// target to start sending response headers. Defaults to
+	// defaultResponseHeaderTimeout when zero.
+	ResponseHeaderTimeout time.Duration
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -180,6 +185,12 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	}
 	if err := c.TargetHostPolicy.Check(); err != nil {
 		return trace.Wrap(err)
+	}
+	if c.ResponseHeaderTimeout < 0 {
+		return trace.BadParameter("response header timeout must not be negative")
+	}
+	if c.ResponseHeaderTimeout == 0 {
+		c.ResponseHeaderTimeout = defaultResponseHeaderTimeout
 	}
 	return nil
 }
