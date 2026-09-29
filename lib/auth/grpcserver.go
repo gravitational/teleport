@@ -4520,6 +4520,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 }
 
 // GetApp returns the specified application resource.
+//
+// Deprecated: Use GetApplication from presencev1 instead.
+// TODO (williamo): Remove in v20
 func (g *GRPCServer) GetApp(ctx context.Context, req *types.ResourceRequest) (*types.AppV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4537,6 +4540,9 @@ func (g *GRPCServer) GetApp(ctx context.Context, req *types.ResourceRequest) (*t
 }
 
 // GetApps returns all application resources.
+//
+// Deprecated: Use ListApplications from presencev1 instead.
+// TODO (williamo): Remove in v20
 func (g *GRPCServer) GetApps(ctx context.Context, _ *emptypb.Empty) (*types.AppV3List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4560,6 +4566,9 @@ func (g *GRPCServer) GetApps(ctx context.Context, _ *emptypb.Empty) (*types.AppV
 }
 
 // ListApps returns a page of application resources.
+//
+// Deprecated: Use ListApplications from presencev1 instead.
+// TODO (williamo): Remove in v20
 func (g *GRPCServer) ListApps(ctx context.Context, req *authpb.ListAppsRequest) (*authpb.ListAppsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4586,6 +4595,9 @@ func (g *GRPCServer) ListApps(ctx context.Context, req *authpb.ListAppsRequest) 
 }
 
 // DeleteApp removes the specified application resource.
+//
+// Deprecated: Use DeleteApplication from presencev1 instead.
+// TODO (williamo): Remove in v20
 func (g *GRPCServer) DeleteApp(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

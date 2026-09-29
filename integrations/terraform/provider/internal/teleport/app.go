@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -39,7 +40,7 @@ type AppClient struct {
 
 // Get reads an app by name.
 func (r AppClient) Get(ctx context.Context, id tfdriver.NameIdentifier) (*types.AppV3, error) {
-	app, err := r.client.GetApp(ctx, id.Name)
+	app, err := r.client.GetApplication(ctx, presencev1.GetApplicationRequest_builder{Name: id.Name}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -72,5 +73,5 @@ func (r AppClient) Upsert(ctx context.Context, app *types.AppV3) error {
 
 // Delete deletes an app by name.
 func (r AppClient) Delete(ctx context.Context, id tfdriver.NameIdentifier) error {
-	return trace.Wrap(r.client.DeleteApp(ctx, id.Name))
+	return trace.Wrap(r.client.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{Name: id.Name}.Build()))
 }

@@ -3992,15 +3992,13 @@ func (c *Client) UpdateApp(ctx context.Context, app types.Application) error {
 //
 // For a full list of registered applications that are served by an application
 // service, use GetApplicationServers instead.
+//
+// Deprecated: Prefer [Client.GetApplication], GetApp will only retrieve unscoped applications.
 func (c *Client) GetApp(ctx context.Context, name string) (types.Application, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing application name")
 	}
-	app, err := c.grpc.GetApp(ctx, &types.ResourceRequest{Name: name})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return app, nil
+	return c.GetApplication(ctx, presencepb.GetApplicationRequest_builder{Name: name}.Build())
 }
 
 // GetApps returns all application resources.
@@ -4012,16 +4010,19 @@ func (c *Client) GetApp(ctx context.Context, name string) (types.Application, er
 //
 // For a full list of registered applications that are served by an application
 // service, use GetApplicationServers instead.
-// Deprecated: Prefer using [ListApps] or [Apps] instead.
+//
+// Deprecated: Prefer [Client.ListApplications], GetApps will only get unscoped applications.
 func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
-	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
-	items, err := c.grpc.GetApps(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	apps := make([]types.Application, len(items.Apps))
-	for i := range items.Apps {
-		apps[i] = items.Apps[i]
+	var apps []types.Application
+	for app, err := range c.RangeApplications(ctx, presencepb.ListApplicationsRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_UNSCOPED,
+		}.Build(),
+	}.Build()) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		apps = append(apps, app)
 	}
 	return apps, nil
 }
@@ -4035,33 +4036,31 @@ func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
 //
 // For a page of registered applications that are served by an application
 // service, use ListResources instead.
+//
+// Deprecated: Prefer [Client.ListApplications], ListApps will only list unscoped applications.
 func (c *Client) ListApps(ctx context.Context, limit int, start string) ([]types.Application, string, error) {
-	resp, err := c.grpc.ListApps(ctx, &proto.ListAppsRequest{
-		Limit:    int32(limit),
-		StartKey: start,
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	apps := make([]types.Application, 0, len(resp.Applications))
-	for _, app := range resp.Applications {
-		apps = append(apps, app)
-	}
-	return apps, resp.NextKey, nil
+	return c.ListApplications(ctx, presencepb.ListApplicationsRequest_builder{
+		PageSize:  int32(limit),
+		PageToken: start,
+	}.Build())
 }
 
 // Apps returns application resources within the range [start, end).
+//
+// Deprecated: cannot express a scope filter. Prefer [Client.RangeApplications], Apps will only retrieve unscoped applications.
+// TODO(williamo): DELETE IN v21.0.0
 func (c *Client) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
 	return clientutils.RangeResources(ctx, start, end, c.ListApps, types.Application.GetName)
 }
 
 // DeleteApp deletes specified application resource.
+//
+// Deprecated: Prefer [Client.DeleteApplication], DeleteApp will only list unscoped applications.
 func (c *Client) DeleteApp(ctx context.Context, name string) error {
-	_, err := c.grpc.DeleteApp(ctx, &types.ResourceRequest{Name: name})
-	return trace.Wrap(err)
+	return c.DeleteApplication(ctx, presencepb.DeleteApplicationRequest_builder{Name: name}.Build())
 }
 
-// DeleteAllApps deletes all application resources.
+// DeleteAllApps deletes all scoped and unscoped application resources.
 func (c *Client) DeleteAllApps(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllApps(ctx, &emptypb.Empty{})
 	return trace.Wrap(err)
@@ -4082,12 +4081,18 @@ func (c *Client) GetApplication(ctx context.Context, req *presencepb.GetApplicat
 		if req.GetScope() != "" {
 			return nil, trace.BadParameter("requesting a scoped application from an outdated Teleport control plane that does not support it")
 		}
-		return c.GetApp(ctx, req.GetName())
+
+		app, err := c.grpc.GetApp(ctx, &types.ResourceRequest{Name: req.GetName()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return app, nil
 	}
 	return resp.GetApplication(), nil
 }
 
 // ListApplications returns a page of registered applications respecting scope filters.
+// This function falls back to ListApps, and GetApps for older control planes.
 //
 // Note that application resources here refers to "dynamically-added"
 // applications such as applications created by `tctl create`, or the CreateApp
@@ -4105,7 +4110,7 @@ func (c *Client) ListApplications(ctx context.Context, req *presencepb.ListAppli
 			return nil, "", trace.BadParameter("requesting list of scoped applications from an outdated Teleport control plane that does not support it")
 		}
 
-		return c.ListApps(ctx, int(req.GetPageSize()), req.GetPageToken())
+		return c.legacyListApps(ctx, int(req.GetPageSize()), req.GetPageToken())
 	}
 
 	apps := make([]types.Application, 0, len(res.GetApplications()))
@@ -4117,6 +4122,7 @@ func (c *Client) ListApplications(ctx context.Context, req *presencepb.ListAppli
 
 // RangeApplications returns a sequence of applications filtered by the given
 // [*presencepb.ListApplicationsRequest].
+// This function falls back to ListApps, and GetApps for older control planes.
 //
 // Note that application resources here refers to "dynamically-added"
 // applications such as applications created by `tctl create`, or the CreateApp
@@ -4132,33 +4138,7 @@ func (c *Client) RangeApplications(ctx context.Context, req *presencepb.ListAppl
 		req.SetPageSize(int32(pageSize))
 		return c.ListApplications(ctx, req)
 	}
-	return func(yield func(app types.Application, err error) bool) {
-		var fallback bool
-		for app, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", pageFn, types.Application.GetName) {
-			if trace.IsNotImplemented(err) {
-				// if control plane does not support ListApplications, fall back to ListApps
-				fallback = true
-				break
-			}
-			if !yield(app, err) {
-				return
-			}
-		}
-		if !fallback {
-			return
-		}
-		if req.GetScopeFilter().GetScope() != "" {
-			// only allow fallback if the request is not expecting results to be scope filtered
-			yield(nil, trace.BadParameter("requesting range of scoped applications from an outdated Teleport control plane that does not support it"))
-			return
-		}
-		// fallback iterator
-		for app, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", c.ListApps, nil) {
-			if !yield(app, err) {
-				return
-			}
-		}
-	}
+	return clientutils.RangeResources(ctx, req.GetPageToken(), "", pageFn, types.Application.GetName)
 }
 
 // DeleteApplication deletes a scoped or unscoped application by name.
@@ -4176,9 +4156,45 @@ func (c *Client) DeleteApplication(ctx context.Context, req *presencepb.DeleteAp
 		if req.GetScope() != "" {
 			return trace.BadParameter("requesting deletion of a scoped application from an outdated Teleport control plane that does not support it")
 		}
-		return c.DeleteApp(ctx, req.GetName())
+
+		_, err := c.grpc.DeleteApp(ctx, &types.ResourceRequest{Name: req.GetName()})
+		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// legacyListApps is the fallback app listing api
+// for control planes that predate ListApplications.
+func (c *Client) legacyListApps(ctx context.Context, pageSize int, pageToken string) ([]types.Application, string, error) {
+	//nolint:staticcheck // TODO(williamo): deprecated, to be removed in v20
+	resp, err := c.grpc.ListApps(ctx, &proto.ListAppsRequest{
+		Limit:    int32(pageSize),
+		StartKey: pageToken,
+	})
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// Control planes before v18.1 predate the paginated ListApps.
+		// Since this was before pagination was added, GetApps is used to fetch all apps.
+		// TODO(williamo): DELETE IN v20.0.0
+		//nolint:staticcheck // SA1019: GetApps fallback for older control planes.
+		items, err := c.grpc.GetApps(ctx, &emptypb.Empty{})
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		apps := make([]types.Application, 0, len(items.Apps))
+		for _, app := range items.Apps {
+			apps = append(apps, app)
+		}
+		return apps, "", nil
+	}
+	apps := make([]types.Application, 0, len(resp.Applications))
+	for _, app := range resp.Applications {
+		apps = append(apps, app)
+	}
+	return apps, resp.NextKey, nil
 }
 
 // ListAuthServers returns a paginated list of auth servers registered in the cluster.

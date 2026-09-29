@@ -57,14 +57,6 @@ import (
 
 // AppGetter defines interface for fetching application resources.
 type AppGetter interface {
-	// GetApps returns all application resources.
-	GetApps(context.Context) ([]types.Application, error)
-	// ListApps returns a page of application resources.
-	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
 	// GetApplication returns a scoped or unscoped application by name.
 	GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error)
 	// ListApplications returns a page of applications respecting scope filters.
@@ -81,11 +73,9 @@ type Applications interface {
 	CreateApp(context.Context, types.Application) error
 	// UpdateApp updates an existing application resource.
 	UpdateApp(context.Context, types.Application) error
-	// DeleteApp removes the specified application resource.
-	DeleteApp(ctx context.Context, name string) error
 	// DeleteApplication removes a scoped or unscoped application.
 	DeleteApplication(ctx context.Context, req *presencev1.DeleteApplicationRequest) error
-	// DeleteAllApps removes all database resources.
+	// DeleteAllApps removes all application resources, in every scope.
 	DeleteAllApps(context.Context) error
 }
 

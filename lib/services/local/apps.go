@@ -73,26 +73,6 @@ func NewAppService(b backend.Backend) (*AppService, error) {
 	}, nil
 }
 
-// GetApp returns the specified application resource.
-func (s *AppService) GetApps(ctx context.Context) ([]types.Application, error) {
-	return stream.Collect(s.RangeApplications(ctx, presencev1.ListApplicationsRequest_builder{}.Build()))
-}
-
-// GetApp returns the specified application resource.
-func (s *AppService) GetApp(ctx context.Context, name string) (types.Application, error) {
-	return s.svc.GetResource(ctx, apiscopes.QualifiedName{Name: name}) // unscoped by construction
-}
-
-// ListApps returns a page of application resources.
-func (s *AppService) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
-	return s.svc.ListResources(ctx, limit, startKey)
-}
-
-// Apps returns application resources within the range [start, end).
-func (s *AppService) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
-	return s.svc.Resources(ctx, start, end)
-}
-
 // ListApplications returns a page of registered applications respecting scope filters.
 func (s *AppService) ListApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) ([]types.Application, string, error) {
 	scopeFilter := req.GetScopeFilter()
@@ -161,18 +141,6 @@ func (s *AppService) UpdateApp(ctx context.Context, app types.Application) error
 		return trace.NotFound("app %q doesn't exist", apiscopes.QualifiedName{Scope: app.GetScope(), Name: app.GetName()}.String())
 	}
 	return trace.Wrap(err)
-}
-
-// DeleteApp removes the specified application resource.
-func (s *AppService) DeleteApp(ctx context.Context, name string) error {
-	err := s.svc.DeleteResource(ctx, apiscopes.QualifiedName{Name: name})
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("application %q doesn't exist", name)
-		}
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // DeleteAllApps removes all application resources.

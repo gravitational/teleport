@@ -7714,7 +7714,7 @@ func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
 
 // DeleteApp deletes an application resource.
 func (a *Server) DeleteApp(ctx context.Context, name string) error {
-	if err := a.Services.DeleteApp(ctx, name); err != nil {
+	if err := a.Services.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{Name: name}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppDelete{

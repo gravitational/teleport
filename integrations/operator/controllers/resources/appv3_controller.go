@@ -25,6 +25,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
@@ -41,7 +42,7 @@ type appClient struct {
 
 // Get gets the Teleport app of a given name
 func (r appClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Application, error) {
-	app, err := r.teleportClient.GetApp(ctx, key.Name)
+	app, err := r.teleportClient.GetApplication(ctx, presencev1.GetApplicationRequest_builder{Name: key.Name}.Build())
 	return app, trace.Wrap(err)
 }
 
@@ -57,7 +58,7 @@ func (r appClient) Update(ctx context.Context, app types.Application) error {
 
 // Delete deletes a Teleport app
 func (r appClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
-	return trace.Wrap(r.teleportClient.DeleteApp(ctx, key.Name))
+	return trace.Wrap(r.teleportClient.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{Name: key.Name}.Build()))
 }
 
 // NewAppV3Reconciler instantiates a new Kubernetes controller reconciling app v6 resources

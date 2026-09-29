@@ -480,8 +480,10 @@ func NewAppWatcher(ctx context.Context, cfg AppWatcherConfig) (*GenericWatcher[t
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindApp,
 		ResourceKey:           types.Application.GetName,
-		ResourceGetter:        cfg.AppGetter.GetApps,
-		ResourcesC:            cfg.AppsC,
+		ResourceGetter: func(ctx context.Context) ([]types.Application, error) {
+			return iterstream.Collect(cfg.AppGetter.RangeApplications(ctx, presencev1.ListApplicationsRequest_builder{}.Build()))
+		},
+		ResourcesC: cfg.AppsC,
 		CloneFunc: func(resource types.Application) types.Application {
 			return resource.Copy()
 		},

@@ -25,10 +25,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -83,8 +84,8 @@ func appHandler() Handler {
 
 func getApp(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	if ref.Name == "" {
-		// TODO(tross): DELETE IN v21.0.0, replace with regular Collect
-		apps, err := clientutils.CollectWithFallback(ctx, client.ListApps, client.GetApps)
+		// RangeApplications falls back to ListApps and then GetApps for older control planes.
+		apps, err := stream.Collect(client.RangeApplications(ctx, presencev1.ListApplicationsRequest_builder{}.Build()))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -92,7 +93,7 @@ func getApp(ctx context.Context, client *authclient.Client, ref services.Ref, op
 		return NewAppCollection(apps), nil
 	}
 
-	app, err := client.GetApp(ctx, ref.Name)
+	app, err := client.GetApplication(ctx, presencev1.GetApplicationRequest_builder{Name: ref.Name}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,7 +135,7 @@ func updateApp(ctx context.Context, client *authclient.Client, raw services.Unkn
 }
 
 func deleteApp(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if err := client.DeleteApp(ctx, ref.Name); err != nil {
+	if err := client.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{Name: ref.Name}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("application %q has been deleted\n", ref.Name)

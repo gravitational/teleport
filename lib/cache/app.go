@@ -28,7 +28,6 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
@@ -53,15 +52,10 @@ func newAppCollection(upstream services.Applications, w types.WatchKind) (*colle
 			map[appIndex]func(types.Application) string{
 				appNameIndex: services.GetCursorForApp,
 			}),
-		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Application, error) {
-			// TODO(tross): DELETE IN v21.0.0, replace by regular clientutils.Resources
-			out, err := clientutils.CollectWithFallback(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.Application, string, error) {
-				return upstream.ListApplications(ctx, presencev1.ListApplicationsRequest_builder{
-					PageSize:    int32(pageSize),
-					PageToken:   pageToken,
-					ScopeFilter: w.ScopeFilter.ToProto(),
-				}.Build())
-			}, upstream.GetApps)
+		fetcher: func(ctx context.Context, _ bool) ([]types.Application, error) {
+			out, err := stream.Collect(upstream.RangeApplications(ctx, presencev1.ListApplicationsRequest_builder{
+				ScopeFilter: w.ScopeFilter.ToProto(),
+			}.Build()))
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Application {
@@ -75,91 +69,6 @@ func newAppCollection(upstream services.Applications, w types.WatchKind) (*colle
 		},
 		watch: w,
 	}, nil
-}
-
-// Apps returns application resources within the range [start, end).
-func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
-	lister := genericLister[types.Application, appIndex]{
-		cache:        c,
-		collection:   c.collections.apps,
-		index:        appNameIndex,
-		upstreamList: c.Config.Apps.ListApps,
-		nextToken:    services.GetCursorForApp,
-		// TODO(tross): DELETE IN v21.0.0
-		fallbackGetter: c.Config.Apps.GetApps,
-	}
-
-	return func(yield func(types.Application, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/Apps")
-		defer span.End()
-
-		for app, err := range lister.RangeWithFallback(ctx, start, end) {
-			if !yield(app, err) {
-				return
-			}
-
-			if err != nil {
-				return
-			}
-		}
-	}
-}
-
-// ListApps returns a page of application resources.
-func (c *Cache) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListApps")
-	defer span.End()
-
-	lister := genericLister[types.Application, appIndex]{
-		cache:        c,
-		collection:   c.collections.apps,
-		index:        appNameIndex,
-		upstreamList: c.Config.Apps.ListApps,
-		nextToken:    services.GetCursorForApp,
-	}
-	out, next, err := lister.list(ctx, limit, startKey)
-	return out, next, trace.Wrap(err)
-}
-
-// GetApps returns all application resources.
-func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetApps")
-	defer span.End()
-
-	rg, err := acquireReadGuard(c, c.collections.apps)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if !rg.ReadCache() {
-		apps, err := c.Config.Apps.GetApps(ctx)
-		return apps, trace.Wrap(err)
-	}
-
-	out := make([]types.Application, 0, rg.store.len())
-	for a := range rg.store.resources(appNameIndex, "", "") {
-		out = append(out, a.Copy())
-	}
-
-	return out, nil
-}
-
-// GetApp returns the specified application resource.
-func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetApp")
-	defer span.End()
-
-	getter := genericGetter[types.Application, appIndex]{
-		cache:      c,
-		collection: c.collections.apps,
-		index:      appNameIndex,
-		upstreamGet: func(ctx context.Context, _ string) (types.Application, error) {
-			return c.Config.Apps.GetApplication(ctx, presencev1.GetApplicationRequest_builder{Name: name}.Build())
-		},
-	}
-	out, err := getter.get(ctx, scopes.MakeResourceCursor("", name))
-	return out, trace.Wrap(err)
 }
 
 // ListApplications returns a page of registered applications respecting scope filters.
