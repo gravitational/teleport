@@ -136,6 +136,12 @@ type responseWriterWithRemoteAddr struct {
 	remoteAddr net.Addr
 }
 
+// Unwrap returns the wrapped [http.ResponseWriter] so that
+// [http.ResponseController] can reach it.
+func (r *responseWriterWithRemoteAddr) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
 // Hijack returns a net.Conn with provided remoteAddr.
 func (r *responseWriterWithRemoteAddr) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := r.ResponseWriter.(http.Hijacker)
