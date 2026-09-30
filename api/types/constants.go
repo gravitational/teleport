@@ -328,6 +328,14 @@ const (
 	// KindRecordingEncryption is the collection of active session recording encryption keys.
 	KindRecordingEncryption = "recording_encryption"
 
+	// KindCredentialEncryptionKey is the cluster's Auth-layer encryption key
+	// for user external credentials.
+	KindCredentialEncryptionKey = "credential_encryption_key"
+
+	// MetaNameCredentialEncryptionKey is the metadata.name of the singleton
+	// CredentialEncryptionKey resource.
+	MetaNameCredentialEncryptionKey = "credential-encryption-key"
+
 	// KindRotatedKey is a previously rotated session recording encryption key kept for future replay.
 	KindRotatedKey = "rotated_key"
 
@@ -551,6 +559,10 @@ const (
 
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
+
+	// KindUserExternalCredentials is a per-user credentials resource for
+	// external services.
+	KindUserExternalCredentials = "user_external_credentials"
 
 	// KindHealthCheckConfig is the resource for health check configuration.
 	KindHealthCheckConfig = "health_check_config"
