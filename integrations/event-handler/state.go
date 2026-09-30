@@ -27,7 +27,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -365,16 +364,21 @@ type missingRecording struct {
 // IterateMissingRecordings finds any sessions with a missing recording and
 // provides them to the callback for processing.
 func (s *State) IterateMissingRecordings(callback func(s session, attempts int) error) error {
-	closeC := make(chan struct{})
-	defer close(closeC)
-	for key := range s.dv.KeysPrefix(missingRecordingPrefix, closeC) {
+	// Drain the keys from the channel first to prevent session removals from
+	// aborting the filepath walk early.
+	// The callback can block the loop due to session ingestion concurrency,
+	// leaving a window for session removals to occur.
+	keys := []string{}
+	for key := range s.dv.KeysPrefix(missingRecordingPrefix, nil) {
+		keys = append(keys, key)
+	}
+
+	for _, key := range keys {
 		b, err := s.dv.Read(key)
 		if err != nil {
 			// Ignore any errors caused by the file being removed
 			// by an external entity.
-			var pathError *fs.PathError
-			if !errors.Is(err, fs.ErrNotExist) ||
-				errors.As(err, &pathError) && errors.Is(pathError.Err, syscall.ENOENT) {
+			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
 
@@ -409,14 +413,8 @@ func (s *State) IterateMissingRecordings(callback func(s session, attempts int) 
 // RemoveMissingRecording removes the session with a missing recording from state.
 func (s *State) RemoveMissingRecording(id string) error {
 	err := s.dv.Erase(missingRecordingPrefix + id)
-	if err == nil {
-		return nil
-	}
-
-	// If the session had no events, the file won't exist, so we ignore the error
-	var pathError *fs.PathError
-	if !errors.Is(err, fs.ErrNotExist) ||
-		errors.As(err, &pathError) && errors.Is(pathError.Err, syscall.ENOENT) {
+	if err == nil || errors.Is(err, fs.ErrNotExist) {
+		// If the session had no events, the file won't exist, so we ignore the error
 		return nil
 	}
 
@@ -426,14 +424,8 @@ func (s *State) RemoveMissingRecording(id string) error {
 // RemoveSession removes session from the state.
 func (s *State) RemoveSession(id string) error {
 	err := s.dv.Erase(sessionPrefix + id)
-	if err == nil {
-		return nil
-	}
-
-	// If the session had no events, the file won't exist, so we ignore the error
-	var pathError *fs.PathError
-	if !errors.Is(err, fs.ErrNotExist) ||
-		errors.As(err, &pathError) && errors.Is(pathError.Err, syscall.ENOENT) {
+	if err == nil || errors.Is(err, fs.ErrNotExist) {
+		// If the session had no events, the file won't exist, so we ignore the error
 		return nil
 	}
 

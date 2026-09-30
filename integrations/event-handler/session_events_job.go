@@ -384,8 +384,7 @@ Loop:
 	}
 
 	// We have finished ingestion and do not need session state anymore
-	err := j.app.State.RemoveSession(s.ID)
-	return false, trace.Wrap(err)
+	return false, trace.NewAggregate(j.app.State.RemoveMissingRecording(s.ID), j.app.State.RemoveSession(s.ID))
 }
 
 // RegisterSession starts session event ingestion
