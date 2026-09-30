@@ -1395,6 +1395,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 
 	process.registerExpectedServices(cfg)
 
+	if cfg.AuditQueue.Disabled {
+		process.logger.WarnContext(process.ExitContext(), "TELEPORT_UNSTABLE_DISABLE_AUDIT_QUEUE is set. The durable audit queue is disabled and audit events will be dropped if delivery to the auth server or audit backend falls behind. This flag will be removed in a future release.")
+	}
+
 	// if user started auth and another service (without providing the auth address for
 	// that service, the address of the in-process auth will be used
 	if process.Config.Auth.Enabled && len(process.Config.AuthServerAddresses()) == 0 {
@@ -2462,21 +2466,27 @@ func (process *TeleportProcess) initAuthService() error {
 	// Events forwarded from agents/proxies are not queued here
 	// (see GRPCServer.EmitAuditEvent). Their originating instance retries them
 	// from its own queue.
-	sealer, err := recordingencryption.NewLazyAuditQueueSealer(process.ExitContext(), authSRCWatcher{
-		SessionRecordingConfigGetter: clusterConfig,
-		Events:                       local.NewEventsService(b),
-	})
-	if err != nil {
-		return trace.Wrap(err, "initializing audit queue encryption for the auth fallback queue")
-	}
-	opener, err := recordingencryption.NewAuditQueueOpener(recordingEncryptionManager)
-	if err != nil {
-		_ = sealer.Close()
-		return trace.Wrap(err)
+	var sealer auditqueue.Sealer
+	var opener events.SealedBatchOpener
+	if !cfg.AuditQueue.Disabled {
+		sealer, err = recordingencryption.NewLazyAuditQueueSealer(process.ExitContext(), authSRCWatcher{
+			SessionRecordingConfigGetter: clusterConfig,
+			Events:                       local.NewEventsService(b),
+		})
+		if err != nil {
+			return trace.Wrap(err, "initializing audit queue encryption for the auth fallback queue")
+		}
+		opener, err = recordingencryption.NewAuditQueueOpener(recordingEncryptionManager)
+		if err != nil {
+			_ = sealer.Close()
+			return trace.Wrap(err)
+		}
 	}
 	fallbackEmitter, err := process.newAuthFallbackEmitter(emitter, sealer, opener)
 	if err != nil {
-		_ = sealer.Close()
+		if sealer != nil {
+			_ = sealer.Close()
+		}
 		return trace.Wrap(err)
 	}
 	emitter = fallbackEmitter
@@ -3527,16 +3537,27 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 // NewAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter, srcWatcher recordingencryption.SessionRecordingConfigWatcher) (*events.CheckingAsyncEmitter, error) {
-	if srcWatcher == nil {
-		return nil, trace.BadParameter("audit queue requires a session recording config watcher")
+	asyncCfg := events.AsyncEmitterConfig{
+		Inner:              events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
+		DataDir:            process.Config.DataDir,
+		DisableAuditQueue:  process.Config.AuditQueue.Disabled,
+		AuditQueueCfg:      process.auditQueueConfig(),
+		AuditQueueBackends: process.auditQueueBackends(),
 	}
-	submitter, ok := clt.(events.SealedBatchSubmitter)
-	if !ok {
-		return nil, trace.BadParameter("audit queue requires a client that can submit sealed batches, got %T", clt)
-	}
-	sealer, err := recordingencryption.NewAuditQueueSealer(process.ExitContext(), srcWatcher)
-	if err != nil {
-		return nil, trace.Wrap(err, "initializing audit queue encryption")
+	if !asyncCfg.DisableAuditQueue {
+		if srcWatcher == nil {
+			return nil, trace.BadParameter("audit queue requires a session recording config watcher")
+		}
+		submitter, ok := clt.(events.SealedBatchSubmitter)
+		if !ok {
+			return nil, trace.BadParameter("audit queue requires a client that can submit sealed batches, got %T", clt)
+		}
+		sealer, err := recordingencryption.NewAuditQueueSealer(process.ExitContext(), srcWatcher)
+		if err != nil {
+			return nil, trace.Wrap(err, "initializing audit queue encryption")
+		}
+		asyncCfg.Sealer = sealer
+		asyncCfg.SealedSubmitter = submitter
 	}
 
 	// Wrap the AsyncEmitter in a CheckingEmitter to ensure event fields are
@@ -3545,21 +3566,16 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter, srcWatche
 		events.CheckingEmitterConfig{
 			Clock: process.Clock,
 		},
-		events.AsyncEmitterConfig{
-			Inner:              events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
-			DataDir:            process.Config.DataDir,
-			AuditQueueCfg:      process.auditQueueConfig(),
-			AuditQueueBackends: process.auditQueueBackends(),
-			Sealer:             sealer,
-			SealedSubmitter:    submitter,
-		},
+		asyncCfg,
 	)
 	if err != nil {
-		if closeErr := sealer.Close(); closeErr != nil {
-			process.logger.DebugContext(process.ExitContext(),
-				"Failed to close audit queue sealer.",
-				"error", closeErr,
-			)
+		if asyncCfg.Sealer != nil {
+			if closeErr := asyncCfg.Sealer.Close(); closeErr != nil {
+				process.logger.DebugContext(process.ExitContext(),
+					"Failed to close audit queue sealer.",
+					"error", closeErr,
+				)
+			}
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -3673,6 +3689,7 @@ type authSRCWatcher struct {
 func (process *TeleportProcess) newAuthFallbackEmitter(primary apievents.Emitter, sealer auditqueue.Sealer, opener events.SealedBatchOpener) (*events.FallbackEmitter, error) {
 	emitter, err := events.NewFallbackEmitter(events.FallbackEmitterConfig{
 		Primary:            primary,
+		DisableAuditQueue:  process.Config.AuditQueue.Disabled,
 		DataDir:            process.Config.DataDir,
 		AuditQueueCfg:      process.auditQueueConfig(),
 		AuditQueueBackends: process.auditQueueBackends(),

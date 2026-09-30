@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
@@ -3095,6 +3096,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			return trace.Wrap(err, "invalid agent rollout period %q", rawPeriod)
 		}
 		cfg.Auth.AgentRolloutControllerSyncPeriod = period
+	}
+
+	if rawDisabled := os.Getenv("TELEPORT_UNSTABLE_DISABLE_AUDIT_QUEUE"); rawDisabled != "" {
+		disabled, err := apiutils.ParseBool(rawDisabled)
+		if err != nil {
+			return trace.Wrap(err, "invalid TELEPORT_UNSTABLE_DISABLE_AUDIT_QUEUE %q", rawDisabled)
+		}
+		cfg.AuditQueue.Disabled = disabled
 	}
 
 	// pass the value of --insecure flag to the runtime

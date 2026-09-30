@@ -45,4 +45,7 @@ type AuditQueueConfig struct {
 	Backends []string
 	// Synchronous controls the SQLite synchronous pragma.
 	Synchronous auditqueue.SynchronousMode
+	// Disabled turns off the durable audit queue and restores the in-memory
+	// audit event channel. It is set from TELEPORT_UNSTABLE_DISABLE_AUDIT_QUEUE.
+	Disabled bool
 }

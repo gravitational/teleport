@@ -41,9 +41,12 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
+	// AsyncBufferSize is a default buffer size for async emitters
+	AsyncBufferSize = 1024
 	// auditQueueDir is the directory where the audit queue resides.
 	auditQueueDir = "audit-queue"
 	// Matches the audit queue dequeue batch size so one delivery cycle is one round of requests.
@@ -55,6 +58,11 @@ const (
 type AsyncEmitterConfig struct {
 	// Inner emits events to the underlying store
 	Inner apievents.Emitter
+	// BufferSize is a default buffer size for emitter
+	BufferSize int
+	// DisableAuditQueue bypasses the audit queue and forwards events through
+	// an in-memory channel instead.
+	DisableAuditQueue bool
 	// DataDir is the Teleport data directory. This is required for sqlite
 	// backed queues.
 	DataDir string
@@ -80,6 +88,9 @@ func (c *AsyncEmitterConfig) CheckAndSetDefaults() error {
 	if c.Inner == nil {
 		return trace.BadParameter("missing parameter Inner")
 	}
+	if c.BufferSize == 0 {
+		c.BufferSize = AsyncBufferSize
+	}
 	return nil
 }
 
@@ -91,16 +102,22 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.AuditQueueCfg.Sealer = cfg.Sealer
-	queue, err := makeQueue(cfg.DataDir, cfg.AuditQueueCfg, cfg.AuditQueueBackends)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if _, ok := cfg.Inner.(apievents.BatchEmitter); !ok {
-		slog.WarnContext(context.TODO(),
-			"Audit queue inner emitter does not support batched delivery. Events will be forwarded one at a time.",
-			"inner_type", fmt.Sprintf("%T", cfg.Inner),
-		)
+	var queue auditqueue.Queue
+	if cfg.DisableAuditQueue {
+		slog.InfoContext(context.Background(), "Using default in-memory audit event channel. Audit queue is disabled.")
+	} else {
+		cfg.AuditQueueCfg.Sealer = cfg.Sealer
+		var err error
+		queue, err = makeQueue(cfg.DataDir, cfg.AuditQueueCfg, cfg.AuditQueueBackends)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if _, ok := cfg.Inner.(apievents.BatchEmitter); !ok {
+			slog.WarnContext(context.TODO(),
+				"Audit queue inner emitter does not support batched delivery. Events will be forwarded one at a time.",
+				"inner_type", log.TypeAttr(cfg.Inner),
+			)
+		}
 	}
 
 	deliveryTimeout := cfg.AuditQueueCfg.DeliveryTimeout
@@ -115,6 +132,11 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 		cfg:             cfg,
 		queue:           queue,
 		deliveryTimeout: deliveryTimeout,
+	}
+	if queue == nil {
+		a.noQueueEventsCh = make(chan apievents.AuditEvent, cfg.BufferSize)
+		a.wg.Go(a.forwardWithoutQueue)
+		return a, nil
 	}
 	a.wg.Go(func() {
 		if err := queue.Run(ctx, a.deliver); err != nil && ctx.Err() == nil {
@@ -154,9 +176,11 @@ func makeQueue(dataDir string, queueCfg auditqueue.Config, backends []auditqueue
 }
 
 // AsyncEmitter enqueues events to the audit queue and delivers them to the
-// inner emitter in a separate goroutine without blocking the caller.
+// inner emitter in a separate goroutine without blocking the caller. When the
+// audit queue is disabled, events are forwarded through an in-memory channel.
 type AsyncEmitter struct {
 	cfg             AsyncEmitterConfig
+	noQueueEventsCh chan apievents.AuditEvent // Copied from legacy implementation, will be removed when we delete the legacy code.
 	cancel          context.CancelFunc
 	ctx             context.Context
 	queue           auditqueue.Queue
@@ -169,7 +193,10 @@ type AsyncEmitter struct {
 func (a *AsyncEmitter) Close() error {
 	a.cancel()
 	a.wg.Wait()
-	errs := []error{a.queue.Close()}
+	var errs []error
+	if a.queue != nil {
+		errs = append(errs, a.queue.Close())
+	}
 	if a.cfg.Sealer != nil {
 		errs = append(errs, a.cfg.Sealer.Close())
 	}
@@ -179,6 +206,9 @@ func (a *AsyncEmitter) Close() error {
 // Shutdown makes a best effort attempt to flush pending audit events to the
 // inner emitter before closing.
 func (a *AsyncEmitter) Shutdown(ctx context.Context) error {
+	if a.queue == nil {
+		return trace.Wrap(a.Close())
+	}
 	if err := a.queue.Drain(ctx); err != nil {
 		slog.WarnContext(ctx,
 			"Audit queue drain returned an error during graceful shutdown.",
@@ -188,9 +218,31 @@ func (a *AsyncEmitter) Shutdown(ctx context.Context) error {
 	return trace.Wrap(a.Close())
 }
 
-// Stats reports the current depth of the audit queue.
+// Stats reports the current depth of the audit queue. It returns a zero Stats
+// when the audit queue is disabled.
 func (a *AsyncEmitter) Stats(ctx context.Context) (auditqueue.Stats, error) {
+	if a.queue == nil {
+		return auditqueue.Stats{}, nil
+	}
 	return a.queue.Stats(ctx)
+}
+
+// forwardWithoutQueue was copied from the legacy implementation, will be removed when we delete the legacy code.
+func (a *AsyncEmitter) forwardWithoutQueue() {
+	for {
+		select {
+		case <-a.ctx.Done():
+			return
+		case event := <-a.noQueueEventsCh:
+			err := a.cfg.Inner.EmitAuditEvent(a.ctx, event)
+			if err != nil {
+				if a.ctx.Err() != nil {
+					return
+				}
+				slog.ErrorContext(a.ctx, "Failed to emit audit event.", "error", err)
+			}
+		}
+	}
 }
 
 func splitSealedItems(items []auditqueue.Item) (plain, sealed []auditqueue.Item) {
@@ -418,8 +470,21 @@ func (a *AsyncEmitter) deliverBatch(ctx context.Context, batchEmitter apievents.
 }
 
 // EmitAuditEvent enqueues the audit event without blocking on delivery. It
-// fails when the queue is full.
+// fails when the queue is full. When the audit queue is disabled, the event is
+// sent to the in-memory channel and dropped if the channel is full.
 func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	if a.queue == nil {
+		// This block was copied from the legacy implementation. It be removed when we delete the legacy code.
+		select {
+		case a.noQueueEventsCh <- event:
+			return nil
+		case <-ctx.Done():
+			return trace.ConnectionProblem(ctx.Err(), "context canceled or closed")
+		default:
+			slog.ErrorContext(ctx, "Failed to emit audit event. This server's connection to the auth service appears to be slow.", "event_type", event.GetType(), "event_code", event.GetCode())
+			return nil
+		}
+	}
 	err := a.queue.Enqueue(event)
 	if errors.Is(err, auditqueue.ErrQueueFull) {
 		slog.ErrorContext(

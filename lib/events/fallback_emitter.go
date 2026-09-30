@@ -62,6 +62,9 @@ func isForwardedEmit(ctx context.Context) bool {
 type FallbackEmitterConfig struct {
 	// Primary is the audit backend that events are emitted to.
 	Primary apievents.Emitter
+	// DisableAuditQueue turns off the fallback queue so the emitter delegates
+	// to Primary with no fallback behavior.
+	DisableAuditQueue bool
 	// DataDir is the Teleport data directory, used for the fallback queue.
 	DataDir string
 	// AuditQueueCfg holds the queue options from the Teleport yaml config.
@@ -115,10 +118,14 @@ func NewFallbackEmitter(cfg FallbackEmitterConfig) (*FallbackEmitter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.AuditQueueCfg.Sealer = cfg.Sealer
-	queue, err := makeQueue(cfg.DataDir, cfg.AuditQueueCfg, cfg.AuditQueueBackends)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var queue auditqueue.Queue
+	if !cfg.DisableAuditQueue {
+		cfg.AuditQueueCfg.Sealer = cfg.Sealer
+		var err error
+		queue, err = makeQueue(cfg.DataDir, cfg.AuditQueueCfg, cfg.AuditQueueBackends)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	deliveryTimeout := cfg.AuditQueueCfg.DeliveryTimeout
@@ -134,11 +141,13 @@ func NewFallbackEmitter(cfg FallbackEmitterConfig) (*FallbackEmitter, error) {
 		cancel:          cancel,
 		deliveryTimeout: deliveryTimeout,
 	}
-	f.wg.Go(func() {
-		if err := queue.Run(ctx, f.deliver); err != nil && ctx.Err() == nil {
-			slog.ErrorContext(ctx, "Audit fallback queue Run returned error.", "error", err)
-		}
-	})
+	if queue != nil {
+		f.wg.Go(func() {
+			if err := queue.Run(ctx, f.deliver); err != nil && ctx.Err() == nil {
+				slog.ErrorContext(ctx, "Audit fallback queue Run returned error.", "error", err)
+			}
+		})
+	}
 	return f, nil
 }
 
@@ -163,7 +172,7 @@ func (f *FallbackEmitter) EmitAuditEvents(ctx context.Context, events []apievent
 }
 
 func (f *FallbackEmitter) fallbackToQueue(ctx context.Context, primaryErr error, events []apievents.AuditEvent) error {
-	if isForwardedEmit(ctx) {
+	if f.queue == nil || isForwardedEmit(ctx) {
 		return trace.Wrap(primaryErr)
 	}
 
@@ -255,7 +264,10 @@ func (f *FallbackEmitter) emitBatch(ctx context.Context, batch []apievents.Audit
 func (f *FallbackEmitter) Close() error {
 	f.cancel()
 	f.wg.Wait()
-	errs := []error{f.queue.Close()}
+	var errs []error
+	if f.queue != nil {
+		errs = append(errs, f.queue.Close())
+	}
 	if f.cfg.Sealer != nil {
 		errs = append(errs, f.cfg.Sealer.Close())
 	}
@@ -265,6 +277,9 @@ func (f *FallbackEmitter) Close() error {
 // Shutdown makes a best effort attempt to flush pending audit events to the
 // inner emitter before closing.
 func (f *FallbackEmitter) Shutdown(ctx context.Context) error {
+	if f.queue == nil {
+		return trace.Wrap(f.Close())
+	}
 	if err := f.queue.Drain(ctx); err != nil {
 		slog.WarnContext(ctx,
 			"Audit fallback queue drain returned an error during graceful shutdown.",
@@ -274,7 +289,11 @@ func (f *FallbackEmitter) Shutdown(ctx context.Context) error {
 	return trace.Wrap(f.Close())
 }
 
-// Stats reports the current depth of the fallback queue.
+// Stats reports the current depth of the fallback queue. It returns a zero
+// Stats when the fallback queue is disabled.
 func (f *FallbackEmitter) Stats(ctx context.Context) (auditqueue.Stats, error) {
+	if f.queue == nil {
+		return auditqueue.Stats{}, nil
+	}
 	return f.queue.Stats(ctx)
 }
