@@ -6320,7 +6320,7 @@ message GithubAuthRequest {
   string KubernetesCluster = 13 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
   // SSOTestFlow indicates if the request is part of the test flow.
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
-  // ConnectorSpec is embedded connector spec for use in test flow or authenticated user flow.
+  // ConnectorSpec is embedded connector spec for use in test flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
@@ -6345,6 +6345,9 @@ message GithubAuthRequest {
   // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
   // authentication and some differences in locking behavior.
   string scope = 24;
+  // Integration is the name of the GitHub integration used for the
+  // authenticated user flow.
+  string integration = 25 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.

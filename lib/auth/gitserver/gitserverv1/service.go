@@ -39,9 +39,6 @@ type Backend interface {
 
 	// GetIntegration returns the specified integration resources.
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
-
-	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
-	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 }
 
 // GitHubAuthRequestCreator creates a new auth request for GitHub OAuth2 flow.

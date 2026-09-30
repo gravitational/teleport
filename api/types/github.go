@@ -359,20 +359,14 @@ func (r *GithubAuthRequest) Expiry() time.Time {
 
 // Check makes sure the request is valid
 func (r *GithubAuthRequest) Check() error {
-	authenticatedUserFlow := r.AuthenticatedUser != ""
-	regularLoginFlow := !r.SSOTestFlow && !authenticatedUserFlow
-
 	switch {
 	case r.ConnectorID == "":
 		return trace.BadParameter("missing ConnectorID")
 	case r.StateToken == "":
 		return trace.BadParameter("missing StateToken")
-	// we could collapse these two checks into one, but the error message would become ambiguous.
 	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	case authenticatedUserFlow && r.ConnectorSpec == nil:
-		return trace.BadParameter("ConnectorSpec cannot be nil for authenticated user")
-	case regularLoginFlow && r.ConnectorSpec != nil:
+	case !r.SSOTestFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil")
 	}
 	if len(r.SshPublicKey) > 0 {

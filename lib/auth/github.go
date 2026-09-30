@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -495,9 +497,13 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 }
 
 func (a *Server) getGithubConnector(ctx context.Context, request types.GithubAuthRequest) (types.GithubConnector, error) {
-	if request.SSOTestFlow || request.AuthenticatedUser != "" {
+	if request.AuthenticatedUser != "" {
+		return a.githubConnectorFromIntegration(ctx, request)
+	}
+
+	if request.SSOTestFlow {
 		if request.ConnectorSpec == nil {
-			return nil, trace.BadParameter("ConnectorSpec cannot be nil for SSOTestFlow or authenticated user flow")
+			return nil, trace.BadParameter("ConnectorSpec cannot be nil for SSOTestFlow")
 		}
 
 		if request.ConnectorID == "" {
@@ -524,6 +530,57 @@ func (a *Server) getGithubConnector(ctx context.Context, request types.GithubAut
 	}
 
 	return connector, nil
+}
+
+func (a *Server) githubConnectorFromIntegration(ctx context.Context, request types.GithubAuthRequest) (types.GithubConnector, error) {
+	if request.Integration == "" {
+		// For backward compatibility where an old auth node created the request
+		// with ConnectorSpec instead of Integration.
+		// TODO(greedy52) DELETE IN v20
+		if request.ConnectorSpec != nil {
+			return services.NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
+		}
+		return nil, trace.BadParameter("integration name is required for authenticated user flow")
+	}
+
+	ig, ref, err := credentials.GetIntegrationWithCredRef(ctx, request.Integration, a.Cache)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spec := ig.GetGitHubIntegrationSpec()
+	if spec == nil {
+		return nil, trace.BadParameter("integration %q is not a GitHub integration", request.Integration)
+	}
+	cred, err := credentials.GetByPurpose(ctx, ref, credentials.PurposeGitHubOAuth, a.Cache)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientID, clientSecret := cred.GetOAuthClientSecret()
+	if clientID == "" || clientSecret == "" {
+		return nil, trace.BadParameter("no OAuth client ID or secret found for integration %q", request.Integration)
+	}
+
+	redirectURL := fmt.Sprintf("https://%s/v1/webapi/github/callback", a.getProxyPublicAddr(ctx))
+	if spec.OAuthCallbackURL != "" {
+		redirectURL = spec.OAuthCallbackURL
+	}
+
+	connectorID := cmp.Or(request.ConnectorID, request.Integration)
+	return services.NewGithubConnector(connectorID, types.GithubConnectorSpecV3{
+		ClientID:       clientID,
+		ClientSecret:   clientSecret,
+		RedirectURL:    redirectURL,
+		EndpointURL:    types.GithubURL,
+		APIEndpointURL: types.GithubAPIURL,
+		// TODO(greedy52) the GitHub OAuth flow for authenticated user does not
+		// require team-to-roles mapping. Put some placeholders for now to make
+		// param-checks happy.
+		TeamsToRoles: []types.TeamRolesMapping{{
+			Organization: spec.Organization,
+			Team:         connectorID,
+			Roles:        []string{connectorID},
+		}},
+	})
 }
 
 func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
@@ -832,17 +889,27 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 	diagCtx *SSODiagContext,
 	logger *slog.Logger,
 ) (*authclient.GithubAuthResponse, error) {
-	connector, err := a.getGithubConnector(ctx, *req)
-	if err != nil {
-		return nil, trace.Wrap(err, "Failed to get GitHub connector and client.")
-	}
-	ghClient, err := a.getGitHubAPIClient(ctx, connector, code, diagCtx, logger)
+	connector, err := a.githubConnectorFromIntegration(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	githubUser, err := ghClient.getUser()
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	var githubUser *GithubUserResponse
+	if a.GithubUserAndTeamsOverride != nil { // tests only
+		user, _, err := a.GithubUserAndTeamsOverride()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		githubUser = user
+	} else {
+		ghClient, err := a.getGitHubAPIClient(ctx, connector, code, diagCtx, logger)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		githubUser, err = ghClient.getUser()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Attach the new (but secondary) identity.

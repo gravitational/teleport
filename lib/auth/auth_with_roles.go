@@ -5471,6 +5471,12 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
+	// AuthenticatedUser is set internally by the git server service, not by
+	// external callers.
+	if req.AuthenticatedUser != "" {
+		return nil, trace.BadParameter("AuthenticatedUser must not be set by external callers")
+	}
+
 	githubReq, err := a.authServer.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
 		if trace.IsNotFound(err) {

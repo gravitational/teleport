@@ -113,24 +113,24 @@ type IntegrationGetter interface {
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 }
 
-// GetIntegrationRef is a helper to get the PluginStaticCredentialsRef from the
-// integration.
-func GetIntegrationRef(ctx context.Context, integration string, igGetter IntegrationGetter) (*types.PluginStaticCredentialsRef, error) {
+// GetIntegrationWithCredRef is a helper to get the integration and its
+// PluginStaticCredentialsRef.
+func GetIntegrationWithCredRef(ctx context.Context, integration string, igGetter IntegrationGetter) (types.Integration, *types.PluginStaticCredentialsRef, error) {
 	ig, err := igGetter.GetIntegration(ctx, integration)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	cred := ig.GetCredentials()
 	if cred == nil {
-		return nil, trace.BadParameter("no credentials found for %q", integration)
+		return nil, nil, trace.BadParameter("no credentials found for %q", integration)
 	}
 
 	ref := cred.GetStaticCredentialsRef()
 	if ref == nil {
-		return nil, trace.BadParameter("no credentials ref found for %q", integration)
+		return nil, nil, trace.BadParameter("no credentials ref found for %q", integration)
 	}
-	return ref, nil
+	return ig, ref, nil
 }
 
 // GetIntegrationCertAuthorities attempts to retrieve certificate authorities

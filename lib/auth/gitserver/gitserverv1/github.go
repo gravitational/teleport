@@ -20,33 +20,30 @@ package gitserverv1
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/authz"
 )
 
 func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitHubAuthRequestRequest) (*types.GithubAuthRequest, error) {
-	if in.Request == nil {
+	if !in.HasRequest() {
 		return nil, trace.BadParameter("missing github auth request")
 	}
-	if err := types.ValidateGitHubOrganizationName(in.Organization); err != nil {
+	if err := types.ValidateGitHubOrganizationName(in.GetOrganization()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if in.Request.SSOTestFlow {
+	if in.GetRequest().SSOTestFlow {
 		return nil, trace.BadParameter("sso test flow is not supported when creating GitHub auth request for authenticated user")
 	}
-	if in.Request.CreateWebSession {
+	if in.GetRequest().CreateWebSession {
 		return nil, trace.BadParameter("CreateWebSession is not supported when creating GitHub auth request for authenticated user")
 	}
 
-	authCtx, gitServer, err := s.authAndFindServerByOrg(ctx, in.Organization)
+	authCtx, gitServer, err := s.authAndFindServerByOrg(ctx, in.GetOrganization())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,22 +54,16 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 		"integration", gitServer.GetGitHub().Integration,
 	)
 
-	// Make a "temporary" connector spec and save it in the request.
-	uuid := uuid.NewString()
-	spec, err := s.makeGithubConnectorSpec(ctx, uuid, gitServer.GetGitHub().Organization, gitServer.GetGitHub().Integration)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	in.Request.ConnectorID = uuid
-	in.Request.ConnectorSpec = spec
-	in.Request.AuthenticatedUser = authCtx.User.GetName()
-	in.Request.CertTTL = authCtx.Identity.GetIdentity().Expires.Sub(s.cfg.clock.Now())
-	in.Request.ClientLoginIP = authCtx.Identity.GetIdentity().LoginIP
+	// ConnectorID is not meaningful for the integration flow.
+	in.GetRequest().ConnectorID = gitServer.GetGitHub().Integration
+	in.GetRequest().Integration = gitServer.GetGitHub().Integration
+	in.GetRequest().AuthenticatedUser = authCtx.User.GetName()
+	in.GetRequest().CertTTL = authCtx.Identity.GetIdentity().Expires.Sub(s.cfg.clock.Now())
+	in.GetRequest().ClientLoginIP = authCtx.Identity.GetIdentity().LoginIP
 
 	// More params of in.Request will get updated and checked by
 	// s.cfg.GitHubAuthRequestCreator.
-	request, err := s.cfg.GitHubAuthRequestCreator(ctx, *in.Request)
+	request, err := s.cfg.GitHubAuthRequestCreator(ctx, *in.GetRequest())
 	return request, trace.Wrap(err)
 }
 
@@ -103,57 +94,4 @@ func (s *Service) authAndFindServerByOrg(ctx context.Context, org string) (*auth
 		}
 	}
 	return nil, nil, trace.NotFound("git server with organization %q not found", org)
-}
-
-func (s *Service) makeGithubConnectorSpec(ctx context.Context, uuid, org, integration string) (*types.GithubConnectorSpecV3, error) {
-	ref, err := credentials.GetIntegrationRef(ctx, integration, s.cfg.Backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cred, err := credentials.GetByPurpose(ctx, ref, credentials.PurposeGitHubOAuth, s.cfg.Backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clientID, clientSecret := cred.GetOAuthClientSecret()
-	if clientID == "" || clientSecret == "" {
-		return nil, trace.BadParameter("no OAuth client ID or secret found for integration %v", integration)
-	}
-
-	redirectURL, err := s.getGitHubOAuthCallbackURL(ctx, integration)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &types.GithubConnectorSpecV3{
-		ClientID:       clientID,
-		ClientSecret:   clientSecret,
-		RedirectURL:    redirectURL,
-		EndpointURL:    types.GithubURL,
-		APIEndpointURL: types.GithubAPIURL,
-		// TODO(greedy52) the GitHub OAuth flow for authenticated user does not
-		// require team-to-roles mapping. Put some placeholders for now to make
-		// param-checks happy.
-		TeamsToRoles: []types.TeamRolesMapping{{
-			Organization: org,
-			Team:         uuid,
-			Roles:        []string{uuid},
-		}},
-	}, nil
-}
-
-func (s *Service) getGitHubOAuthCallbackURL(ctx context.Context, integrationName string) (string, error) {
-	ig, err := s.cfg.Backend.GetIntegration(ctx, integrationName)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if github := ig.GetGitHubIntegrationSpec(); github != nil && github.OAuthCallbackURL != "" {
-		return github.OAuthCallbackURL, nil
-	}
-
-	// Fallback for integrations that haven't migrated to the full URL.
-	proxyAddr := s.cfg.ProxyPublicAddrGetter(ctx)
-	return fmt.Sprintf("https://%s/v1/webapi/github/callback", proxyAddr), nil
 }
