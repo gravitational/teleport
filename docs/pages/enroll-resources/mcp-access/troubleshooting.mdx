@@ -52,10 +52,17 @@ You can configure this user trait with `tctl`, assigning it to the Teleport user
 $ tctl users update <Var name="my_user" /> --set-mcp-tools "*"
 ```
 
-Alternatively you can assign your Teleport user the preset role `mcp-user` which
-allows access to all MCP servers and their tools. You can also define a custom
-role that explicitly specifies the allowed MCP tools and assigns them to your
-Teleport user. See [RBAC](./rbac.mdx) for more details.
+The `"*"` wildcard grants access to all tools on all MCP servers. This is useful
+for temporary debugging, and can also be a reasonable choice for admin roles or
+for MCP servers whose access is already governed elsewhere (for example, via MCP
+OAuth or a GitHub PAT). Where finer control matters, list specific tools in the
+role instead, keeping in mind that `app_labels` (not the tool list) is what
+determines which MCP servers a role can reach in the first place.
+
+The preset role mcp-user takes the broad approach, allowing access to all MCP
+servers and their tools. For finer control over tools, define a custom role that
+explicitly specifies the allowed MCP tools and assigns them to your Teleport
+user. See [RBAC](./rbac.mdx) for more details.
 
 ## Server disconnected when starting the MCP server
 
@@ -78,7 +85,7 @@ the stdio MCP server on the Teleport Application Service instance has failed to
 execute properly.
 
 To confirm this, check the Application Service logs for any warnings that
-indicate a failure to start the MCP server process — commonly an
+indicate a failure to start the MCP server process, commonly an
 `exec.ExitError`, but it may also include other related execution or runtime
 errors. These typically appear shortly after the client connection is
 established:
@@ -91,7 +98,7 @@ Original Error: *exec.ExitError exit status 1
 To fix the issue, ensure that the Teleport app definition used to start the MCP
 server is configured correctly. You can test it by manually running the
 `app.mcp.command` and `app.mcp.args` directly on the host where the Teleport
-Application Service is running — without using Teleport. Also, make sure the
+Application Service is running without using Teleport. Also, make sure the
 host user set for `mcp.run_as_host_user` exists on the host  and has the
 necessary permissions to execute the configured command.
 

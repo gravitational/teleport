@@ -1,7 +1,7 @@
 ---
 title: MCP Access with SSE MCP Server
 sidebar_label: SSE
-description: How to access MCP server with SSE transport.
+description: Enroll an MCP server that uses SSE transport in your Teleport cluster and connect to it with tsh.
 tags:
 - how-to
 - mcp
@@ -9,11 +9,24 @@ tags:
 page_type: how-to
 ---
 
+<Admonition
+type="warning"
+title="SSE transport is deprecated"
+>
+The Server-Sent Events (SSE) transport was deprecated in MCP specification
+version 2025-03-26 in favor of the Streamable HTTP transport. If your MCP server
+supports Streamable HTTP, follow the [Streamable HTTP guide](./streamable-http.mdx)
+instead.
+
+Existing SSE deployments continue to work, but consider migrating to Streamable
+HTTP for long-term support.
+</Admonition>
+
 Teleport can provide secure access to MCP servers with SSE transport.
 
 This guide shows you how to:
 
-- Enroll a MCP server with SSE transport in your Teleport cluster.
+- Enroll an MCP server with SSE transport in your Teleport cluster.
 - Connect to the SSE MCP server via Teleport.
 
 ## How it works
@@ -31,20 +44,24 @@ access controls such as filtering which tools are available to the user. While
 proxying, Teleport also logs MCP protocol requests as audit events, providing
 visibility into user activity.
 
-<Admonition type="warning">
-HTTP with SSE transport has been deprecated in MCP specification version
-2025-03-26. It is recommended to update your MCP server to use the
-streamable-HTTP transport instead.
-</Admonition>
-
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.3.0 or higher)"!)
 - A host, e.g., an EC2 instance, where you will run the Teleport Application
   Service.
-- The endpoint of the SSE MCP server <Var name="MCP endpoint" initial="http://my-sse-server/sse" />.
+- The URL of the SSE endpoint exposed by your MCP server, including the scheme,
+  host, port, and path, for example,
+  <Var name="MCP endpoint" initial="https://mcp-server.internal:8080/sse" />.
 
 ## Step 1/3. Configure the Teleport Application Service
+
+The `uri` field of the app definition uses the format
+`mcp+sse+<scheme>://<host>:<port><path>`, where the path points to the SSE
+endpoint exposed by your MCP server. For example:
+
+```yaml
+uri: "mcp+sse+https://mcp-server.internal:8080/sse"
+```
 
 (!docs/pages/includes/mcp-access/configure-app-service.mdx extraAppScheme="sse+" !)
 
@@ -71,11 +88,11 @@ everything everything MCP server SSE   env=dev
 
 (!docs/pages/includes/mcp-access/tsh-mcp-config.mdx!)
 
-## Next Steps
+## Next steps
 
 Learn more about protecting MCP servers with Teleport in the following topics:
 
 - [MCP Access Control](../rbac.mdx).
-- [JWT Authentication to MCP server](../jwt.mdx)
-- [Register MCP servers dynamically](../dynamic-registration.mdx)
+- [JWT Authentication to MCP server](../jwt.mdx).
+- [Register MCP servers dynamically](../dynamic-registration.mdx).
 - Configuration and CLI [reference](../reference.mdx).

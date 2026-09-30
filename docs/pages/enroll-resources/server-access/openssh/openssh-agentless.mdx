@@ -97,7 +97,12 @@ Change the command-line options to assign the following values:
 - <Var name="teleport.example.com:443" /> Set to the address and port of your Teleport Proxy Service.
 - <Var name="(=presets.tokens.first=)" /> Set to the join token value.
 
-Check that your new node is listed with `tsh ls` or in the Web UI.
+To confirm that the node registered, run the following command and check that
+the new node appears in the output. You can also find the node in the Web UI.
+
+```code
+$ tsh ls
+```
 
 You can edit the node with `tctl edit nodes/<hostname>` or
 `tctl edit nodes/<UUID>`. The node's UUID can be found in the output of
@@ -355,20 +360,62 @@ $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
 
 </Admonition>
 
-### OpenSSH rate limiting
+## Troubleshooting
 
-Be aware of OpenSSH's built-in rate-limiting. On large numbers of Proxy Service connections, you may encounter errors like:
+### `teleport join openssh` fails with `connection refused`
+
+This error means the `sshd` host can't reach the Teleport Proxy Service at the
+address you passed to `--proxy-server`. From the `sshd` host, check that the
+Proxy Service responds:
+
+```code
+$ curl https://<Var name="teleport.example.com:443" />/webapi/find
+```
+
+A reachable Proxy Service returns a JSON document. If the request fails, check
+DNS resolution and firewall rules between the `sshd` host and the Proxy
+Service.
+
+After you fix the connection, run `teleport join openssh` again from the same
+host. You don't need to delete anything first. The command reuses the host ID
+stored in the Teleport data directory, so the retry updates the existing node
+entry instead of creating a duplicate.
+
+### The node doesn't appear in `tsh ls`
+
+`tsh ls` lists only the nodes that your Teleport roles allow you to access.
+This guide assigns the label `env=dev` to the node, so at least one of your
+roles must allow that label in its `allow.node_labels` field.
+
+To see which roles you have, run the following command:
+
+```code
+$ tsh status
+```
+
+To view a role's `allow.node_labels` field, run the following command,
+replacing <Var name="role-name" /> with a role name from the `tsh status`
+output:
+
+```code
+$ tctl get roles/<Var name="role-name" />
+```
+
+### Connections fail with `ssh: handshake failed: EOF`
+
+When the Proxy Service opens many connections to an OpenSSH server at once,
+OpenSSH's built-in rate limiting can drop some of them, and you may see errors
+like this:
 
 ```txt
 channel 0: open failed: connect failed: ssh: handshake failed: EOF
 ```
 
-See the `MaxStartups` setting in `man sshd_config`. This setting means that by
-default, OpenSSH only allows 10 unauthenticated connections at a time and starts
-dropping connections 30% of the time when the number of connections goes over 10.
-When it hits 100 authentication connections, all new connections are
-dropped.
+The `MaxStartups` setting in `sshd_config` controls this behavior. By default,
+OpenSSH allows 10 unauthenticated connections at a time and drops 30% of new
+connections when the number of unauthenticated connections exceeds 10. When
+the number reaches 100, OpenSSH drops all new connections.
 
-To increase the concurrency level, increase the value to something like
-`MaxStartups 50:30:100`. This allows 50 concurrent connections and a max of 100.
-
+To increase the concurrency level, raise the value in `sshd_config`, for
+example to `MaxStartups 50:30:100`. This setting starts dropping connections
+at 50 unauthenticated connections and drops all new connections at 100.

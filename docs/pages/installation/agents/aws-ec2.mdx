@@ -270,6 +270,7 @@ metadata:
   name: ec2-multiaccount-token
 spec:
   roles: [Node]
+  join_method: ec2
   aws_iid_ttl: 5m
   allow:
   - aws_account: "222222222222"
