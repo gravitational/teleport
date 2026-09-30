@@ -45,6 +45,9 @@ defaultOutput:
   # defaultOutput.enabled(bool) -- controls whether the default output is enabled.
   enabled: true
 
+# scoped(bool) -- configures tbot in scoped mode. When true, tbot must be given a scoped token.
+scoped: false
+
 # argocd -- configures tbot to synchronize Teleport-managed Kubernetes clusters
 # to Argo CD.
 # Ignored if `tbotConfig` is set.

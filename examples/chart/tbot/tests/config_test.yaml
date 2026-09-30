@@ -11,6 +11,11 @@ tests:
       - ../.lint/simple.yaml
     asserts:
       - matchSnapshot: {}
+  - it: should match the snapshot (scoped)
+    values:
+      - ../.lint/scoped.yaml
+    asserts:
+      - matchSnapshot: {}
   - it: should match the snapshot (full)
     values:
       - ../.lint/full.yaml

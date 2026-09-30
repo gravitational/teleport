@@ -28,6 +28,9 @@ storage:
 {{- else }}
   {{- required "'persistence' must be 'secret' or 'disabled'" "" }}
 {{- end }}
+{{- if .Values.scoped }}
+scoped: true
+{{- end }}
 {{- if or (.Values.defaultOutput.enabled) (.Values.argocd.enabled) (.Values.outputs) }}
 outputs:
 {{- if .Values.defaultOutput.enabled }}
