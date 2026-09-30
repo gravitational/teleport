@@ -155,7 +155,18 @@ func NewPROXYHeaderDialer(dialer ContextDialer, headerGetter PROXYHeaderGetter) 
 				conn.Close()
 				return nil, trace.Wrap(err)
 			}
+			// Sending the signed header is part of connection establishment
+			// so it can be canceled by the dialed context.
+			stopClose := context.AfterFunc(ctx, func() {
+				conn.Close()
+			})
 			_, err = conn.Write(signedHeader)
+			// The signed header has been written so do not close the connection
+			// as a result of dial timeout.
+			if !stopClose() {
+				// The context is already canceled.
+				return nil, trace.Wrap(ctx.Err())
+			}
 			if err != nil {
 				conn.Close()
 				return nil, trace.Wrap(err)

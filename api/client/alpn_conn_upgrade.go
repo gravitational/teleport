@@ -197,8 +197,15 @@ func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr s
 		Scheme: "https",
 		Path:   constants.WebAPIConnUpgrade,
 	}
-
+	// Upgrading the connection is part of connection establishment so
+	// close the connection if the dial context is canceled during the upgrade.
+	stopClose := context.AfterFunc(ctx, func() {
+		tlsConn.Close()
+	})
 	conn, err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
+	if !stopClose() {
+		return nil, trace.Wrap(ctx.Err())
+	}
 	if err != nil {
 		return nil, trace.NewAggregate(tlsConn.Close(), err)
 	}

@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 )
 
 // GetClusterCAsFunc is a function to fetch cluster CAs.
@@ -44,8 +46,10 @@ func ClusterCAsFromCertPool(cas *x509.CertPool) GetClusterCAsFunc {
 // ALPNDialerConfig is the config for ALPNDialer.
 type ALPNDialerConfig struct {
 	// KeepAlivePeriod defines period between keep alives.
+	// 0 will revert to the default TCP keepalive idle period in Go (15 sceonds).
 	KeepAlivePeriod time.Duration
 	// DialTimeout defines how long to attempt dialing before timing out.
+	// 0 will revert to the default IO timeout to prevent hanging connections.
 	DialTimeout time.Duration
 	// TLSConfig is the TLS config used for the TLS connection.
 	TLSConfig *tls.Config
@@ -58,6 +62,8 @@ type ALPNDialerConfig struct {
 	// PROXYHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
 	// Used by proxy's web server to make calls on behalf of connected clients.
 	PROXYHeaderGetter PROXYHeaderGetter
+	// baseDialer overrides the base network dialer in tests.
+	baseDialer ContextDialer
 }
 
 // ALPNDialer is a ContextDialer that dials a connection to the Proxy Service
@@ -128,24 +134,38 @@ func (d *ALPNDialer) getTLSConfig(ctx context.Context, addr string) (*tls.Config
 // The returned conn has already completed its TLS handshake. When using it with
 // a http.Transport, wire it in as DialTLSContext not DialContext.
 func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	// The dial timeout is used through:
+	// - fetching the cluster ca (if necessary)
+	// - DNS resolve and TCP connect
+	// - TLS handshake
+	if d.cfg.DialTimeout >= 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cmp.Or(d.cfg.DialTimeout, apidefaults.DefaultIOTimeout))
+		defer cancel()
+	}
+
+	// fetch the cluster ca (if necessary)
 	tlsConfig, err := d.getTLSConfig(ctx, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dialer := NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout,
+	dialer := NewDialer(ctx, d.cfg.KeepAlivePeriod, d.cfg.DialTimeout,
+		withBaseDialer(d.cfg.baseDialer),
 		WithInsecureSkipVerify(d.cfg.TLSConfig.InsecureSkipVerify),
 		WithALPNConnUpgrade(d.cfg.ALPNConnUpgradeRequired),
 		WithALPNConnUpgradePing(shouldALPNConnUpgradeWithPing(tlsConfig)),
 		WithPROXYHeaderGetter(d.cfg.PROXYHeaderGetter),
 	)
 
+	// DNS resolve and TCP connection
 	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	tlsConn := tls.Client(conn, tlsConfig)
+	// TLS handshake
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		defer tlsConn.Close()
 		return nil, trace.Wrap(err)

@@ -743,7 +743,6 @@ func (c *agentPoolRuntimeConfig) alpnDialerConfig(getClusterCAs client.GetCluste
 			NextProtos:         alpncommon.ProtocolsToString(protocols),
 			InsecureSkipVerify: lib.IsInsecureDevMode(),
 		},
-		KeepAlivePeriod:         c.keepAliveInterval,
 		ALPNConnUpgradeRequired: c.tlsRoutingConnUpgradeRequired,
 		GetClusterCAs:           getClusterCAs,
 	}
