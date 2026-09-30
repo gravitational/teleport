@@ -89,4 +89,11 @@ type Token interface {
 	GetCircleCI() *types.ProvisionTokenSpecV2CircleCI
 	// GetBitbucket returns the Bitbucket-specific configuration for this token.
 	GetBitbucket() *types.ProvisionTokenSpecV2Bitbucket
+	// GetTerraformCloud returns the Terraform Cloud-specific configuration for
+	// this token.
+	GetTerraformCloud() *types.ProvisionTokenSpecV2TerraformCloud
+	// GetSpacelift returns the Spacelift-specific configuration for this token.
+	GetSpacelift() *types.ProvisionTokenSpecV2Spacelift
+	// GetEnv0 returns the env0-specific configuration for this token.
+	GetEnv0() *types.ProvisionTokenSpecV2Env0
 }

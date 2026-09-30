@@ -119,17 +119,14 @@ func CheckIDToken(
 		return nil, trace.Wrap(err)
 	}
 
-	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("spacelift join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
-	}
+	spec := params.ProvisionToken.GetSpacelift()
 
 	if modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.Wrap(services.ErrRequiresEnterprise, "spacelift joining")
 	}
 
 	claims, err := params.Validator.Validate(
-		ctx, token.Spec.Spacelift.Hostname, string(params.IDToken),
+		ctx, spec.Hostname, string(params.IDToken),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -137,15 +134,15 @@ func CheckIDToken(
 
 	log.InfoContext(ctx, "Spacelift run trying to join cluster",
 		"claims", claims,
-		"token", token.GetName(),
+		"token", params.ProvisionToken.GetName(),
 	)
 
-	return claims, trace.Wrap(checkSpaceliftAllowRules(token, claims))
+	return claims, trace.Wrap(checkSpaceliftAllowRules(spec, claims))
 }
 
-func checkSpaceliftAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
+func checkSpaceliftAllowRules(spec *types.ProvisionTokenSpecV2Spacelift, claims *IDTokenClaims) error {
 	globCheck := func(want string, got string) (bool, error) {
-		if token.Spec.Spacelift.EnableGlobMatching {
+		if spec.EnableGlobMatching {
 			return joinutils.GlobMatchAllowEmptyPattern(want, got)
 		}
 		if want == "" {
@@ -155,7 +152,7 @@ func checkSpaceliftAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClai
 	}
 
 	// If a single rule passes, accept the IDToken
-	for i, rule := range token.Spec.Spacelift.Allow {
+	for i, rule := range spec.Allow {
 		// Please consider keeping these field validators in the same order they
 		// are defined within the ProvisionTokenSpecV2Spacelift proto spec.
 		spaceIDMatch, err := globCheck(rule.SpaceID, claims.SpaceID)

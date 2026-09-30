@@ -123,12 +123,9 @@ func CheckIDToken(
 		return nil, trace.AccessDenied("%s", err.Error())
 	}
 
-	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("terraform_cloud join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
-	}
+	spec := params.ProvisionToken.GetTerraformCloud()
 
-	hostnameOverride := token.Spec.TerraformCloud.Hostname
+	hostnameOverride := spec.Hostname
 	if hostnameOverride != "" && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.Wrap(
 			services.ErrRequiresEnterprise,
@@ -136,7 +133,7 @@ func CheckIDToken(
 		)
 	}
 
-	aud := token.Spec.TerraformCloud.Audience
+	aud := spec.Audience
 	if aud == "" {
 		aud = params.ClusterName
 	}
@@ -150,14 +147,14 @@ func CheckIDToken(
 
 	log.InfoContext(ctx, "Terraform Cloud run trying to join cluster",
 		"claims", claims,
-		"token", token.GetName(),
+		"token", params.ProvisionToken.GetName(),
 	)
 
-	return claims, trace.Wrap(checkTerraformCloudAllowRules(token, claims))
+	return claims, trace.Wrap(checkTerraformCloudAllowRules(spec, claims))
 }
 
-func checkTerraformCloudAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
-	for _, rule := range token.Spec.TerraformCloud.Allow {
+func checkTerraformCloudAllowRules(spec *types.ProvisionTokenSpecV2TerraformCloud, claims *IDTokenClaims) error {
+	for _, rule := range spec.Allow {
 		if rule.OrganizationID != "" && claims.OrganizationID != rule.OrganizationID {
 			continue
 		}

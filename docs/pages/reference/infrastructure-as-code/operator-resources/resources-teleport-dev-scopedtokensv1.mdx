@@ -35,6 +35,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |bot|string|The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.|
 |bound_keypair|[object](#specbound_keypair)|Configuration specific to the "bound_keypair" join method.|
 |circleci|[object](#speccircleci)|Configuration specific to the "circleci" join method|
+|env0|[object](#specenv0)|Configuration specific to the "env0" join method.|
 |gcp|[object](#specgcp)|The GCP-specific configuration used with the "gcp" join method.|
 |generic_oidc|[object](#specgeneric_oidc)|Configuration specific to the "generic_oidc" join method.|
 |github|[object](#specgithub)|Configuration specific to the "github" join method.|
@@ -44,6 +45,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes|[object](#speckubernetes)|The Kubernetes-specific configuration used with the "kubernetes" join method.|
 |oracle|[object](#specoracle)|The Oracle-specific configuration used with the "oracle" join method.|
 |roles|[]string|The list of roles associated with the token. They will be converted to metadata in the SSH and X509 certificates issued to the user of the token.|
+|spacelift|[object](#specspacelift)|Configuration specific to the "spacelift" join method.|
+|terraform_cloud|[object](#specterraform_cloud)|Configuration specific to the "terraform_cloud" join method.|
 |tpm|[object](#spectpm)|Configuration specific to the "tpm" join method.|
 |usage_mode|string|The usage mode of the token. Can be "single_use" or "unlimited". Single use tokens can only be used to provision a single resource. Unlimited tokens can be be used to provision any number of resources until it expires.|
 
@@ -152,6 +155,28 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |context_id|string||
 |project_id|string||
+
+### spec.env0
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specenv0allow-items)|A list of rules allowed by this token. Clients attempting to join must present a JWT matching at least one of these rules.|
+
+### spec.env0.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|deployer_email|string||
+|deployment_type|string||
+|env0_tag|string||
+|environment_id|string||
+|environment_name|string||
+|organization_id|string||
+|project_id|string||
+|project_name|string||
+|template_id|string||
+|template_name|string||
+|workspace_name|string||
 
 ### spec.gcp
 
@@ -330,6 +355,43 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |parent_compartments|[]string||
 |regions|[]string||
 |tenancy|string||
+
+### spec.spacelift
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specspaceliftallow-items)|A list of rules allowed by this token. Clients attempting to join must present a JWT matching at least one of these rules.|
+|enable_glob_matching|boolean|Enables glob-style matching for the space_id and caller_id fields in the rules.|
+|hostname|string|The hostname of the Spacelift tenant that tokens will originate from, e.g. `example.app.spacelift.io`|
+
+### spec.spacelift.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|caller_id|string||
+|caller_type|string||
+|scope|string||
+|space_id|string||
+
+### spec.terraform_cloud
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specterraform_cloudallow-items)|A list of rules allowed by this token. Clients attempting to join must present a JWT matching at least one of these rules.|
+|audience|string|The JWT audience (`aud`) to expect as configured in the `TFC_WORKLOAD_IDENTITY_AUDIENCE_($TAG)` variable set in Terraform Cloud. If unset, defaults to the Teleport cluster name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in Terraform Cloud, this value should be `foo`. If the value is your Teleport cluster name, it does not need to be configured here.|
+|hostname|string|The hostname of the Terraform Enterprise instance expected to issue JWTs accepted by this token. If unset, it defaults to the default Terraform Cloud issuer, `app.terraform.io`; otherwise, it must match the `iss` field in JWTs issued by the Terraform Enterprise provider.|
+
+### spec.terraform_cloud.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|organization_id|string||
+|organization_name|string||
+|project_id|string||
+|project_name|string||
+|run_phase|string||
+|workspace_id|string||
+|workspace_name|string||
 
 ### spec.tpm
 

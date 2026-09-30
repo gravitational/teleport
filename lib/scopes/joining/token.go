@@ -546,6 +546,101 @@ func validateBitbucket(spec *joiningv1.Bitbucket) error {
 	return nil
 }
 
+// validateTerraformCloud validates the TF Cloud-specific scoped token
+// configuration. Checks here were replicated from
+// ProvisionTokenSpecV2TerraformCloud.checkAndSetDefaults().
+func validateTerraformCloud(spec *joiningv1.TerraformCloud) error {
+	if spec == nil {
+		return trace.BadParameter("terraform_cloud: .spec.terraform_cloud is required for this join method")
+	}
+
+	if len(spec.GetAllow()) == 0 {
+		return trace.BadParameter("terraform_cloud: .spec.terraform_cloud.allow requires at least one rule")
+	}
+
+	// Note: Audience and Hostname have defaults and are not checked.
+
+	for i, rule := range spec.GetAllow() {
+		orgSet := rule.GetOrganizationId() != "" || rule.GetOrganizationName() != ""
+		projectSet := rule.GetProjectId() != "" || rule.GetProjectName() != ""
+		workspaceSet := rule.GetWorkspaceId() != "" || rule.GetWorkspaceName() != ""
+
+		if !orgSet {
+			return trace.BadParameter(
+				"terraform_cloud: .spec.terraform_cloud.allow[%d]: one of "+
+					"['organization_id', 'organization_name'] must be set", i)
+		}
+
+		if !projectSet && !workspaceSet {
+			return trace.BadParameter(
+				"terraform_cloud: .spec.terraform_cloud.allow[%d]: at least "+
+					"one of ['project_id', 'project_name', 'workspace_id', "+
+					"'workspace_name'] must be set", i)
+		}
+	}
+
+	return nil
+}
+
+// validateSpacelift validates the Spacelift-specific scoped token
+// configuration. Checks here were replicated from
+// ProvisionTokenSpecV2Spacelift.checkAndSetDefaults().
+func validateSpacelift(spec *joiningv1.Spacelift) error {
+	if spec == nil {
+		return trace.BadParameter("spacelift: .spec.spacelift is required for this join method")
+	}
+
+	if spec.GetHostname() == "" {
+		return trace.BadParameter("spacelift: .spec.spacelift.hostname: " +
+			"should be set to the hostname of the spacelift tenant")
+	}
+
+	if strings.Contains(spec.GetHostname(), "/") {
+		return trace.BadParameter("spacelift: .spec.spacelift.hostname: " +
+			"should not contain the scheme or path")
+	}
+
+	if len(spec.GetAllow()) == 0 {
+		return trace.BadParameter("spacelift: .spec.spacelift.allow: at least one rule must be set")
+	}
+
+	for i, allowRule := range spec.GetAllow() {
+		if allowRule.GetSpaceId() == "" && allowRule.GetCallerId() == "" {
+			return trace.BadParameter("spacelift: .spec.spacelift.allow[%d]: "+
+				"at least one of ['space_id', 'caller_id'] must be set", i)
+		}
+	}
+
+	return nil
+}
+
+// validateEnv0 validates the Env0-specific scoped token configuration. Checks
+// here were replicated from ProvisionTokenSpecV2Env0.checkAndSetDefaults().
+func validateEnv0(spec *joiningv1.Env0) error {
+	if spec == nil {
+		return trace.BadParameter("env0: .spec.env0 is required for this join method")
+	}
+
+	if len(spec.GetAllow()) == 0 {
+		return trace.BadParameter("env0: the %q join method requires at least "+
+			"one token allow rule", types.JoinMethodEnv0)
+	}
+
+	for i, allowRule := range spec.GetAllow() {
+		if allowRule.GetOrganizationId() == "" {
+			return trace.BadParameter("env0: .spec.env0.allow[%d]: "+
+				"organization_id must be set", i)
+		}
+
+		if allowRule.GetProjectId() == "" && allowRule.GetProjectName() == "" {
+			return trace.BadParameter("env0: spec.env0.allow[%d]: at least "+
+				"one of ['project_id', 'project_name'] must be set", i)
+		}
+	}
+
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -583,6 +678,12 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(validateCircleCI(token.GetSpec().GetCircleci()), "circleci join method")
 	case types.JoinMethodBitbucket:
 		return trace.Wrap(validateBitbucket(token.GetSpec().GetBitbucket()), "bitbucket join method")
+	case types.JoinMethodTerraformCloud:
+		return trace.Wrap(validateTerraformCloud(token.GetSpec().GetTerraformCloud()), "terraform_cloud join method")
+	case types.JoinMethodSpacelift:
+		return trace.Wrap(validateSpacelift(token.GetSpec().GetSpacelift()), "spacelift join method")
+	case types.JoinMethodEnv0:
+		return trace.Wrap(validateEnv0(token.GetSpec().GetEnv0()), "env0 join method")
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -1337,6 +1438,83 @@ func (t *Token) GetBitbucket() *types.ProvisionTokenSpecV2Bitbucket {
 		Audience:            spec.GetAudience(),
 		IdentityProviderURL: spec.GetIdentityProviderUrl(),
 		Allow:               allow,
+	}
+}
+
+// GetTerraformCloud returns the TF Cloud specific configuration for this token.
+// Returns an empty but not nil value if terraform_cloud configuration was not
+// specified.
+func (t *Token) GetTerraformCloud() *types.ProvisionTokenSpecV2TerraformCloud {
+	spec := t.scoped.GetSpec().GetTerraformCloud()
+
+	allow := make([]*types.ProvisionTokenSpecV2TerraformCloud_Rule, len(spec.GetAllow()))
+	for i, rule := range spec.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2TerraformCloud_Rule{
+			OrganizationID:   rule.GetOrganizationId(),
+			OrganizationName: rule.GetOrganizationName(),
+			ProjectID:        rule.GetProjectId(),
+			ProjectName:      rule.GetProjectName(),
+			WorkspaceID:      rule.GetWorkspaceId(),
+			WorkspaceName:    rule.GetWorkspaceName(),
+			RunPhase:         rule.GetRunPhase(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2TerraformCloud{
+		Audience: spec.GetAudience(),
+		Hostname: spec.GetHostname(),
+		Allow:    allow,
+	}
+}
+
+// GetSpacelift returns the Spacelift specific configuration for this token.
+// Returns an empty but not nil value if spacelift configuration was not
+// specified.
+func (t *Token) GetSpacelift() *types.ProvisionTokenSpecV2Spacelift {
+	spec := t.scoped.GetSpec().GetSpacelift()
+
+	allow := make([]*types.ProvisionTokenSpecV2Spacelift_Rule, len(spec.GetAllow()))
+	for i, rule := range spec.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Spacelift_Rule{
+			SpaceID:    rule.GetSpaceId(),
+			CallerID:   rule.GetCallerId(),
+			CallerType: rule.GetCallerType(),
+			Scope:      rule.GetScope(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Spacelift{
+		Hostname:           spec.GetHostname(),
+		EnableGlobMatching: spec.GetEnableGlobMatching(),
+		Allow:              allow,
+	}
+}
+
+// GetEnv0 returns the Env0 specific configuration for this token.
+// Returns an empty but not nil value if env0 configuration was not
+// specified.
+func (t *Token) GetEnv0() *types.ProvisionTokenSpecV2Env0 {
+	spec := t.scoped.GetSpec().GetEnv0()
+
+	allow := make([]*types.ProvisionTokenSpecV2Env0_Rule, len(spec.GetAllow()))
+	for i, rule := range spec.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Env0_Rule{
+			OrganizationID:  rule.GetOrganizationId(),
+			ProjectID:       rule.GetProjectId(),
+			ProjectName:     rule.GetProjectName(),
+			TemplateID:      rule.GetTemplateId(),
+			TemplateName:    rule.GetTemplateName(),
+			EnvironmentID:   rule.GetEnvironmentId(),
+			EnvironmentName: rule.GetEnvironmentName(),
+			WorkspaceName:   rule.GetWorkspaceName(),
+			DeploymentType:  rule.GetDeploymentType(),
+			DeployerEmail:   rule.GetDeployerEmail(),
+			Env0Tag:         rule.GetEnv0Tag(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Env0{
+		Allow: allow,
 	}
 }
 

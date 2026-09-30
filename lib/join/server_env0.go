@@ -46,12 +46,8 @@ func (s *Server) validateEnv0Token(
 		return nil, nil, trace.Wrap(err, "validating Env0 OIDC token")
 	}
 
-	ptv2, ok := provisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", provisionToken)
-	}
-
-	if err := checkEnv0AllowRules(ptv2, verifiedIdentity); err != nil {
+	spec := provisionToken.GetEnv0()
+	if err := checkEnv0AllowRules(spec, verifiedIdentity); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -60,8 +56,8 @@ func (s *Server) validateEnv0Token(
 	}, nil
 }
 
-func checkEnv0AllowRules(token *types.ProvisionTokenV2, claims *env0.IDTokenClaims) error {
-	for _, rule := range token.Spec.Env0.Allow {
+func checkEnv0AllowRules(spec *types.ProvisionTokenSpecV2Env0, claims *env0.IDTokenClaims) error {
+	for _, rule := range spec.Allow {
 		if rule.OrganizationID != "" && claims.OrganizationID != rule.OrganizationID {
 			continue
 		}
