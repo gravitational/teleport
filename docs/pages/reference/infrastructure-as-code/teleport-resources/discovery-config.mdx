@@ -524,6 +524,7 @@ aws_rds: # [...]
 aws_eks: # [...]
 azure_vms: # [...]
 azure_aks: # [...]
+azure_windows_vms: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -533,6 +534,7 @@ azure_aks: # [...]
 |aws_rds|AWSRDS contains the summary for the AWS RDS discovered databases.|[Resource Summary](#resource-summary)|
 |azure_aks|The summary for the Azure AKS discovered clusters.|[Resource Summary](#resource-summary)|
 |azure_vms|The summary for the Azure VM discovered instances.|[Resource Summary](#resource-summary)|
+|azure_windows_vms|The summary for the Azure Windows VM discovered instances.|[Resource Summary](#resource-summary)|
 
 ## Discovery Status Server
 
@@ -638,6 +640,9 @@ enroll_mode: # [...]
 suffix: "string"
 update_group: "string"
 http_proxy_settings: # [...]
+windows_script_name: "string"
+restart_after_enrollment: true
+skip_installation: true
 ```
 
 |Field Name|Description|Type|
@@ -649,10 +654,13 @@ http_proxy_settings: # [...]
 |join_method|The method to use when joining the cluster|[Join Method](#join-method)|
 |join_token|The token to use when joining the cluster|string|
 |proxy_addr|The address of the proxy the discovered node should use to connect to the cluster.|string|
+|restart_after_enrollment|Restart_after_enrollment indicates whether the node should be restarted after enrollment. This currently only applies to Windows machines which require a restart for the installed agent to function properly.|Boolean|
 |script_name|The name of the teleport installer script resource for the cloud instance to execute|string|
+|skip_installation|Skip_installation indicates whether the installation should be skipped. This is useful for cases where the VM already has the Windows auth package installed and it just needs to enroll into the cluster.|Boolean|
 |sshd_config|Provides the path to write sshd configuration changes|string|
 |suffix|Indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.|string|
 |update_group|Indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.|string|
+|windows_script_name|Windows_script_name is the name of the teleport installer script resource for the cloud instance to execute on Windows.|string|
 
 ## Integration Discovered Summary
 
@@ -667,6 +675,7 @@ aws_rds: # [...]
 aws_eks: # [...]
 azure_vms: # [...]
 azure_aks: # [...]
+azure_windows_vms: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -676,6 +685,7 @@ azure_aks: # [...]
 |aws_rds|AWSRDS contains the summary for the AWS RDS discovered databases.|[Resources Discovered Summary](#resources-discovered-summary)|
 |azure_aks|The summary for the Azure AKS discovered clusters.|[Resources Discovered Summary](#resources-discovered-summary)|
 |azure_vms|The summary for the Azure VM discovered instances.|[Resources Discovered Summary](#resources-discovered-summary)|
+|azure_windows_vms|The summary for the Azure Windows VM discovered instances.|[Resources Discovered Summary](#resources-discovered-summary)|
 
 ## Join Method
 

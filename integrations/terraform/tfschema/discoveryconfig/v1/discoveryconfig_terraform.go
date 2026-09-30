@@ -322,11 +322,23 @@ func GenSchemaDiscoveryConfigResource(ctx context.Context) (github_com_hashicorp
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
+								"restart_after_enrollment": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
+									Computed:      true,
+									Description:   "restart_after_enrollment indicates whether the node should be restarted after enrollment. This currently only applies to Windows machines which require a restart for the installed agent to function properly.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Bool{github_com_hashicorp_terraform_plugin_framework_resource_schema_boolplanmodifier.UseStateForUnknown()},
+								},
 								"script_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
 									Description:   "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"skip_installation": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
+									Computed:      true,
+									Description:   "skip_installation indicates whether the installation should be skipped. This is useful for cases where the VM already has the Windows auth package installed and it just needs to enroll into the cluster.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Bool{github_com_hashicorp_terraform_plugin_framework_resource_schema_boolplanmodifier.UseStateForUnknown()},
 								},
 								"sshd_config": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
@@ -343,6 +355,12 @@ func GenSchemaDiscoveryConfigResource(ctx context.Context) (github_com_hashicorp
 								"update_group": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
 									Description:   "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"windows_script_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "windows_script_name is the name of the teleport installer script resource for the cloud instance to execute on Windows.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
@@ -504,11 +522,23 @@ func GenSchemaDiscoveryConfigResource(ctx context.Context) (github_com_hashicorp
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
+								"restart_after_enrollment": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
+									Computed:      true,
+									Description:   "restart_after_enrollment indicates whether the node should be restarted after enrollment. This currently only applies to Windows machines which require a restart for the installed agent to function properly.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Bool{github_com_hashicorp_terraform_plugin_framework_resource_schema_boolplanmodifier.UseStateForUnknown()},
+								},
 								"script_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
 									Description:   "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"skip_installation": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
+									Computed:      true,
+									Description:   "skip_installation indicates whether the installation should be skipped. This is useful for cases where the VM already has the Windows auth package installed and it just needs to enroll into the cluster.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Bool{github_com_hashicorp_terraform_plugin_framework_resource_schema_boolplanmodifier.UseStateForUnknown()},
 								},
 								"sshd_config": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
@@ -525,6 +555,12 @@ func GenSchemaDiscoveryConfigResource(ctx context.Context) (github_com_hashicorp
 								"update_group": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
 									Description:   "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"windows_script_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "windows_script_name is the name of the teleport installer script resource for the cloud instance to execute on Windows.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
@@ -654,11 +690,23 @@ func GenSchemaDiscoveryConfigResource(ctx context.Context) (github_com_hashicorp
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
+								"restart_after_enrollment": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
+									Computed:      true,
+									Description:   "restart_after_enrollment indicates whether the node should be restarted after enrollment. This currently only applies to Windows machines which require a restart for the installed agent to function properly.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Bool{github_com_hashicorp_terraform_plugin_framework_resource_schema_boolplanmodifier.UseStateForUnknown()},
+								},
 								"script_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
 									Description:   "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"skip_installation": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
+									Computed:      true,
+									Description:   "skip_installation indicates whether the installation should be skipped. This is useful for cases where the VM already has the Windows auth package installed and it just needs to enroll into the cluster.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Bool{github_com_hashicorp_terraform_plugin_framework_resource_schema_boolplanmodifier.UseStateForUnknown()},
 								},
 								"sshd_config": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
@@ -675,6 +723,12 @@ func GenSchemaDiscoveryConfigResource(ctx context.Context) (github_com_hashicorp
 								"update_group": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
 									Description:   "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"windows_script_name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "windows_script_name is the name of the teleport installer script resource for the cloud instance to execute on Windows.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
@@ -997,9 +1051,19 @@ func GenSchemaDiscoveryConfigDataSource(ctx context.Context) (github_com_hashico
 									Description: "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
 									Optional:    true,
 								},
+								"restart_after_enrollment": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
+									Computed:    true,
+									Description: "restart_after_enrollment indicates whether the node should be restarted after enrollment. This currently only applies to Windows machines which require a restart for the installed agent to function properly.",
+									Optional:    true,
+								},
 								"script_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
 									Description: "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
+									Optional:    true,
+								},
+								"skip_installation": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
+									Computed:    true,
+									Description: "skip_installation indicates whether the installation should be skipped. This is useful for cases where the VM already has the Windows auth package installed and it just needs to enroll into the cluster.",
 									Optional:    true,
 								},
 								"sshd_config": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
@@ -1015,6 +1079,11 @@ func GenSchemaDiscoveryConfigDataSource(ctx context.Context) (github_com_hashico
 								"update_group": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
 									Description: "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+								},
+								"windows_script_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "windows_script_name is the name of the teleport installer script resource for the cloud instance to execute on Windows.",
 									Optional:    true,
 								},
 							},
@@ -1155,9 +1224,19 @@ func GenSchemaDiscoveryConfigDataSource(ctx context.Context) (github_com_hashico
 									Description: "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
 									Optional:    true,
 								},
+								"restart_after_enrollment": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
+									Computed:    true,
+									Description: "restart_after_enrollment indicates whether the node should be restarted after enrollment. This currently only applies to Windows machines which require a restart for the installed agent to function properly.",
+									Optional:    true,
+								},
 								"script_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
 									Description: "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
+									Optional:    true,
+								},
+								"skip_installation": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
+									Computed:    true,
+									Description: "skip_installation indicates whether the installation should be skipped. This is useful for cases where the VM already has the Windows auth package installed and it just needs to enroll into the cluster.",
 									Optional:    true,
 								},
 								"sshd_config": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
@@ -1173,6 +1252,11 @@ func GenSchemaDiscoveryConfigDataSource(ctx context.Context) (github_com_hashico
 								"update_group": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
 									Description: "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+								},
+								"windows_script_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "windows_script_name is the name of the teleport installer script resource for the cloud instance to execute on Windows.",
 									Optional:    true,
 								},
 							},
@@ -1283,9 +1367,19 @@ func GenSchemaDiscoveryConfigDataSource(ctx context.Context) (github_com_hashico
 									Description: "PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.",
 									Optional:    true,
 								},
+								"restart_after_enrollment": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
+									Computed:    true,
+									Description: "restart_after_enrollment indicates whether the node should be restarted after enrollment. This currently only applies to Windows machines which require a restart for the installed agent to function properly.",
+									Optional:    true,
+								},
 								"script_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
 									Description: "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
+									Optional:    true,
+								},
+								"skip_installation": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
+									Computed:    true,
+									Description: "skip_installation indicates whether the installation should be skipped. This is useful for cases where the VM already has the Windows auth package installed and it just needs to enroll into the cluster.",
 									Optional:    true,
 								},
 								"sshd_config": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
@@ -1301,6 +1395,11 @@ func GenSchemaDiscoveryConfigDataSource(ctx context.Context) (github_com_hashico
 								"update_group": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
 									Description: "UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.",
+									Optional:    true,
+								},
+								"windows_script_name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "windows_script_name is the name of the teleport installer script resource for the cloud instance to execute on Windows.",
 									Optional:    true,
 								},
 							},
@@ -2003,6 +2102,57 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attributes()["windows_script_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Params.windows_script_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.windows_script_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.WindowsScriptName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["restart_after_enrollment"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Params.restart_after_enrollment"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.restart_after_enrollment", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueBool())
+																			}
+																			obj.RestartAfterEnrollment = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["skip_installation"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Params.skip_installation"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.skip_installation", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueBool())
+																			}
+																			obj.SkipInstallation = t
+																		}
+																	}
+																}
 															}
 														}
 													}
@@ -2615,6 +2765,57 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attributes()["windows_script_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.azure.Params.windows_script_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.windows_script_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.WindowsScriptName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["restart_after_enrollment"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.azure.Params.restart_after_enrollment"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.restart_after_enrollment", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueBool())
+																			}
+																			obj.RestartAfterEnrollment = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["skip_installation"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.azure.Params.skip_installation"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.skip_installation", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueBool())
+																			}
+																			obj.SkipInstallation = t
+																		}
+																	}
+																}
 															}
 														}
 													}
@@ -3048,6 +3249,57 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																					}
 																				}
 																			}
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["windows_script_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.gcp.Params.windows_script_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.windows_script_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.WindowsScriptName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["restart_after_enrollment"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.gcp.Params.restart_after_enrollment"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.restart_after_enrollment", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueBool())
+																			}
+																			obj.RestartAfterEnrollment = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["skip_installation"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.gcp.Params.skip_installation"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.skip_installation", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueBool())
+																			}
+																			obj.SkipInstallation = t
 																		}
 																	}
 																}
@@ -4115,6 +4367,36 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																							}
 																						}
 																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["windows_script_name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.WindowsScriptName))
+																						}
+																						attrs["windows_script_name"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["restart_after_enrollment"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolValue(bool(obj.RestartAfterEnrollment))
+																						}
+																						attrs["restart_after_enrollment"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["skip_installation"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolValue(bool(obj.SkipInstallation))
+																						}
+																						attrs["skip_installation"] = v
+																					}
 																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 																					diags.Append(resultDiags...)
 																					return result
@@ -4789,6 +5071,36 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																							}
 																						}
 																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["windows_script_name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.WindowsScriptName))
+																						}
+																						attrs["windows_script_name"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["restart_after_enrollment"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolValue(bool(obj.RestartAfterEnrollment))
+																						}
+																						attrs["restart_after_enrollment"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["skip_installation"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolValue(bool(obj.SkipInstallation))
+																						}
+																						attrs["skip_installation"] = v
+																					}
 																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 																					diags.Append(resultDiags...)
 																					return result
@@ -5245,6 +5557,36 @@ func CopyDiscoveryConfigToTerraformPreserveUnknown(ctx context.Context, obj *git
 																								attrs["http_proxy_settings"] = v
 																							}
 																						}
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["windows_script_name"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.WindowsScriptName))
+																						}
+																						attrs["windows_script_name"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["restart_after_enrollment"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolValue(bool(obj.RestartAfterEnrollment))
+																						}
+																						attrs["restart_after_enrollment"] = v
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["skip_installation"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.BoolValue(bool(obj.SkipInstallation))
+																						}
+																						attrs["skip_installation"] = v
 																					}
 																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 																					diags.Append(resultDiags...)

@@ -228,10 +228,13 @@ Optional:
 - `join_method` (String) JoinMethod is the method to use when joining the cluster
 - `join_token` (String) JoinToken is the token to use when joining the cluster
 - `proxy_addr` (String) PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.
+- `restart_after_enrollment` (Boolean) restart_after_enrollment indicates whether the node should be restarted after enrollment. This currently only applies to Windows machines which require a restart for the installed agent to function properly.
 - `script_name` (String) ScriptName is the name of the teleport installer script resource for the cloud instance to execute
+- `skip_installation` (Boolean) skip_installation indicates whether the installation should be skipped. This is useful for cases where the VM already has the Windows auth package installed and it just needs to enroll into the cluster.
 - `sshd_config` (String) SSHDConfig provides the path to write sshd configuration changes
 - `suffix` (String) Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.
 - `update_group` (String) UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.
+- `windows_script_name` (String) windows_script_name is the name of the teleport installer script resource for the cloud instance to execute on Windows.
 
 ### Nested Schema for `spec.aws.install.azure`
 
@@ -300,10 +303,13 @@ Optional:
 - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specazureinstall_paramshttp_proxy_settings))
 - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
 - `proxy_addr` (String) PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.
+- `restart_after_enrollment` (Boolean) restart_after_enrollment indicates whether the node should be restarted after enrollment. This currently only applies to Windows machines which require a restart for the installed agent to function properly.
 - `script_name` (String) ScriptName is the name of the teleport installer script resource for the cloud instance to execute
+- `skip_installation` (Boolean) skip_installation indicates whether the installation should be skipped. This is useful for cases where the VM already has the Windows auth package installed and it just needs to enroll into the cluster.
 - `sshd_config` (String) SSHDConfig provides the path to write sshd configuration changes
 - `suffix` (String) Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.
 - `update_group` (String) UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.
+- `windows_script_name` (String) windows_script_name is the name of the teleport installer script resource for the cloud instance to execute on Windows.
 
 ### Nested Schema for `spec.azure.install_params.azure`
 
@@ -346,10 +352,13 @@ Optional:
 - `join_method` (String) JoinMethod is the method to use when joining the cluster
 - `join_token` (String) JoinToken is the token to use when joining the cluster
 - `proxy_addr` (String) PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.
+- `restart_after_enrollment` (Boolean) restart_after_enrollment indicates whether the node should be restarted after enrollment. This currently only applies to Windows machines which require a restart for the installed agent to function properly.
 - `script_name` (String) ScriptName is the name of the teleport installer script resource for the cloud instance to execute
+- `skip_installation` (Boolean) skip_installation indicates whether the installation should be skipped. This is useful for cases where the VM already has the Windows auth package installed and it just needs to enroll into the cluster.
 - `sshd_config` (String) SSHDConfig provides the path to write sshd configuration changes
 - `suffix` (String) Suffix indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.
 - `update_group` (String) UpdateGroup indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.
+- `windows_script_name` (String) windows_script_name is the name of the teleport installer script resource for the cloud instance to execute on Windows.
 
 ### Nested Schema for `spec.gcp.install_params.azure`
 
