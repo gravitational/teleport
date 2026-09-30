@@ -3474,6 +3474,11 @@ export const events = [
     session_id: '123456',
     success: true,
     service_provider_entity_id: 'valid-entity-id',
+    ca_override: {
+      active: true,
+      public_key_hash:
+        'f4522365888fdddcf3c854e79e5928447fe1a2388353efb2f0d30db8ba7c81bc',
+    },
   },
   {
     code: 'TSI000I',

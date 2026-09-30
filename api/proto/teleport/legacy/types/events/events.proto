@@ -7283,6 +7283,9 @@ message SAMLIdPAuthAttempt {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // CA override details. Optional.
+  CAOverrideCertificateDetails CAOverride = 6 [(gogoproto.jsontag) = "ca_override,omitempty"];
 }
 
 // SAMLIdPServiceProviderCreate is emitted when a service provider has been added.
