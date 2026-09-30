@@ -101,10 +101,16 @@ spec:
                           items:
                             properties:
                               end:
+                                description: End specifies the end time in the format
+                                  HH:MM, e.g., "12:30".
                                 type: string
                               start:
+                                description: Start specifies the start time in the
+                                  format HH:MM, e.g., "12:30".
                                 type: string
                               weekday:
+                                description: Weekday specifies the day of the week,
+                                  e.g., "Sunday", "Monday", "Tuesday".
                                 type: string
                             type: object
                           nullable: true

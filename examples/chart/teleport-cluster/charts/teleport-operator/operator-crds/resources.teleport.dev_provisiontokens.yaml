@@ -124,13 +124,17 @@ spec:
                     items:
                       properties:
                         resource_groups:
+                          description: ResourceGroups is a list of Azure resource
+                            groups the node is allowed to join from.
                           items:
                             type: string
                           nullable: true
                           type: array
                         subscription:
+                          description: Subscription is the Azure subscription.
                           type: string
                         tenant:
+                          description: Tenant is the Azure Tenant ID.
                           type: string
                       type: object
                     nullable: true
@@ -148,20 +152,40 @@ spec:
                     items:
                       properties:
                         definition_id:
+                          description: 'The ID of the AZDO pipeline definition. Example:
+                            `1` Mapped from the `def_id` claim.'
                           type: string
                         pipeline_name:
+                          description: 'The name of the AZDO pipeline. Example: `my-pipeline`.
+                            Mapped out of the `sub` claim.'
                           type: string
                         project_id:
+                          description: 'The ID of the AZDO pipeline. Example: `271ef6f7-0000-0000-0000-4b54d9129990`
+                            Mapped from the `prj_id` claim.'
                           type: string
                         project_name:
+                          description: 'The name of the AZDO project. Example: `my-project`.
+                            Mapped out of the `sub` claim.'
                           type: string
                         repository_ref:
+                          description: 'The reference of the repository the pipeline
+                            is using. Example: `refs/heads/main`. Mapped from the
+                            `rpo_ref` claim.'
                           type: string
                         repository_uri:
+                          description: 'The URI of the repository the pipeline is
+                            using. Example: `https://github.com/gravitational/teleport.git`.
+                            Mapped from the `rpo_uri` claim.'
                           type: string
                         repository_version:
+                          description: 'The individual commit of the repository the
+                            pipeline is using. Example: `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`.
+                            Mapped from the `rpo_ver` claim.'
                           type: string
                         sub:
+                          description: 'Sub also known as Subject is a string that
+                            roughly uniquely identifies the workload. Example: `p://my-organization/my-project/my-pipeline`
+                            Mapped from the `sub` claim.'
                           type: string
                       type: object
                     nullable: true
@@ -184,12 +208,29 @@ spec:
                     items:
                       properties:
                         branch_name:
+                          description: BranchName is the name of the branch on which
+                            this pipeline executed.
                           type: string
                         deployment_environment_uuid:
+                          description: DeploymentEnvironmentUUID is the UUID of the
+                            deployment environment targeted by this pipelines run,
+                            if any. These values may be found in the "Pipelines ->
+                            OpenID Connect -> Deployment environments" section of
+                            the repository settings.
                           type: string
                         repository_uuid:
+                          description: RepositoryUUID is the UUID of the repository
+                            for which this token was issued. Bitbucket UUIDs must
+                            begin and end with braces, e.g. `{...}`. This value may
+                            be found in the Pipelines -> OpenID Connect section of
+                            the repository settings.
                           type: string
                         workspace_uuid:
+                          description: WorkspaceUUID is the UUID of the workspace
+                            for which this token was issued. Bitbucket UUIDs must
+                            begin and end with braces, e.g. `{...}`. This value may
+                            be found in the Pipelines -> OpenID Connect section of
+                            the repository settings.
                           type: string
                       type: object
                     nullable: true
@@ -222,11 +263,34 @@ spec:
                     nullable: true
                     properties:
                       initial_public_key:
+                        description: InitialPublicKey is used to preregister a public
+                          key generated by `tbot keypair create`. When set, no initial
+                          join secret is generated or made available for use, and
+                          clients must have the associated private key available to
+                          join. If set, `initial_join_secret` and `must_register_before`
+                          are ignored. This value is written in SSH authorized_keys
+                          format.
                         type: string
                       must_register_before:
+                        description: MustRegisterBefore is an optional time before
+                          which registration via initial join secret must be performed.
+                          Attempts to register using an initial join secret after
+                          this timestamp will not be allowed. This may be modified
+                          after creation if necessary to allow the initial registration
+                          to take place. This value is ignored if `initial_public_key`
+                          is set.
                         format: date-time
                         type: string
                       registration_secret:
+                        description: RegistrationSecret is a secret joining clients
+                          may use to register their public key on first join, which
+                          may be used instead of preregistering a public key with
+                          `initial_public_key`. If `initial_public_key` is set, this
+                          value is ignored. Otherwise, if set, this value will be
+                          used to populate `.status.bound_keypair.registration_secret`.
+                          If unset and no `initial_public_key` is provided, a random
+                          secure value will be generated server-side to populate the
+                          status field.
                         type: string
                     type: object
                   recovery:
@@ -235,9 +299,32 @@ spec:
                     nullable: true
                     properties:
                       limit:
+                        description: Limit is the maximum number of allowed recovery
+                          attempts. This value may be raised or lowered after creation
+                          to allow additional recovery attempts should the initial
+                          limit be exhausted. If `mode` is set to `standard`, recovery
+                          attempts will only be allowed if `.status.bound_keypair.recovery_count`
+                          is less than this limit. This limit is not enforced if `mode`
+                          is set to `relaxed` or `insecure`. This value must be at
+                          least 1 to allow for the initial join during onboarding,
+                          which counts as a recovery.
                         format: int32
                         type: integer
                       mode:
+                        description: 'Mode sets the recovery rule enforcement mode.
+                          It may be one of these values: - standard (or unset): all
+                          configured rules enforced. The recovery limit and client
+                          join state are required and verified. This is the most secure
+                          recovery mode. - relaxed: recovery limit is not enforced,
+                          but client join state is still required. This effectively
+                          allows unlimited recovery attempts, but client join state
+                          still helps mitigate stolen credentials. - insecure: neither
+                          the recovery limit nor client join state are enforced. This
+                          allows any client with the private key to join freely. This
+                          is less secure, but can be useful in certain situations,
+                          like in otherwise unsupported CI/CD providers. This mode
+                          should be used with care, and RBAC rules should be configured
+                          to heavily restrict which resources this identity can access.'
                         type: string
                     type: object
                   rotate_after:
@@ -281,26 +368,53 @@ spec:
                     items:
                       properties:
                         deployer_email:
+                          description: DeployerEmail is the email of the person that
+                            triggered the deployment, corresponding to `deployerEmail`
+                            in an Env0 OIDC token.
                           type: string
                         deployment_type:
+                          description: DeploymentType is the env0 deployment type,
+                            such as "deploy", "destroy", etc. Corresponds to `deploymentType`
+                            in an Env0 OIDC token.
                           type: string
                         env0_tag:
+                          description: Env0Tag is a custom tag value corresponding
+                            to `env0Tag` when `ENV0_OIDC_TAG` is set.
                           type: string
                         environment_id:
+                          description: EnvironmentID is the unique identifier of the
+                            Env0 environment, corresponding to `environmentId` in
+                            an Env0 OIDC token.
                           type: string
                         environment_name:
+                          description: EnvironmentName is the name of the Env0 environment,
+                            corresponding to `environmentName` in an Env0 OIDC token.
                           type: string
                         organization_id:
+                          description: OrganizationID is the unique organization identifier,
+                            corresponding to `organizationId` in an Env0 OIDC token.
                           type: string
                         project_id:
+                          description: ProjectID is a unique project identifier, corresponding
+                            to `projectId` in an Env0 OIDC token.
                           type: string
                         project_name:
+                          description: ProjectName is the name of the project under
+                            which the job was run corresponding to `projectName` in
+                            an Env0 OIDC token.
                           type: string
                         template_id:
+                          description: TemplateID is the unique identifier of the
+                            Env0 template, corresponding to `templateId` in an Env0
+                            OIDC token.
                           type: string
                         template_name:
+                          description: TemplateName is the name of the Env0 template,
+                            corresponding to `templateName` in an Env0 OIDC token.
                           type: string
                         workspace_name:
+                          description: WorkspaceName is the name of the Env0 workspace,
+                            corresponding to `workspaceName` in an Env0 OIDC token.
                           type: string
                       type: object
                     nullable: true
@@ -317,16 +431,21 @@ spec:
                     items:
                       properties:
                         locations:
+                          description: Locations is a list of regions (e.g. "us-west1")
+                            and/or zones (e.g. "us-west1-b").
                           items:
                             type: string
                           nullable: true
                           type: array
                         project_ids:
+                          description: ProjectIDs is a list of project IDs (e.g. `<example-id-123456>`).
                           items:
                             type: string
                           nullable: true
                           type: array
                         service_accounts:
+                          description: ServiceAccounts is a list of service account
+                            emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).
                           items:
                             type: string
                           nullable: true
@@ -351,35 +470,57 @@ spec:
                     items:
                       properties:
                         conditions:
+                          description: Conditions are simple eq/not_eq/in/not_in conditions
+                            that check individual fields. All conditions must be satisfied
+                            for a join attempt to be allowed. Mutually exclusive with
+                            `expression`.
                           items:
                             properties:
                               attribute:
+                                description: The name of the field this condition
+                                  should check, separated by "." for nested fields.
                                 type: string
                               eq:
+                                description: An "equals" operator. Only one operator
+                                  may be set within a condition.
                                 nullable: true
                                 properties:
                                   value:
+                                    description: The value to compare the attribute
+                                      against.
                                     type: string
                                 type: object
                               in:
+                                description: An "in" operator. Only one operator may
+                                  be set within a condition.
                                 nullable: true
                                 properties:
                                   values:
+                                    description: The list of values to compare the
+                                      attribute against.
                                     items:
                                       type: string
                                     nullable: true
                                     type: array
                                 type: object
                               not_eq:
+                                description: A "not equals" operator. Only one operator
+                                  may be set within a condition.
                                 nullable: true
                                 properties:
                                   value:
+                                    description: The value to compare the attribute
+                                      against.
                                     type: string
                                 type: object
                               not_in:
+                                description: A "not in" operator. Only one operator
+                                  may be set within a condition.
                                 nullable: true
                                 properties:
                                   values:
+                                    description: The list of values to compare the
+                                      attribute against.
                                     items:
                                       type: string
                                     nullable: true
@@ -389,6 +530,11 @@ spec:
                           nullable: true
                           type: array
                         expression:
+                          description: Expression is a predicate expression that must
+                            evaluate to `true` for the join attempt to be allowed.
+                            Expressions are provided the `claims` object, containing
+                            all claims extracted from the incoming JWT. It is mutually
+                            exclusive with `conditions`.
                           type: string
                       type: object
                     nullable: true
@@ -470,24 +616,59 @@ spec:
                     items:
                       properties:
                         actor:
+                          description: 'The personal account that initiated the workflow
+                            run.  This field supports "glob-style" matching: - Use
+                            ''*'' to match zero or more characters. - Use ''?'' to
+                            match any single character.'
                           type: string
                         enterprise:
+                          description: The name of the enterprise in which the repository
+                            is stored.
                           type: string
                         enterprise_id:
+                          description: The ID of the enterprise in which the repository
+                            is stored.
                           type: string
                         environment:
+                          description: 'The name of the environment used by the job.  This
+                            field supports "glob-style" matching: - Use ''*'' to match
+                            zero or more characters. - Use ''?'' to match any single
+                            character.'
                           type: string
                         ref:
+                          description: 'The git ref that triggered the workflow run.  This
+                            field supports "glob-style" matching: - Use ''*'' to match
+                            zero or more characters. - Use ''?'' to match any single
+                            character.'
                           type: string
                         ref_type:
+                          description: 'The type of ref, for example: "branch".'
                           type: string
                         repository:
+                          description: 'The repository from where the workflow is
+                            running. This includes the name of the owner e.g `gravitational/teleport`  This
+                            field supports "glob-style" matching: - Use ''*'' to match
+                            zero or more characters. - Use ''?'' to match any single
+                            character.'
                           type: string
                         repository_owner:
+                          description: 'The name of the organization in which the
+                            repository is stored.  This field supports "glob-style"
+                            matching: - Use ''*'' to match zero or more characters.
+                            - Use ''?'' to match any single character.'
                           type: string
                         sub:
+                          description: 'Sub also known as Subject is a string that
+                            roughly uniquely identifies the workload. The format of
+                            this varies depending on the type of github action run.  This
+                            field supports "glob-style" matching: - Use ''*'' to match
+                            zero or more characters. - Use ''?'' to match any single
+                            character.'
                           type: string
                         workflow:
+                          description: 'The name of the workflow.  This field supports
+                            "glob-style" matching: - Use ''*'' to match zero or more
+                            characters. - Use ''?'' to match any single character.'
                           type: string
                       type: object
                     nullable: true
@@ -530,36 +711,83 @@ spec:
                     items:
                       properties:
                         ci_config_ref_uri:
+                          description: CIConfigRefURI is the ref path to the top-level
+                            pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
                           type: string
                         ci_config_sha:
+                          description: CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
                           type: string
                         deployment_tier:
+                          description: DeploymentTier is the deployment tier of the
+                            environment the job specifies
                           type: string
                         environment:
+                          description: Environment limits access by the environment
+                            the job deploys to (if one is associated)
                           type: string
                         environment_protected:
+                          description: EnvironmentProtected is true if the Git ref
+                            is protected, false otherwise.
                           type: boolean
                         namespace_path:
+                          description: 'NamespacePath is used to limit access to jobs
+                            in a group or user''s projects. Example: `mygroup`  This
+                            field supports "glob-style" matching: - Use ''*'' to match
+                            zero or more characters. - Use ''?'' to match any single
+                            character.'
                           type: string
                         pipeline_source:
+                          description: 'PipelineSource limits access by the job pipeline
+                            source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules
+                            Example: `web`'
                           type: string
                         project_path:
+                          description: 'ProjectPath is used to limit access to jobs
+                            belonging to an individual project. Example: `mygroup/myproject`  This
+                            field supports "glob-style" matching: - Use ''*'' to match
+                            zero or more characters. - Use ''?'' to match any single
+                            character.'
                           type: string
                         project_visibility:
+                          description: ProjectVisibility is the visibility of the
+                            project where the pipeline is running. Can be internal,
+                            private, or public.
                           type: string
                         ref:
+                          description: 'Ref allows access to be limited to jobs triggered
+                            by a specific git ref. Ensure this is used in combination
+                            with ref_type.  This field supports "glob-style" matching:
+                            - Use ''*'' to match zero or more characters. - Use ''?''
+                            to match any single character.'
                           type: string
                         ref_protected:
+                          description: RefProtected is true if the Git ref is protected,
+                            false otherwise.
                           type: boolean
                         ref_type:
+                          description: 'RefType allows access to be limited to jobs
+                            triggered by a specific git ref type. Example: `branch`
+                            or `tag`'
                           type: string
                         sub:
+                          description: 'Sub roughly uniquely identifies the workload.
+                            Example: `project_path:mygroup/my-project:ref_type:branch:ref:main`
+                            project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This
+                            field supports "glob-style" matching: - Use ''*'' to match
+                            zero or more characters. - Use ''?'' to match any single
+                            character.'
                           type: string
                         user_email:
+                          description: UserEmail is the email of the user executing
+                            the job
                           type: string
                         user_id:
+                          description: UserID is the ID of the user executing the
+                            job
                           type: string
                         user_login:
+                          description: UserLogin is the username of the user executing
+                            the job
                           type: string
                       type: object
                     nullable: true
@@ -597,10 +825,20 @@ spec:
                     items:
                       properties:
                         service_account:
+                          description: ServiceAccount is the namespaced name of the
+                            Kubernetes service account. Its format is "namespace:service-account".
                           type: string
                         service_account_name:
+                          description: 'ServiceAccountName is the name of the Kubernetes
+                            service account.  This field supports "glob-style" matching:
+                            - Use ''*'' to match zero or more characters. - Use ''?''
+                            to match any single character.'
                           type: string
                         service_account_namespace:
+                          description: 'ServiceAccountNamespace is the namespace of
+                            the Kubernetes service account.  This field supports "glob-style"
+                            matching: - Use ''*'' to match zero or more characters.
+                            - Use ''?'' to match any single character.'
                           type: string
                       type: object
                     nullable: true
@@ -610,8 +848,15 @@ spec:
                     nullable: true
                     properties:
                       insecure_allow_http_issuer:
+                        description: InsecureAllowHTTPIssuer is a flag that, if set,
+                          disables the requirement that the issuer must use HTTPS.
                         type: boolean
                       issuer:
+                        description: 'Issuer is the URI of the OIDC issuer. It must
+                          have an accessible and OIDC-compliant `/.well-known/oidc-configuration`
+                          endpoint. This should be a valid URL and must exactly match
+                          the `issuer` field in a service account JWT. For example:
+                          https://oidc.eks.us-west-2.amazonaws.com/id/12345...'
                         type: string
                     type: object
                   static_jwks:
@@ -620,6 +865,10 @@ spec:
                     nullable: true
                     properties:
                       jwks:
+                        description: JWKS should be the JSON Web Key Set formatted
+                          public keys of that the Kubernetes Cluster uses to sign
+                          service account tokens. This can be fetched from /openid/v1/jwks
+                          on the Kubernetes API Server.
                         type: string
                     type: object
                   type:
@@ -640,21 +889,35 @@ spec:
                     items:
                       properties:
                         instances:
+                          description: Instances is a list of the OCIDs of specific
+                            instances that are allowed to join. If empty, any instance
+                            matching the other fields in the rule is allowed. Limited
+                            to 100 instance OCIDs per rule.
                           items:
                             type: string
                           nullable: true
                           type: array
                         parent_compartments:
+                          description: ParentCompartments is a list of the OCIDs of
+                            compartments an instance is allowed to join from. Only
+                            direct parents are allowed, i.e. no nested compartments.
+                            If empty, any compartment is allowed.
                           items:
                             type: string
                           nullable: true
                           type: array
                         regions:
+                          description: Regions is a list of regions an instance is
+                            allowed to join from. Both full region names ("us-phoenix-1")
+                            and abbreviations ("phx") are allowed. If empty, any region
+                            is allowed.
                           items:
                             type: string
                           nullable: true
                           type: array
                         tenancy:
+                          description: Tenancy is the OCID of the instance's tenancy.
+                            Required.
                           type: string
                       type: object
                     nullable: true
@@ -679,12 +942,26 @@ spec:
                     items:
                       properties:
                         caller_id:
+                          description: 'CallerID is the ID of the caller, ie. the
+                            stack or module that generated the run.  This field supports
+                            "glob-style" matching when enable_glob_matching is true:
+                            - Use ''*'' to match zero or more characters. - Use ''?''
+                            to match any single character.'
                           type: string
                         caller_type:
+                          description: CallerType is the type of the caller, ie. the
+                            entity that owns the run - either `stack` or `module`.
                           type: string
                         scope:
+                          description: Scope is the scope of the token - either `read`
+                            or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
                           type: string
                         space_id:
+                          description: 'SpaceID is the ID of the space in which the
+                            run that owns the token was executed.  This field supports
+                            "glob-style" matching when enable_glob_matching is true:
+                            - Use ''*'' to match zero or more characters. - Use ''?''
+                            to match any single character.'
                           type: string
                       type: object
                     nullable: true
@@ -726,18 +1003,38 @@ spec:
                     items:
                       properties:
                         organization_id:
+                          description: OrganizationID is the ID of the HCP Terraform
+                            organization. At least one organization value is required,
+                            either ID or name.
                           type: string
                         organization_name:
+                          description: OrganizationName is the human-readable name
+                            of the HCP Terraform organization. At least one organization
+                            value is required, either ID or name.
                           type: string
                         project_id:
+                          description: ProjectID is the ID of the HCP Terraform project.
+                            At least one project or workspace value is required, either
+                            ID or name.
                           type: string
                         project_name:
+                          description: ProjectName is the human-readable name for
+                            the HCP Terraform project. At least one project or workspace
+                            value is required, either ID or name.
                           type: string
                         run_phase:
+                          description: RunPhase is the phase of the run the token
+                            was issued for, e.g. `plan` or `apply`
                           type: string
                         workspace_id:
+                          description: WorkspaceID is the ID of the HCP Terraform
+                            workspace. At least one project or workspace value is
+                            required, either ID or name.
                           type: string
                         workspace_name:
+                          description: WorkspaceName is the human-readable name of
+                            the HCP Terraform workspace. At least one project or workspace
+                            value is required, either ID or name.
                           type: string
                       type: object
                     nullable: true
@@ -771,10 +1068,24 @@ spec:
                     items:
                       properties:
                         description:
+                          description: 'Description is a human-readable description
+                            of the rule. It has no bearing on whether or not a TPM
+                            is allowed to join, but can be used to associate a rule
+                            with a specific host (e.g the asset tag of the server
+                            in which the TPM resides). Example: "build-server-100"'
                           type: string
                         ek_certificate_serial:
+                          description: 'EKCertificateSerial is the serial number of
+                            the EKCert in hexadecimal with colon separated nibbles.
+                            This value will not be checked when a TPM does not have
+                            an EKCert configured. Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4'
                           type: string
                         ek_public_hash:
+                          description: 'EKPublicHash is the SHA256 hash of the EKPub
+                            marshaled in PKIX format and encoded in hexadecimal. This
+                            value will also be checked when a TPM has submitted an
+                            EKCert, and the public key in the EKCert will be used
+                            for this check. Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6'
                           type: string
                       type: object
                     nullable: true
