@@ -190,8 +190,12 @@ spec:
                     items:
                       properties:
                         name:
+                          description: Name defines the model name. This is the requested
+                            value.
                           type: string
                         provider_name:
+                          description: Represents the model name in the configured
+                            provider.
                           type: string
                       type: object
                     nullable: true

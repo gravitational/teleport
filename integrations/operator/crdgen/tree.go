@@ -161,7 +161,7 @@ func (message Message) Forest() *Forest {
 
 func (message Message) Path() string {
 	if message.parentMsg != nil {
-		return fmt.Sprintf("%s,4,%d", message.parentMsg.Path(), message.index)
+		return fmt.Sprintf("%s,3,%d", message.parentMsg.Path(), message.index)
 	}
 	return fmt.Sprintf("4,%d", message.index)
 }
