@@ -336,6 +336,48 @@ const (
 	// AutoDiscoverAzureVMIssueEnrollmentError is a generic issue type for errors during VM enrollment
 	// when no more specific cause could be determined.
 	AutoDiscoverAzureVMIssueEnrollmentError = "azure-vm-enrollment-error"
+
+	// AutoDiscoverAzureVMIssueWindowsAuthPackageNoPrivateIP is used to identify
+	// VMs that failed to auto-enroll because the Windows Auth Package requires a
+	// private IP address to be present on the VM.
+	AutoDiscoverAzureVMIssueWindowsAuthPackageNoPrivateIP = "azure-vm-windows-auth-package-no-private-ip"
+
+	// AutoDiscoverAzureVMIssueWindowsAuthPackageInsufficientDiskSpace is used to
+	// identify VMs that failed to auto-enroll because the Windows Auth Package
+	// requires a minimum amount of free disk space on the system drive.
+	AutoDiscoverAzureVMIssueWindowsAuthPackageInsufficientDiskSpace = "azure-vm-windows-auth-package-insufficient-disk-space"
+
+	// AutoDiscoverAzureVMIssueWindowsAuthPackageUnsupportedWindowsVersion is used
+	// to identify VMs that failed to auto-enroll because the Windows Auth Package
+	// requires a supported version of Windows (Windows Server 2016 or later,
+	// Windows 10 or later).
+	AutoDiscoverAzureVMIssueWindowsAuthPackageUnsupportedWindowsVersion = "azure-vm-windows-auth-package-unsupported-windows-version"
+
+	// AutoDiscoverAzureVMIssueWindowsAuthPackageMachineDomainJoined is used to identify
+	// VMs that failed to auto-enroll because the Windows Auth Package can only be
+	// installed on non-domain-joined hosts.
+	AutoDiscoverAzureVMIssueWindowsAuthPackageMachineDomainJoined = "azure-vm-windows-auth-package-machine-domain-joined"
+
+	// AutoDiscoverAzureVMIssueWindowsAuthPackageDownloadFailure is used to
+	// identify VMs that failed to auto-enroll because the Windows Auth Package
+	// installer could not be downloaded from the Teleport CDN.
+	AutoDiscoverAzureVMIssueWindowsAuthPackageDownloadFailure = "azure-vm-windows-auth-package-download-failure"
+
+	// AutoDiscoverAzureVMIssueWindowsAuthPackageExecutionFailure is used to
+	// identify VMs that failed to auto-enroll because the Windows Auth Package
+	// installer returned an error during execution.
+	AutoDiscoverAzureVMIssueWindowsAuthPackageExecutionFailure = "azure-vm-windows-auth-package-execution-failure"
+
+	// AutoDiscoverAzureVMIssueWindowsAuthPackageStagingDirUnsafe is used to
+	// identify VMs that failed to auto-enroll because the Windows Auth Package
+	// installer staging directory is a reparse point (symlink or junction) and
+	// may redirect to an untrusted location.
+	AutoDiscoverAzureVMIssueWindowsAuthPackageStagingDirUnsafe = "azure-vm-windows-auth-package-staging-dir-unsafe"
+
+	// AutoDiscoverAzureVMIssueWindowsAuthPackageChecksumMismatch is used to
+	// identify VMs that failed to auto-enroll because the Windows Auth Package
+	// installer checksum did not match the expected value.
+	AutoDiscoverAzureVMIssueWindowsAuthPackageChecksumMismatch = "azure-vm-windows-auth-package-checksum-mismatch"
 )
 
 // DiscoverAzureVMIssueTypes is a list of issue types that can occur when trying to auto enroll Azure VMs.
@@ -345,6 +387,14 @@ var DiscoverAzureVMIssueTypes = []string{
 	AutoDiscoverAzureVMIssueVMNotRunning,
 	AutoDiscoverAzureVMIssueVMAgentNotAvailable,
 	AutoDiscoverAzureVMIssueEnrollmentError,
+	AutoDiscoverAzureVMIssueWindowsAuthPackageNoPrivateIP,
+	AutoDiscoverAzureVMIssueWindowsAuthPackageInsufficientDiskSpace,
+	AutoDiscoverAzureVMIssueWindowsAuthPackageUnsupportedWindowsVersion,
+	AutoDiscoverAzureVMIssueWindowsAuthPackageMachineDomainJoined,
+	AutoDiscoverAzureVMIssueWindowsAuthPackageDownloadFailure,
+	AutoDiscoverAzureVMIssueWindowsAuthPackageExecutionFailure,
+	AutoDiscoverAzureVMIssueWindowsAuthPackageStagingDirUnsafe,
+	AutoDiscoverAzureVMIssueWindowsAuthPackageChecksumMismatch,
 }
 
 // ValidateUserTask validates the UserTask object without modifying it.

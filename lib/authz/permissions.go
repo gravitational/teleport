@@ -1402,11 +1402,13 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindUserTask, services.RW()),
+						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
 					},
-					// Discovery service should only access kubes/apps/dbs that originated from discovery.
-					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
-					DatabaseLabels:   types.Labels{types.OriginLabel: []string{types.OriginCloud}},
-					AppLabels:        types.Labels{types.OriginLabel: []string{types.OriginDiscoveryKubernetes}},
+					// Discovery service should only access kubes/apps/dbs/windows desktops that originated from discovery.
+					KubernetesLabels:     types.Labels{types.OriginLabel: []string{types.OriginCloud}},
+					DatabaseLabels:       types.Labels{types.OriginLabel: []string{types.OriginCloud}},
+					AppLabels:            types.Labels{types.OriginLabel: []string{types.OriginDiscoveryKubernetes}},
+					WindowsDesktopLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
 				},
 			})
 	case types.RoleOkta:

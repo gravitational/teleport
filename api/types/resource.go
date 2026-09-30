@@ -839,3 +839,27 @@ func GetExpiry(v any) (time.Time, error) {
 	}
 	return time.Time{}, trace.BadParameter("unable to determine expiry from resource of type %T", v)
 }
+
+// GetAzureVMID returns the Azure VM ID, if this resource comes from Azure.
+func GetAzureVMID(r ResourceWithLabels) string {
+	val, _ := r.GetLabel(VMIDLabelInternal)
+	return val
+}
+
+// GetAzureSubscriptionID returns the Azure subscription ID, if this resource comes from Azure.
+func GetAzureSubscriptionID(r ResourceWithLabels) string {
+	val, _ := r.GetLabel(SubscriptionIDLabelInternal)
+	return val
+}
+
+// GetAzureRegion returns the Azure region, if this resource comes from Azure.
+func GetAzureRegion(r ResourceWithLabels) string {
+	val, _ := r.GetLabel(RegionLabelInternal)
+	return val
+}
+
+// GetAzureResourceGroup returns the Azure resource group, if this resource comes from Azure.
+func GetAzureResourceGroup(r ResourceWithLabels) string {
+	val, _ := r.GetLabel(ResourceGroupLabelInternal)
+	return val
+}

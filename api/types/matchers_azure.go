@@ -125,6 +125,20 @@ func (m *AzureMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
+	if slices.Contains(m.Types, AzureMatcherWindowsVM) {
+		if m.Params == nil {
+			m.Params = &InstallerParams{}
+		}
+
+		if m.Params.WindowsScriptName == "" {
+			m.Params.WindowsScriptName = DefaultInstallerScriptNameWindowsAuthPackage
+		}
+
+		if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if slices.Contains(m.Regions, Wildcard) || len(m.Regions) == 0 {
 		m.Regions = []string{Wildcard}
 	}

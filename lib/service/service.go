@@ -3367,21 +3367,28 @@ type discoveryConfigClient interface {
 	services.DiscoveryConfigsGetter
 }
 
+type dynamicWindowsDesktopClient interface {
+	CreateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
+	UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
+}
+
 // combinedDiscoveryClient is an auth.Client client with other, specific, services added to it.
 type combinedDiscoveryClient struct {
 	authclient.ClientI
 	discoveryConfigClient
 	eksClustersEnroller
 	services.UserTasks
+	dynamicWindowsDesktopClient
 }
 
 // newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
 func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI, cacheName []string) (authclient.DiscoveryAccessPoint, error) {
 	client := combinedDiscoveryClient{
-		ClientI:               clt,
-		discoveryConfigClient: clt.DiscoveryConfigClient(),
-		eksClustersEnroller:   clt.IntegrationAWSOIDCClient(),
-		UserTasks:             clt.UserTasksServiceClient(),
+		ClientI:                     clt,
+		discoveryConfigClient:       clt.DiscoveryConfigClient(),
+		eksClustersEnroller:         clt.IntegrationAWSOIDCClient(),
+		UserTasks:                   clt.UserTasksServiceClient(),
+		dynamicWindowsDesktopClient: clt.DynamicDesktopClient(),
 	}
 
 	// if caching is disabled, return access point
