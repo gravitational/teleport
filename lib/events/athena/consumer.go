@@ -416,7 +416,7 @@ type sqsCollectConfig struct {
 	batchMaxItems int
 
 	// batchMaxBytes is the max total bytes of events in a single batch.
-	batchMaxBytes int
+	batchMaxBytes uint64
 
 	// noOfWorkers defines how many workers are processing messages from queue.
 	noOfWorkers int
@@ -588,7 +588,7 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 
 type collectedEventsMetadata struct {
 	// Size is total size of events.
-	Size int
+	Size uint64
 	// Count is number of events.
 	Count int
 	// OldestTimestamp is timestamp of oldest event.
@@ -629,7 +629,7 @@ func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent, publis
 	c.Merge(collectedEventsMetadata{
 		// 1 because we are merging single event
 		Count:           1,
-		Size:            size,
+		Size:            uint64(size),
 		OldestTimestamp: publishedToQueueTimestamp,
 		UniqueDays: map[string]struct{}{
 			in.GetTime().Format(time.DateOnly): {},

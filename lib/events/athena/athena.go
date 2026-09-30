@@ -131,7 +131,7 @@ type Config struct {
 	BatchMaxItems int
 	// BatchMaxBytes defines the maximum total size in bytes of events in a
 	// single batch (optional). Default is 2GB.
-	BatchMaxBytes int
+	BatchMaxBytes uint64
 	// BatchMaxInterval defined interval at which parquet files will be created (optional).
 	BatchMaxInterval time.Duration
 	// ConsumerLockName defines a name of a SQS consumer lock (optional).
@@ -436,11 +436,11 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	}
 	batchMaxBytes := url.Query().Get("batchMaxBytes")
 	if batchMaxBytes != "" {
-		intMaxBytes, err := strconv.Atoi(batchMaxBytes)
+		uintMaxBytes, err := strconv.ParseUint(batchMaxBytes, 10, 64)
 		if err != nil {
-			return trace.BadParameter("invalid batchMaxBytes value (it must be int): %v", err)
+			return trace.BadParameter("invalid batchMaxBytes value (it must be uint64): %v", err)
 		}
-		cfg.BatchMaxBytes = intMaxBytes
+		cfg.BatchMaxBytes = uintMaxBytes
 	}
 	batchMaxInterval := url.Query().Get("batchMaxInterval")
 	if batchMaxInterval != "" {
