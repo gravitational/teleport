@@ -40,7 +40,7 @@ func (a *Server) CreateRole(ctx context.Context, role types.Role) (types.Role, e
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.RoleCreate{
 		Metadata: apievents.Metadata{
 			Type: events.RoleCreatedEvent,
 			Code: events.RoleCreatedCode,
@@ -86,7 +86,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) (types.Role, e
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.RoleCreate{
 		Metadata: apievents.Metadata{
 			Type: events.RoleCreatedEvent,
 			Code: events.RoleCreatedCode,

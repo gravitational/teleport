@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
+	"github.com/gravitational/teleport/lib/agentusage"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 )
@@ -189,7 +190,7 @@ func newRoundtripClient(cfg *HTTPClientConfig, transport *http.Transport, params
 		[]roundtrip.ClientParam{
 			roundtrip.HTTPClient(&http.Client{
 				Timeout:   cfg.RequestTimeout,
-				Transport: tracehttp.NewTransport(breaker.NewRoundTripper(cb, transport)),
+				Transport: tracehttp.NewTransport(breaker.NewRoundTripper(cb, agentusage.NewRoundTripper(transport))),
 			}),
 			roundtrip.SanitizerEnabled(true),
 		},

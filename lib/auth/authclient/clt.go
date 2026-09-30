@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/crownjewel"
@@ -77,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/agentusage"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -150,6 +152,11 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	cfg.DialInBackground = true
 
 	cfg.CircuitBreakerConfig.TrippedErrorMessage = "Unable to communicate with the Teleport Auth Service"
+
+	cfg.DialOpts = append(cfg.DialOpts,
+		grpc.WithChainUnaryInterceptor(agentusage.UnaryClientInterceptor()),
+		grpc.WithChainStreamInterceptor(agentusage.StreamClientInterceptor()),
+	)
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

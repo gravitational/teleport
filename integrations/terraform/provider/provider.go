@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/agentusage"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 
@@ -372,12 +373,12 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 	clientConfig := client.Config{
 		Addrs:       []string{addr},
 		DialTimeout: dialTimeoutDuration,
-		DialOpts: []grpc.DialOption{
+		DialOpts: append([]grpc.DialOption{
 			grpc.WithReturnConnectionError(),
 			grpc.WithDefaultCallOptions(
 				grpc.WaitForReady(true),
 			),
-		},
+		}, agentusage.DialOptions(agentusage.Collect())...),
 		InsecureAddressDiscovery: insecure,
 	}
 
