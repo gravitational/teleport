@@ -29,19 +29,24 @@ import {
   validateGetBotInstanceMetricsResponse,
   validateGetBotInstanceResponse,
   validateListBotInstancesResponse,
+  validateListBotsResponse,
 } from 'teleport/services/bot/consts';
 import ResourceService, { RoleResource } from 'teleport/services/resources';
 import { FeatureFlags } from 'teleport/types';
 
 import { validateListJoinTokensResponse } from '../joinToken/consts';
 import { MfaChallengeResponse } from '../mfa';
-import { withGenericUnsupportedError } from '../version/unsupported';
+import {
+  isPathNotFoundError,
+  withGenericUnsupportedError,
+} from '../version/unsupported';
 import {
   BotResponse,
   CreateBotJoinTokenRequest,
   CreateBotRequest,
   EditBotRequest,
   FlatBot,
+  ListBotsPage,
 } from './types';
 
 export function createBot(
@@ -117,17 +122,78 @@ export async function listBotTokens(
   }
 }
 
-export async function fetchBots(signal: AbortSignal, flags: FeatureFlags) {
-  if (!flags.listBots) {
-    throw new Error('cannot fetch bots: bots.list permission required');
+type ListBotsVariables = {
+  pageToken: string;
+  pageSize: number;
+  searchTerm?: string;
+};
+
+export async function listBots(
+  variables: ListBotsVariables,
+  signal: AbortSignal | undefined,
+  // TODO(strideynet): DELETE IN v20.0.0
+  fetchV1Bots: () => Promise<FlatBot[]>
+): Promise<ListBotsPage> {
+  const { pageToken, pageSize, searchTerm } = variables;
+
+  const path = cfg.getBotUrl({ action: 'list-v2' });
+  const qs = new URLSearchParams();
+
+  qs.set('page_size', pageSize.toFixed());
+  qs.set('page_token', pageToken);
+  if (searchTerm) {
+    qs.set('search', searchTerm);
   }
 
-  return api
-    .get(cfg.getBotUrl({ action: 'list' }), signal)
-    .then((json: BotResponse) => {
-      const items = json?.items || [];
-      return { bots: items.map(makeBot) };
-    });
+  try {
+    const data = await api.get(`${path}?${qs.toString()}`, signal);
+
+    if (!validateListBotsResponse(data)) {
+      throw new Error('failed to validate list bots response');
+    }
+
+    return {
+      items: data.items.map(makeBot),
+      next_page_token: data.next_page_token,
+    };
+  } catch (err) {
+    // TODO(strideynet): DELETE IN v20.0.0
+    // Older proxies only list every bot at once, so page through that locally.
+    if (isPathNotFoundError(err)) {
+      return pageBotsLocally(variables, await fetchV1Bots());
+    }
+    throw err;
+  }
+}
+
+// TODO(strideynet): DELETE IN v20.0.0
+export async function fetchAllBotsV1(signal?: AbortSignal): Promise<FlatBot[]> {
+  const res: BotResponse = await api.get(
+    cfg.getBotUrl({ action: 'list' }),
+    signal
+  );
+  return (res?.items ?? []).map(makeBot);
+}
+
+// TODO(strideynet): DELETE IN v20.0.0
+function pageBotsLocally(
+  { pageToken, pageSize, searchTerm }: ListBotsVariables,
+  bots: FlatBot[]
+): ListBotsPage {
+  if (searchTerm) {
+    const search = searchTerm.toLowerCase();
+    bots = bots.filter(bot =>
+      [bot.name, ...bot.roles].some(v => v.toLowerCase().includes(search))
+    );
+  }
+
+  // Bot names repeat across scopes, so the cursor is a position, not a name.
+  const start = Number(pageToken) || 0;
+  const end = start + pageSize;
+  return {
+    items: bots.slice(start, end),
+    next_page_token: end < bots.length ? String(end) : undefined,
+  };
 }
 
 export async function fetchRoles(

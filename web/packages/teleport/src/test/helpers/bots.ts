@@ -20,7 +20,11 @@ import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
 import { generateGhaK8sTemplates } from 'teleport/services/bot/bot';
-import { ApiBot, EditBotRequest } from 'teleport/services/bot/types';
+import {
+  ApiBot,
+  EditBotRequest,
+  ListBotsResponse,
+} from 'teleport/services/bot/types';
 import { JsonObject } from 'teleport/types';
 
 export const getBotSuccess = (overrides?: {
@@ -240,3 +244,23 @@ resource "teleport_bot" "bot_name" {
 `;
 
 export type EditBotApiVersion = 'v1' | 'v2' | 'v3';
+
+export const listBotsSuccess = (
+  mock: ListBotsResponse,
+  version: ListBotsApiVersion = 'v2'
+) =>
+  http.get(version === 'v1' ? cfg.api.bot.list : cfg.api.bot.listV2, () => {
+    return HttpResponse.json(mock);
+  });
+
+export const listBotsError = (
+  status: number,
+  error: string | null = null,
+  fields: JsonObject = {},
+  version: ListBotsApiVersion = 'v2'
+) =>
+  http.get(version === 'v1' ? cfg.api.bot.list : cfg.api.bot.listV2, () => {
+    return HttpResponse.json({ error: { message: error }, fields }, { status });
+  });
+
+export type ListBotsApiVersion = 'v1' | 'v2';

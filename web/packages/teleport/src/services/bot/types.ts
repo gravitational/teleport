@@ -209,6 +209,16 @@ export type BotResponse = {
   items: ApiBot[];
 };
 
+export type ListBotsResponse = {
+  items: ApiBot[];
+  next_page_token?: string;
+};
+
+export type ListBotsPage = {
+  items: FlatBot[];
+  next_page_token?: string;
+};
+
 export type CreateBotJoinTokenRequest = {
   integrationName: string;
   joinMethod: JoinMethod;

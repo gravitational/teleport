@@ -26,6 +26,7 @@ import {
   GetBotInstanceResponse,
   GitHubRepoRule,
   ListBotInstancesResponse,
+  ListBotsResponse,
   ProvisionTokenSpecV2GitHub,
 } from 'teleport/services/bot/types';
 
@@ -100,6 +101,20 @@ export function makeBot(bot: ApiBot): FlatBot {
 
     max_session_ttl: bot?.spec?.max_session_ttl,
   };
+}
+
+export function validateListBotsResponse(
+  data: unknown
+): data is ListBotsResponse {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  if (!('items' in data)) {
+    return false;
+  }
+
+  return Array.isArray(data.items);
 }
 
 export function validateListBotInstancesResponse(

@@ -16,12 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { mockIntersectionObserver } from 'jsdom-testing-mocks';
+
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { botsFixture } from 'teleport/Bots/fixtures';
 import { BotList } from 'teleport/Bots/List/BotList';
 import { BotListProps } from 'teleport/Bots/types';
 import { BotUiFlow } from 'teleport/services/bot/types';
+
+mockIntersectionObserver();
 
 const makeProps = (): BotListProps => ({
   bots: botsFixture,
@@ -33,6 +37,9 @@ const makeProps = (): BotListProps => ({
   onSelect: () => {},
   selectedBot: null,
   setSelectedBot: () => {},
+  hasNextPage: false,
+  isFetchingNextPage: false,
+  onLoadNextPage: () => {},
 });
 
 describe('BotList', () => {

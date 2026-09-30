@@ -38,6 +38,9 @@ export type BotListProps = {
   onSelect: (item: FlatBot) => void;
   selectedBot: FlatBot;
   setSelectedBot: Dispatch<SetStateAction<FlatBot>>;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  onLoadNextPage: () => void;
 };
 
 export type ViewBotProps = {
