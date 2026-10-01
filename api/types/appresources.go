@@ -27,6 +27,7 @@ func (a AppResource) IsAllowAllOnly() bool {
 		a.AllowReason == "" &&
 		a.DenyCodeHint == "" &&
 		a.DenyReasonHint == "" &&
+		a.AllowUnsafe == nil &&
 		len(a.XXX_unrecognized) == 0
 }
 

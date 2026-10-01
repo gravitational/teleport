@@ -110,11 +110,25 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allow_all|boolean|AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.|
 |allow_code|string|AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.|
 |allow_reason|string|AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.|
+|allow_unsafe|[object](#specallowapp_resources-itemsallow_unsafe)|AllowUnsafe lists options that can extend what the rule allows. They can be unsafe, so use them with care. For example:  `paths: ["/api/v4/projects/{project}/**"]` `allow_unsafe: {encoded: {project: "/"}}`  Set `encoded` only for an application that reads the encoded slash (%2F) as part of one path segment's content and does not auto-decode it to a literal /.|
 |deny_code_hint|string|DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.|
 |deny_reason_hint|string|DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.|
 |methods|[]string|Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty list matches any of them. Any other method is rejected before any rule is evaluated.|
 |paths|[]string|Paths are the path patterns the rule matches, for example:  `paths: ["/api/projects/{project}/**"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.|
 |where|string|Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits["projects"], vars.project)`|
+
+### spec.allow.app_resources items.allow_unsafe
+
+|Field|Type|Description|
+|---|---|---|
+|encoded|[object](#specallowapp_resources-itemsallow_unsafeencoded)|Encoded maps a capture name to the characters a request path may contain in percent-encoded form inside that captured segment. The only supported value is "/", which allows the encoded slash (%2F or %2f).|
+
+### spec.allow.app_resources items.allow_unsafe.encoded
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.allow.beam_labels
 
@@ -413,11 +427,25 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allow_all|boolean|AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.|
 |allow_code|string|AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.|
 |allow_reason|string|AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.|
+|allow_unsafe|[object](#specdenyapp_resources-itemsallow_unsafe)|AllowUnsafe lists options that can extend what the rule allows. They can be unsafe, so use them with care. For example:  `paths: ["/api/v4/projects/{project}/**"]` `allow_unsafe: {encoded: {project: "/"}}`  Set `encoded` only for an application that reads the encoded slash (%2F) as part of one path segment's content and does not auto-decode it to a literal /.|
 |deny_code_hint|string|DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.|
 |deny_reason_hint|string|DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.|
 |methods|[]string|Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty list matches any of them. Any other method is rejected before any rule is evaluated.|
 |paths|[]string|Paths are the path patterns the rule matches, for example:  `paths: ["/api/projects/{project}/**"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.|
 |where|string|Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits["projects"], vars.project)`|
+
+### spec.deny.app_resources items.allow_unsafe
+
+|Field|Type|Description|
+|---|---|---|
+|encoded|[object](#specdenyapp_resources-itemsallow_unsafeencoded)|Encoded maps a capture name to the characters a request path may contain in percent-encoded form inside that captured segment. The only supported value is "/", which allows the encoded slash (%2F or %2f).|
+
+### spec.deny.app_resources items.allow_unsafe.encoded
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.deny.beam_labels
 
@@ -820,11 +848,25 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allow_all|boolean|AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.|
 |allow_code|string|AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.|
 |allow_reason|string|AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.|
+|allow_unsafe|[object](#specallowapp_resources-itemsallow_unsafe)|AllowUnsafe lists options that can extend what the rule allows. They can be unsafe, so use them with care. For example:  `paths: ["/api/v4/projects/{project}/**"]` `allow_unsafe: {encoded: {project: "/"}}`  Set `encoded` only for an application that reads the encoded slash (%2F) as part of one path segment's content and does not auto-decode it to a literal /.|
 |deny_code_hint|string|DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.|
 |deny_reason_hint|string|DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.|
 |methods|[]string|Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty list matches any of them. Any other method is rejected before any rule is evaluated.|
 |paths|[]string|Paths are the path patterns the rule matches, for example:  `paths: ["/api/projects/{project}/**"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.|
 |where|string|Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits["projects"], vars.project)`|
+
+### spec.allow.app_resources items.allow_unsafe
+
+|Field|Type|Description|
+|---|---|---|
+|encoded|[object](#specallowapp_resources-itemsallow_unsafeencoded)|Encoded maps a capture name to the characters a request path may contain in percent-encoded form inside that captured segment. The only supported value is "/", which allows the encoded slash (%2F or %2f).|
+
+### spec.allow.app_resources items.allow_unsafe.encoded
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.allow.beam_labels
 
@@ -1123,11 +1165,25 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allow_all|boolean|AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.|
 |allow_code|string|AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.|
 |allow_reason|string|AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.|
+|allow_unsafe|[object](#specdenyapp_resources-itemsallow_unsafe)|AllowUnsafe lists options that can extend what the rule allows. They can be unsafe, so use them with care. For example:  `paths: ["/api/v4/projects/{project}/**"]` `allow_unsafe: {encoded: {project: "/"}}`  Set `encoded` only for an application that reads the encoded slash (%2F) as part of one path segment's content and does not auto-decode it to a literal /.|
 |deny_code_hint|string|DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.|
 |deny_reason_hint|string|DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.|
 |methods|[]string|Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty list matches any of them. Any other method is rejected before any rule is evaluated.|
 |paths|[]string|Paths are the path patterns the rule matches, for example:  `paths: ["/api/projects/{project}/**"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.|
 |where|string|Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits["projects"], vars.project)`|
+
+### spec.deny.app_resources items.allow_unsafe
+
+|Field|Type|Description|
+|---|---|---|
+|encoded|[object](#specdenyapp_resources-itemsallow_unsafeencoded)|Encoded maps a capture name to the characters a request path may contain in percent-encoded form inside that captured segment. The only supported value is "/", which allows the encoded slash (%2F or %2f).|
+
+### spec.deny.app_resources items.allow_unsafe.encoded
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.deny.beam_labels
 

@@ -85,6 +85,26 @@ spec:
                           description: AllowReason is the explanation recorded alongside
                             AllowCode. A rule sets it only together with AllowCode.
                           type: string
+                        allow_unsafe:
+                          description: 'AllowUnsafe lists options that can extend
+                            what the rule allows. They can be unsafe, so use them
+                            with care. For example:  `paths: ["/api/v4/projects/{project}/**"]`
+                            `allow_unsafe: {encoded: {project: "/"}}`  Set `encoded`
+                            only for an application that reads the encoded slash (%2F)
+                            as part of one path segment''s content and does not auto-decode
+                            it to a literal /.'
+                          nullable: true
+                          properties:
+                            encoded:
+                              additionalProperties:
+                                type: string
+                              description: Encoded maps a capture name to the characters
+                                a request path may contain in percent-encoded form
+                                inside that captured segment. The only supported value
+                                is "/", which allows the encoded slash (%2F or %2f).
+                              nullable: true
+                              type: object
+                          type: object
                         deny_code_hint:
                           description: DenyCodeHint is the code added to the deny
                             decision when the rule's path and method match but the
@@ -815,6 +835,26 @@ spec:
                           description: AllowReason is the explanation recorded alongside
                             AllowCode. A rule sets it only together with AllowCode.
                           type: string
+                        allow_unsafe:
+                          description: 'AllowUnsafe lists options that can extend
+                            what the rule allows. They can be unsafe, so use them
+                            with care. For example:  `paths: ["/api/v4/projects/{project}/**"]`
+                            `allow_unsafe: {encoded: {project: "/"}}`  Set `encoded`
+                            only for an application that reads the encoded slash (%2F)
+                            as part of one path segment''s content and does not auto-decode
+                            it to a literal /.'
+                          nullable: true
+                          properties:
+                            encoded:
+                              additionalProperties:
+                                type: string
+                              description: Encoded maps a capture name to the characters
+                                a request path may contain in percent-encoded form
+                                inside that captured segment. The only supported value
+                                is "/", which allows the encoded slash (%2F or %2f).
+                              nullable: true
+                              type: object
+                          type: object
                         deny_code_hint:
                           description: DenyCodeHint is the code added to the deny
                             decision when the rule's path and method match but the

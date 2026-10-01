@@ -2114,7 +2114,8 @@ func deriveTeleportEqual_142(this, that *AppResource) bool {
 			this.AllowCode == that.AllowCode &&
 			this.AllowReason == that.AllowReason &&
 			this.DenyCodeHint == that.DenyCodeHint &&
-			this.DenyReasonHint == that.DenyReasonHint
+			this.DenyReasonHint == that.DenyReasonHint &&
+			deriveTeleportEqual_146(this.AllowUnsafe, that.AllowUnsafe)
 }
 
 // deriveTeleportEqual_143 returns whether this and that are equal.
@@ -2139,4 +2140,11 @@ func deriveTeleportEqual_145(this, that *RequestKubernetesResource) bool {
 		this != nil && that != nil &&
 			this.Kind == that.Kind &&
 			this.APIGroup == that.APIGroup
+}
+
+// deriveTeleportEqual_146 returns whether this and that are equal.
+func deriveTeleportEqual_146(this, that *AppResourceUnsafe) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual_14(this.Encoded, that.Encoded)
 }

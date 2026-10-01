@@ -6212,6 +6212,17 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 								},
+								"allow_unsafe": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+									Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"encoded": github_com_hashicorp_terraform_plugin_framework_resource_schema.MapAttribute{
+										Computed:      true,
+										Description:   "Encoded maps a capture name to the characters a request path may contain in percent-encoded form inside that captured segment. The only supported value is \"/\", which allows the encoded slash (%2F or %2f).",
+										ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										Optional:      true,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Map{github_com_hashicorp_terraform_plugin_framework_resource_schema_mapplanmodifier.UseStateForUnknown()},
+									}},
+									Description: "AllowUnsafe lists options that can extend what the rule allows. They can be unsafe, so use them with care. For example:  `paths: [\"/api/v4/projects/{project}/**\"]` `allow_unsafe: {encoded: {project: \"/\"}}`  Set `encoded` only for an application that reads the encoded slash (%2F) as part of one path segment's content and does not auto-decode it to a literal /.",
+									Optional:    true,
+								},
 								"deny_code_hint": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 									Computed:      true,
 									Description:   "DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved \"teleport_\" prefix.",
@@ -8036,6 +8047,16 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 								"allow_reason": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 									Computed:    true,
 									Description: "AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.",
+									Optional:    true,
+								},
+								"allow_unsafe": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+									Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"encoded": github_com_hashicorp_terraform_plugin_framework_datasource_schema.MapAttribute{
+										Computed:    true,
+										Description: "Encoded maps a capture name to the characters a request path may contain in percent-encoded form inside that captured segment. The only supported value is \"/\", which allows the encoded slash (%2F or %2f).",
+										ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										Optional:    true,
+									}},
+									Description: "AllowUnsafe lists options that can extend what the rule allows. They can be unsafe, so use them with care. For example:  `paths: [\"/api/v4/projects/{project}/**\"]` `allow_unsafe: {encoded: {project: \"/\"}}`  Set `encoded` only for an application that reads the encoded slash (%2F) as part of one path segment's content and does not auto-decode it to a literal /.",
 									Optional:    true,
 								},
 								"deny_code_hint": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
@@ -36030,6 +36051,51 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attributes()["allow_unsafe"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.AppResources.AllowUnsafe"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowUnsafe", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+																		} else {
+																			obj.AllowUnsafe = nil
+																			if !v.IsNull() && !v.IsUnknown() {
+																				tf := v
+																				obj.AllowUnsafe = &github_com_gravitational_teleport_api_types.AppResourceUnsafe{}
+																				obj := obj.AllowUnsafe
+																				{
+																					a, ok := tf.Attributes()["encoded"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.AppResources.AllowUnsafe.Encoded"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowUnsafe.Encoded", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
+																						} else {
+																							obj.Encoded = make(map[string]string, len(v.Elements()))
+																							if !v.IsNull() && !v.IsUnknown() {
+																								for k, a := range v.Elements() {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowUnsafe.Encoded", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																									} else {
+																										var t string
+																										if !v.IsNull() && !v.IsUnknown() {
+																											t = (v.ValueString())
+																										}
+																										obj.Encoded[k] = t
+																									}
+																								}
+																							}
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
 															}
 															obj.AppResources[k] = t
 														}
@@ -42144,6 +42210,77 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.DenyReasonHint))
 																						}
 																						attrs["deny_reason_hint"] = v
+																					}
+																					{
+																						attrType, ok := attrType.AttributeTypes()["allow_unsafe"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.AppResources.AllowUnsafe"})
+																						} else {
+																							attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowUnsafe", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																							} else {
+																								existing := attrs["allow_unsafe"]
+																								v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																									if preserveUnknown && existing != nil && existing.IsUnknown() {
+																										return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																									} else {
+																										if obj.AllowUnsafe == nil {
+																											return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																										} else {
+																											obj := obj.AllowUnsafe
+																											attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																											v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																											if ok && v.Attributes() != nil {
+																												attrs = v.Attributes()
+																											}
+																											{
+																												attrType, ok := attrType.AttributeTypes()["encoded"]
+																												if !ok {
+																													diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.AppResources.AllowUnsafe.Encoded"})
+																												} else {
+																													attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+																													if !ok {
+																														diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowUnsafe.Encoded", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+																													} else {
+																														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																														existing := attrs["encoded"]
+																														if preserveUnknown && existing != nil && existing.IsUnknown() {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.MapUnknown(attrType.ElementType())
+																														} else {
+																															oldElems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Encoded))
+																															c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+																															if ok && c.Elements() != nil {
+																																oldElems = c.Elements()
+																															}
+																															elems := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Encoded))
+																															for k, a := range obj.Encoded {
+																																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																																existing := oldElems[k]
+																																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																	v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																																} else {
+																																	v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																																}
+																																elems[k] = v
+																															}
+																															result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.MapValue(attrType.ElementType(), elems)
+																															diags.Append(resultDiags...)
+																															v = result
+																														}
+																														attrs["encoded"] = v
+																													}
+																												}
+																											}
+																											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																											diags.Append(resultDiags...)
+																											return result
+																										}
+																									}
+																								}()
+																								attrs["allow_unsafe"] = v
+																							}
+																						}
 																					}
 																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 																					diags.Append(resultDiags...)

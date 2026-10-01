@@ -185,11 +185,19 @@ Optional:
 - `allow_all` (Boolean) AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.
 - `allow_code` (String) AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.
 - `allow_reason` (String) AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.
+- `allow_unsafe` (Attributes) AllowUnsafe lists options that can extend what the rule allows. They can be unsafe, so use them with care. For example:  `paths: ["/api/v4/projects/{project}/**"]` `allow_unsafe: {encoded: {project: "/"}}`  Set `encoded` only for an application that reads the encoded slash (%2F) as part of one path segment's content and does not auto-decode it to a literal /. (see [below for nested schema](#nested-schema-for-specallowapp_resourcesallow_unsafe))
 - `deny_code_hint` (String) DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.
 - `deny_reason_hint` (String) DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.
 - `methods` (List of String) Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty list matches any of them. Any other method is rejected before any rule is evaluated.
 - `paths` (List of String) Paths are the path patterns the rule matches, for example:  `paths: ["/api/projects/{project}/**"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.
 - `where` (String) Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits["projects"], vars.project)`
+
+### Nested Schema for `spec.allow.app_resources.allow_unsafe`
+
+Optional:
+
+- `encoded` (Map of String) Encoded maps a capture name to the characters a request path may contain in percent-encoded form inside that captured segment. The only supported value is "/", which allows the encoded slash (%2F or %2f).
+
 
 
 ### Nested Schema for `spec.allow.db_permissions`
