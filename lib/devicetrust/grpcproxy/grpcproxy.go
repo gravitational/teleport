@@ -18,6 +18,7 @@ package grpcproxy
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 
@@ -64,6 +65,14 @@ type Service struct {
 	log        *slog.Logger
 }
 
+// errCreatePairedDeviceEnrollTokenProxyTimeout ends a call that outlived
+// [devicetrust.PublicCreatePairedDeviceEnrollTokenProxyTimeout]. It is a
+// LimitExceededError because the caller ran into a limit the server imposes on
+// the stream, rather than just a regular exceeded deadline.
+var errCreatePairedDeviceEnrollTokenProxyTimeout = &trace.LimitExceededError{
+	Message: "enrollment token request timed out on the proxy",
+}
+
 // CreatePairedDeviceEnrollToken forwards the request to the same RPC in the
 // Auth Service.
 func (s *Service) CreatePairedDeviceEnrollToken(ctx context.Context, req *publicdevicepb.CreatePairedDeviceEnrollTokenRequest) (*publicdevicepb.CreatePairedDeviceEnrollTokenResponse, error) {
@@ -71,8 +80,23 @@ func (s *Service) CreatePairedDeviceEnrollToken(ctx context.Context, req *public
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	ctx, cancel := context.WithTimeoutCause(ctx,
+		devicetrust.PublicCreatePairedDeviceEnrollTokenProxyTimeout,
+		errCreatePairedDeviceEnrollTokenProxyTimeout)
+	defer cancel()
+
 	res, err := s.authClient.PublicDevicesClient().CreatePairedDeviceEnrollToken(ctx, req)
-	return res, trace.Wrap(err)
+	if err != nil {
+		if cause := context.Cause(ctx); errors.Is(cause, errCreatePairedDeviceEnrollTokenProxyTimeout) {
+			// Debug log the cause to match [grpcutils.ProxyBidiStream] behavior.
+			s.log.DebugContext(ctx, "Proxied CreatePairedDeviceEnrollToken timed out",
+				"timeout", devicetrust.PublicCreatePairedDeviceEnrollTokenProxyTimeout)
+			return nil, trace.Wrap(cause)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
 }
 
 // errEnrollDeviceFirstMessageTimeout ends a stream whose client sent no init

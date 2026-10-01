@@ -61,3 +61,16 @@ const (
 	// right away.
 	PublicAuthenticateDeviceFirstMessageTimeout = 10 * time.Second
 )
+
+const (
+	// PublicCreatePairedDeviceEnrollTokenProxyTimeout is the timeout for the
+	// CreatePairedDeviceEnrollToken call the Proxy Service forwards to the Auth
+	// Service. It is longer than the approval wait on the Auth Service, which
+	// ends at the pairing TTL plus a margin, so that the Auth Service normally
+	// ends the wait and tells the caller why. The proxy's timeout only fires if
+	// the Auth Service does not answer.
+	//
+	// It is spelled out rather than derived from the TTL because the TTL lives in
+	// lib/services/local, which depends on this package.
+	PublicCreatePairedDeviceEnrollTokenProxyTimeout = 6 * time.Minute
+)
