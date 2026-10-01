@@ -48,6 +48,7 @@ import userService, {
 } from 'teleport/services/user';
 
 import UserTokenLink from './../UserTokenLink';
+import { fetchAllRoleNames } from './fetchAllRoleNames';
 
 interface UserAddEditProps {
   user: User;
@@ -176,12 +177,11 @@ export function UserAddEdit({
     onSave();
   }
 
-  async function fetchRoles(search: string): Promise<string[]> {
-    const { items } = await ctx.resourceService.fetchRoles({
-      search,
-      limit: 50,
-    });
-    return items.map(r => r.name);
+  function fetchRoles(search: string): Promise<string[]> {
+    return fetchAllRoleNames(
+      params => ctx.resourceService.fetchRoles(params),
+      search
+    );
   }
 
   if (createUser.isSuccess && isNew && token) {
