@@ -20,12 +20,14 @@ package githttp
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"path"
 	"strings"
 
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -33,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
+	gitcommon "github.com/gravitational/teleport/lib/srv/git/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -48,17 +51,41 @@ func (h *Handler) handleGitHub(ctx context.Context, logger *slog.Logger, w http.
 }
 
 // handleGitHubGit handles Git smart HTTP requests to github.com.
-func (h *Handler) handleGitHubGit(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, gitServer types.Server) error {
+func (h *Handler) handleGitHubGit(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, gitServer types.Server) (err error) {
+	// Emit git.command to be consistent with git SSH proxy. Discovery requests
+	// or unknown requests are skipped for git.command. Detailed actions from
+	// push (git-receive-pack) requests are captured from request body.
+	//
+	// https://git-scm.com/docs/http-protocol#_discovering_references
+	var statusCode int
+	if details := parseSmartHTTPRequest(r); !details.isDiscovery && details.service != "" {
+		command := gitcommon.Command{
+			RequestLine: r.Method + " " + r.URL.Path,
+			Service:     details.service,
+			Repository:  details.repoPath,
+		}
+		commandRecorder := gitcommon.NewCommandRecorder(ctx, command)
+		if r.Body != nil && details.service == transport.ReceivePackServiceName && r.Method == http.MethodPost {
+			r.Body = io.NopCloser(io.TeeReader(r.Body, commandRecorder))
+		}
+		event := h.makeGitCommandEvent(r, identity, gitServer, command)
+		defer func() {
+			h.completeGitCommandEvent(event, commandRecorder, statusCode, err)
+			h.emitAuditEvent(event)
+		}()
+	}
+
 	// Do our best to verify the org matches.
 	if err := checkGitHubRepoOwner(r.URL.Path, gitServer.GetGitHub().Organization); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return h.forwardToGitHub(ctx, logger, w, r, func(out *http.Request, accessToken string) {
+	statusCode, err = h.forwardToGitHub(ctx, logger, w, r, func(out *http.Request, accessToken string) {
 		// Git HTTPS uses HTTP Basic with "x-access-token" as username:
 		// https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens
 		out.SetBasicAuth("x-access-token", accessToken)
 	})
+	return trace.Wrap(err)
 }
 
 // handleGitHubAPI handles REST and GraphQL requests to api.github.com.
@@ -66,11 +93,12 @@ func (h *Handler) handleGitHubAPI(ctx context.Context, logger *slog.Logger, w ht
 	// Note that there is no easy and reliable way to ensure organization by
 	// checking the request. Therefore, we solely rely on the token being scoped
 	// to the organization's GitHub App installation.
-	return h.forwardToGitHub(ctx, logger, w, r, func(out *http.Request, accessToken string) {
+	_, err := h.forwardToGitHub(ctx, logger, w, r, func(out *http.Request, accessToken string) {
 		// REST API uses Bearer token:
 		// https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api
 		out.Header.Set("Authorization", "Bearer "+accessToken)
 	})
+	return trace.Wrap(err)
 }
 
 func checkGitHubRepoOwner(urlPath, org string) error {
@@ -83,18 +111,18 @@ func checkGitHubRepoOwner(urlPath, org string) error {
 
 // forwardToGitHub decrypts the upstream token and forwards the request to
 // GitHub. setAuth sets the upstream credentials on the outgoing request.
-func (h *Handler) forwardToGitHub(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, r *http.Request, setAuth func(out *http.Request, accessToken string)) error {
+func (h *Handler) forwardToGitHub(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, r *http.Request, setAuth func(out *http.Request, accessToken string)) (int, error) {
 	encryptedToken := r.Header.Get(teleport.GitTokenHeader)
 	if encryptedToken == "" {
-		return trace.AccessDenied("missing %s header", teleport.GitTokenHeader)
+		return 0, trace.AccessDenied("missing %s header", teleport.GitTokenHeader)
 	}
 	userCert, err := authz.UserCertificateFromContext(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 	accessToken, err := h.cfg.UpstreamAuth.DecryptToken(ctx, userCert.Raw, encryptedToken)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
 	logger.DebugContext(ctx, "Forwarding request to GitHub",
@@ -103,22 +131,30 @@ func (h *Handler) forwardToGitHub(ctx context.Context, logger *slog.Logger, w ht
 		"path", r.URL.Path,
 	)
 
-	// TODO(greedy52) add session recording and audit events.
+	// TODO(greedy52) add session recording.
+	var statusCode int
+	var upstreamErr error
 	fwd, err := reverseproxy.New(
 		reverseproxy.WithRoundTripper(h.cfg.Transport),
 		reverseproxy.WithLogger(logger),
 		reverseproxy.WithRewriter(newGitHubRequestRewriter(accessToken, setAuth)),
-		reverseproxy.WithErrorHandler(func(w http.ResponseWriter, req *http.Request, err error) {
-			logger.ErrorContext(req.Context(), "GitHub upstream error", "error", err)
-			trace.WriteError(w, trace.ConnectionProblem(err, "upstream error"))
+		reverseproxy.WithResponseModifier(func(resp *http.Response) error {
+			statusCode = resp.StatusCode
+			return nil
+		}),
+		reverseproxy.WithErrorHandler(func(_ http.ResponseWriter, _ *http.Request, err error) {
+			upstreamErr = err
 		}),
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
 	fwd.ServeHTTP(w, r)
-	return nil
+	if upstreamErr != nil {
+		return statusCode, trace.ConnectionProblem(upstreamErr, "upstream error: %v", upstreamErr)
+	}
+	return statusCode, nil
 }
 
 func newGitHubRequestRewriter(accessToken string, setAuth func(out *http.Request, accessToken string)) reverseproxy.Rewriter {

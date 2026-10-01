@@ -72,7 +72,8 @@ type CommandRecorder interface {
 
 	// GetCommand returns basic info of the command.
 	GetCommand() Command
-	// GetActions returns the action details of the command.
+	// GetActions returns the action details of the command. The actions may
+	// be incomplete when an error is returned.
 	GetActions() ([]*apievents.GitCommandAction, error)
 }
 
@@ -125,7 +126,6 @@ type pushCommandRecorder struct {
 	logger    *slog.Logger
 	payload   []byte
 	mu        sync.Mutex
-	seenFlush bool
 }
 
 func newPushCommandRecorder(parentCtx context.Context, command Command) *pushCommandRecorder {
@@ -144,20 +144,25 @@ func (r *pushCommandRecorder) Write(p []byte) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Avoid caching packfile as it can be large. Look for flush-pkt which
-	// comes after the command-list.
+	// maxPushCommandPayloadSize is the maximum number of bytes the push
+	// recorder keeps from the start of the request.
+	const maxPushCommandPayloadSize = 64 * 1024
+
+	// The command-list comes first and ends with a flush-pkt, followed by the
+	// packfile which can be large. Writes are arbitrary chunks of the stream
+	// so only keep a bounded prefix. This only caps the recorder's copy. The
+	// stream itself is not affected.
 	//
 	// https://git-scm.com/docs/pack-protocol#_reference_update_request_and_packfile_transfer
-	if r.seenFlush {
+	remaining := maxPushCommandPayloadSize - len(r.payload)
+	if remaining <= 0 {
 		r.logger.Log(r.parentCtx, log.TraceLevel, "Discarding packet protocol", "packet_length", len(p))
 		return len(p), nil
 	}
 
-	r.logger.Log(r.parentCtx, log.TraceLevel, "Recording Git command in packet protocol", "packet", string(p))
-	r.payload = append(r.payload, p...)
-	if bytes.HasSuffix(p, pktline.FlushPkt) {
-		r.seenFlush = true
-	}
+	kept := p[:min(len(p), remaining)]
+	r.logger.Log(r.parentCtx, log.TraceLevel, "Recording Git command in packet protocol", "packet_length", len(kept))
+	r.payload = append(r.payload, kept...)
 	return len(p), nil
 }
 
@@ -170,10 +175,25 @@ func (r *pushCommandRecorder) GetActions() ([]*apievents.GitCommandAction, error
 		return nil, nil
 	}
 
+	// The payload is the start of the reference update request: the
+	// command-list ending with a flush-pkt, followed by the packfile. Since the
+	// payload is capped, it can be decoded as:
+	// - Flush-pkt captured: the decoder stops at the flush-pkt with all
+	//   commands and returns success. The rest of the payload is not read.
+	// - Payload cut inside a pkt-line of the command-list: reading that
+	//   pkt-line fails with io.ErrUnexpectedEOF.
+	// - Payload cut exactly between pkt-lines of the command-list, so it is
+	//   unknown whether more commands follow the cut: the decoder normally
+	//   treats a clean end of data as the end of the command-list, so
+	//   unexpectedEOFReader is chained here to make reading the next pkt-line
+	//   fail instead.
+	// For a partial capture, both the partial list and an error are returned.
+	//
+	// TODO(greedy52) add actions_truncated to git.command events to indicate a
+	// partial list of actions.
 	request := packp.NewReferenceUpdateRequest()
-	if err := request.Decode(bytes.NewReader(r.payload)); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	decodeErr := request.Decode(io.MultiReader(bytes.NewReader(r.payload), unexpectedEOFReader{}))
+
 	var actions []*apievents.GitCommandAction
 	for _, command := range request.Commands {
 		actions = append(actions, &apievents.GitCommandAction{
@@ -183,5 +203,11 @@ func (r *pushCommandRecorder) GetActions() ([]*apievents.GitCommandAction, error
 			New:       command.New.String(),
 		})
 	}
-	return actions, nil
+	return actions, trace.Wrap(decodeErr)
+}
+
+type unexpectedEOFReader struct{}
+
+func (unexpectedEOFReader) Read([]byte) (int, error) {
+	return 0, io.ErrUnexpectedEOF
 }

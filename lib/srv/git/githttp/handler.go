@@ -125,6 +125,7 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 type Handler struct {
 	cfg            HandlerConfig
 	authMiddleware *authz.Middleware
+	closeContext   context.Context
 }
 
 // NewHandler creates a new Git HTTP handler.
@@ -139,6 +140,7 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 			ClusterName:   cfg.ClusterName,
 			AcceptedUsage: []string{teleport.UsageGitOnly},
 		},
+		closeContext: ctx,
 	}, nil
 }
 
@@ -208,6 +210,9 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	if tracker, ok := monitoredConn.(activityTracker); ok {
 		w, r = trackClientActivity(tracker, w, r)
 	}
+
+	// TODO(greedy52) to align with RFD 0341, rename git.session.start to
+	// git.access and emit it here.
 
 	r = r.WithContext(ctx)
 	switch gitServer.GetSubKind() {
