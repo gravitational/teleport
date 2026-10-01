@@ -825,7 +825,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 	evtsRaw, next, err := l.searchEvents(ctx, searchEventsRequest{
 		fromTime:   req.From,
 		toTime:     req.To,
-		eventTypes: events.SessionRecordingEvents,
+		eventTypes: req.EffectiveEventTypes(),
 		cond:       req.Cond,
 		sessionID:  req.SessionID,
 		limit:      req.Limit,

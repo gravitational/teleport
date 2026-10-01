@@ -966,6 +966,13 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 						Verbs:     []string{types.Wildcard},
 					},
 					types.NewRule(types.KindBeamsConfig, RO()),
+					{
+						Resources: []string{types.KindSession},
+						Verbs:     []string{types.VerbList, types.VerbRead},
+						// session.event maps to events.Metadata.Type (json:"event").
+						// events.BeamDestroyedEvent.
+						Where: `equals(session.event, "beam.destroyed") && equals(session.user, user.metadata.name)`,
+					},
 				},
 			},
 		},
@@ -1002,6 +1009,13 @@ func NewPresetBeamAdminRole(buildType string) types.Role {
 						Verbs:     []string{types.Wildcard},
 					},
 					types.NewRule(types.KindBeamsConfig, RW()),
+					{
+						Resources: []string{types.KindSession},
+						Verbs:     []string{types.VerbList, types.VerbRead},
+						// session.event maps to events.Metadata.Type (json:"event").
+						// events.BeamDestroyedEvent.
+						Where: `equals(session.event, "beam.destroyed")`,
+					},
 				},
 			},
 		},
