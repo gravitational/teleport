@@ -28,6 +28,7 @@ export function makeAdvancedSearchQueryForLabel(
     query?: string;
   }
 ): string {
+  const labelQuery = `labels["${label.name}"] == "${label.value}"`;
   const queryParts: string[] = [];
 
   // Add an existing query.
@@ -40,8 +41,10 @@ export function makeAdvancedSearchQueryForLabel(
     queryParts.push(`search("${params.search}")`);
   }
 
-  const labelQuery = `labels["${label.name}"] == "${label.value}"`;
-  queryParts.push(labelQuery);
+  // Skip the label if the query already has it as a term of its own.
+  if (!params.query?.split(' && ').includes(labelQuery)) {
+    queryParts.push(labelQuery);
+  }
 
   return queryParts.join(' && ');
 }
