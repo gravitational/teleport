@@ -40,6 +40,7 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useUserPreferences(clusterUri: ClusterUri): {
   userPreferencesAttempt: Attempt<void>;
+  retryUserPreferences(): Promise<void>;
   updateUserPreferences(newPreferences: UserPreferences): Promise<void>;
   userPreferences: UserPreferences;
 } {
@@ -118,30 +119,37 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     [appContext.workspacesService, clusterUri]
   );
 
-  useEffect(() => {
-    const fetchPreferences = async () => {
-      if (
-        initialFetchAttempt.status === '' &&
-        supersededInitialFetchAttempt.status === '' &&
-        // DocumentCluster is rendered by default for every workspace. isClusterConnected prevents
-        // the doc from attempting to fetch user prefs when the cluster is offline.
-        isClusterConnected
-      ) {
-        const [prefs, error] = await runInitialFetchAttempt();
-        if (!error) {
-          updateUnifiedResourcePreferencesStateAndWorkspace(
-            prefs.unifiedResourcePreferences
-          );
-          setClusterPreferences(prefs?.clusterPreferences);
-        }
-      }
-    };
+  const fetchPreferences = useCallback(async () => {
+    if (initialFetchAttemptAbortController.current.signal.aborted) {
+      initialFetchAttemptAbortController.current = new AbortController();
+    }
+    setSupersededInitialFetchAttempt(makeEmptyAttempt());
 
-    fetchPreferences();
+    const [prefs, error] = await runInitialFetchAttempt();
+    if (!error) {
+      updateUnifiedResourcePreferencesStateAndWorkspace(
+        prefs.unifiedResourcePreferences
+      );
+      setClusterPreferences(prefs.clusterPreferences);
+    }
   }, [
-    supersededInitialFetchAttempt.status,
     runInitialFetchAttempt,
     updateUnifiedResourcePreferencesStateAndWorkspace,
+  ]);
+
+  useEffect(() => {
+    if (
+      initialFetchAttempt.status === '' &&
+      supersededInitialFetchAttempt.status === '' &&
+      // DocumentCluster is rendered by default for every workspace. isClusterConnected prevents
+      // the doc from attempting to fetch user prefs when the cluster is offline.
+      isClusterConnected
+    ) {
+      void fetchPreferences();
+    }
+  }, [
+    supersededInitialFetchAttempt.status,
+    fetchPreferences,
     initialFetchAttempt.status,
     isClusterConnected,
   ]);
@@ -201,6 +209,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
           : mapAttempt(initialFetchAttempt, () => undefined),
       [initialFetchAttempt, supersededInitialFetchAttempt]
     ),
+    retryUserPreferences: fetchPreferences,
     updateUserPreferences,
     userPreferences: useMemo(
       () => ({

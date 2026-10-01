@@ -29,7 +29,7 @@ import React, {
 import styled from 'styled-components';
 
 import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
-import { Danger } from 'design/Alert';
+import { Danger, Warning } from 'design/Alert';
 import { Icon, Magnifier, PushPin } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import {
@@ -214,6 +214,8 @@ export interface UnifiedResourcesProps {
    * while the unified resources component is visible.
    */
   unifiedResourcePreferencesAttempt?: AsyncAttempt<void>;
+  /** Retries loading initial view preferences when that request fails. */
+  retryGetUnifiedResourcePreferences?(): Promise<void>;
   availabilityFilter?: ResourceAvailabilityFilter;
   unifiedResourcePreferences: UnifiedResourcePreferences;
   updateUnifiedResourcesPreferences(
@@ -401,8 +403,14 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     setIsSearchEmpty(!params?.query && !params?.search);
   }, [params.query, params.search]);
 
-  const onRetryClicked = () => {
-    fetchResources({ force: true });
+  const retryAll = () => {
+    void fetchResources({ force: true });
+    if (unifiedResourcePreferencesAttempt?.status === 'error') {
+      void props.retryGetUnifiedResourcePreferences?.();
+    }
+    if (getPinnedResourcesAttempt.status === 'error') {
+      void getPinnedResources();
+    }
   };
 
   const allSelected =
@@ -487,6 +495,12 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       }));
   };
 
+  const pinningSupport = getResourcePinningSupport(
+    pinning.kind,
+    getPinnedResourcesAttempt,
+    updatePinnedResourcesAttempt
+  );
+
   const bulkActionsAndPinning = (): BulkAction[] => {
     if (pinning.kind === 'hidden') {
       return bulkActions;
@@ -498,7 +512,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         key: 'pin_resource',
         text: shouldUnpin ? 'Unpin Selected' : 'Pin Selected',
         Icon: PushPin,
-        disabled: updatePinnedResourcesAttempt.status === 'processing',
+        disabled: pinningSupport === PinningSupport.Disabled,
         action: () => handlePinSelected(shouldUnpin),
       },
     ];
@@ -563,9 +577,14 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
 
   if (resourcesFetchAttempt.status === 'failed' && resources.length > 0) {
     footerElement = (
-      <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
+      <ButtonSecondary onClick={() => fetchResources({ force: true })}>
+        Load more
+      </ButtonSecondary>
     );
   }
+
+  const showSecondaryErrors =
+    resourcesFetchAttempt.status === 'success' || resources.length > 0;
 
   return (
     <Container className={`ContainerContext ${className}`} ref={containerRef}>
@@ -579,7 +598,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               resourcesFetchAttempt.statusCode !== 400 &&
               resourcesFetchAttempt.statusCode !== 403 && {
                 content: 'Retry',
-                onClick: onRetryClicked,
+                onClick: retryAll,
               }
             }
             details={resourcesFetchAttempt.statusText}
@@ -587,15 +606,20 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             Could not fetch resources
           </Danger>
         )}
-        {getPinnedResourcesAttempt.status === 'error' && (
-          <Danger
-            mb={0}
-            bg="levels.sunken"
-            details={getPinnedResourcesAttempt.statusText}
-          >
-            Could not fetch pinned resources
-          </Danger>
-        )}
+        {showSecondaryErrors &&
+          getPinnedResourcesAttempt.status === 'error' && (
+            <Warning
+              mb={0}
+              bg="levels.sunken"
+              details={getPinnedResourcesAttempt.statusText}
+              primaryAction={{
+                content: 'Retry',
+                onClick: () => void getPinnedResources(),
+              }}
+            >
+              Could not load pinned resources. Pinning is unavailable.
+            </Warning>
+          )}
         {updatePinnedResourcesAttempt.status === 'error' && (
           <Danger
             mb={0}
@@ -605,15 +629,22 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             Could not update pinned resources
           </Danger>
         )}
-        {unifiedResourcePreferencesAttempt?.status === 'error' && (
-          <Danger
-            mb={0}
-            bg="levels.sunken"
-            details={unifiedResourcePreferencesAttempt.statusText}
-          >
-            Could not fetch unified view preferences
-          </Danger>
-        )}
+        {showSecondaryErrors &&
+          unifiedResourcePreferencesAttempt?.status === 'error' && (
+            <Warning
+              mb={0}
+              bg="levels.sunken"
+              details={unifiedResourcePreferencesAttempt.statusText}
+              primaryAction={
+                props.retryGetUnifiedResourcePreferences && {
+                  content: 'Retry',
+                  onClick: props.retryGetUnifiedResourcePreferences,
+                }
+              }
+            >
+              Could not load view preferences. Using default view settings.
+            </Warning>
+          )}
       </ErrorsContainer>
 
       {props.Header}
@@ -709,17 +740,17 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         selectedResources={selectedResources}
         onSelectResource={handleSelectResource}
         onPinResource={handlePinResource}
-        pinningSupport={getResourcePinningSupport(
-          pinning.kind,
-          updatePinnedResourcesAttempt
-        )}
+        pinningSupport={pinningSupport}
         isProcessing={
           // we don't check for '' in resourcesFetchAttempt because
           // `keyBasedPagination` returns to that status on abort errors.
           resourcesFetchAttempt.status === 'processing' ||
           getPinnedResourcesAttempt.status === '' ||
           getPinnedResourcesAttempt.status === 'processing' ||
-          unifiedResourcePreferencesAttempt?.status === '' ||
+          // We don't check for '' in unifiedResourcePreferencesAttempt because
+          // useUserPreferences in teleterm may skip fetching the preferences
+          // if the cluster is not connected, making this screen stuck in the
+          // loading state.
           unifiedResourcePreferencesAttempt?.status === 'processing'
         }
         mappedResources={
@@ -785,13 +816,17 @@ export function useResourceServersFetch<T>(props: {
 
 function getResourcePinningSupport(
   pinning: UnifiedResourcesPinning['kind'],
+  getPinnedResourcesAttempt: AsyncAttempt<string[]>,
   updatePinnedResourcesAttempt: AsyncAttempt<void>
 ): PinningSupport {
   if (pinning === 'hidden') {
     return PinningSupport.Hidden;
   }
 
-  if (updatePinnedResourcesAttempt.status === 'processing') {
+  if (
+    getPinnedResourcesAttempt.status === 'error' ||
+    updatePinnedResourcesAttempt.status === 'processing'
+  ) {
     return PinningSupport.Disabled;
   }
 

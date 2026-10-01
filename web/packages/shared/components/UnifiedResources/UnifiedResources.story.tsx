@@ -228,13 +228,20 @@ export const FailedAfterScrolling = story({
   },
 });
 
-export const FailedToLoadPreferences = story({
+export const FailedToLoadPreferencesAndPins = story({
   fetchFunc: async () => ({
     agents: allResources,
   }),
   unifiedResourcePreferencesAttempt: makeErrorAttempt(
     new Error('Network error')
   ),
+  pinning: {
+    kind: 'supported',
+    getClusterPinnedResources: async () => {
+      throw new Error('Network error');
+    },
+    updateClusterPinnedResources: async () => {},
+  },
 });
 
 export const LoadingPreferences = story({

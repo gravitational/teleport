@@ -94,8 +94,12 @@ export function UnifiedResources(props: {
   queryParams: DocumentClusterQueryParams;
 }) {
   const { clustersService } = useAppContext();
-  const { userPreferencesAttempt, updateUserPreferences, userPreferences } =
-    useUserPreferences(props.clusterUri);
+  const {
+    userPreferencesAttempt,
+    retryUserPreferences,
+    updateUserPreferences,
+    userPreferences,
+  } = useUserPreferences(props.clusterUri);
   const { documentsService, rootClusterUri, accessRequestsService } =
     useWorkspaceContext();
   const rootCluster = clustersService.findCluster(rootClusterUri);
@@ -251,6 +255,7 @@ export function UnifiedResources(props: {
         onParamsChange={onParamsChange}
         clusterUri={props.clusterUri}
         userPreferencesAttempt={userPreferencesAttempt}
+        retryGetUserPreferences={retryUserPreferences}
         updateUserPreferences={updateUserPreferences}
         userPreferences={userPreferences}
         canAddResources={canAddResources}
@@ -275,6 +280,7 @@ const Resources = memo(
     queryParams: UnifiedResourcesQueryParams;
     onParamsChange(params: UnifiedResourcesQueryParams): void;
     userPreferencesAttempt?: Attempt<void>;
+    retryGetUserPreferences(): Promise<void>;
     userPreferences: UserPreferences;
     updateUserPreferences(u: UserPreferences): Promise<void>;
     canAddResources: boolean;
@@ -436,6 +442,7 @@ const Resources = memo(
           params={props.queryParams}
           setParams={props.onParamsChange}
           unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
+          retryGetUnifiedResourcePreferences={props.retryGetUserPreferences}
           bulkActions={
             props.integratedAccessRequests.supported === 'yes'
               ? [
