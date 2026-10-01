@@ -49,6 +49,8 @@ const (
 	RegexpReplaceFnName = "regexp.replace"
 )
 
+const validationTraitValue = "validation@example.com"
+
 // LabelSelectorSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
 // { "name" -> "value", "long name" -> "quoted value" }.
 func LabelSelectorSpec(spec string) (map[string]string, error) {
@@ -127,7 +129,8 @@ func tokenizeLabelSpec(spec string) ([]string, error) {
 }
 
 var (
-	traitsTemplateParser = mustNewTraitsTemplateParser()
+	traitsTemplateParser       = mustNewTraitsTemplateParser(typical.WithInvalidNamespaceHack())
+	strictTraitsTemplateParser = mustNewTraitsTemplateParser()
 
 	matcherParser = mustNewMatcherParser()
 
@@ -152,11 +155,7 @@ type TraitsTemplateExpression struct {
 	expr traitsTemplateExpression
 }
 
-// NewTraitsTemplateExpression parses expressions like {{external.foo}}, {{internal.bar}},
-// or {{user.metadata.name}},
-// or a literal value like "prod". Call Interpolate on the returned Expression
-// to get the final value based on user traits.
-func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error) {
+func newTraitsTemplateExpression(value string, parser *typical.CachedParser[traitsTemplateEnv, []string]) (*TraitsTemplateExpression, error) {
 	match := reVariable.FindStringSubmatch(value)
 	if len(match) == 0 {
 		if strings.Contains(value, "{{") || strings.Contains(value, "}}") {
@@ -173,7 +172,7 @@ func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error
 
 	prefix, value, suffix := match[1], match[2], match[3]
 
-	expr, err := parseTraitsTemplateExpression(value)
+	expr, err := parser.Parse(value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,6 +182,14 @@ func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error
 		suffix: strings.TrimRightFunc(suffix, unicode.IsSpace),
 		expr:   expr,
 	}, nil
+}
+
+// NewTraitsTemplateExpression parses expressions like {{external.foo}}, {{internal.bar}},
+// or {{user.metadata.name}},
+// or a literal value like "prod". Call Interpolate on the returned Expression
+// to get the final value based on user traits.
+func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error) {
+	return newTraitsTemplateExpression(value, traitsTemplateParser)
 }
 
 // Interpolate interpolates the variable adding prefix and suffix if present.
@@ -219,24 +226,20 @@ type traitsTemplateEnv struct {
 	username       string
 	traits         map[string][]string
 	traitValidator func(namespace, name string) error
+	validate       bool
 }
 
 type traitsTemplateExpression typical.Expression[traitsTemplateEnv, []string]
 
-func parseTraitsTemplateExpression(exprString string) (traitsTemplateExpression, error) {
-	expr, err := traitsTemplateParser.Parse(exprString)
-	return expr, trace.Wrap(err)
-}
-
-func mustNewTraitsTemplateParser() *typical.CachedParser[traitsTemplateEnv, []string] {
-	parser, err := newTraitsTemplateParser()
+func mustNewTraitsTemplateParser(opts ...typical.ParserOption) *typical.CachedParser[traitsTemplateEnv, []string] {
+	parser, err := newTraitsTemplateParser(opts...)
 	if err != nil {
 		panic(trace.Wrap(err, "failed to create template parser (this is a bug)"))
 	}
 	return parser
 }
 
-func newTraitsTemplateParser() (*typical.CachedParser[traitsTemplateEnv, []string], error) {
+func newTraitsTemplateParser(opts ...typical.ParserOption) (*typical.CachedParser[traitsTemplateEnv, []string], error) {
 	traitsVariable := func(name string) typical.Variable {
 		return typical.DynamicMapFunction(func(e traitsTemplateEnv, key string) ([]string, error) {
 			if e.traitValidator != nil {
@@ -244,6 +247,13 @@ func newTraitsTemplateParser() (*typical.CachedParser[traitsTemplateEnv, []strin
 					return nil, trace.Wrap(err)
 				}
 			}
+
+			// Validate must traverse references and functions, but must not
+			// read or retain real trait values.
+			if e.validate {
+				return []string{validationTraitValue}, nil
+			}
+
 			values, ok := e.traits[key]
 			if !ok {
 				return nil, trace.NotFound("trait not found: %s.%s", name, key)
@@ -267,7 +277,7 @@ func newTraitsTemplateParser() (*typical.CachedParser[traitsTemplateEnv, []strin
 			EmailLocalFnName:    typical.UnaryFunction[traitsTemplateEnv](EmailLocal),
 			RegexpReplaceFnName: typical.TernaryFunction[traitsTemplateEnv](RegexpReplace),
 		},
-	}, typical.WithInvalidNamespaceHack())
+	}, opts...)
 	return parser, trace.Wrap(err)
 }
 
@@ -513,4 +523,24 @@ func newRegexp(raw string, escape bool) (*regexp.Regexp, error) {
 		)
 	}
 	return re, nil
+}
+
+// ValidateTraitTemplateExpression validates template syntax, supported
+// functions, namespaces, and trait references without reading real trait values.
+func ValidateTraitTemplateExpression(
+	value string,
+	validateTrait func(namespace, key string) error,
+) error {
+	expression, err := newTraitsTemplateExpression(value, strictTraitsTemplateParser)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = expression.expr.Evaluate(traitsTemplateEnv{
+		// A valid email allows email.local(...) to be syntax-validated.
+		username:       validationTraitValue,
+		traitValidator: validateTrait,
+		validate:       true,
+	})
+	return trace.Wrap(err)
 }

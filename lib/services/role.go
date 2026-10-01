@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/traits"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -965,16 +966,8 @@ func ApplyValueTraitsWithContext(val string, ctx RoleTemplateContext) ([]string,
 	varValidation := func(namespace string, name string) error {
 		// verify that internal traits match the supported variables
 		if namespace == teleport.TraitInternalPrefix {
-			switch name {
-			case constants.TraitLogins, constants.TraitWindowsLogins, constants.TraitLinuxDesktopLogins,
-				constants.TraitKubeGroups, constants.TraitKubeUsers,
-				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
-				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-				constants.TraitGCPServiceAccounts, constants.TraitJWT,
-				constants.TraitGitHubOrgs, constants.TraitMCPTools,
-				constants.TraitDefaultRelayAddr, constants.TraitIDToken:
-			default:
-				return trace.BadParameter("unsupported variable %q", name)
+			if err := traits.ValidateInternalTraitKey(name); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 		// The "external" trait namespace is explicitly allowed to reference

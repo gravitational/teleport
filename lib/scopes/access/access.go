@@ -17,6 +17,7 @@
 package access
 
 import (
+	"errors"
 	"iter"
 	"slices"
 	"strings"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -31,6 +33,9 @@ import (
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services/label"
+	"github.com/gravitational/teleport/lib/traits"
+	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 const (
@@ -65,9 +70,9 @@ const (
 	maxAssignableScopes = 16
 
 	// invalidChars are the special characters that should not be allowed in certain keys or values.
-	invalidChars = "{}^$*"
+	invalidChars = "^$*"
 	// invalidLabelChars are the special characters that should not be allowed in label keys or values.
-	invalidLabelChars = "{}^$"
+	invalidLabelChars = "^$"
 
 	// maxValuesPerTrait limits the number of values that can be assigned to a single trait.
 	maxValuesPerTrait = 16
@@ -244,6 +249,10 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 
 	if err := validateLabels(role.GetSpec().GetWorkloadIdentity().GetLabels()); err != nil {
 		return trace.BadParameter("scoped role %q's workload_identity %s", role.GetMetadata().GetName(), err)
+	}
+
+	if err := validateRoleTemplates(role.GetSpec()); err != nil {
+		return trace.BadParameter("scoped role %q has an invalid trait template: %s", role.GetMetadata().GetName(), err)
 	}
 
 	// verify that scoped role converts to a valid unscoped role
@@ -697,7 +706,7 @@ func validateKubeResource(resource *scopedaccessv1.KubeResource) error {
 	// renders correctly.
 	// (e.g. `scoped role "/my/scope::my-role"'s kube has invalid resource: resources[0].kind is required`)
 	for _, verb := range resource.GetVerbs() {
-		if !slices.Contains(types.KubernetesVerbs, verb) && verb != types.Wildcard {
+		if !slices.Contains(types.KubernetesVerbs, verb) && verb != types.Wildcard && !strings.Contains(verb, "{{") {
 			return trace.BadParameter("verbs contain invalid or unsupported %q; Supported: %v", verb, types.KubernetesVerbs)
 		}
 		if verb == types.Wildcard && len(resource.GetVerbs()) > 1 {
@@ -868,5 +877,146 @@ func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+// validateRoleTemplates validates all [scopedaccessv1.ScopedRoleSpec] fields that support templates.
+func validateRoleTemplates(spec *scopedaccessv1.ScopedRoleSpec) error {
+	// validate traits in SSH config
+	if err := validateSliceWithTemplates(spec.GetSsh().GetLogins()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateSliceWithTemplates(spec.GetSsh().GetHostSudoers()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateSliceWithTemplates(spec.GetSsh().GetHostUserCreation().GetGroups()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// validate traits in kube config
+	if err := validateSliceWithTemplates(spec.GetKube().GetGroups()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateSliceWithTemplates(spec.GetKube().GetUsers()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, resource := range spec.GetKube().GetResources() {
+		if err := validateTemplate(resource.GetKind()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := validateTemplate(resource.GetNamespace()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := validateTemplate(resource.GetName()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := validateTemplate(resource.GetApiGroup()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := validateSliceWithTemplates(resource.GetVerbs()); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// validate labels
+	for _, labeled := range [](interface{ GetLabels() []*labelv1.Label }){
+		spec.GetSsh(),
+		spec.GetKube(),
+		spec.GetApp(),
+		spec.GetWorkloadIdentity(),
+	} {
+		for _, label := range labeled.GetLabels() {
+			if err := validateTemplate(label.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err := validateSliceWithTemplates(label.GetValues()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	// validate label expressions
+	if err := validateTemplate(spec.GetSsh().GetLabelExpression()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateTemplate(spec.GetKube().GetLabelExpression()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateTemplate(spec.GetApp().GetLabelExpression()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// validateSliceWithTemplates is a helper for validating a slice of potentially templated values.
+func validateSliceWithTemplates(values []string) error {
+	for _, value := range values {
+		if err := validateTemplate(value); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// validateTemplate validates a potentially templated value. If the value is not a template, no error is returned.
+func validateTemplate(value string) error {
+	if err := parse.ValidateTraitTemplateExpression(value, validateTemplateTrait); err != nil {
+		// we expect to get a typical.UnknownIdentifierError when the parser
+		// detects an unrecognized namespace, so we return a more explicit
+		// error instead
+		if identErr, ok := errors.AsType[typical.UnknownIdentifierError](err); ok {
+			return trace.BadParameter("trait expression %q is using an unrecognized namespace", identErr.Identifier())
+		}
+
+		// the context wrapping trace.BadParameterError here is user visible and
+		// typically noise, so we return it directly instead
+		if badParamErr, ok := errors.AsType[*trace.BadParameterError](err); ok {
+			return trace.Wrap(badParamErr)
+		}
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// validateTemplateTrait validates traits found in template expressions according to the rules required for scoped
+// roles. This is a stricter set of rules than applied at runtime to unscoped and compat roles and should be applied
+// whenever a scoped role is written to the backend.
+func validateTemplateTrait(namespace, key string) error {
+	if namespace != "" && key == "" {
+		return trace.BadParameter("trait expression is missing key, %s.<undefined>", namespace)
+	}
+
+	if namespace == "" && key != "" {
+		return trace.BadParameter("trait expression is missing namespace, <undefined>.%s", key)
+	}
+
+	switch namespace {
+	case teleport.TraitInternalPrefix:
+		if err := traits.ValidateInternalTraitKey(key); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.TraitExternalPrefix:
+		if err := traits.ValidateInternalTraitKey(key); err == nil {
+			return trace.BadParameter("trait key %q must be used with 'internal' namespace", key)
+		}
+	default:
+		// The expression parser should reject unknown namespaces before we get here,
+		// but this check prevents changes to the parser from inadvertently changing
+		// allowed namespaces for scoped roles.
+		return trace.BadParameter("unrecognized trait namespace %q", namespace)
+	}
 	return nil
 }
