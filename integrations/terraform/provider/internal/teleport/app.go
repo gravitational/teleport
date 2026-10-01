@@ -38,9 +38,12 @@ type AppClient struct {
 	client *client.Client
 }
 
-// Get reads an app by name.
-func (r AppClient) Get(ctx context.Context, id tfdriver.NameIdentifier) (*types.AppV3, error) {
-	app, err := r.client.GetApplication(ctx, presencev1.GetApplicationRequest_builder{Name: id.Name}.Build())
+// Get reads an app by name and scope.
+func (r AppClient) Get(ctx context.Context, id tfdriver.ScopeQualifiedNameIdentifier) (*types.AppV3, error) {
+	app, err := r.client.GetApplication(ctx, presencev1.GetApplicationRequest_builder{
+		Name:  id.Name,
+		Scope: id.Scope,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -71,7 +74,10 @@ func (r AppClient) Upsert(ctx context.Context, app *types.AppV3) error {
 	return nil
 }
 
-// Delete deletes an app by name.
-func (r AppClient) Delete(ctx context.Context, id tfdriver.NameIdentifier) error {
-	return trace.Wrap(r.client.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{Name: id.Name}.Build()))
+// Delete deletes an app by name and scope.
+func (r AppClient) Delete(ctx context.Context, id tfdriver.ScopeQualifiedNameIdentifier) error {
+	return trace.Wrap(r.client.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{
+		Name:  id.Name,
+		Scope: id.Scope,
+	}.Build()))
 }
