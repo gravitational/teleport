@@ -3516,6 +3516,49 @@ message AppSessionRequestAllowed {
   string allow_reason = 12 [(gogoproto.jsontag) = "allow_reason,omitempty"];
 }
 
+// BeamDestroyed marks a garbage-collected beam whose activity has been
+// summarized. It makes the beam appear as a single session recording (played
+// back via BeamReplayService) and is emitted once, when summarization
+// completes.
+message BeamDestroyed {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is the beam's owner.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session identifies the beam's recording; SessionID is the ID the beam's
+  // replay artifact and summary are stored under.
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // BeamID is the identifier of the summarized beam.
+  string beam_id = 4 [(gogoproto.jsontag) = "beam_id"];
+  // BeamAlias is the human-readable alias of the beam, if any.
+  string beam_alias = 5 [(gogoproto.jsontag) = "beam_alias,omitempty"];
+  // StartTime is when the beam started (its creation time).
+  google.protobuf.Timestamp start_time = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "start_time,omitempty"
+  ];
+  // EndTime is the time of the beam's last recorded activity. The beam's
+  // actual duration is end_time - start_time.
+  google.protobuf.Timestamp end_time = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "end_time,omitempty"
+  ];
+}
+
 // HTTPHeader is an HTTP header name/value pair used in HTTP recording events.
 message HTTPHeader {
   string name = 1 [(gogoproto.jsontag) = "name"];
@@ -5688,6 +5731,7 @@ message OneOf {
     events.GitSessionStart GitSessionStart = 277;
     events.GitSessionChunk GitSessionChunk = 278;
     events.GitHTTPRequest GitHTTPRequest = 279;
+    events.BeamDestroyed BeamDestroyed = 280;
   }
 }
 

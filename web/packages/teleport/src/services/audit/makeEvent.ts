@@ -694,6 +694,12 @@ export const formatters: Formatters = {
       return `New session data chunk created for application [${app_name}] accessed by user [${user}]`;
     },
   },
+  [eventCodes.BEAM_DESTROYED]: {
+    type: 'beam.destroyed',
+    desc: 'Beam Destroyed',
+    format: ({ user, beam_id, beam_alias }) =>
+      `Beam [${beam_alias || beam_id}] destroyed for user [${user}]`,
+  },
   [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: {
     type: 'app.session.dynamodb.request',
     desc: 'App Session DynamoDB Request',

@@ -95,9 +95,15 @@ func (e *SessionsCollection) WriteText(w io.Writer) error {
 			participants = session.User
 			target = cmp.Or(session.AppName, session.AppURI)
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+		case *events.BeamDestroyed:
+			id = session.GetSessionID()
+			typ = "beam"
+			participants = session.User
+			target = cmp.Or(session.BeamAlias, session.BeamId)
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 
 		default:
-			slog.WarnContext(context.Background(), "unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd, DatabaseSessionEnd or AppSessionChunk", "event_type", logutils.TypeAttr(event))
+			slog.WarnContext(context.Background(), "unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd, DatabaseSessionEnd, AppSessionChunk or BeamDestroyed", "event_type", logutils.TypeAttr(event))
 			continue
 		}
 
