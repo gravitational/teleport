@@ -117,7 +117,7 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 	// Create the stream writer that will write this chunk to the audit log.
 	// Audit stream is using server context, not session context,
 	// to make sure that session is uploaded even after it is closed.
-	rec, err := c.newSessionRecorder(c.closeContext, startTime, sess.id)
+	rec, err := c.newSessionRecorder(c.closeContext, startTime, sess.id, c.failOnDroppedEvents(app))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -298,10 +298,19 @@ func (c *ConnectionsHandler) onSessionExpired(ctx context.Context, key, expired 
 	})
 }
 
+// failOnDroppedEvents reports whether the session recorder for app must fail
+// closed when it drops an event. This is only the case for LLM apps with beam
+// LLM recording enabled: their request/response traffic is recorded for replay
+// and must not be forwarded unrecorded. Other sessions keep the default
+// behavior of silently losing events under backoff.
+func (c *ConnectionsHandler) failOnDroppedEvents(app types.Application) bool {
+	return app.IsLLM() && c.llmHandler.RecordingEnabled()
+}
+
 // newSessionRecorder creates a session stream that will be used to record
 // requests that occur within this session chunk and upload the recording
 // to the Auth server.
-func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime time.Time, chunkID string) (events.SessionPreparerRecorder, error) {
+func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime time.Time, chunkID string, failOnDroppedEvents bool) (events.SessionPreparerRecorder, error) {
 	recConfig, err := c.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -324,6 +333,8 @@ func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime t
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentApp),
 		Context:      ctx,
 		StartTime:    startTime,
+
+		FailOnDroppedEvents: failOnDroppedEvents,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

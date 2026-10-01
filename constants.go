@@ -1099,4 +1099,11 @@ const (
 	//
 	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed and in-band MFA is the default.
 	EnvVarUnstableForceInBandMFA = "TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA"
+
+	// BeamsRuntimeEnvVar is set (to a truthy value) in the environment of an
+	// app service serving beam sandboxes.
+	BeamsRuntimeEnvVar = "TELEPORT_BEAMS_RUNTIME"
+	// BeamsLLMRecordingEnvVar, when truthy, opts a beam's app service into
+	// recording LLM traffic for later replay.
+	BeamsLLMRecordingEnvVar = "TELEPORT_BEAMS_LLM_RECORDING"
 )

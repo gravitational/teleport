@@ -100,6 +100,13 @@ type SessionWriterConfig struct {
 
 	// BackoffDuration is a duration of the backoff before the next try
 	BackoffDuration time.Duration
+
+	// FailOnDroppedEvents makes RecordEvent return a trace.ConnectionProblem
+	// error, instead of nil, when it drops an event because the stream is in
+	// backoff or blocked past BackoffTimeout. Dropped events are still counted
+	// as lost. It is meant for callers that must fail closed when an event is
+	// not recorded; by default drops are silent.
+	FailOnDroppedEvents bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -268,6 +275,15 @@ func (a *SessionWriter) maybeSetBackoff(backoffUntil time.Time) bool {
 	}
 }
 
+// droppedEventErr returns the error RecordEvent reports for a dropped event:
+// nil unless FailOnDroppedEvents is set.
+func (a *SessionWriter) droppedEventErr(msg string) error {
+	if !a.cfg.FailOnDroppedEvents {
+		return nil
+	}
+	return trace.ConnectionProblem(nil, "%s", msg)
+}
+
 // RecordEvent emits audit event
 func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
 	event := pe.GetAuditEvent()
@@ -292,7 +308,7 @@ func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSe
 	// If backoff is in effect, lose event, return right away
 	if isBackoff := a.checkAndResetBackoff(a.cfg.Clock.Now()); isBackoff {
 		a.lostEvents.Add(1)
-		return nil
+		return a.droppedEventErr("session writer is in backoff, event dropped")
 	}
 
 	// This fast path will be used all the time during normal operation.
@@ -349,7 +365,7 @@ func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSe
 			a.log.ErrorContext(ctx, "Audit write timed out. Will be losing events while applying backoff.", "timeout", a.cfg.BackoffTimeout, "backoff_duration", a.cfg.BackoffDuration)
 		}
 		a.lostEvents.Add(1)
-		return nil
+		return a.droppedEventErr("session writer timed out, event dropped")
 	case <-ctx.Done():
 		a.lostEvents.Add(1)
 		stopped := t.Stop()

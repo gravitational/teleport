@@ -89,6 +89,11 @@ type Config struct {
 	// BackoffDuration is a duration of the backoff before the next try.
 	BackoffDuration time.Duration
 
+	// FailOnDroppedEvents makes RecordEvent return an error instead of nil
+	// when an event is dropped due to backoff. See
+	// [events.SessionWriterConfig.FailOnDroppedEvents].
+	FailOnDroppedEvents bool
+
 	// StartTime represents the time the recorder started. If not zero, this
 	// value is used to generate the events index.
 	StartTime time.Time
@@ -159,6 +164,8 @@ func New(cfg Config) (events.SessionPreparerRecorder, error) {
 		Clock:           cfg.Clock,
 		BackoffTimeout:  cfg.BackoffTimeout,
 		BackoffDuration: cfg.BackoffDuration,
+
+		FailOnDroppedEvents: cfg.FailOnDroppedEvents,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

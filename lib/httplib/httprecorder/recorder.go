@@ -78,6 +78,17 @@ type Config struct {
 	// UserMetadata identifies the user who initiated the session.
 	UserMetadata apievents.UserMetadata
 
+	// Format is the LLM API wire format the request uses (e.g. "anthropic",
+	// "openai"), recorded on the request event when the app is an LLM proxy so
+	// consumers don't infer it from the endpoint. Optional; empty for non-LLM
+	// recordings.
+	Format string
+
+	// Provider is the LLM inference provider serving the request, recorded on
+	// the request event alongside Format. Optional; empty for non-LLM
+	// recordings.
+	Provider string
+
 	// Logger reports recording failures. It is required so callers choose the
 	// logging policy for this exchange.
 	Logger *slog.Logger
@@ -232,6 +243,7 @@ const redactedValue = "<redacted>"
 // that is how filterHeaders looks them up.
 var sensitiveHeaders = map[string]struct{}{
 	"Authorization":        {},
+	"Api-Key":              {},
 	"Proxy-Authorization":  {},
 	"Cookie":               {},
 	"Set-Cookie":           {},
@@ -388,11 +400,16 @@ type ResponseWriter struct {
 	index      int64
 	headerSent bool
 	finished   bool
-	// recordErr holds a response-head recording failure. Because WriteHeader
-	// cannot return an error, the failure is stashed here and surfaced through
-	// the next Write and through Finish so the caller can fail the exchange
-	// closed even for a header-only response that never calls Write.
+	// recordErr holds the first response recording failure (head or body
+	// chunk). It is sticky: once set, every later Write fails and Flush is
+	// suppressed, so no unrecorded bytes reach the client after a gap in the
+	// recording. Because WriteHeader cannot return an error and a proxy may
+	// swallow a Write error, it is also surfaced through Finish so the caller
+	// can fail the exchange closed.
 	recordErr error
+	// committed reports whether a final response head has been forwarded to
+	// the underlying writer, i.e. whether the client may have seen it.
+	committed bool
 }
 
 // newResponseWriter wraps w with a response recorder.
@@ -429,9 +446,15 @@ func (w *ResponseWriter) emitHeaderLocked(status int) error {
 func (w *ResponseWriter) WriteHeader(status int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.recordErr != nil {
+		return
+	}
 	if err := w.emitHeaderLocked(status); err != nil {
 		w.recordErr = err
 		return
+	}
+	if status >= 200 {
+		w.committed = true
 	}
 	w.ResponseWriter.WriteHeader(status)
 }
@@ -446,18 +469,20 @@ func (w *ResponseWriter) emitChunkLocked(data []byte, isLast bool) error {
 
 // Write records the payload before forwarding it to the underlying writer,
 // splitting writes larger than maxChunkSize across several chunk events. If
-// recording fails, Write returns the error and writes nothing.
+// recording fails, Write returns the error and writes nothing. The failure is
+// sticky: every later Write returns it too, and Finish reports it.
 func (w *ResponseWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	// A Write without a preceding WriteHeader implies a 200 status.
-	if err := w.emitHeaderLocked(http.StatusOK); err != nil {
-		return 0, err
-	}
-	// A head recorded by an earlier WriteHeader may have failed; the head was
-	// not forwarded, so refuse the body too.
+	// An earlier head or chunk recording may have failed; refuse the rest of
+	// the body so the client never receives bytes past a recording gap.
 	if w.recordErr != nil {
 		return 0, w.recordErr
+	}
+	// A Write without a preceding WriteHeader implies a 200 status.
+	if err := w.emitHeaderLocked(http.StatusOK); err != nil {
+		w.recordErr = err
+		return 0, err
 	}
 	if !w.finished {
 		// Split oversized writes so no single chunk exceeds maxChunkSize, the
@@ -467,10 +492,12 @@ func (w *ResponseWriter) Write(p []byte) (int, error) {
 		// already been forwarded to the client.
 		for chunk := range slices.Chunk(p, maxChunkSize) {
 			if err := w.emitChunkLocked(chunk, false); err != nil {
+				w.recordErr = err
 				return 0, err
 			}
 		}
 	}
+	w.committed = true
 	return w.ResponseWriter.Write(p)
 }
 
@@ -486,17 +513,18 @@ func (w *ResponseWriter) Write(p []byte) (int, error) {
 func (w *ResponseWriter) Flush() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	// An earlier recording may have failed; do not flush an unrecorded
+	// response to the client.
+	if w.recordErr != nil {
+		return
+	}
 	// A Flush without a preceding WriteHeader implies a 200 status.
 	if err := w.emitHeaderLocked(http.StatusOK); err != nil {
 		w.recordErr = err
 		return
 	}
-	// A head recorded by an earlier WriteHeader may have failed; that head was
-	// not forwarded, so do not flush an unrecorded response to the client.
-	if w.recordErr != nil {
-		return
-	}
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		w.committed = true
 		f.Flush()
 	}
 }
@@ -514,10 +542,14 @@ func (w *ResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 // final empty chunk. Call it once after the handler returns; later calls are
 // no-ops, so a deferred Finish is safe.
 //
-// It returns a non-nil error when a response head the client has not yet seen
-// could not be recorded: one suppressed by a failed WriteHeader, or one that no
-// handler ever wrote. The caller must then abort the exchange (for example, by
-// resetting the connection) instead of letting an unrecorded response through.
+// It returns a non-nil error when any part of the response could not be
+// recorded: a head suppressed by a failed WriteHeader, a head that no handler
+// ever wrote, or a body chunk whose Write was refused (which a proxy may have
+// swallowed). The caller must then fail the exchange closed: if Committed
+// reports false it can still send an error response; otherwise the head has
+// already reached the client and the caller must abort the connection (for
+// example, with panic(http.ErrAbortHandler)) so the client does not mistake the
+// truncated response for a complete one.
 //
 // The trailing empty chunk is emitted after the body has already been sent, so
 // its failure cannot be undone; it is logged where the event is emitted and
@@ -529,17 +561,26 @@ func (w *ResponseWriter) Finish() error {
 		return nil
 	}
 	w.finished = true
-	// A head suppressed by a failed WriteHeader never reached the client.
+	// An earlier head or body chunk recording failed.
 	if w.recordErr != nil {
 		return w.recordErr
 	}
 	// A handler that wrote nothing leaves the head unrecorded until now; its
 	// failure is still actionable because the client has not seen it.
 	if err := w.emitHeaderLocked(http.StatusOK); err != nil {
+		w.recordErr = err
 		return err
 	}
 	_ = w.emitChunkLocked(nil, true)
 	return nil
+}
+
+// Committed reports whether a final response head has been forwarded to the
+// client. Once committed, an error response can no longer be sent.
+func (w *ResponseWriter) Committed() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.committed
 }
 
 // recordEvent prepares a session event (stamping session-related fields) and
@@ -571,5 +612,7 @@ func newRequestEvent(cfg Config, requestID string) *apievents.AppSessionHTTPRequ
 		HttpVersion: req.Proto,
 		Headers:     filterHeaders(req.Header),
 		RawQuery:    req.URL.RawQuery,
+		Format:      cfg.Format,
+		Provider:    cfg.Provider,
 	}
 }

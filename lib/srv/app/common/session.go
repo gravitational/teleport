@@ -37,7 +37,9 @@ type SessionContext struct {
 	App types.Application
 	// ChunkID is the session chunk's uuid.
 	ChunkID string
-	// Audit is used to emit audit events for the session.
+	// Audit is used to emit audit events for the session. The session chunk
+	// recorder used for HTTP request/response recording is reached via
+	// [Audit.Recorder].
 	Audit Audit
 }
 
