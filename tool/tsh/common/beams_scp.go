@@ -111,20 +111,8 @@ func (c *beamsSCPCommand) run(cf *CLIConf) error {
 }
 
 func (c *beamsSCPCommand) withCluster(ctx context.Context, tc *client.TeleportClient, fn func(authclient.ClientI) error) error {
-	return trace.Wrap(client.RetryWithRelogin(ctx, tc, func() error {
-		clusterClient, err := tc.ConnectToCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer clusterClient.Close()
-
-		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer rootClient.Close()
-
-		return trace.Wrap(fn(rootClient))
+	return trace.Wrap(withRootCluster(ctx, tc, func(root authclient.ClientI, _ string) error {
+		return trace.Wrap(fn(root))
 	}))
 }
 
@@ -146,8 +134,8 @@ func (c *beamsSCPCommand) parseTarget(ctx context.Context, client authclient.Cli
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if beam.GetStatus().GetNodeId() == "" {
-		return nil, trace.Errorf("beam %q is not ready to accept SSH connections", beam.GetStatus().GetAlias())
+	if _, err := beamNodeID(beam); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &beamCopyTarget{beam: beam, path: after}, nil
