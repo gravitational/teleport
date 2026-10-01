@@ -6134,7 +6134,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if newAuthPref.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
+	if newAuthPref.HasHardwarePrivateKeyPolicy() {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}

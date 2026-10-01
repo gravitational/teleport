@@ -484,8 +484,10 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 
 	// Check that the required private key policy, defined by roles and auth pref,
 	// is met by this Identity's tls certificate.
-	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
-	requiredPolicy, err := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	identity := authContext.Identity.GetIdentity()
+	identityPolicy := identity.PrivateKeyPolicy
+	isBot := identity.BotInstanceID != ""
+	requiredPolicy, err := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicyV2(isBot))
 	if err != nil {
 		return trace.Wrap(err)
 	}

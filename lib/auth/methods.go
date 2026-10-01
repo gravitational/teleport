@@ -276,10 +276,12 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		// this function is called for users logging in, not bots
+		const isBotFalse = false
 		// TODO(fspmarshall/scopes): its a little strange to use CertParams here as this isn't really a certificate
 		// specific calculation. Once we have a clearer idea of what PrivateKeyPolicy means in a scoped context,
 		// consider moving this method to a more appropriate location.
-		privateKeyPolicy, err := props.checkerContext.CertParams().PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+		privateKeyPolicy, err := props.checkerContext.CertParams().PrivateKeyPolicy(authPref.GetPrivateKeyPolicyV2(isBotFalse))
 		if err != nil {
 			return trace.Wrap(err)
 		}

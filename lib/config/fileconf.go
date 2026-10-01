@@ -1579,6 +1579,13 @@ type HardwareKey struct {
 
 	// PINCacheTTL specifies how long to cache the user's PIV PIN.
 	PINCacheTTL time.Duration `yaml:"pin_cache_ttl,omitempty"`
+
+	// HumanPrivateKeyPolicy is the private key policy applied to regular user
+	// credentials (as opposed to tbot). Empty string for no requirement, or
+	// "hardware_key", "hardware_key_touch", "hardware_key_pin",
+	// "hardware_key_touch_and_pin". The effective private key policy might be
+	// stricter depending on role options and on the require_session_mfa option.
+	HumanPrivateKeyPolicy string `yaml:"human_private_key_policy,omitempty"`
 }
 
 func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
@@ -1588,9 +1595,14 @@ func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
 		}
 	}
 
+	if err := services.ValidateHumanPrivateKeyPolicy(h.HumanPrivateKeyPolicy); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	hk := &types.HardwareKey{
-		PIVSlot:     string(h.PIVSlot),
-		PinCacheTTL: types.Duration(h.PINCacheTTL),
+		PIVSlot:               string(h.PIVSlot),
+		PinCacheTTL:           types.Duration(h.PINCacheTTL),
+		HumanPrivateKeyPolicy: h.HumanPrivateKeyPolicy,
 	}
 
 	if h.SerialNumberValidation != nil {

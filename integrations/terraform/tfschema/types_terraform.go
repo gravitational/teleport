@@ -2656,6 +2656,11 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				}),
 				"hardware_key": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"human_private_key_policy": {
+							Description: "The private key policy applied to regular user credentials (as opposed to tbot). Empty string for no requirement, or \"hardware_key\", \"hardware_key_touch\", \"hardware_key_pin\", \"hardware_key_touch_and_pin\". The effective private key policy might be stricter depending on role options and on the require_session_mfa option.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"pin_cache_ttl": {
 							Description: "PinCacheTTL is the amount of time in nanoseconds that Teleport clients will cache the user's PIV PIN when hardware key PIN policy is enabled.",
 							Optional:    true,
@@ -28591,6 +28596,23 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["human_private_key_policy"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.HardwareKey.human_private_key_policy"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.HardwareKey.human_private_key_policy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.HumanPrivateKeyPolicy = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -29903,6 +29925,28 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 											v.Value = time.Duration(obj.PinCacheTTL)
 											v.Unknown = false
 											tf.Attrs["pin_cache_ttl"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["human_private_key_policy"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.HardwareKey.human_private_key_policy"})
+										} else {
+											v, ok := tf.Attrs["human_private_key_policy"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.HardwareKey.human_private_key_policy", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.HardwareKey.human_private_key_policy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.HumanPrivateKeyPolicy) == ""
+											}
+											v.Value = string(obj.HumanPrivateKeyPolicy)
+											v.Unknown = false
+											tf.Attrs["human_private_key_policy"] = v
 										}
 									}
 								}

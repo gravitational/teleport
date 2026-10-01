@@ -200,8 +200,8 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	isBot := ident.BotInstanceID != ""
+	privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicyV2(isBot))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

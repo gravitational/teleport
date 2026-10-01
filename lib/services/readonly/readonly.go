@@ -39,7 +39,7 @@ type AuthPreference interface {
 	GetDisconnectExpiredCert() bool
 	GetLockingMode() constants.LockingMode
 	GetDeviceTrust() *types.DeviceTrust
-	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+	GetPrivateKeyPolicyV2(isBot bool) keys.PrivateKeyPolicy
 	GetSecondFactors() []types.SecondFactorType
 	IsSecondFactorEnforced() bool
 	IsSecondFactorTOTPAllowed() bool

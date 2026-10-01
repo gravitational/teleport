@@ -3161,6 +3161,13 @@ message HardwareKey {
     (gogoproto.jsontag) = "pin_cache_ttl,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // The private key policy applied to regular user credentials (as opposed to
+  // tbot). Empty string for no requirement, or "hardware_key",
+  // "hardware_key_touch", "hardware_key_pin", "hardware_key_touch_and_pin". The
+  // effective private key policy might be stricter depending on role options
+  // and on the require_session_mfa option.
+  string human_private_key_policy = 4;
 }
 
 message HardwareKeySerialNumberValidation {

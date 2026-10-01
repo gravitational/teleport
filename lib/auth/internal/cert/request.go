@@ -152,7 +152,7 @@ type Request struct {
 	// BotName is the name of the bot requesting this cert, if any.
 	BotName string
 	// BotInstanceID is the unique identifier of the bot instance associated
-	// with this cert, if any.
+	// with this cert, if any. It should be preserved across impersonations.
 	BotInstanceID string
 	// BotScope is the scope of the bot requesting this cert, if any. Empty for
 	// unscoped bots and non-bot identities.

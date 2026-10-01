@@ -135,7 +135,16 @@ type AuthPreference interface {
 	GetRequireMFAType() RequireMFAType
 
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+	//
+	// Deprecated: use [AuthPreference.GetPrivateKeyPolicyV2] instead
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+
+	// GetPrivateKeyPolicyV2 returns the configured private key policy for the cluster.
+	GetPrivateKeyPolicyV2(isBot bool) keys.PrivateKeyPolicy
+
+	// HasHardwarePrivateKeyPolicy returns true if the private key policy might
+	// require hardware key support.
+	HasHardwarePrivateKeyPolicy() bool
 
 	// GetHardwareKey returns the hardware key settings configured for the cluster.
 	GetHardwareKey() (*HardwareKey, error)
@@ -490,7 +499,10 @@ func (c *AuthPreferenceV2) GetRequireMFAType() RequireMFAType {
 	return c.Spec.RequireMFAType
 }
 
-// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+// GetPrivateKeyPolicy returns the configured private key policy for the
+// cluster.
+//
+// Deprecated: use [AuthPreferenceV2.GetPrivateKeyPolicyV2] instead
 func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	switch c.Spec.RequireMFAType {
 	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
@@ -506,10 +518,74 @@ func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	}
 }
 
+// GetPrivateKeyPolicyV2 implements [AuthPreference].
+func (c *AuthPreferenceV2) GetPrivateKeyPolicyV2(isBot bool) keys.PrivateKeyPolicy {
+	if c == nil {
+		return keys.PrivateKeyPolicyNone
+	}
+
+	var required, touch, pin bool
+	switch c.Spec.RequireMFAType {
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
+		required = true
+	case RequireMFAType_HARDWARE_KEY_TOUCH:
+		required = true
+		touch = true
+	case RequireMFAType_HARDWARE_KEY_PIN:
+		required = true
+		pin = true
+	case RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN:
+		required = true
+		touch = true
+		pin = true
+	}
+
+	if !isBot && c.Spec.HardwareKey != nil {
+		switch c.Spec.HardwareKey.HumanPrivateKeyPolicy {
+		case "":
+		case string(keys.PrivateKeyPolicyHardwareKey):
+			required = true
+		case string(keys.PrivateKeyPolicyHardwareKeyTouch):
+			required = true
+			touch = true
+		case string(keys.PrivateKeyPolicyHardwareKeyPIN):
+			required = true
+			pin = true
+		default:
+			// when parsing, unsupported values result in the strictest possible
+			// policy
+			required = true
+			touch = true
+			pin = true
+		}
+	}
+
+	switch {
+	case touch && pin:
+		return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
+	case pin:
+		return keys.PrivateKeyPolicyHardwareKeyPIN
+	case touch:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	case required:
+		return keys.PrivateKeyPolicyHardwareKey
+	default:
+		return keys.PrivateKeyPolicyNone
+	}
+}
+
+// HasHardwarePrivateKeyPolicy implements [AuthPreference].
+func (c *AuthPreferenceV2) HasHardwarePrivateKeyPolicy() bool {
+	// the non-bot private key policy is currently as strict or stricter than
+	// the bot one
+	const isBotFalse = false
+	return c.GetPrivateKeyPolicyV2(isBotFalse).IsHardwareKeyPolicy()
+}
+
 // GetHardwareKey returns the hardware key settings configured for the cluster.
 func (c *AuthPreferenceV2) GetHardwareKey() (*HardwareKey, error) {
 	if c.Spec.HardwareKey == nil {
-		return nil, trace.NotFound("Hardware key support is not configured in this cluster")
+		return nil, &trace.NotFoundError{Message: "Hardware key support is not configured in this cluster"}
 	}
 	return c.Spec.HardwareKey, nil
 }
@@ -526,7 +602,7 @@ func (c *AuthPreferenceV2) GetPIVSlot() hardwarekey.PIVSlotKeyString {
 // serial number validation settings.
 func (c *AuthPreferenceV2) GetHardwareKeySerialNumberValidation() (*HardwareKeySerialNumberValidation, error) {
 	if c.Spec.HardwareKey == nil || c.Spec.HardwareKey.SerialNumberValidation == nil {
-		return nil, trace.NotFound("Hardware key serial number validation is not configured in this cluster")
+		return nil, &trace.NotFoundError{Message: "Hardware key serial number validation is not configured in this cluster"}
 	}
 	return c.Spec.HardwareKey.SerialNumberValidation, nil
 }

@@ -199,8 +199,11 @@ type Identity struct {
 	// BotName indicates the name of the Machine ID bot this identity was issued
 	// to, if any.
 	BotName string
-	// BotInstanceID is a unique identifier for Machine ID bots that is
-	// persisted through renewals.
+	// BotInstanceID is the unique identifier for the bot instance, if this
+	// identity is derived from a Machine ID bot join, or the empty string for
+	// identities derived from human logins (even for impersonated identities,
+	// which makes it useful as a discriminant for whether an identity should be
+	// expected to meet requirements such as hardware private key policies).
 	BotInstanceID string
 	// BotScope is the scope of the Machine ID bot this identity was issued to,
 	// if any. Empty for unscoped bots and non-bot identities.

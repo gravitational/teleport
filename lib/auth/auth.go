@@ -3838,7 +3838,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	notAfter := a.clock.Now().UTC().Add(sessionTTL)
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	requiredKeyPolicy, err := certParams.PrivateKeyPolicy(readOnlyAuthPref.GetPrivateKeyPolicy())
+	isBot := req.BotInstanceID != ""
+	requiredKeyPolicy, err := certParams.PrivateKeyPolicy(readOnlyAuthPref.GetPrivateKeyPolicyV2(isBot))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4512,7 +4513,7 @@ func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreferenc
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if p.HasHardwarePrivateKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 

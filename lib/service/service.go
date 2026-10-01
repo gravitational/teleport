@@ -1172,10 +1172,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}
 
-	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
-		}
+	if cfg.Auth.Preference.HasHardwarePrivateKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
 	// If SELinux support is enabled ensure we have a valid configuration,

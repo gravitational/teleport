@@ -886,7 +886,8 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		return nil, trace.Wrap(err)
 	}
 
-	privateKeyPolicy, err := checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	isBot := ident.BotInstanceID != ""
+	privateKeyPolicy, err := checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicyV2(isBot))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1033,7 +1034,8 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		return nil, trace.Wrap(err)
 	}
 
-	privateKeyPolicy, err := checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	isBot := ident.BotInstanceID != ""
+	privateKeyPolicy, err := checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicyV2(isBot))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1154,7 +1156,8 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		return nil, trace.Wrap(err)
 	}
 
-	privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	isBot := ident.BotInstanceID != ""
+	privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicyV2(isBot))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
