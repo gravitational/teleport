@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"strconv"
@@ -300,7 +301,16 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfi
 
 	mfaOn, mfaOff := run.PartitionByMFA(clusters)
 
-	// MFA-gated issuances fan out concurrently.
+	// One issuance runs the ceremony and the rest replay its response, so run it on its own first.
+	if len(mfaOn) > 0 {
+		first := mfaOn[0]
+		if err := run.IssueOne(ctx, first); err != nil {
+			return nil, fmt.Errorf("%s: %w", localProxyClusterKey(first), err)
+		}
+		mfaOn = mfaOn[1:]
+	}
+
+	// The remaining MFA-gated issuances fan out concurrently, replaying that response.
 	group := newKubeClusterGroup(cc, mfaOn, kubeCertIssueConcurrency())
 	defer group.Close(ctx)
 	if err := group.ForEach(ctx, run.IssueOne); err != nil {

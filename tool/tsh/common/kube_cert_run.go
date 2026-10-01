@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -77,7 +78,7 @@ func (r *kubeCertRun) IssueOne(ctx context.Context, cluster kubeconfig.LocalProx
 func (r *kubeCertRun) IssuePerCluster(ctx context.Context, clusters kubeconfig.LocalProxyClusters) error {
 	for _, cluster := range clusters {
 		if err := r.IssueOne(ctx, cluster); err != nil {
-			return trace.Wrap(err)
+			return fmt.Errorf("%s: %w", localProxyClusterKey(cluster), err)
 		}
 	}
 	return nil
@@ -88,7 +89,7 @@ func (r *kubeCertRun) IssueShared(ctx context.Context, clusters kubeconfig.Local
 	for _, teleportCluster := range slices.Sorted(slices.Values(clusters.TeleportClusters())) {
 		cert, err := r.issuer.IssueCert(ctx, teleportCluster, alpnproxy.UnroutedKubeCluster, nil /*mfaCheck*/)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "Teleport cluster %q", teleportCluster)
 		}
 		logger.DebugContext(ctx, "Shared client cert issued for Teleport cluster", "teleport_cluster", teleportCluster)
 		r.add(teleportCluster, "", *cert)
