@@ -236,7 +236,7 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 		return nil, trace.Wrap(err)
 	}
 	item := &backend.Item{
-		Key:      backend.NewKey(authoritiesPrefix, string(ca.GetType()), ca.GetName()),
+		Key:      activeCAKey(ca.GetID()),
 		Value:    value,
 		Expires:  ca.Expiry(),
 		Revision: rev,

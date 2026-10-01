@@ -280,7 +280,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 		return trace.Wrap(err)
 	}
 
-	key := backend.NewKey(authoritiesPrefix, string(new.GetType()), new.GetName())
+	key := activeCAKey(new.GetID())
 
 	actualItem, err := s.Get(context.TODO(), key)
 	if err != nil {
