@@ -178,7 +178,11 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V7)}},
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V8)}},
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V9)}},
-		{name: "AppV3", opts: []resourceSchemaOption{withVersionOverride(types.V3)}},
+		{name: "AppV3",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V3),
+				withScope(),
+			}},
 		{name: "DatabaseV3", opts: []resourceSchemaOption{withVersionOverride(types.V3)}},
 		{name: "SAMLConnectorV2", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
 		{name: "SAMLIdPServiceProviderV1", opts: []resourceSchemaOption{withVersionOverride(types.V1)}},

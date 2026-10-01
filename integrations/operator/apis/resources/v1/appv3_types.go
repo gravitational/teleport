@@ -42,6 +42,7 @@ type TeleportAppV3 struct {
 
 	Spec   TeleportAppV3Spec `json:"spec"`
 	Status teleportcr.Status `json:"status"`
+	Scope  string            `json:"scope,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -62,7 +63,8 @@ func (r TeleportAppV3) ToTeleport() types.Application {
 			Labels:      r.Labels,
 			Description: r.Annotations[teleportcr.DescriptionKey],
 		},
-		Spec: types.AppSpecV3(r.Spec),
+		Spec:  types.AppSpecV3(r.Spec),
+		Scope: r.Scope,
 	}
 }
 

@@ -132,6 +132,21 @@ spec:
         - update
         - delete
         - secrets
+    - resources: ["app", "node"]
+      verbs:
+        - list
+        - create
+        - read
+        - update
+        - delete
+  app:
+    labels:
+      - name: "*"
+        values: ["*"]
+  ssh:
+    labels:
+      - name: "*"
+        values: ["*"]
 ---
 # Create the operator bot (for the `/test` scope).
 version: v1
@@ -217,6 +232,31 @@ spec:
         - update
         - delete
         - secrets
+    - resources: ["app", "node", "kube_cluster", "workload_identity"]
+      verbs:
+        - list
+        - create
+        - read
+        - update
+        - delete
+  app:
+    labels:
+      - name: "*"
+        values: ["*"]
+  ssh:
+    labels:
+      - name: "*"
+        values: ["*"]
+  kube:
+    labels:
+      - name: "*"
+        values: ["*"]
+    resources:
+      - kind: "*"
+        namespace: "*"
+        api_group: "*"
+        name: "*"
+        verbs: ["*"]
 ```
 
 Apply the manifest:

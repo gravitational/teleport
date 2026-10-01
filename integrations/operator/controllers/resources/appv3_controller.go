@@ -40,37 +40,45 @@ type appClient struct {
 	teleportClient *client.Client
 }
 
-// Get gets the Teleport app of a given name
+// Get gets the Teleport app of a given name and scope. The scope is empty for
+// an unscoped app.
 func (r appClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Application, error) {
-	app, err := r.teleportClient.GetApplication(ctx, presencev1.GetApplicationRequest_builder{Name: key.Name}.Build())
+	app, err := r.teleportClient.GetApplication(ctx, presencev1.GetApplicationRequest_builder{
+		Name:  key.Name,
+		Scope: key.Scope,
+	}.Build())
 	return app, trace.Wrap(err)
 }
 
-// Create creates a Teleport app
+// Create creates a Teleport app.
 func (r appClient) Create(ctx context.Context, app types.Application) error {
 	return trace.Wrap(r.teleportClient.CreateApp(ctx, app))
 }
 
-// Update updates a Teleport app
+// Update updates a Teleport app.
 func (r appClient) Update(ctx context.Context, app types.Application) error {
 	return trace.Wrap(r.teleportClient.UpdateApp(ctx, app))
 }
 
-// Delete deletes a Teleport app
+// Delete deletes a Teleport app of a given name and scope.
 func (r appClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
-	return trace.Wrap(r.teleportClient.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{Name: key.Name}.Build()))
+	return trace.Wrap(r.teleportClient.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{
+		Name:  key.Name,
+		Scope: key.Scope,
+	}.Build()))
 }
 
-// NewAppV3Reconciler instantiates a new Kubernetes controller reconciling app v6 resources
-func NewAppV3Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
+// NewAppV3Reconciler instantiates a new Kubernetes controller reconciling app v3 resources.
+func NewAppV3Reconciler(client kclient.Client, tClient *client.Client, metadata reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	appClient := &appClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Application, *resourcesv1.TeleportAppV3](
+	resourceReconciler, err := reconcilers.NewTeleportScopedResourceWithLabelsReconciler[types.Application, *resourcesv1.TeleportAppV3](
 		client,
 		appClient,
-		reconcilers.Config{},
+		reconcilers.Config{Scoped: true},
+		metadata,
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
