@@ -384,7 +384,6 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster, LoadSecrets: true},
 		{Kind: types.KindKubeWaitingContainer},
 		{Kind: types.KindHealthCheckConfig},
