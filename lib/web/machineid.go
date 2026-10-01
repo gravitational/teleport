@@ -54,6 +54,9 @@ const (
 type ListBotsResponse struct {
 	// Items is a list of resources retrieved.
 	Items []*machineidv1.Bot `json:"items"`
+	// NextPageToken is the token for the next page, empty on the last page.
+	// Only set by listBotsV2.
+	NextPageToken string `json:"next_page_token,omitempty"`
 }
 
 type CreateBotRequest struct {
@@ -68,8 +71,9 @@ type CreateBotRequest struct {
 	Traits []*machineidv1.Trait `json:"traits"`
 }
 
-// listBots returns a list of bots for a given cluster site. It does not leverage pagination from the UI. Due to the
-// nature of the bot:user relationship, pagination is not yet supported. This endpoint will return all bots.
+// listBots returns every bot for a given cluster site.
+//
+// TODO(strideynet): DELETE IN v20.0.0 - replaced by listBotsV2
 func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
@@ -91,6 +95,44 @@ func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.
 
 	return ListBotsResponse{
 		Items: items,
+	}, nil
+}
+
+// listBotsV2 returns a page of bots for a given cluster site.
+func (h *Handler) listBotsV2(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var pageSize int64 = 50
+	if r.URL.Query().Has("page_size") {
+		pageSize, err = strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
+		if err != nil || pageSize <= 0 {
+			return nil, trace.BadParameter("invalid page size")
+		}
+	}
+
+	search := r.URL.Query().Get("search")
+	items, nextPageToken, _, err := clientutils.Page(r.Context(), int(pageSize), r.URL.Query().Get("page_token"), func(ctx context.Context, limit int, pageToken string) ([]*machineidv1.Bot, string, error) {
+		resp, err := clt.BotServiceClient().ListBots(ctx, machineidv1.ListBotsRequest_builder{
+			PageSize:         int32(limit),
+			PageToken:        pageToken,
+			FilterSearchTerm: search,
+		}.Build())
+
+		return resp.GetBots(), resp.GetNextPageToken(), trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if items == nil {
+		items = []*machineidv1.Bot{}
+	}
+
+	return ListBotsResponse{
+		Items:         items,
+		NextPageToken: nextPageToken,
 	}, nil
 }
 

@@ -1281,7 +1281,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	// GET Machine ID bot by name
 	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
 	// GET Machine ID bots
+	// TODO(strideynet): DELETE IN v20.0.0
+	// Replaced by `GET /v2/webapi/sites/:site/machine-id/bot` which is paginated.
+	// MUST delete with related code found in web/packages/teleport/src/services/bot/bot.ts
 	h.GET("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.listBots))
+	// GET a page of Machine ID bots
+	h.GET("/v2/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.listBotsV2))
 	// Create Machine ID bots
 	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
 	// Create bot join tokens

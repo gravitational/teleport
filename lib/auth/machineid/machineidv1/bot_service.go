@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -273,6 +274,7 @@ func (bs *BotService) ListBots(
 	// expensive implementation.
 	bots := []*pb.Bot{}
 	var nextPageToken string
+	search := strings.ToLower(req.GetFilterSearchTerm())
 	for u, err := range bs.cache.RangeUsers(ctx, req.GetPageToken(), "") {
 		if err != nil {
 			return nil, trace.Wrap(err, "listing users")
@@ -317,6 +319,15 @@ func (bs *BotService) ListBots(
 					"error", err,
 					"bot_name", botName,
 				)
+				continue
+			}
+		}
+
+		if search != "" {
+			values := append([]string{bot.GetMetadata().GetName()}, bot.GetSpec().GetRoles()...)
+			if !slices.ContainsFunc(values, func(v string) bool {
+				return strings.Contains(strings.ToLower(v), search)
+			}) {
 				continue
 			}
 		}
