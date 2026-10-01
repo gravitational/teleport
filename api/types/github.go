@@ -29,8 +29,13 @@ import (
 )
 
 const (
-	GithubURL    = "https://github.com"
-	GithubAPIURL = "https://api.github.com"
+	// PublicGitHubHost is the hostname of the public GitHub.
+	PublicGitHubHost = "github.com"
+	// PublicGitHubAPIHost is the hostname of the public GitHub REST API.
+	PublicGitHubAPIHost = "api.github.com"
+
+	GithubURL    = "https://" + PublicGitHubHost
+	GithubAPIURL = "https://" + PublicGitHubAPIHost
 )
 
 // GithubConnector defines an interface for a Github OAuth2 connector

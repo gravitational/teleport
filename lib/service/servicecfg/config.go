@@ -360,6 +360,11 @@ type ConfigTesting struct {
 	// does not reach out to the cloud provider's CA endpoints. See
 	// [github.com/gravitational/teleport/lib/srv/db.NewStaticCADownloader].
 	DatabaseCADownloader DatabaseCADownloader
+
+	// GitHTTPTransport overrides the HTTP transport used by the git HTTP
+	// handler to reach upstream git providers. Tests should set this to
+	// prevent real connections to GitHub.
+	GitHTTPTransport http.RoundTripper
 }
 
 // DatabaseCADownloader downloads CA certificates for cloud-hosted databases.

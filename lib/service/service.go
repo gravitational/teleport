@@ -5941,6 +5941,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			GitServerGetter:   accessPoint.GitServerReadOnlyClient(),
 			ClusterName:       cn.GetClusterName(),
 			HostID:            conn.HostUUID(),
+			Transport:         cfg.Testing.GitHTTPTransport,
 		})
 		if err != nil {
 			return trace.Wrap(err)

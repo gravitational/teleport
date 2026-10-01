@@ -1033,6 +1033,10 @@ const (
 	// internal application being proxied.
 	AppJWTHeader = "teleport-jwt-assertion"
 
+	// GitTokenHeader is the header used to pass the encrypted access
+	// token for git HTTP proxying.
+	GitTokenHeader = "teleport-git-token"
+
 	// HostHeader is the name of the Host header.
 	HostHeader = "Host"
 

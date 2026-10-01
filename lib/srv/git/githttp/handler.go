@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -70,6 +72,11 @@ type HandlerConfig struct {
 	ClusterName string
 	// HostID is the proxy host ID for audit events.
 	HostID string
+	// UpstreamAuth provides access tokens for upstream git providers.
+	UpstreamAuth UpstreamAuth
+	// Transport is the HTTP transport for upstream requests. If nil,
+	// http.DefaultTransport is used.
+	Transport http.RoundTripper
 	// Logger is the logger.
 	Logger *slog.Logger
 }
@@ -95,6 +102,16 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.UpstreamAuth == nil {
+		c.UpstreamAuth = upstreamAuth{}
+	}
+	if c.Transport == nil {
+		tr, err := defaults.Transport()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Transport = tr
 	}
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, teleport.ComponentGit)
@@ -182,9 +199,14 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// Monitor the connection for session controls
-	ctx, _, err = h.cfg.ConnectionMonitor.MonitorConn(ctx, authCtx, conn)
+	ctx, monitoredConn, err := h.cfg.ConnectionMonitor.MonitorConn(ctx, authCtx, conn)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	// Track client activity at the HTTP level, so long-running clones and pushes
+	// are not treated as idle.
+	if tracker, ok := monitoredConn.(activityTracker); ok {
+		w, r = trackClientActivity(tracker, w, r)
 	}
 
 	r = r.WithContext(ctx)
@@ -256,4 +278,45 @@ func (h *Handler) emitAuthFailureEvent(ctx context.Context, userMetadata apieven
 	}); emitErr != nil {
 		h.cfg.Logger.WarnContext(ctx, "Failed to emit auth failure event", "error", emitErr)
 	}
+}
+
+type activityTracker interface {
+	UpdateClientActivity()
+}
+
+func trackClientActivity(tracker activityTracker, w http.ResponseWriter, r *http.Request) (http.ResponseWriter, *http.Request) {
+	r.Body = &activityReadCloser{
+		ReadCloser: r.Body,
+		tracker:    tracker,
+	}
+	return &activityResponseWriter{
+		ResponseWriter: w,
+		tracker:        tracker,
+	}, r
+}
+
+type activityReadCloser struct {
+	io.ReadCloser
+	tracker activityTracker
+}
+
+func (r *activityReadCloser) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	r.tracker.UpdateClientActivity()
+	return n, err
+}
+
+type activityResponseWriter struct {
+	http.ResponseWriter
+	tracker activityTracker
+}
+
+func (w *activityResponseWriter) Write(p []byte) (int, error) {
+	w.tracker.UpdateClientActivity()
+	return w.ResponseWriter.Write(p)
+}
+
+// Unwrap allows http.ResponseController to reach the underlying writer.
+func (w *activityResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }
