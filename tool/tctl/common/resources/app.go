@@ -26,7 +26,10 @@ import (
 	"github.com/gravitational/trace"
 
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -56,7 +59,11 @@ func (c *appCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, app := range c.apps {
 		labels := common.FormatLabels(app.GetAllLabels(), verbose)
 		rows = append(rows, []string{
-			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), labels, app.GetVersion(),
+			scopes.QualifiedName{
+				Scope: app.GetScope(),
+				Name:  app.GetName(),
+			}.String(),
+			app.GetDescription(), app.GetURI(), app.GetPublicAddr(), labels, app.GetVersion(),
 		})
 	}
 	headers := []string{"Name", "Description", "URI", "Public Address", "Labels", "Version"}
@@ -85,7 +92,9 @@ func appHandler() Handler {
 func getApp(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	if ref.Name == "" {
 		// RangeApplications falls back to ListApps and then GetApps for older control planes.
-		apps, err := stream.Collect(client.RangeApplications(ctx, presencev1.ListApplicationsRequest_builder{}.Build()))
+		apps, err := stream.Collect(client.RangeApplications(ctx, presencev1.ListApplicationsRequest_builder{
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build()))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -105,20 +114,24 @@ func createApp(ctx context.Context, client *authclient.Client, raw services.Unkn
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	sqn := scopes.QualifiedName{
+		Scope: app.GetScope(),
+		Name:  app.GetName(),
+	}
 	if err := client.CreateApp(ctx, app); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !opts.Force {
-				return trace.AlreadyExists("application %q already exists", app.GetName())
+				return trace.AlreadyExists("application %q already exists", sqn.String())
 			}
 			if err := client.UpdateApp(ctx, app); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("application %q has been updated\n", app.GetName())
+			fmt.Printf("application %q has been updated\n", sqn.String())
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("application %q has been created\n", app.GetName())
+	fmt.Printf("application %q has been created\n", sqn.String())
 	return nil
 }
 
@@ -130,7 +143,11 @@ func updateApp(ctx context.Context, client *authclient.Client, raw services.Unkn
 	if err := client.UpdateApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("application %q has been updated\n", app.GetName())
+	sqn := scopes.QualifiedName{
+		Scope: app.GetScope(),
+		Name:  app.GetName(),
+	}
+	fmt.Printf("application %q has been updated\n", sqn.String())
 	return nil
 }
 
@@ -139,5 +156,60 @@ func deleteApp(ctx context.Context, client *authclient.Client, ref services.Ref)
 		return trace.Wrap(err)
 	}
 	fmt.Printf("application %q has been deleted\n", ref.Name)
+	return nil
+}
+
+func scopedAppHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:    getScopedApp,
+		createHandler: createApp,
+		updateHandler: updateApp,
+		deleteHandler: deleteScopedApp,
+		description:   "A dynamic resource representing an application that can be proxied via an application service.",
+	}
+}
+
+func getScopedApp(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, opts GetOpts) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindApp, subKind)
+	}
+
+	if sqn != nil {
+		app, err := client.GetApplication(ctx, presencev1.GetApplicationRequest_builder{
+			Scope: sqn.Scope,
+			Name:  sqn.Name,
+		}.Build())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return NewAppCollection([]types.Application{app}), nil
+	}
+
+	apps, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.Application, string, error) {
+		return client.ListApplications(ctx, presencev1.ListApplicationsRequest_builder{
+			PageSize:    int32(pageSize),
+			PageToken:   pageToken,
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build())
+	}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return NewAppCollection(apps), nil
+}
+
+func deleteScopedApp(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindApp, subKind)
+	}
+
+	if err := client.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build()); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("application %q has been deleted\n", sqn.String())
 	return nil
 }

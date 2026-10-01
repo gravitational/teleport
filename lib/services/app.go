@@ -100,14 +100,15 @@ type ApplicationsInternal interface {
 	) ([]backend.ConditionalAction, error)
 }
 
-// TODO(williamo/scopes): remove once dynamic scoped app registration is
-// supported.
-func EnsureNotScopedApp(app types.Application) error {
+// EnsureScopedAppPubAddrEmpty rejects a scoped app that specifies a public
+// address. A scoped app's address is derived from its (scope, name) by the app
+// agent at heartbeat time and is never user-configured.
+func EnsureScopedAppPubAddrEmpty(app types.Application) error {
 	if app == nil {
 		return trace.BadParameter("nil application")
 	}
-	if scope := app.GetScope(); scope != "" {
-		return trace.BadParameter("application %q cannot be created with scope %q: dynamic registration of scoped applications is not supported, remove the scope attribute", app.GetName(), scope)
+	if app.GetScope() != "" && app.GetPublicAddr() != "" {
+		return trace.BadParameter("scoped application %q cannot specify a public address (got %q): the address is derived from the app's scope and name", app.GetName(), app.GetPublicAddr())
 	}
 	return nil
 }
@@ -158,14 +159,15 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		}
 	}
 
+	// If no public address is set, there's nothing to validate.
+	if app.GetPublicAddr() == "" {
+		return nil
+	}
+
 	if scope := app.GetScope(); scope != "" {
 		if !scopedapp.ScopedAppPublicAddrValid(scope, app.GetName(), app.GetPublicAddr()) {
 			return trace.BadParameter("scoped app %q public address %q does not match its derived address for scope %q", app.GetName(), app.GetPublicAddr(), scope)
 		}
-	}
-
-	if app.GetPublicAddr() == "" {
-		return nil
 	}
 
 	if err := ValidatePublicAddr(app.GetName(), app.GetPublicAddr()); err != nil {
@@ -341,6 +343,10 @@ func ValidateAppServer(server types.AppServer, proxyGetter ProxyGetter) error {
 
 	if app != nil && !AppServerScopesEqual(server.GetScope(), app.GetScope()) {
 		return trace.BadParameter("app server %q scope %q does not match its embedded app scope %q", server.GetName(), server.GetScope(), app.GetScope())
+	}
+
+	if app != nil && app.GetScope() != "" && app.GetPublicAddr() == "" {
+		return trace.BadParameter("app server %q must carry the derived public address of scoped app %q", server.GetName(), app.GetName())
 	}
 
 	return trace.Wrap(ValidateApp(app, proxyGetter))

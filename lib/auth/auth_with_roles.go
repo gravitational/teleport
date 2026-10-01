@@ -1317,7 +1317,8 @@ func supportedScopedWatchKind(kind string) bool {
 		scopedaccess.KindScopedRoleAssignment,
 		types.KindKubernetesCluster,
 		types.KindWorkloadIdentity,
-		types.KindNode:
+		types.KindNode,
+		types.KindApp:
 		return true
 	default:
 		return false
@@ -7662,23 +7663,27 @@ func hasInternalBeamsLabel(labels map[string]string) bool {
 }
 
 // CreateApp creates a new application resource.
-func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) error {
-	if err := a.authorizeAction(types.KindApp, types.VerbCreate); err != nil {
+func (a *ScopedServerWithRoles) CreateApp(ctx context.Context, app types.Application) error {
+	ruleCtx := a.scopedContext.RuleContext()
+
+	// Scoped apps never carry a user-supplied public address (RFD 0309).
+	if err := services.EnsureScopedAppPubAddrEmpty(app); err != nil {
 		return trace.Wrap(err)
 	}
-	// Reject scoped apps before the rest of validation
-	if err := services.EnsureNotScopedApp(app); err != nil {
-		return trace.Wrap(err)
-	}
-	// Validate before the label-matching access check so callers with
+
+	// Validate before the access check so callers with
 	// the correct role see input errors rather than access-denied from
 	// a label mismatch on a malformed app.
 	if err := services.ValidateApp(app, a.authServer); err != nil {
 		return trace.Wrap(err)
 	}
-	// Don't allow users create apps they wouldn't have access to (e.g.
-	// non-matching labels).
-	if err := a.checkAccessToApp(app); err != nil {
+
+	if err := a.scopedContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Create); err != nil {
+			return err
+		}
+		return checker.App().CanAccessApp(app)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7692,33 +7697,45 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 }
 
 // UpdateApp updates existing application resource.
-func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
-	if err := a.authorizeAction(types.KindApp, types.VerbUpdate); err != nil {
+func (a *ScopedServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
+	ruleCtx := a.scopedContext.RuleContext()
+
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Update); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// TODO (williamo/scopes): While a blanket deny is fine for update for now,
-	// when scoped dynamic app registration is supported, we must check whether
-	// the updated scope differs or not, and reject if different.
-	if err := services.EnsureNotScopedApp(app); err != nil {
+	// Scoped apps never carry a user-supplied public address (RFD 0309).
+	if err := services.EnsureScopedAppPubAddrEmpty(app); err != nil {
 		return trace.Wrap(err)
 	}
-	// Validate before the GetApp existence check so a malformed name
-	// returns the input error rather than "doesn't exist".
+
+	// Validate before the existence check so a malformed name returns
+	// the input error rather than "doesn't exist".
 	if err := services.ValidateApp(app, a.authServer); err != nil {
 		return trace.Wrap(err)
 	}
+
 	// Don't allow users update apps they don't have access to (e.g.
 	// non-matching labels). Make sure to check existing app too.
 	existing, err := a.authServer.GetApplication(ctx, presencev1.GetApplicationRequest_builder{
-		Name: app.GetName()}.Build())
+		Scope: app.GetScope(),
+		Name:  app.GetName(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToApp(existing); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.checkAccessToApp(app); err != nil {
+	if err := a.scopedContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Update); err != nil {
+			return err
+		}
+		if err := checker.App().CanAccessApp(existing); err != nil {
+			return err
+		}
+		if err := checker.App().CanAccessApp(app); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 

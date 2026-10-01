@@ -4491,7 +4491,7 @@ func (g *GRPCServer) ReplaceRemoteLocks(ctx context.Context, req *authpb.Replace
 
 // CreateApp creates a new application resource.
 func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4506,7 +4506,7 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 
 // UpdateApp updates existing application resource.
 func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

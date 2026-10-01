@@ -187,8 +187,8 @@ func (s *AppService) AppendDeleteAppActions(
 	}), nil
 }
 
-// validateApp runs shared validation for an application resource, rejecting
-// dynamic labels on scoped apps because of an RCE risk.
+// validateApp runs shared validation for an application resource.
+// Scoped apps currently reject dynamic labels, MCP, LLM, and integrations
 func validateApp(app types.Application) error {
 	if err := services.CheckAndSetDefaults(app); err != nil {
 		return trace.Wrap(err)
@@ -202,8 +202,36 @@ func validateApp(app types.Application) error {
 		return trace.Wrap(err)
 	}
 
+	if app.GetCloud() != "" {
+		return trace.BadParameter("scoped applications do not support cloud apps")
+	}
+
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return trace.BadParameter("unsupported application type %T", app)
+	}
+	if appV3.Spec.AWS != nil {
+		return trace.BadParameter("scoped applications do not support AWS configuration")
+	}
+
+	if len(app.GetRequiredAppNames()) > 0 {
+		return trace.BadParameter("scoped applications do not support required app names")
+	}
+
 	if len(app.GetDynamicLabels()) > 0 {
 		return trace.BadParameter("scoped applications do not support dynamic labels")
+	}
+
+	if app.IsMCP() {
+		return trace.BadParameter("scoped applications do not support stdio MCP servers")
+	}
+
+	if app.IsLLM() {
+		return trace.BadParameter("scoped applications do not support LLM apps")
+	}
+
+	if app.GetIntegration() != "" {
+		return trace.BadParameter("scoped applications do not support integrations")
 	}
 
 	return nil
