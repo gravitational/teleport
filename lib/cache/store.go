@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
@@ -32,6 +33,19 @@ type store[T any, I comparable] struct {
 	cache   *sortcache.SortCache[T, I]
 	clone   func(T) T
 	indexes map[I]func(T) string
+
+	metricsRequests      prometheus.Counter
+	metricsRangeRequests prometheus.Counter
+
+	metricsReadRequests       prometheus.Counter
+	metricsReadRequestsFailed prometheus.Counter
+	metricsWriteRequests      prometheus.Counter
+	metricsBatchWriteRequests prometheus.Counter
+	metricsStreamingRequests  prometheus.Counter
+
+	metricsReadLatencies       prometheus.Observer
+	metricsWriteLatencies      prometheus.Observer
+	metricsBatchWriteLatencies prometheus.Observer
 }
 
 // newStore creates a store that will index the resource
@@ -44,6 +58,19 @@ func newStore[T any, I comparable](kind string, clone func(T) T, indexes map[I]f
 		cache: sortcache.New(sortcache.Config[T, I]{
 			Indexes: indexes,
 		}),
+
+		metricsRequests:      backendmetrics.Requests.WithLabelValues("cache", kind, "false"),
+		metricsRangeRequests: backendmetrics.Requests.WithLabelValues("cache", kind, "true"),
+
+		metricsReadRequests:       backendmetrics.ReadRequests.WithLabelValues("cache"),
+		metricsReadRequestsFailed: backendmetrics.ReadRequestsFailed.WithLabelValues("cache"),
+		metricsWriteRequests:      backendmetrics.WriteRequests.WithLabelValues("cache"),
+		metricsBatchWriteRequests: backendmetrics.BatchWriteRequests.WithLabelValues("cache"),
+		metricsStreamingRequests:  backendmetrics.StreamingRequests.WithLabelValues("cache"),
+
+		metricsReadLatencies:       backendmetrics.ReadLatencies.WithLabelValues("cache"),
+		metricsWriteLatencies:      backendmetrics.WriteLatencies.WithLabelValues("cache"),
+		metricsBatchWriteLatencies: backendmetrics.BatchWriteLatencies.WithLabelValues("cache"),
 	}
 }
 
@@ -51,9 +78,9 @@ func newStore[T any, I comparable](kind string, clone func(T) T, indexes map[I]f
 func (s *store[T, I]) clear() error {
 	start := time.Now()
 	s.cache.Clear()
-	backendmetrics.BatchWriteLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
-	backendmetrics.BatchWriteRequests.WithLabelValues("cache").Inc()
-	backendmetrics.Requests.WithLabelValues("cache", s.kind, "true").Inc()
+	s.metricsBatchWriteLatencies.Observe(time.Since(start).Seconds())
+	s.metricsBatchWriteRequests.Inc()
+	s.metricsRangeRequests.Inc()
 	return nil
 }
 
@@ -61,9 +88,9 @@ func (s *store[T, I]) clear() error {
 func (s *store[T, I]) put(t T) error {
 	start := time.Now()
 	s.cache.Put(s.clone(t))
-	backendmetrics.WriteLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
-	backendmetrics.WriteRequests.WithLabelValues("cache").Inc()
-	backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
+	s.metricsWriteLatencies.Observe(time.Since(start).Seconds())
+	s.metricsWriteRequests.Inc()
+	s.metricsRequests.Inc()
 	return nil
 }
 
@@ -73,9 +100,9 @@ func (s *store[T, I]) delete(t T) error {
 	for idx, transform := range s.indexes {
 		s.cache.Delete(idx, transform(t))
 	}
-	backendmetrics.WriteLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
-	backendmetrics.WriteRequests.WithLabelValues("cache").Inc()
-	backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
+	s.metricsWriteLatencies.Observe(time.Since(start).Seconds())
+	s.metricsWriteRequests.Inc()
+	s.metricsRequests.Inc()
 
 	return nil
 }
@@ -93,11 +120,11 @@ func (s *store[T, I]) len() int {
 func (s *store[T, I]) get(index I, key string) (T, error) {
 	start := time.Now()
 	t, ok := s.cache.Get(index, key)
-	backendmetrics.ReadLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
-	backendmetrics.ReadRequests.WithLabelValues("cache").Inc()
-	backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
+	s.metricsReadLatencies.Observe(time.Since(start).Seconds())
+	s.metricsReadRequests.Inc()
+	s.metricsRequests.Inc()
 	if !ok {
-		backendmetrics.ReadRequestsFailed.WithLabelValues("cache").Inc()
+		s.metricsReadRequestsFailed.Inc()
 		return t, trace.NotFound("%q %q does not exist", s.kind, key)
 	}
 
@@ -112,12 +139,12 @@ func (s *store[T, I]) get(index I, key string) (T, error) {
 func (s *store[T, I]) resources(index I, start, stop string) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		defer func() {
-			backendmetrics.StreamingRequests.WithLabelValues("cache").Inc()
-			backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
+			s.metricsStreamingRequests.Inc()
+			s.metricsRequests.Inc()
 		}()
 
 		for t := range s.cache.Ascend(index, start, stop) {
-			backendmetrics.ReadRequests.WithLabelValues("cache").Inc()
+			s.metricsReadRequests.Inc()
 			if !yield(t) {
 				return
 			}
