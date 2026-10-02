@@ -228,26 +228,31 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err = okta.CheckOrigin(authCtx, req.User); err != nil {
+	reqUser := req.GetUser()
+	if reqUser == nil {
+		return nil, trace.BadParameter("user: must be not-nil")
+	}
+
+	if err = okta.CheckOrigin(authCtx, reqUser); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUser(req.User); err != nil {
+	if err := services.ValidateUser(reqUser); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
+	if err := services.ValidateUserRoles(ctx, reqUser, s.cache); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.User.GetCreatedBy().IsEmpty() {
-		req.User.SetCreatedBy(types.CreatedBy{
+	if reqUser.GetCreatedBy().IsEmpty() {
+		reqUser.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authCtx.User.GetName()},
 			Time: s.clock.Now().UTC(),
 		})
 	}
 
-	created, err := s.backend.CreateUser(ctx, req.User)
+	created, err := s.backend.CreateUser(ctx, reqUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

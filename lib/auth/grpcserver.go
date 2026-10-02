@@ -1308,7 +1308,11 @@ func (g *GRPCServer) UpsertDatabaseServer(ctx context.Context, req *authpb.Upser
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keepAlive, err := auth.UpsertDatabaseServer(ctx, req.GetServer())
+	server := req.GetServer()
+	if server == nil {
+		return nil, trace.BadParameter("database server is missing")
+	}
+	keepAlive, err := auth.UpsertDatabaseServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1348,6 +1352,9 @@ func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *authpb.Upse
 		return nil, trace.Wrap(err)
 	}
 
+	if req.Service == nil {
+		return nil, trace.BadParameter("database service is missing")
+	}
 	keepAlive, err := auth.UpsertDatabaseService(ctx, req.Service)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1432,7 +1439,13 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		return nil, trace.Wrap(err)
 	}
 	server := req.GetServer()
+	if server == nil {
+		return nil, trace.BadParameter("app server is missing")
+	}
 	app := server.GetApp()
+	if app == nil {
+		return nil, trace.BadParameter("app is missing")
+	}
 
 	// Only allow app servers with Okta origins if coming from an Okta role. App servers sourced from
 	// Okta are redirected differently which could create unpredictable or insecure behavior if applied
@@ -2077,7 +2090,11 @@ func (g *GRPCServer) UpsertKubernetesServer(ctx context.Context, req *authpb.Ups
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keepAlive, err := auth.UpsertKubernetesServer(ctx, req.GetServer())
+	server := req.GetServer()
+	if server == nil {
+		return nil, trace.BadParameter("server: must be not-nil")
+	}
+	keepAlive, err := auth.UpsertKubernetesServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2261,6 +2278,10 @@ func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleReque
 		return nil, trace.Wrap(err)
 	}
 
+	if req.Role == nil {
+		return nil, trace.BadParameter("role is missing")
+	}
+
 	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
 	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
 	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
@@ -2297,6 +2318,10 @@ func (g *GRPCServer) UpdateRole(ctx context.Context, req *authpb.UpdateRoleReque
 		return nil, trace.Wrap(err)
 	}
 
+	if req.Role == nil {
+		return nil, trace.BadParameter("role is missing")
+	}
+
 	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
 	// creation and updates from defining both port_forwarding and ssh_port_forwarding for the same role. However, when making effective
 	// roles available to nodes it should be possible for both fields to be assigned in order to maintain backwards compatibility with older
@@ -2331,6 +2356,10 @@ func (g *GRPCServer) UpsertRoleV2(ctx context.Context, req *authpb.UpsertRoleReq
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.Role == nil {
+		return nil, trace.BadParameter("role is missing")
 	}
 
 	// This check *must* happen at the RPC layer rather than somewhere like ValidateRole or CheckAndSetDefaults. We want to prevent role
