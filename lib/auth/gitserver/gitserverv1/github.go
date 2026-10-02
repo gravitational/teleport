@@ -26,6 +26,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 )
 
@@ -48,18 +49,37 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 		return nil, trace.Wrap(err)
 	}
 
+	// Check against the unmapped identity, if the user is a remote user
+	// the mapped identity will not have some of the below fields populated.
+	unmappedIdent := authCtx.UnmappedIdentity.GetIdentity()
+	if unmappedIdent.DisallowReissue {
+		return nil, trace.AccessDenied("access denied: identity is not allowed to reissue certificates")
+	} else if unmappedIdent.Impersonator != "" {
+		return nil, trace.AccessDenied("access denied: impersonated user cannot create GitHub auth request")
+	} else if unmappedIdent.IsDelegationSession() {
+		return nil, trace.AccessDenied("access denied: delegation session cannot create GitHub auth request")
+	} else if unmappedIdent.IsBot() {
+		return nil, trace.AccessDenied("access denied: bot cannot create GitHub auth request")
+	} else if unmappedIdent.GetUserMetadata().UserKind == events.UserKind_USER_KIND_SYSTEM {
+		return nil, trace.AccessDenied("access denied: system user cannot create GitHub auth request")
+	}
+
 	s.cfg.Log.DebugContext(ctx, "Creating GitHub auth request for authenticated user.",
 		"user", authCtx.User.GetName(),
 		"org", gitServer.GetGitHub().Organization,
 		"integration", gitServer.GetGitHub().Integration,
 	)
 
+	// The cert TTL should be taken from the mapped identity which will
+	// have an adjusted TTL if the user is a remote user.
+	identity := authCtx.Identity.GetIdentity()
+
 	// ConnectorID is not meaningful for the integration flow.
 	in.GetRequest().ConnectorID = gitServer.GetGitHub().Integration
 	in.GetRequest().Integration = gitServer.GetGitHub().Integration
 	in.GetRequest().AuthenticatedUser = authCtx.User.GetName()
-	in.GetRequest().CertTTL = authCtx.Identity.GetIdentity().Expires.Sub(s.cfg.clock.Now())
-	in.GetRequest().ClientLoginIP = authCtx.Identity.GetIdentity().LoginIP
+	in.GetRequest().CertTTL = identity.Expires.Sub(s.cfg.clock.Now())
+	in.GetRequest().ClientLoginIP = identity.LoginIP
 
 	// More params of in.Request will get updated and checked by
 	// s.cfg.GitHubAuthRequestCreator.
