@@ -127,9 +127,15 @@ func (s *Service) ListLinuxDesktops(ctx context.Context, req *linuxdesktopv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
+	scopedCtx := authz.ScopedContextFromUnscopedContext(authCtx)
+
 	resources := clientutils.RangeResources(ctx, req.GetPageToken(), "", s.reader.ListLinuxDesktops, nil)
 	rsp, nextToken, err := generic.CollectPageAndCursor(
 		iterstream.FilterMap(resources, func(desktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, bool) {
+			if err := scopedCtx.AgentOwnedResourceAction("", desktop.GetMetadata().GetName(), types.RoleLinuxDesktop); err == nil {
+				return desktop, true
+			}
+
 			if err := checkAccess(authCtx, desktop); err == nil {
 				return desktop, true
 			}
@@ -165,6 +171,11 @@ func (s *Service) GetLinuxDesktop(ctx context.Context, req *linuxdesktopv1.GetLi
 	rsp, err := s.reader.GetLinuxDesktop(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	scopedCtx := authz.ScopedContextFromUnscopedContext(authCtx)
+	if err := scopedCtx.AgentOwnedResourceAction("", req.GetName(), types.RoleLinuxDesktop); err == nil {
+		return rsp, nil
 	}
 
 	if err := checkAccess(authCtx, rsp); err != nil {
