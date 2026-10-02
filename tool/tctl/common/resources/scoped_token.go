@@ -57,7 +57,7 @@ func (c *scopedTokenCollection) Resources() []types.Resource {
 
 func (c *scopedTokenCollection) WriteText(w io.Writer, verbose bool) error {
 	// when calling the getScopedToken, the secrets would already have been properly hidden or exposed.
-	_, err := ScopedTokenTextHelper(c.tokens, false).WriteTo(w)
+	_, err := ScopedTokenTextHelper(c.tokens, time.Now(), false).WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -198,17 +198,17 @@ func deleteScopedToken(ctx context.Context, client *authclient.Client, subKind s
 	return nil
 }
 
-func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *bytes.Buffer {
+func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, now time.Time, withSecrets bool) *bytes.Buffer {
 	headers := []string{
 		"Token",
 		"Type",
+		"Usage Mode",
 		"Assigns Scope",
 		"Labels",
 		"Expiry Time (UTC)",
 	}
 	table := asciitable.MakeTable(headers)
 
-	now := time.Now()
 	for _, t := range tokens {
 		expiry := "never"
 		expiresAt := t.GetMetadata().GetExpires().AsTime()
@@ -223,9 +223,16 @@ func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *b
 			token = joining.EncodeScopedToken(t.GetMetadata().GetName(), t.GetStatus().GetSecret())
 		}
 
+		mode := t.GetSpec().GetUsageMode()
+		if joining.TokenUsageMode(mode) == joining.TokenUsageModeSingle &&
+			t.GetStatus().GetUsage().GetSingleUse().GetUsedAt() != nil {
+			mode += " (used)"
+		}
+
 		row := []string{
 			scopes.QualifiedName{Scope: t.GetScope(), Name: token}.String(),
 			strings.Join(t.GetSpec().GetRoles(), ","),
+			mode,
 			t.GetSpec().GetAssignedScope(),
 			PrintMetadataLabels(t.GetMetadata().GetLabels()),
 			expiry,

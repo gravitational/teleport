@@ -25,6 +25,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -44,6 +45,7 @@ import (
 // `tctl scoped tokens`.
 type ScopedCommand struct {
 	Stdout io.Writer
+	Now    func() time.Time
 
 	status      scopedStatusCommand
 	tokens      ScopedTokensCommand
@@ -57,9 +59,12 @@ func (c *ScopedCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
 	}
+	if c.Now == nil {
+		c.Now = time.Now
+	}
 
 	c.status.initialize(scoped, c.Stdout)
-	c.tokens.initialize(scoped, c.Stdout)
+	c.tokens.initialize(scoped, c.Stdout, c.Now)
 	c.assignments.initialize(scoped, c.Stdout)
 }
 
