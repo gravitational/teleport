@@ -72,6 +72,9 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 	if len(watch.Kinds) == 0 {
 		return nil, trace.BadParameter("global watches are not supported yet")
 	}
+	if err := types.ValidateWatch(watch); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	var parsers []resourceParser

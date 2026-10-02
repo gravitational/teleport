@@ -220,6 +220,20 @@ type Events interface {
 	NewWatcher(ctx context.Context, watch Watch) (Watcher, error)
 }
 
+// Validate watch checks if the given watch is valid.
+func ValidateWatch(watch Watch) error {
+	for _, kind := range watch.Kinds {
+		switch kind.Kind {
+		// It doesn't make sense to watch a secret resource without secrets.
+		case KindInferenceSecret:
+			if !kind.LoadSecrets {
+				return trace.BadParameter("kind %q cannot be watched without LoadSecrets", kind.Name)
+			}
+		}
+	}
+	return nil
+}
+
 // Watcher returns watcher
 type Watcher interface {
 	// Events returns channel with events

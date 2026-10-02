@@ -229,7 +229,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindInferenceModel},
 		{Kind: types.KindInferencePolicy},
-		{Kind: types.KindInferenceSecret},
+		{Kind: types.KindInferenceSecret, LoadSecrets: true},
 		{Kind: types.KindRetrievalModel},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -1072,6 +1072,9 @@ func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watche
 }
 
 func (c *Cache) validateWatchRequest(watch types.Watch) (kinds []types.WatchKind, highVolume bool, err error) {
+	if err := types.ValidateWatch(watch); err != nil {
+		return nil, false, trace.Wrap(err)
+	}
 	c.rw.RLock()
 	cacheOK := c.ok
 	confirmedKinds := c.confirmedKinds

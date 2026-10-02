@@ -88,6 +88,9 @@ func NewFanoutV2(cfg FanoutV2Config) *FanoutV2 {
 // the stream's close context. Note that streams *must* be explicitly closed when
 // completed in order to avoid performance issues.
 func (f *FanoutV2) NewStream(ctx context.Context, watch types.Watch) stream.Stream[types.Event] {
+	if err := types.ValidateWatch(watch); err != nil {
+		return stream.Fail[types.Event](err)
+	}
 	f.rw.RLock()
 	defer f.rw.RUnlock()
 	if f.closed {
@@ -102,6 +105,9 @@ func (f *FanoutV2) NewStream(ctx context.Context, watch types.Watch) stream.Stre
 }
 
 func (f *FanoutV2) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	if err := types.ValidateWatch(watch); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	ctx, cancel := context.WithCancel(ctx)
 
 	w := &streamWatcher{

@@ -1215,6 +1215,9 @@ func (a *ScopedServerWithRoles) authorizeWatchRequest(ctx context.Context, watch
 	if len(watch.Kinds) == 0 {
 		return trace.AccessDenied("can't setup global watch")
 	}
+	if err := types.ValidateWatch(*watch); err != nil {
+		return trace.Wrap(err)
+	}
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
 		applyLegacyWatchSecretsCompat(ctx, &kind)
@@ -1247,7 +1250,6 @@ func (a *ScopedServerWithRoles) authorizeWatchRequest(ctx context.Context, watch
 // For watching, most kinds of data just need a Read permission, but some
 // have more complicated logic.
 func (a *ServerWithRoles) hasWatchPermissionForKind(
-	ctx context.Context,
 	kind types.WatchKind,
 ) error {
 
@@ -1299,6 +1301,10 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 		}
 
 		return nil
+	case types.KindRecordingEncryption, types.KindRotatedKey, types.KindInferenceSecret:
+		// These kinds only need to be watched by the auth server, and they can
+		// watch the underlying Server directly.
+		return trace.AccessDenied("cannot watch resources of kind %q", kind.Kind)
 	}
 	return trace.Wrap(a.authorizeAction(kind.Kind, verb))
 }
@@ -1354,7 +1360,12 @@ func (a *ScopedServerWithRoles) authorizeWatchKind(ctx context.Context, kind typ
 	// do a pre-check for kinds that have exceptional behavior we haven't integrated into the unified
 	// scoped authz path yet.
 	switch kind.Kind {
-	case types.KindAccessRequest, types.KindWebSession, types.KindHeadlessAuthentication:
+	case types.KindAccessRequest,
+		types.KindWebSession,
+		types.KindHeadlessAuthentication,
+		types.KindRecordingEncryption,
+		types.KindRotatedKey,
+		types.KindInferenceSecret:
 		switch kind.ScopeFilter.ToProto().GetMode() {
 		case scopesv1.Mode_MODE_UNSPECIFIED, scopesv1.Mode_MODE_UNSCOPED, scopesv1.Mode_MODE_ALL:
 			// all equivalent to the unscoped subset for these kinds
@@ -1368,7 +1379,7 @@ func (a *ScopedServerWithRoles) authorizeWatchKind(ctx context.Context, kind typ
 		if !ok {
 			return nil, trace.AccessDenied("scoped identities are not permitted to watch kind %q", kind.Kind)
 		}
-		if err := unscoped.hasWatchPermissionForKind(ctx, kind); err != nil {
+		if err := unscoped.hasWatchPermissionForKind(kind); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(), nil
