@@ -229,6 +229,10 @@ func (p *Process) ListenAgent(ctx context.Context) (net.Listener, error) {
 
 // ListenX11 requests a local XServer listener from the networking subprocess.
 func (p *Process) ListenX11(ctx context.Context, req X11Request) (net.Listener, error) {
+	if err := x11.EnsureSockDir(); err != nil {
+		slog.WarnContext(ctx, "Failed to prepare the XServer socket directory, X11 forwarding may be unavailable for this login", "error", err)
+	}
+
 	listenerFD, err := p.sendRequest(ctx, Request{
 		Operation:  NetworkingOperationListenX11,
 		X11Request: req,

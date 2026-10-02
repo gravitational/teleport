@@ -22,7 +22,6 @@ import (
 	"errors"
 	"math"
 	"net"
-	"os"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -51,19 +50,29 @@ func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (n
 		return nil, Display{}, trace.BadParameter("maxDisplay (%d) cannot be larger than the max int32 (%d)", maxDisplay, math.MaxInt32)
 	}
 
-	// Create /tmp/.X11-unix if it doesn't exist (such as in CI)
-	if err := os.Mkdir(x11SockDir(), 0o777|os.ModeSticky); err != nil && !errors.Is(err, os.ErrExist) {
+	// Create /tmp/.X11-unix if it doesn't exist in this namespace. Since the
+	// parent process itself ensures this directory before starting the networking
+	// process, this is only needed when the process is running in a separate
+	// namespace (i.e. pam_namespace).
+	if err := EnsureSockDir(); err != nil {
 		return nil, Display{}, trace.Wrap(err)
 	}
 
+	// Retain the last non-fatal error, otherwise exhausting the display range
+	// reports nothing about why every display was skipped.
+	var lastErr error
 	for displayNumber := displayOffset; displayNumber <= maxDisplay; displayNumber++ {
 		display := Display{DisplayNumber: displayNumber, ScreenNumber: int(screen)}
 		if l, err := display.Listen(); err == nil {
 			return l, display, nil
-		} else if !errors.Is(err, syscall.EADDRINUSE) && !errors.Is(err, syscall.EACCES) {
+		} else if errors.Is(err, syscall.EADDRINUSE) || errors.Is(err, syscall.EACCES) {
+			// Skip to next display if the error is non-fatal.
+			lastErr = err
+			continue
+		} else {
 			return nil, Display{}, trace.Wrap(err)
 		}
 	}
 
-	return nil, Display{}, trace.LimitExceeded("No more X11 sockets are available")
+	return nil, Display{}, trace.LimitExceeded("No more X11 sockets are available in the display range %d-%d: %v", displayOffset, maxDisplay, lastErr)
 }
