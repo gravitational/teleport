@@ -1,4 +1,10 @@
-ARG BASE_IMAGE=gcr.io/distroless/cc-debian13
+ARG BASE_IMAGE=gcr.io/distroless/base-nossl-debian13
+
+FROM debian:13 AS staging
+RUN apt-get update
+COPY fetch-debs ./
+# fdpass-teleport is a Rust binary linked against libgcc_s.
+RUN ./fetch-debs libgcc-s1
 
 FROM debian:13 AS teleport
 # Install the teleport binary from an architecture-specific debian package. Note
@@ -19,5 +25,7 @@ RUN --mount=type=bind,target=/ctx dpkg-deb -R /ctx/$TELEPORT_DEB_FILE_NAME /opt/
 FROM $BASE_IMAGE
 COPY --from=teleport /opt/staging/opt/teleport/system/bin/tbot /usr/local/bin/tbot
 COPY --from=teleport /opt/staging/opt/teleport/system/bin/fdpass-teleport /usr/local/bin/fdpass-teleport
+COPY --from=staging /opt/staging/root /
+COPY --from=staging /opt/staging/status /var/lib/dpkg/status.d
 ENTRYPOINT ["/usr/local/bin/tbot"]
 CMD ["start"]

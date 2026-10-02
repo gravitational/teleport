@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=gcr.io/distroless/cc-debian13
+ARG BASE_IMAGE=gcr.io/distroless/static-debian13
 
 FROM debian:13 AS teleport
 # Install the teleport binary from an architecture-specific debian package. Note

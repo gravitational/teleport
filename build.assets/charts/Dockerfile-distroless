@@ -1,9 +1,9 @@
-ARG BASE_IMAGE=gcr.io/distroless/cc-debian13
+ARG BASE_IMAGE=gcr.io/distroless/base-nossl-debian13
 
 FROM debian:13 AS staging
 RUN apt-get update
 COPY fetch-debs ./
-RUN ./fetch-debs dumb-init libpam0g libaudit1 libcap-ng0
+RUN ./fetch-debs dumb-init libpam0g libaudit1 libcap-ng0 libgcc-s1
 
 FROM debian:13 AS teleport
 # Install the teleport binary from an architecture-specific debian package. Note
