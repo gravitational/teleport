@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	websocketutils "github.com/gravitational/teleport/api/internalutils/websocket"
 )
 
 func applyWebSocketUpgradeHeaders(req *http.Request, alpnUpgradeType, challengeKey string) {
@@ -82,9 +83,10 @@ func checkWebSocketUpgradeResponse(resp *http.Response, alpnUpgradeType, challen
 
 type websocketALPNClientConn struct {
 	net.Conn
-	readBuffer []byte
-	readMutex  sync.Mutex
-	writeMutex sync.Mutex
+	readFrame   websocketutils.FrameReadState
+	pingPayload [ws.MaxControlFramePayloadSize]byte
+	readMutex   sync.Mutex
+	writeMutex  sync.Mutex
 }
 
 func newWebSocketALPNClientConn(conn net.Conn) *websocketALPNClientConn {
@@ -102,34 +104,53 @@ func (c *websocketALPNClientConn) Read(b []byte) (int, error) {
 }
 
 func (c *websocketALPNClientConn) readLocked(b []byte) (int, error) {
-	if len(c.readBuffer) > 0 {
-		n := copy(b, c.readBuffer)
-		if n < len(c.readBuffer) {
-			c.readBuffer = c.readBuffer[n:]
-		} else {
-			c.readBuffer = nil
-		}
-		return n, nil
+	if len(b) == 0 {
+		return 0, nil
 	}
 
 	for {
-		frame, err := ws.ReadFrame(c.Conn)
-		if err != nil {
-			return 0, trace.Wrap(err)
+		if c.readFrame.Remaining() == 0 {
+			// Read and validate the header before accepting the frame. The payload is
+			// streamed into the caller's buffer rather than allocated at its declared
+			// length.
+			header, err := ws.ReadHeader(c.Conn)
+			if err != nil {
+				return 0, trace.Wrap(err)
+			}
+			if header.OpCode.IsControl() && header.Length > ws.MaxControlFramePayloadSize {
+				return 0, trace.BadParameter("websocket control frame payload length %d exceeds maximum of %d bytes",
+					header.Length, ws.MaxControlFramePayloadSize)
+			}
+			c.readFrame.Begin(header, c.Conn)
 		}
 
-		switch frame.Header.OpCode {
+		switch c.readFrame.OpCode() {
 		case ws.OpClose:
 			// TODO(greedy52) properly exchange close message.
+			if err := c.readFrame.Discard(b); err != nil {
+				return 0, trace.Wrap(err)
+			}
 			return 0, io.EOF
 		case ws.OpPing:
-			pong := ws.NewPongFrame(frame.Payload)
+			payloadLength := c.readFrame.DeclaredPayloadLength()
+			pingPayload := c.pingPayload[:int(payloadLength)]
+			payloadOffset := int(payloadLength - c.readFrame.Remaining())
+			if _, err := io.ReadFull(&c.readFrame, pingPayload[payloadOffset:]); err != nil {
+				return 0, trace.Wrap(err)
+			}
+			pong := ws.NewPongFrame(pingPayload)
 			if err := c.writeFrame(pong); err != nil {
 				return 0, trace.Wrap(err)
 			}
 		case ws.OpBinary:
-			c.readBuffer = frame.Payload
-			return c.readLocked(b)
+			if c.readFrame.Remaining() == 0 {
+				continue
+			}
+			return c.readFrame.Read(b)
+		default:
+			if err := c.readFrame.Discard(b); err != nil {
+				return 0, trace.Wrap(err)
+			}
 		}
 	}
 }

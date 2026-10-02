@@ -122,6 +122,9 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/web \
     FuzzHandlePlaybackAction fuzz_handle_playback_action
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/web \
+    FuzzWebSocketALPNServerConnRead fuzz_websocket_alpn_server_conn_read
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/multiplexer \
     FuzzReadProxyLineV1 fuzz_read_proxy_linec_v1
 
