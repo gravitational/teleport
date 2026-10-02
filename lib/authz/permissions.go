@@ -1152,12 +1152,16 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 			role.String(),
 			types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					Namespaces:       []string{types.Wildcard},
+					// TODO(Joerger): Rework and remove. This wildcard grant only
+					// exists so the agent can read every kube_cluster in the cluster
+					// from (*TLSServer).startKubeClusterResourceWatcher, which scans
+					// all clusters and matches them against the agent's local
+					// resource matchers. Once cluster selection is pushed down to
+					// auth, this should be dropped in favor of an agent-owned read.
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						// Kube agents have implicit permission to write their own server resources.
-						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindKubeWaitingContainer, services.RW()),
+						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
@@ -1166,11 +1170,8 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindUser, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
-						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
-						// Kube agents have implicit permission to write their own cluster resource.
-						types.NewRule(types.KindKubernetesCluster, services.RO()),
-						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindSemaphore, services.WO()),
 					},
 				},
 			})

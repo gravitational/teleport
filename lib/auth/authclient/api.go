@@ -487,15 +487,6 @@ type ReadKubernetesAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-
-	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
-	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
-
 	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
 	// containers that are waiting to be created until moderated
 	// session conditions are met.
