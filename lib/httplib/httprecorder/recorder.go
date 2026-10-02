@@ -140,15 +140,16 @@ func New(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	req := cfg.Request.WithContext(cfg.Request.Context())
+	requestID := uuid.NewString()
+
+	// Carry the exchange's identifier on the request so downstream handlers can stamp their own audit events with it.
+	req := cfg.Request.WithContext(context.WithValue(cfg.Request.Context(), requestIDContextKey{}, requestID))
 
 	recorder := cfg.Recorder
 	// Keep recording even if req.Context() is canceled. Client disconnects are
 	// exactly when the tail of the exchange is useful to keep, and the
 	// apievents.Emitter contract expects cancellation to be stripped.
 	auditLogContext := context.WithoutCancel(req.Context())
-
-	requestID := uuid.NewString()
 
 	logger := cfg.Logger.With("request_id", requestID)
 
@@ -592,6 +593,17 @@ func recordEvent(ctx context.Context, e apievents.AuditEvent, recorder events.Se
 	}
 
 	return trace.Wrap(recorder.RecordEvent(ctx, preparedEvent))
+}
+
+// requestIDContextKey keys the recorded exchange's request ID in the request context.
+type requestIDContextKey struct{}
+
+// RequestIDFromContext returns the request ID the recorder assigned to this HTTP exchange, if the request was wrapped
+// by [New]. Handlers use it to stamp their own audit events with the same identifier, so those events can be
+// correlated with the recorded exchange rather than guessed at by timestamp.
+func RequestIDFromContext(ctx context.Context) (string, bool) {
+	requestID, ok := ctx.Value(requestIDContextKey{}).(string)
+	return requestID, ok
 }
 
 // newRequestEvent builds the request metadata event for the exchange.

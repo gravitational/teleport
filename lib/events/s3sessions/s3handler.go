@@ -346,13 +346,14 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 
 // UploadReplayObject reads the content of a named beam-replay artifact object
 // from a reader and uploads it to an S3 bucket. If successful, it returns URL
-// of the uploaded object. This function can be called only once for a given
-// sessionID and name; subsequent calls will return an error.
+// of the uploaded object. A later call for the same sessionID and name replaces
+// the object, so a replay build that failed partway through can be retried; see
+// [events.UploadHandler] for why that has to be allowed.
 func (h *Handler) UploadReplayObject(ctx context.Context, sessionID session.ID, name string, reader io.Reader) (string, error) {
 	if err := events.ValidateReplayObjectName(name); err != nil {
 		return "", trace.Wrap(err)
 	}
-	path, err := h.uploadFile(ctx, h.replayPath(sessionID, name), reader)
+	path, err := h.uploadFile(ctx, h.replayPath(sessionID, name), reader, withOverwrite(), canBeOverwrittenLater())
 	return path, trace.Wrap(err)
 }
 

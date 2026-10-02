@@ -204,13 +204,14 @@ func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 }
 
 // UploadReplayObject writes a named beam-replay artifact object to a local
-// directory. This function can be called only once for a given sessionID and
-// name; subsequent calls will return an error.
+// directory. A later call for the same sessionID and name replaces the object,
+// so a replay build that failed partway through can be retried; see
+// [events.UploadHandler] for why that has to be allowed.
 func (l *Handler) UploadReplayObject(ctx context.Context, sessionID session.ID, name string, reader io.Reader) (string, error) {
 	if err := events.ValidateReplayObjectName(name); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return uploadFile(l.replayPath(sessionID, name), reader)
+	return uploadFile(l.replayPath(sessionID, name), reader, withOverwrite())
 }
 
 // UploadMetadata writes session metadata to a local directory.

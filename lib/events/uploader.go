@@ -77,6 +77,14 @@ type UploadHandler interface {
 	StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
 	// UploadReplayObject writes a named beam-replay artifact object (e.g.
 	// "manifest", "index.0", "blob.0") for a beam and returns its URL.
+	//
+	// A replay artifact spans several objects and is only readable once its
+	// manifest lands, so an upload that fails partway through leaves parts
+	// behind and no readable replay. Implementations must therefore let a
+	// later call replace an object rather than rejecting it, otherwise the
+	// retry fails on the first part the previous attempt had written and the
+	// replay is lost for good. Each attempt rewrites the whole object set, so
+	// the artifact a successful attempt leaves behind is self-consistent.
 	UploadReplayObject(ctx context.Context, sessionID session.ID, name string, readCloser io.Reader) (string, error)
 	// StreamReplayObjectRange returns a ranged reader over a replay object.
 	// A length <= 0 reads to the end of the object.

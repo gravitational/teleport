@@ -31,6 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/httprecorder"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -282,6 +283,12 @@ func (a *audit) OnLLMRequest(ctx context.Context, sessionCtx *SessionContext, re
 		RequestedModel:   llmReq.RequestedModel,
 		InputTokenCount:  int64(llmResp.InputTokenCount),
 		OutputTokenCount: int64(llmResp.OutputTokenCount),
+	}
+	// Stamp the recorded exchange's identifier so beam replay can attach this request's model and token counts to the
+	// right exchange. Concurrent inference calls cannot be correlated by timestamp: this event is recorded when the
+	// request finishes, so a long call that started first can finish after a short one.
+	if requestID, ok := httprecorder.RequestIDFromContext(req.Context()); ok {
+		event.RequestId = requestID
 	}
 	if llmResp.Error != nil {
 		event.Metadata.Type = events.AppSessionLLMRequestFailureEvent
