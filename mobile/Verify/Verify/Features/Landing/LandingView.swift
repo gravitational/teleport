@@ -84,6 +84,9 @@ struct LandingView: View {
 			.sheet(item: $viewModel.destination.cameraScanner, id: \.presentationID) { enrollCameraScannerViewModel in
 				EnrollCameraScannerView(viewModel: enrollCameraScannerViewModel)
 			}
+			.sheet(item: $viewModel.destination.authenticateDevice, id: \.presentationID) { authenticateDeviceViewModel in
+				AuthenticateDeviceView(viewModel: authenticateDeviceViewModel)
+			}
 			.sheet(item: $viewModel.destination.shareLogs, id: \.presentationID, onDismiss: viewModel.userDismissedShareLogsSheet) { shareLogsViewModel in
 				ShareLogsView(viewModel: shareLogsViewModel)
 			}

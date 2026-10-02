@@ -27,6 +27,7 @@ final class LandingViewModel {
 	// swiftformat:sort
 	@CasePathable
 	enum Destination {
+		case authenticateDevice(AuthenticateDeviceViewModel)
 		case cameraScanner(EnrollCameraScannerViewModel)
 		case enrollDevice(EnrollDeviceViewModel)
 		case forgetAllClustersAlert
@@ -151,6 +152,10 @@ extension LandingViewModel {
 		destination = .enrollDevice(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
 	}
 
+	func navigateToDeviceAuthentication(with deepLink: AuthenticateDeviceDeepLink) {
+		destination = .authenticateDevice(AuthenticateDeviceViewModel(deepLink: deepLink, delegate: self))
+	}
+
 	func showParserError(errorMessage: String) {
 		destination = .notice(title: errorMessage)
 	}
@@ -177,6 +182,29 @@ extension LandingViewModel: EnrollCameraScannerViewModel.Delegate {
 	) {
 		sensoryFeedbackTrigger.toggle()
 		destination = .enrollDevice(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
+	}
+}
+
+// MARK: - AuthenticateDeviceViewModel.Delegate
+
+extension LandingViewModel: AuthenticateDeviceViewModel.Delegate {
+	func authenticateDeviceViewModelDidCancelOperation(_ viewModel: AuthenticateDeviceViewModel) {
+		destination = nil
+	}
+
+	func authenticateDeviceViewModel(_ viewModel: AuthenticateDeviceViewModel, didRequestReturnToWebWith url: URL) {
+		Task {
+			await openURL(url)
+			destination = nil
+		}
+	}
+
+	func authenticateDeviceViewModel(
+		_ viewModel: AuthenticateDeviceViewModel,
+		didSucceedWith confirmationURL: URL,
+	) async {
+		await openURL(confirmationURL)
+		destination = nil
 	}
 }
 

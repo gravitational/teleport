@@ -18,6 +18,7 @@ import Foundation
 
 enum DeepLink: Equatable {
 	case enrollMobileDevice(EnrollMobileDeviceDeepLink)
+	case authenticateDevice(AuthenticateDeviceDeepLink)
 
 	init(from url: URL) throws {
 		switch url.path(percentEncoded: false) {
@@ -26,6 +27,8 @@ enum DeepLink: Equatable {
 				// out of the URL. This way this function always returns the most important error first,
 				// which is the error about the unsupported path.
 				self = try .enrollMobileDevice(EnrollMobileDeviceDeepLink(from: url))
+			case "/authenticate_web_device":
+				self = try .authenticateDevice(AuthenticateDeviceDeepLink(from: url))
 			default:
 				throw DeepLinkParseError.unsupportedPath
 		}

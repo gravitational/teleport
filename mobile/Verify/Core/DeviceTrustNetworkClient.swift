@@ -22,40 +22,49 @@ public import Foundation
 import Logging
 import SystemClients
 
-/// Handles requests around enrolling the current device in Device Trust
+/// Handles network requests for the current device's Device Trust operations.
 @DependencyClient
-public struct EnrollClient: Sendable {
+public struct DeviceTrustNetworkClient: Sendable {
 	/// Sends a request for an enrollment token
 	public var requestEnrollmentToken: @Sendable (
-		_ hostName: String,
+		_ hostname: String,
 		_ port: Int,
 		_ pairingToken: String,
 	) async throws -> String
 
 	public var enrollDevice: @Sendable (
-		_ hostName: String,
+		_ hostname: String,
 		_ port: Int,
 		_ enrollmentToken: String,
 		_ credentialID: String,
 		_ publicKeyDER: Data,
 		_ signChallenge: ChallengeSigner,
 	) async throws -> Void
+
+	public var authenticateDevice: @Sendable (
+		_ hostname: String,
+		_ port: Int,
+		_ webTokenID: String,
+		_ webToken: String,
+		_ credentialID: String,
+		_ signChallenge: ChallengeSigner,
+	) async throws -> DeviceConfirmationToken
 }
 
-public enum EnrollClientError: Error, Sendable {
+public enum DeviceTrustNetworkClientError: Error, Sendable {
 	case clientCreationFailed
 	case deviceInformationUnavailable(String)
 }
 
-extension EnrollClient {
-	private static let logger = Logger(label: "EnrollClient")
+extension DeviceTrustNetworkClient {
+	private static let logger = Logger(label: "DeviceTrustNetworkClient")
 
-	public static let liveValue = EnrollClient(
-		requestEnrollmentToken: { hostName, port, pairingToken in
+	public static let liveValue = DeviceTrustNetworkClient(
+		requestEnrollmentToken: { hostname, port, pairingToken in
 			try await Task.detached(priority: .userInitiated) {
-				let proxyServer = proxyServerString(hostName: hostName, port: port)
+				let proxyServer = proxyServerString(hostname: hostname, port: port)
 				guard let client = Enroll.EnrollClient(proxyServer, insecure: false) else {
-					throw EnrollClientError.clientCreationFailed
+					throw DeviceTrustNetworkClientError.clientCreationFailed
 				}
 				let token = try client.createPairedDeviceEnrollToken(
 					pairingToken,
@@ -64,10 +73,10 @@ extension EnrollClient {
 				return token.token
 			}.value
 		},
-		enrollDevice: { hostName, port, enrollmentToken, credentialID, publicKeyDER, signChallenge in
-			let proxyServer = proxyServerString(hostName: hostName, port: port)
+		enrollDevice: { hostname, port, enrollmentToken, credentialID, publicKeyDER, signChallenge in
+			let proxyServer = proxyServerString(hostname: hostname, port: port)
 			guard let client = Enroll.EnrollClient(proxyServer, insecure: false) else {
-				throw EnrollClientError.clientCreationFailed
+				throw DeviceTrustNetworkClientError.clientCreationFailed
 			}
 			let operation = try client.newEnrollDeviceOperation(
 				enrollmentToken,
@@ -87,6 +96,30 @@ extension EnrollClient {
 			let signature = try await signChallenge(challenge)
 			try operation.sendChallengeResponse(signature)
 		},
+		authenticateDevice: { hostname, port, webTokenID, webToken, credentialID, signChallenge in
+			let proxyServer = proxyServerString(hostname: hostname, port: port)
+			guard let client = Enroll.EnrollClient(proxyServer, insecure: false) else {
+				throw DeviceTrustNetworkClientError.clientCreationFailed
+			}
+			let operation = try client.newAuthenticateDeviceOperation(
+				webTokenID,
+				webToken: webToken,
+				deviceData: collectDeviceData(),
+				credentialIdentifier: credentialID,
+			)
+			defer {
+				do {
+					try operation.close()
+				} catch {
+					logger.warning("Failed to close AuthenticateDeviceOperation", error: error)
+				}
+			}
+
+			let challenge = try operation.initialize()
+			let signature = try await signChallenge(challenge)
+			let goConfirmationToken = try operation.sendChallengeResponse(signature)
+			return DeviceConfirmationToken(id: goConfirmationToken.identifier, token: goConfirmationToken.token)
+		},
 	)
 }
 
@@ -94,9 +127,19 @@ extension EnrollClient {
 
 public typealias ChallengeSigner = @Sendable (Data) async throws -> Data
 
+public struct DeviceConfirmationToken: Sendable {
+	public let id: String
+	public let token: String
+
+	public init(id: String, token: String) {
+		self.id = id
+		self.token = token
+	}
+}
+
 // MARK: - Private Helpers
 
-extension EnrollClient {
+extension DeviceTrustNetworkClient {
 	private static func collectDeviceData() throws -> Enroll.EnrollDeviceCollectedData {
 		let serialNumber = try getSerialNumber()
 		let collectedData = Enroll.EnrollDeviceCollectedData()
@@ -124,7 +167,7 @@ extension EnrollClient {
 	/// Reads Apple's OS build identifier, such as `22F76`, from `kern.osversion`.
 	private static func getOSBuild() throws -> String {
 		guard let build = sysctlString(named: "kern.osversion"), !build.isEmpty else {
-			throw EnrollClientError.deviceInformationUnavailable("OS build")
+			throw DeviceTrustNetworkClientError.deviceInformationUnavailable("OS build")
 		}
 		return build
 	}
@@ -141,7 +184,7 @@ extension EnrollClient {
 		#endif
 
 		guard let modelIdentifier, !modelIdentifier.isEmpty else {
-			throw EnrollClientError.deviceInformationUnavailable("model identifier")
+			throw DeviceTrustNetworkClientError.deviceInformationUnavailable("model identifier")
 		}
 
 		return modelIdentifier
@@ -185,8 +228,8 @@ extension EnrollClient {
 		}
 	}
 
-	/// Joins the hostname and port for the proxy server in the format expected by EnrollClient
-	private static func proxyServerString(hostName: String, port: Int) -> String {
-		"\(hostName):\(port)"
+	/// Joins the hostname and port for the proxy server in the format expected by the Go client.
+	private static func proxyServerString(hostname: String, port: Int) -> String {
+		"\(hostname):\(port)"
 	}
 }

@@ -55,6 +55,9 @@ extension VerifyAppModel {
 				case let .enrollMobileDevice(deepLink):
 					logger.debug("Correctly parsed deep link", metadata: deepLink.logMetadata)
 					landingViewModel.navigateToDeviceEnrollment(with: deepLink)
+				case let .authenticateDevice(deepLink):
+					logger.debug("Correctly parsed deep link", metadata: deepLink.logMetadata)
+					landingViewModel.navigateToDeviceAuthentication(with: deepLink)
 			}
 		} catch {
 			logger.warning(

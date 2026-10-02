@@ -34,7 +34,7 @@ extension EnrollMobileDeviceDeepLink {
 			throw DeepLinkParseError.missingPart("hostname")
 		}
 		guard let enrollPairingToken = components.nonEmptyQueryValue(named: Self.enrollPairingTokenKey) else {
-			throw DeepLinkParseError.missingPart("enroll pairing token")
+			throw DeepLinkParseError.missingPart(Self.enrollPairingTokenKey)
 		}
 
 		let defaultHTTPSPort = 443

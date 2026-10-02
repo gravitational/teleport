@@ -19,8 +19,8 @@ import Dependencies
 import DependenciesMacros
 
 extension DependencyValues {
-	@DependencyEntry(liveValue: EnrollClient.liveValue)
-	nonisolated var enrollClient = EnrollClient()
+	@DependencyEntry(liveValue: DeviceTrustNetworkClient.liveValue)
+	nonisolated var deviceTrustNetworkClient = DeviceTrustNetworkClient()
 
 	@DependencyEntry(liveValue: DeviceTrustCredentialClient.liveValue)
 	nonisolated var deviceTrustCredentialClient = DeviceTrustCredentialClient()

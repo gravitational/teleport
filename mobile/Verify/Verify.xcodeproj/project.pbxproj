@@ -22,6 +22,7 @@
 		CD799A2A2FEB164100133048 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = CD799A292FEB164100133048 /* Dependencies */; };
 		CD799A2C2FEB164300133048 /* DependenciesMacros in Frameworks */ = {isa = PBXBuildFile; productRef = CD799A2B2FEB164300133048 /* DependenciesMacros */; };
 		CD799A2E2FEB164600133048 /* DependenciesTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = CD799A2D2FEB164600133048 /* DependenciesTestSupport */; };
+		CD87677F305DECC4006A7DAB /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = CD87677E305DECC4006A7DAB /* Logging */; };
 		CD9AEFAC3022782200E2FC14 /* SystemClients in Frameworks */ = {isa = PBXBuildFile; productRef = CD9AEFAB3022782200E2FC14 /* SystemClients */; };
 		CD9AEFAE3022782900E2FC14 /* SystemClients in Frameworks */ = {isa = PBXBuildFile; productRef = CD9AEFAD3022782900E2FC14 /* SystemClients */; };
 		CDAA8BB22FFD55CC00E6CA87 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB12FFD55CC00E6CA87 /* GRDB */; };
@@ -80,6 +81,13 @@
 			);
 			target = 0C94C8512FA232E600C13C9A /* Verify */;
 		};
+		CD87677B305DBCBB006A7DAB /* Exceptions for "VerifyTests" folder in "VerifyTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Verify.xctestplan,
+			);
+			target = CD799A1F2FEB15FD00133048 /* VerifyTests */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -98,6 +106,9 @@
 		};
 		CD799A212FEB15FD00133048 /* VerifyTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CD87677B305DBCBB006A7DAB /* Exceptions for "VerifyTests" folder in "VerifyTests" target */,
+			);
 			path = VerifyTests;
 			sourceTree = "<group>";
 		};
@@ -145,6 +156,7 @@
 				CD799A2A2FEB164100133048 /* Dependencies in Frameworks */,
 				CDAA8BB72FFD5A1300E6CA87 /* SQLiteDataTestSupport in Frameworks */,
 				CD799A2E2FEB164600133048 /* DependenciesTestSupport in Frameworks */,
+				CD87677F305DECC4006A7DAB /* Logging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -283,6 +295,7 @@
 				CD799A2B2FEB164300133048 /* DependenciesMacros */,
 				CD799A2D2FEB164600133048 /* DependenciesTestSupport */,
 				CDAA8BB62FFD5A1300E6CA87 /* SQLiteDataTestSupport */,
+				CD87677E305DECC4006A7DAB /* Logging */,
 			);
 			productName = VerifyTests;
 			productReference = CD799A202FEB15FD00133048 /* VerifyTests.xctest */;
@@ -592,7 +605,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = K497G57PDJ;
+				DEVELOPMENT_TEAM = QH8AA5B8UP;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
@@ -631,7 +644,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -642,7 +655,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = K497G57PDJ;
+				DEVELOPMENT_TEAM = QH8AA5B8UP;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
@@ -681,7 +694,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -1026,6 +1039,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */;
 			productName = DependenciesTestSupport;
+		};
+		CD87677E305DECC4006A7DAB /* Logging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD67F9AD302A74B20043D017 /* XCRemoteSwiftPackageReference "swift-log" */;
+			productName = Logging;
 		};
 		CD9AEFAB3022782200E2FC14 /* SystemClients */ = {
 			isa = XCSwiftPackageProductDependency;

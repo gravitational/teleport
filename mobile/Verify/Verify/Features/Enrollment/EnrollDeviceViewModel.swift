@@ -33,8 +33,8 @@ class EnrollDeviceViewModel {
 	private let deepLink: EnrollMobileDeviceDeepLink
 
 	@ObservationIgnored
-	@Dependency(\.enrollClient)
-	private var enrollClient
+	@Dependency(\.deviceTrustNetworkClient)
+	private var deviceTrustNetworkClient
 
 	@ObservationIgnored
 	@Dependency(\.deviceTrustCredentialClient)
@@ -137,8 +137,8 @@ extension EnrollDeviceViewModel {
 				message: "Requesting enrollment token…",
 			)
 			try Task.checkCancellation()
-			let token = try await enrollClient.requestEnrollmentToken(
-				hostName: deepLink.hostname,
+			let token = try await deviceTrustNetworkClient.requestEnrollmentToken(
+				hostname: deepLink.hostname,
 				port: deepLink.port,
 				pairingToken: deepLink.enrollPairingToken,
 			)
@@ -166,8 +166,8 @@ extension EnrollDeviceViewModel {
 			)
 			try Task.checkCancellation()
 
-			try await enrollClient.enrollDevice(
-				hostName: deepLink.hostname,
+			try await deviceTrustNetworkClient.enrollDevice(
+				hostname: deepLink.hostname,
 				port: deepLink.port,
 				enrollmentToken: token,
 				credentialID: credential.id,

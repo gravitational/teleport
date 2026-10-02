@@ -1,0 +1,31 @@
+{
+  "configurations" : [
+    {
+      "id" : "50F91E25-ED2E-4016-B8FB-30C7199A88ED",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Verify.xcodeproj",
+      "identifier" : "0C94C8512FA232E600C13C9A",
+      "name" : "Verify"
+    },
+    "testInteropMode" : "complete"
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Verify.xcodeproj",
+        "identifier" : "CD799A1F2FEB15FD00133048",
+        "name" : "VerifyTests"
+      }
+    }
+  ],
+  "version" : 1
+}
