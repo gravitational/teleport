@@ -263,6 +263,12 @@ func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 // an error.
 func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader)
+	if trace.IsCompareFailed(err) {
+		// The upload is conditional on the object not existing, so a failed
+		// precondition means a final summary was already stored. Report it as
+		// AlreadyExists, like the other session storage backends do.
+		return "", trace.AlreadyExists("session summary for %v already exists", sessionID)
+	}
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
