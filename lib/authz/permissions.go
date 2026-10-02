@@ -883,6 +883,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+			WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 			GitHubPermissions: []types.GitHubPermission{{
 				Organizations: []string{types.Wildcard},
 			}},
@@ -1180,24 +1181,22 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 			role.String(),
 			types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					Namespaces:           []string{types.Wildcard},
+					// TODO(Joerger): Rework and remove. This wildcard grant only
+					// exists so the agent can list every windows_desktop in the
+					// cluster from (*WindowsService).nameForStaticHost, which scans
+					// all desktops by address. The agent otherwise only ever reads
+					// its own desktops (filtered by host ID). Once static-host
+					// naming no longer requires a cluster-wide scan, this should be
+					// dropped in favor of an agent-owned read.
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindEvent, services.WO()),
-						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
-						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
-						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindUser, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
-						// Desktop agents have implicit permission to write their own service resource.
-						types.NewRule(types.KindWindowsDesktopService, services.RO()),
-						// Desktop agents have implicit permission to write their own desktop resources.
-						types.NewRule(types.KindWindowsDesktop, services.RO()),
-						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
 					},
 				},
 			})

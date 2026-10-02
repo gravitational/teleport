@@ -7179,10 +7179,6 @@ func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.Lis
 
 	var resp types.ListWindowsDesktopsResponse
 	desktopStream := stream.FilterMap(a.authServer.streamWindowsDesktops(ctx, req), func(d types.WindowsDesktop) (types.WindowsDesktop, bool) {
-		if a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy, types.RoleWindowsDesktop) {
-			return d, true
-		}
-
 		if err := a.checkAccessToWindowsDesktop(d); err == nil {
 			return d, true
 		}
@@ -7322,11 +7318,6 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktops(ctx context.Context) error {
 }
 
 func (a *ServerWithRoles) filterWindowsDesktops(desktops []types.WindowsDesktop) ([]types.WindowsDesktop, error) {
-	// For certain built-in roles allow full access
-	if a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy, types.RoleWindowsDesktop) {
-		return desktops, nil
-	}
-
 	filtered := make([]types.WindowsDesktop, 0, len(desktops))
 	for _, desktop := range desktops {
 		if err := a.checkAccessToWindowsDesktop(desktop); err == nil {
