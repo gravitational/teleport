@@ -263,7 +263,12 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.GetUser().GetName()) > teleport.MaxUsernameLength {
+	reqUser := req.GetUser()
+	if reqUser == nil {
+		return nil, trace.BadParameter("user: must be not-nil")
+	}
+
+	if len(reqUser.GetName()) > teleport.MaxUsernameLength {
 		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 
@@ -276,26 +281,26 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err = okta.CheckOrigin(authCtx, req.GetUser()); err != nil {
+	if err = okta.CheckOrigin(authCtx, reqUser); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUser(req.GetUser()); err != nil {
+	if err := services.ValidateUser(reqUser); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUserRoles(ctx, req.GetUser(), s.cache); err != nil {
+	if err := services.ValidateUserRoles(ctx, reqUser, s.cache); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetUser().GetCreatedBy().IsEmpty() {
-		req.GetUser().SetCreatedBy(types.CreatedBy{
+	if reqUser.GetCreatedBy().IsEmpty() {
+		reqUser.SetCreatedBy(types.CreatedBy{
 			User: types.UserRef{Name: authCtx.User.GetName()},
 			Time: s.clock.Now().UTC(),
 		})
 	}
 
-	created, err := s.backend.CreateUser(ctx, req.GetUser())
+	created, err := s.backend.CreateUser(ctx, reqUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
