@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/dns"
@@ -997,12 +998,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	keyDER := genResp.KeyDER
 
 	// Include CA override data in audit.
-	if genResp.CAOverrideDetails != nil {
-		audit.caOverrideDetails = &events.CAOverrideCertificateDetails{
-			Active:        true,
-			PublicKeyHash: genResp.CAOverrideDetails.PublicKeyHash,
-		}
-	}
+	audit.caOverrideDetails = subca.EventOverrideDetailsFromClientProto(genResp.CAOverrideDetails)
 
 	if err := s.trackSession(ctx, &identity, windowsUser, string(sessionID), desktop); err != nil {
 		return trace.Wrap(err)

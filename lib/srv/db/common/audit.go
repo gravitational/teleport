@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/subca"
 )
 
 // Audit defines an interface for database access audit events logger.
@@ -135,14 +136,6 @@ func NewAudit(config AuditConfig) (Audit, error) {
 
 // OnSessionStart emits an audit event when database session starts.
 func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr error) {
-	var caOverrideDetails *events.CAOverrideCertificateDetails
-	if session.caOverrideDetails != nil {
-		caOverrideDetails = &events.CAOverrideCertificateDetails{
-			Active:        true,
-			PublicKeyHash: session.caOverrideDetails.PublicKeyHash,
-		}
-	}
-
 	event := &events.DatabaseSessionStart{
 		Metadata: MakeEventMetadata(session,
 			libevents.DatabaseSessionStartEvent,
@@ -158,7 +151,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 		ClientMetadata: events.ClientMetadata{
 			UserAgent: session.UserAgent,
 		},
-		CAOverride: caOverrideDetails,
+		CAOverride: subca.EventOverrideDetailsFromClientProto(session.caOverrideDetails),
 	}
 	event.SetTime(session.StartTime)
 

@@ -180,6 +180,21 @@ func (res *CalculateOverrideResult) ToEventOverrideDetailsProto() *events.CAOver
 	}
 }
 
+// EventOverrideDetailsFromClientProto converts the
+// [proto.CAOverrideCertificateDetails] returned by certificate issuance RPCs
+// into the [events.CAOverrideCertificateDetails] recorded in audit events.
+//
+// Returns nil if details is nil.
+func EventOverrideDetailsFromClientProto(details *proto.CAOverrideCertificateDetails) *events.CAOverrideCertificateDetails {
+	if details == nil {
+		return nil
+	}
+	return &events.CAOverrideCertificateDetails{
+		Active:        true,
+		PublicKeyHash: details.GetPublicKeyHash(),
+	}
+}
+
 // ApplyOverrides applies overrides to a series of certificates from a given CA.
 //
 // Returns the certificate PEMs to use, either the same as the input or a mix of
