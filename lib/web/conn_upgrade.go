@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"slices"
 	"sync"
 	"time"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	websocketutils "github.com/gravitational/teleport/api/internalutils/websocket"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -254,7 +256,7 @@ func (conn *waitConn) NetConn() net.Conn {
 
 type websocketALPNServerConn struct {
 	net.Conn
-	readBuffer []byte
+	readFrame  websocketutils.FrameReadState
 	readError  error
 	readMutex  sync.Mutex
 	writeMutex sync.Mutex
@@ -279,7 +281,7 @@ func (c *websocketALPNServerConn) Read(b []byte) (int, error) {
 	c.readMutex.Lock()
 	defer c.readMutex.Unlock()
 
-	n, err := c.readLocked(b)
+	n, err := c.readRecoverLocked(b)
 
 	// Timeout errors can be temporary. For example, when this connection is
 	// passed to the kube TLS server, it may get "hijacked" again. During the
@@ -295,44 +297,75 @@ func (c *websocketALPNServerConn) Read(b []byte) (int, error) {
 	return n, trace.Wrap(err)
 }
 
+// readRecoverLocked calls readLocked, converting a panic into a read error.
+//
+// Frames here are client-controlled before any authentication, and this conn is
+// handed to servers that read from it on goroutines with no recovery of their
+// own, such as grpc.Server.handleRawConn. Without this, a panic while parsing a
+// frame takes down the process rather than the connection.
+func (c *websocketALPNServerConn) readRecoverLocked(b []byte) (n int, err error) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		c.logger.ErrorContext(c.logContext, "Recovered from panic while reading websocket frame.",
+			"panic", r,
+			"stack", string(debug.Stack()),
+			"remote_addr", logutils.StringerAttr(c.RemoteAddr()),
+		)
+		n, err = 0, trace.BadParameter("panic while reading websocket frame: %v", r)
+		c.readError = err
+	}()
+	return c.readLocked(b)
+}
+
 func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
 	// Stop reading if any previous read err.
 	if c.readError != nil {
 		return 0, trace.Wrap(c.readError)
 	}
-
-	if len(c.readBuffer) > 0 {
-		n := copy(b, c.readBuffer)
-		if n < len(c.readBuffer) {
-			c.readBuffer = c.readBuffer[n:]
-		} else {
-			c.readBuffer = nil
-		}
-		return n, nil
+	if len(b) == 0 {
+		return 0, nil
 	}
 
 	for {
-		frame, err := ws.ReadFrame(c.Conn)
-		if err != nil {
+		if c.readFrame.Remaining() == 0 {
+			// Read and validate the header before accepting the frame. The payload is
+			// streamed into the caller's buffer rather than allocated at its declared
+			// length.
+			header, err := ws.ReadHeader(c.Conn)
+			if err != nil {
+				c.readError = err
+				return 0, trace.Wrap(err)
+			}
+			if header.OpCode.IsControl() && header.Length > ws.MaxControlFramePayloadSize {
+				c.readError = trace.BadParameter("websocket control frame payload length %d exceeds maximum of %d bytes",
+					header.Length, ws.MaxControlFramePayloadSize)
+				return 0, trace.Wrap(c.readError)
+			}
+
+			c.logger.Log(c.logContext, logutils.TraceLevel, "Read websocket frame header.", "op", header.OpCode, "payload_len", header.Length)
+			c.readFrame.Begin(header, c.Conn)
+		}
+
+		if c.readFrame.OpCode() == ws.OpBinary {
+			if c.readFrame.Remaining() == 0 {
+				continue
+			}
+			n, err := c.readFrame.Read(b)
+			if err != nil {
+				c.readError = err
+			}
+			return n, trace.Wrap(err)
+		}
+
+		if err := c.readFrame.Discard(b); err != nil {
 			c.readError = err
 			return 0, trace.Wrap(err)
 		}
-
-		// All client frames should be masked.
-		if frame.Header.Masked {
-			frame = ws.UnmaskFrame(frame)
-		}
-
-		c.logger.Log(c.logContext, logutils.TraceLevel, "Read websocket frame.", "op", frame.Header.OpCode, "payload_len", len(frame.Payload))
-
-		switch frame.Header.OpCode {
-		case ws.OpClose:
+		if c.readFrame.OpCode() == ws.OpClose {
 			return 0, io.EOF
-		case ws.OpBinary:
-			c.readBuffer = frame.Payload
-			return c.readLocked(b)
-		case ws.OpPong:
-			// Receives Pong as response to Ping. Nothing to do.
 		}
 	}
 }
