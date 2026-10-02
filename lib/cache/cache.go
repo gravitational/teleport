@@ -365,7 +365,6 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindRole},
-		{Kind: types.KindNetworkRestrictions},
 		{Kind: types.KindStaticHostUser},
 	}
 

@@ -48,7 +48,7 @@ type InfoGetter interface {
 // applying them to the host.
 type StaticHostUserHandler struct {
 	events         types.Events
-	staticHostUser services.StaticHostUser
+	staticHostUser services.StaticHostUserReader
 	server         InfoGetter
 	users          HostUsers
 	sudoers        HostSudoers
@@ -60,8 +60,8 @@ type StaticHostUserHandler struct {
 type StaticHostUserHandlerConfig struct {
 	// Events is an events interface for creating a watcher.
 	Events types.Events
-	// StaticHostUser is a static host user client.
-	StaticHostUser services.StaticHostUser
+	// StaticHostUser defines methods for reading host users resources.
+	StaticHostUser services.StaticHostUserReader
 	// Server is a resource to fetch a types.Server for access checks. This is
 	// here instead of a types.Server directly so we can get updated dynamic
 	// labels.

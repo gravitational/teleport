@@ -4239,6 +4239,37 @@ func (c *Client) StaticHostUserClient() *statichostuserclient.Client {
 	return statichostuserclient.NewClient(userprovisioningpb.NewStaticHostUsersServiceClient(c.conn))
 }
 
+// ListStaticHostUsers lists static host users.
+func (c *Client) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
+	return c.StaticHostUserClient().ListStaticHostUsers(ctx, pageSize, pageToken)
+}
+
+// GetStaticHostUser returns a static host user by name.
+func (c *Client) GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error) {
+	return c.StaticHostUserClient().GetStaticHostUser(ctx, name)
+}
+
+// CreateStaticHostUser creates a static host user.
+func (c *Client) CreateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+	return c.StaticHostUserClient().CreateStaticHostUser(ctx, in)
+}
+
+// UpdateStaticHostUser updates a static host user.
+func (c *Client) UpdateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+	return c.StaticHostUserClient().UpdateStaticHostUser(ctx, in)
+}
+
+// UpsertStaticHostUser upserts a static host user.
+func (c *Client) UpsertStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+	return c.StaticHostUserClient().UpsertStaticHostUser(ctx, in)
+}
+
+// DeleteStaticHostUser deletes a static host user. Note that this does not
+// remove any host users created on nodes from the resource.
+func (c *Client) DeleteStaticHostUser(ctx context.Context, name string) error {
+	return c.StaticHostUserClient().DeleteStaticHostUser(ctx, name)
+}
+
 // CreateDatabase creates a new database resource.
 func (c *Client) CreateDatabase(ctx context.Context, database types.Database) error {
 	databaseV3, ok := database.(*types.DatabaseV3)

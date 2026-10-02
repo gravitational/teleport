@@ -28,12 +28,18 @@ import (
 	"github.com/gravitational/teleport/lib/services/label"
 )
 
-// StaticHostUserService manages host users that should be created on SSH nodes.
-type StaticHostUser interface {
+// StaticHostUserReader defines methods for reading host users resources.
+type StaticHostUserReader interface {
 	// ListStaticHostUsers lists static host users.
 	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error)
 	// GetStaticHostUser returns a static host user by name.
 	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
+}
+
+// StaticHostUserService manages host users that should be created on SSH nodes.
+type StaticHostUser interface {
+	StaticHostUserReader
+
 	// CreateStaticHostUser creates a static host user.
 	CreateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error)
 	// UpdateStaticHostUser updates a static host user.

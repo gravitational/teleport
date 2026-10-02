@@ -3245,7 +3245,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.SAMLIdPServiceProviders = client
 	cfg.SecReports = client.SecReportsClient()
 	cfg.SnowflakeSession = client
-	cfg.StaticHostUsers = client.StaticHostUserClient()
+	cfg.StaticHostUsers = client
 	cfg.Trust = client
 	cfg.UserGroups = client
 	cfg.UserLoginStates = client.UserLoginStateClient()
@@ -3725,8 +3725,8 @@ func (process *TeleportProcess) initSSH() error {
 
 		if s.GetCreateHostUser() {
 			staticHostUserReconciler, err := srv.NewStaticHostUserHandler(srv.StaticHostUserHandlerConfig{
-				Events:         conn.Client,
-				StaticHostUser: conn.Client.StaticHostUserClient(),
+				Events:         authClient,
+				StaticHostUser: authClient,
 				Server:         s,
 				Users:          s.GetHostUsers(),
 				Sudoers:        s.GetHostSudoers(),
