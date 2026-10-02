@@ -316,18 +316,14 @@ func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) 
 }
 
 func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Response, error) {
+	if r.Body == nil || r.Body == http.NoBody {
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
+		return nil, trace.BadParameter("empty request body")
+	}
 	reqBody, err := utils.GetAndReplaceRequestBody(r)
 	if err != nil {
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)
-	}
-	reqBody, err = sanitizeRawMCPRequest(reqBody)
-	if err != nil {
-		t.emitInvalidHTTPRequest(t.parentCtx, r)
-		return nil, trace.BadParameter("invalid request body %v", err)
-	}
-	if err := utils.OverwriteRequestBody(r, reqBody); err != nil {
-		return nil, trace.Wrap(err, "overwriting request body with sanitized value")
 	}
 	var baseMessage mcputils.BaseJSONRPCMessage
 	if err := json.Unmarshal(reqBody, &baseMessage); err != nil {
@@ -335,20 +331,41 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		return nil, trace.BadParameter("invalid request body %v", err)
 	}
 
+	sanitizeMCPRequestParams(baseMessage.Params)
+
+	var message any
 	switch {
 	case baseMessage.IsRequest():
 		mcpRequest := baseMessage.MakeRequest()
+		message = mcpRequest
 		errResp := t.sessionHandler.processClientRequest(r.Context(), mcpRequest)
 		if errResp != nil {
 			t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(toError(*errResp)), eventWithHeader(r.Header))
 			return t.handleRequestError(r, *errResp)
 		}
 	case baseMessage.IsNotification():
-		t.sessionHandler.processClientNotification(r.Context(), baseMessage.MakeNotification())
+		mcpNotification := baseMessage.MakeNotification()
+		message = mcpNotification
+		t.sessionHandler.processClientNotification(r.Context(), mcpNotification)
 	default:
 		// Not sending it to the server if we don't understand it.
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("not a MCP request or notification")
+	}
+
+	// Assert we didn't skip setting the message in any switch case.
+	if message == nil {
+		return nil, trace.BadParameter("parsed MCP message not set (this is a bug)")
+	}
+	messageJSON, err := json.Marshal(message)
+	if err != nil {
+		return nil, trace.BadParameter("encoding parsed MCP message as JSON")
+	}
+
+	// Before forwarding the request, rewrite the body, to make sure we processed the same
+	// exact message as the upstream MCP server.
+	if err := utils.OverwriteRequestBody(r, messageJSON); err != nil {
+		return nil, trace.BadParameter("rewriting request body with re-encoded MCP message")
 	}
 
 	resp, sendReqErr := t.rewriteAndSendRequest(r)
