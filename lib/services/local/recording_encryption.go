@@ -25,6 +25,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
+	apirecordingencryption "github.com/gravitational/teleport/api/types/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -158,7 +159,7 @@ func newRecordingEncryptionParser() *recordingEncryptionParser {
 func (p *recordingEncryptionParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpPut:
-		recordingEncryption, err := services.UnmarshalProtoResource[*recordingencryptionv1.RecordingEncryption](
+		re, err := services.UnmarshalProtoResource[*recordingencryptionv1.RecordingEncryption](
 			event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
@@ -166,7 +167,7 @@ func (p *recordingEncryptionParser) parse(event backend.Event) (types.Resource, 
 		if err != nil {
 			return nil, trace.Wrap(err, "unmarshaling resource from event")
 		}
-		return types.Resource153ToLegacy(recordingEncryption), nil
+		return types.Resource153ToLegacyWithSecrets(re, apirecordingencryption.CopyEncryptionWithoutSecrets), nil
 	case types.OpDelete:
 		return &types.ResourceHeader{
 			Kind:    types.KindRecordingEncryption,
@@ -202,7 +203,7 @@ func (p *rotatedKeyParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err, "unmarshaling resource from event")
 		}
 
-		return types.Resource153ToLegacy(rotatedKey), nil
+		return types.Resource153ToLegacyWithSecrets(rotatedKey, apirecordingencryption.CopyRotatedKeyWithoutSecrets), nil
 	case types.OpDelete:
 		header, err := services.UnmarshalProtoResource[*headerv1.ResourceHeader](
 			event.Item.Value,
