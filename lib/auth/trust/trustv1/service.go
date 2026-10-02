@@ -33,10 +33,13 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/authz"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // TODO(codingllama): DELETE IN 20. All valid clients support WindowsCA by then.
@@ -501,14 +504,29 @@ func (s *Service) GenerateHostCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// The system role for the host cert is provided by the client, but we don't actually have
+	// a reason to allow non-Node host certs to be generated. In fact, allowing a bot/admin to
+	// generate other types of host certs only introduces risks for some systems, so we restrict
+	// this host cert generation to the Node role.
+	//
+	// If we have a need to allow other system roles from the client, we should continue to deny
+	// non-Node system roles by default and only allow other roles via an inclusive predicate,
+	// or some other similar means.
+	requestedRole := types.SystemRole(req.GetRole())
+	if requestedRole != types.RoleNode {
+		return nil, trace.AccessDenied("host cert creation is limited to the Node system role")
+	}
+
+	authorizedPrincipals := keygen.HostCertPrincipals(req.GetHostId(), req.GetNodeName(), req.GetClusterName(), []types.SystemRole{requestedRole}, req.GetPrincipals()...)
 	ruleCtx := &services.Context{
 		User: authCtx.User,
 		HostCert: &services.HostCertContext{
 			HostID:      req.HostId,
 			NodeName:    req.NodeName,
-			Principals:  req.Principals,
+			Principals:  authorizedPrincipals,
 			ClusterName: req.ClusterName,
-			Role:        types.SystemRole(req.Role),
+			Role:        requestedRole,
 			TTL:         req.Ttl.AsDuration(),
 		},
 	}
@@ -539,6 +557,15 @@ func (s *Service) GenerateHostCert(
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Verify that the signed cert did not smuggle any additional principals not authorized above.
+	signed, err := sshutils.ParseCertificate(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := slices.ContainsAll(authorizedPrincipals, signed.ValidPrincipals); err != nil {
+		return nil, trace.Wrap(trace.AccessDenied("host cert contains unauthorized principals"), err.Error())
 	}
 
 	return &trustpb.GenerateHostCertResponse{
