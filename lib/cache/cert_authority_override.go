@@ -104,6 +104,11 @@ func newCertAuthorityOverrideCollection(
 				func(ctx context.Context, pageSize int, pageToken string) ([]*subcav1.CertAuthorityOverride, string, error) {
 					return upstream.ListCertAuthorityOverrides(ctx, pageSize, pageToken)
 				}))
+			// Only Enterprise auth servers bind the SubCA service. An unimplemented upstream has nothing to replicate,
+			// so cache an empty collection instead of failing initialization.
+			if trace.IsNotImplemented(err) {
+				return []*subcav1.CertAuthorityOverride{}, nil
+			}
 			return out, trace.Wrap(err)
 		},
 		watch: watchKind,

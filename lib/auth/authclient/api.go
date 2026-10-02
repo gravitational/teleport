@@ -170,6 +170,9 @@ type ReadProxyAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
+	// SubCAServiceGetter reads CA override resources.
+	services.SubCAServiceGetter
+
 	// HealthCheckConfigReader defines methods for fetching health check config
 	// resources.
 	services.HealthCheckConfigReader
