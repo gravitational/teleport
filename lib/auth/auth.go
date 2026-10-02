@@ -6056,7 +6056,7 @@ func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 func (a *Server) IterateRoles(ctx context.Context, req *proto.ListRolesRequest, match func(*types.RoleV6) (bool, error)) ([]*types.RoleV6, string, error) {
 	const maxIterations = 100_000
 
-	if req.Limit == 0 {
+	if req.Limit <= 0 {
 		req.Limit = apidefaults.DefaultChunkSize
 	}
 
