@@ -39,16 +39,8 @@ type ServiceConfig struct {
 	Emitter apievents.Emitter
 	// Backend is the backend used to store static host users.
 	Backend services.StaticHostUser
-	// Cache is the cache used to store static host users.
-	Cache Cache
-}
-
-// Cache is a subset of the service interface for reading items from the cache.
-type Cache interface {
-	// ListStaticHostUsers lists static host users.
-	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error)
-	// GetStaticHostUser returns a static host user by name.
-	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
+	// Cache is the cache used to read static host users.
+	Cache services.StaticHostUserReader
 }
 
 // Service implements the static host user RPC service.
@@ -58,7 +50,7 @@ type Service struct {
 	authorizer authz.Authorizer
 	emitter    apievents.Emitter
 	backend    services.StaticHostUser
-	cache      Cache
+	cache      services.StaticHostUserReader
 }
 
 // NewService creates a new static host user gRPC service.

@@ -39,7 +39,7 @@ type StaticHostUserClient struct {
 
 // Get reads a static host user by name.
 func (r StaticHostUserClient) Get(ctx context.Context, id tfdriver.NameIdentifier) (*userprovisioningv2.StaticHostUser, error) {
-	staticHostUser, err := r.client.StaticHostUserClient().GetStaticHostUser(ctx, id.Name)
+	staticHostUser, err := r.client.GetStaticHostUser(ctx, id.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -49,7 +49,7 @@ func (r StaticHostUserClient) Get(ctx context.Context, id tfdriver.NameIdentifie
 
 // Create creates a static host user.
 func (r StaticHostUserClient) Create(ctx context.Context, staticHostUser *userprovisioningv2.StaticHostUser) error {
-	if _, err := r.client.StaticHostUserClient().CreateStaticHostUser(ctx, staticHostUser); err != nil {
+	if _, err := r.client.CreateStaticHostUser(ctx, staticHostUser); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -58,7 +58,7 @@ func (r StaticHostUserClient) Create(ctx context.Context, staticHostUser *userpr
 
 // Upsert updates a static host user.
 func (r StaticHostUserClient) Upsert(ctx context.Context, staticHostUser *userprovisioningv2.StaticHostUser) error {
-	if _, err := r.client.StaticHostUserClient().UpsertStaticHostUser(ctx, staticHostUser); err != nil {
+	if _, err := r.client.UpsertStaticHostUser(ctx, staticHostUser); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -67,5 +67,5 @@ func (r StaticHostUserClient) Upsert(ctx context.Context, staticHostUser *userpr
 
 // Delete deletes a static host user by name.
 func (r StaticHostUserClient) Delete(ctx context.Context, id tfdriver.NameIdentifier) error {
-	return trace.Wrap(r.client.StaticHostUserClient().DeleteStaticHostUser(ctx, id.Name))
+	return trace.Wrap(r.client.DeleteStaticHostUser(ctx, id.Name))
 }

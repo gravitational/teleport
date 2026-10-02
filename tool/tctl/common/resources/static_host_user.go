@@ -119,9 +119,8 @@ func getStaticHostUser(
 	ref services.Ref,
 	opts GetOpts,
 ) (Collection, error) {
-	hostUserClient := client.StaticHostUserClient()
 	if ref.Name != "" {
-		hostUser, err := hostUserClient.GetStaticHostUser(ctx, ref.Name)
+		hostUser, err := client.GetStaticHostUser(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -129,7 +128,7 @@ func getStaticHostUser(
 		return &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{hostUser}}, nil
 	}
 
-	resources, err := stream.Collect(clientutils.Resources(ctx, hostUserClient.ListStaticHostUsers))
+	resources, err := stream.Collect(clientutils.Resources(ctx, client.ListStaticHostUsers))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,14 +145,13 @@ func createStaticHostUser(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	c := client.StaticHostUserClient()
 	if opts.Force {
-		if _, err := c.UpsertStaticHostUser(ctx, hostUser); err != nil {
+		if _, err := client.UpsertStaticHostUser(ctx, hostUser); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().GetName())
 	} else {
-		if _, err := c.CreateStaticHostUser(ctx, hostUser); err != nil {
+		if _, err := client.CreateStaticHostUser(ctx, hostUser); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("static host user %q has been created\n", hostUser.GetMetadata().GetName())
@@ -172,7 +170,7 @@ func updateStaticHostUser(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.StaticHostUserClient().UpdateStaticHostUser(ctx, hostUser); err != nil {
+	if _, err := client.UpdateStaticHostUser(ctx, hostUser); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().GetName())
@@ -184,7 +182,7 @@ func deleteStaticHostUser(
 	client *authclient.Client,
 	ref services.Ref,
 ) error {
-	if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, ref.Name); err != nil {
+	if err := client.DeleteStaticHostUser(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("static host user %q has been deleted\n", ref.Name)
