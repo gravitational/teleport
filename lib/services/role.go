@@ -291,6 +291,29 @@ func ValidateRole(r types.Role) error {
 	if err := validateSessionPolicies(r); err != nil {
 		errs = append(errs, err)
 	}
+	if err := validateCertExtensions(r); err != nil {
+		errs = append(errs, err)
+	}
+	return trace.NewAggregate(errs...)
+}
+
+// validateCertExtensions validates cert extensions in the role. Extensions that
+// overlap with a Teleport-reserved SSH extension name are rejected. It runs on
+// create and update only, not on read.
+func validateCertExtensions(r types.Role) error {
+	var errs []error
+	for i, ext := range r.GetOptions().CertExtensions {
+		if ext == nil {
+			continue
+		}
+		if ext.Mode != types.CertExtensionMode_EXTENSION || ext.Type != types.CertExtensionType_SSH {
+			continue
+		}
+		if sshca.IsReservedCertExtension(ext.Name) {
+			errs = append(errs, trace.BadParameter(
+				"options.cert_extensions[%d] name %q is reserved for Teleport internal use and cannot be set", i, ext.Name))
+		}
+	}
 	return trace.NewAggregate(errs...)
 }
 
