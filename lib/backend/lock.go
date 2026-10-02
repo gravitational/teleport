@@ -21,8 +21,10 @@ package backend
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,6 +35,8 @@ import (
 
 const (
 	locksPrefix = ".locks"
+
+	maxReleaseAttempts = 3
 )
 
 func lockKey(parts ...string) Key {
@@ -128,22 +132,31 @@ func AcquireLock(ctx context.Context, cfg LockConfiguration) (Lock, error) {
 
 // Release forces lock release
 func (l *Lock) Release(ctx context.Context, backend Backend) error {
-	prev, err := backend.Get(ctx, l.key)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.CompareFailed("cannot release lock %s (expired)", l.id)
+	for range maxReleaseAttempts {
+		prev, err := backend.Get(ctx, l.key)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.CompareFailed("cannot release lock %s (expired)", l.id)
+			}
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(err)
+
+		if !bytes.Equal(prev.Value, l.id) {
+			return trace.CompareFailed("cannot release lock %s (ownership changed)", l.id)
+		}
+
+		if err := backend.ConditionalDelete(ctx, l.key, prev.Revision); err != nil {
+			if errors.Is(err, ErrIncorrectRevision) {
+				// If revision is not valid - we need to retry.
+				continue
+			}
+			return trace.Wrap(err)
+		}
+
+		return nil
 	}
 
-	if !bytes.Equal(prev.Value, l.id) {
-		return trace.CompareFailed("cannot release lock %s (ownership changed)", l.id)
-	}
-
-	if err := backend.Delete(ctx, l.key); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.LimitExceeded("cannot release lock after %d attempts", maxReleaseAttempts)
 }
 
 // resetTTL resets the TTL on a given lock.
@@ -207,34 +220,42 @@ func RunWhileLocked(ctx context.Context, cfg RunWhileLockedConfig, fn func(conte
 		return trace.Wrap(err)
 	}
 
-	subContext, cancelFunction := context.WithCancel(ctx)
-	defer cancelFunction()
+	var refreshWg sync.WaitGroup
+	defer refreshWg.Wait()
+	runContext, runCancel := context.WithCancel(ctx)
+	defer runCancel()
 
-	stopRefresh := make(chan struct{})
-	go func() {
+	refreshWg.Go(func() {
+		defer runCancel()
+
 		refreshAfter := cfg.RefreshLockInterval
 		for {
 			select {
 			case <-cfg.Backend.Clock().After(refreshAfter):
-				if err := lock.resetTTL(ctx, cfg.Backend); err != nil {
-					cancelFunction()
-					slog.ErrorContext(ctx, "failed to reset lock ttl", "error", err, "lock", logutils.StringerAttr(lock.key))
-					return
-				}
-			case <-stopRefresh:
+			case <-runContext.Done():
 				return
 			}
-		}
-	}()
 
-	fnErr := fn(subContext)
-	close(stopRefresh)
+			if err := lock.resetTTL(runContext, cfg.Backend); err == nil {
+				continue
+			}
+
+			if runContext.Err() == nil {
+				slog.ErrorContext(ctx, "failed to reset lock ttl", "error", err, "lock", logutils.StringerAttr(lock.key))
+			}
+			return
+		}
+	})
+
+	fnErr := fn(runContext)
+	runCancel()
+	refreshWg.Wait()
 
 	// Release the lock with a separate context to allow the lock to be removed even
 	// if the passed in context is canceled by the user, otherwise the lock will be
 	// left around for the entire TTL even though the operation that required the
 	// lock may have completed.
-	releaseLockCtx, releaseLockCancel := context.WithTimeout(context.Background(), cfg.ReleaseCtxTimeout)
+	releaseLockCtx, releaseLockCancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.ReleaseCtxTimeout)
 	defer releaseLockCancel()
 	if err := lock.Release(releaseLockCtx, cfg.Backend); err != nil {
 		return trace.NewAggregate(fnErr, err)
