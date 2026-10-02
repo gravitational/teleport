@@ -88,14 +88,12 @@ func (k *Keygen) GenerateHostCertWithoutValidation(req sshca.HostCertificateRequ
 
 	ident.CertType = ssh.HostCert
 
-	// Build a valid list of principals from the HostID and NodeName and then
-	// add in any additional principals passed in.
-	principals := BuildPrincipals(req.HostID, req.NodeName, ident.ClusterName, types.SystemRoles{ident.SystemRole})
-	principals = append(principals, ident.Principals...)
+	// Build a valid list of principals from the HostID and NodeName, including
+	// any additional principals passed in.
+	principals := HostCertPrincipals(req.HostID, req.NodeName, ident.ClusterName, types.SystemRoles{ident.SystemRole}, ident.Principals...)
 	if len(principals) == 0 {
 		return nil, trace.BadParameter("cannot generate host certificate without principals")
 	}
-	principals = apiutils.Deduplicate(principals)
 	ident.Principals = principals
 
 	// calculate ValidBefore based on the outer request TTL
@@ -191,21 +189,23 @@ func (k *Keygen) GenerateUserCertWithoutValidation(req sshca.UserCertificateRequ
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
-// BuildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
-// principals to insert into a certificate. This function is backward compatible with
-// older clients which means:
-//   - If RoleAdmin is in the list of roles, only a single principal is returned: hostID
+// HostCertPrincipals takes a hostID, nodeName, clusterName, role, and any
+// additional principals and builds the deduplicated list of principals to insert
+// into a certificate. This function is backward compatible with older clients
+// which means:
+//   - If RoleAdmin is in the list of roles, only the hostID and any additional
+//     principals are returned.
 //   - If nodename is empty, it is not included in the list of principals.
-func BuildPrincipals(hostID string, nodeName string, clusterName string, roles types.SystemRoles) []string {
+func HostCertPrincipals(hostID string, nodeName string, clusterName string, roles types.SystemRoles, additionalPrincipals ...string) []string {
 	// TODO(russjones): This should probably be clusterName, but we need to
 	// verify changing this won't break older clients.
 	if roles.Include(types.RoleAdmin) {
-		return []string{hostID}
+		return apiutils.Deduplicate(append([]string{hostID}, additionalPrincipals...))
 	}
 
-	// if no hostID was passed it, the user might be specifying an exact list of principals
+	// if no hostID was passed it, the caller might be specifying an exact list of principals
 	if hostID == "" {
-		return []string{}
+		return apiutils.Deduplicate(additionalPrincipals)
 	}
 
 	// always include the hostID, this is what teleport uses internally to find nodes
@@ -228,6 +228,9 @@ func BuildPrincipals(hostID string, nodeName string, clusterName string, roles t
 		string(teleport.PrincipalLoopbackV4),
 		string(teleport.PrincipalLoopbackV6),
 	)
+
+	// add any additional principals requested by the caller
+	principals = append(principals, additionalPrincipals...)
 
 	// deduplicate (in-case hostID and nodeName are the same) and return
 	return apiutils.Deduplicate(principals)

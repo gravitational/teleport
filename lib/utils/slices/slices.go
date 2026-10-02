@@ -18,6 +18,12 @@
 
 package slices
 
+import (
+	"slices"
+
+	"github.com/gravitational/trace"
+)
+
 // FilterMapUnique applies a function to all elements of a slice and collects them.
 // The function returns the value to collect and whether the current element should be included.
 // Returned values are deduplicated.
@@ -52,6 +58,17 @@ func ToPointers[T any](in []T) []*T {
 		out[i] = &in[i]
 	}
 	return out
+}
+
+// ContainsAll checks whether haystack contains all needles, reporting
+// error indicating the first unmatched value.
+func ContainsAll[S ~[]E, E comparable](haystack S, needles S) error {
+	for _, needle := range needles {
+		if !slices.Contains(haystack, needle) {
+			return trace.BadParameter("%v not in set", needle)
+		}
+	}
+	return nil
 }
 
 // FromPointers converts a slice of pointers to values to a slice of values.
