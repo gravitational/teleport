@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -40,6 +41,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -933,7 +935,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		return nil, trace.Wrap(err)
 	}
 
-	var clusterName, certRole, certType, certScope string
+	var clusterName, certRole, certType, certScope, extHostValue string
 	var caType types.CertAuthType
 	switch ident.CertType {
 	case ssh.HostCert:
@@ -941,6 +943,28 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionAuthority)
 		}
 		clusterName = ident.ClusterName
+
+		// The reverse tunnel routing identity must be the certificate's
+		// authoritative host principal, not the SSH username the client chose to
+		// present (conn.User()). The auth server always issues host certificates
+		// with the host FQDN ("<host-id>.<cluster>") as the leading principal.
+		if len(cert.ValidPrincipals) == 0 {
+			return nil, trace.BadParameter("host certificate has no principals")
+		}
+		extHostValue = cert.ValidPrincipals[0]
+		if conn.User() != extHostValue {
+			return nil, trace.AccessDenied("reverse tunnel host must connect as its host FQDN %q, got %q", extHostValue, conn.User())
+		}
+
+		// Sanity-check that the leading principal has the expected FQDN shape. If the agent is
+		// connecting with a legacy host ID (agent-provided non-UUID), it will be rejected.
+		hostID, ok := strings.CutSuffix(extHostValue, "."+clusterName)
+		if !ok {
+			return nil, trace.AccessDenied("reverse tunnel host FQDN %q is missing expected cluster suffix", extHostValue)
+		}
+		if _, err := uuid.Parse(hostID); err != nil && !aws.IsEC2NodeID(hostID) {
+			return nil, trace.AccessDenied("reverse tunnel host FQDN %q does not have a valid host ID prefix", extHostValue)
+		}
 
 		if ident.SystemRole != "" {
 			// Legacy format: role and scope in separate extensions.
@@ -968,6 +992,10 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		// effectively limit ourselves to only supporting local users by only checking the cert against local CAs.
 		clusterName = s.ClusterName
 
+		// User-cert reverse tunnels (e.g. tsh proxy) are keyed off the
+		// authenticated login, which is the SSH username.
+		extHostValue = conn.User()
+
 		if ident.ScopePin != nil {
 			certRole = "scoped-identity@" + ident.ScopePin.GetScope()
 		} else {
@@ -987,7 +1015,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 	}
 	return &ssh.Permissions{
 		Extensions: map[string]string{
-			extHost:              conn.User(),
+			extHost:              extHostValue,
 			utils.ExtIntCertType: certType,
 			extCertRole:          certRole,
 			extAuthority:         clusterName,
