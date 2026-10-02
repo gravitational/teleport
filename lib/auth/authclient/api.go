@@ -833,6 +833,9 @@ type ReadLinuxDesktopAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// GetLinuxDesktop returns a Linux desktop by name.
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
 }
 
 // LinuxDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be

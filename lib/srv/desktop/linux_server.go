@@ -424,7 +424,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 
-	desktop, err := s.cfg.AuthClient.GetLinuxDesktop(ctx, s.cfg.Heartbeat.HostUUID)
+	desktop, err := s.cfg.AccessPoint.GetLinuxDesktop(ctx, s.cfg.Heartbeat.HostUUID)
 	if err != nil {
 		log.ErrorContext(ctx, "failed to get linux desktop", "error", err)
 		sendTDPError("Failed to get Linux desktop.")
