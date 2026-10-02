@@ -773,12 +773,6 @@ type ReadWindowsDesktopAccessPoint interface {
 	// ListWindowsDesktops returns Windows desktop hosts.
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 
-	// ListWindowsDesktopServices returns Windows desktop services.
-	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
-
-	// GetWindowsDesktopService returns a Windows desktop service by name.
-	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
-
 	// GetDynamicWindowsDesktop gets a dynamic Windows desktop by name.
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
 

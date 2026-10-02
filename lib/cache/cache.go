@@ -441,7 +441,6 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
 	}
