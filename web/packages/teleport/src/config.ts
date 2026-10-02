@@ -544,6 +544,7 @@ const cfg = {
     bot: {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
       list: '/v1/webapi/sites/:clusterId/machine-id/bot',
+      listV2: '/v2/webapi/sites/:clusterId/machine-id/bot',
       create: '/v1/webapi/sites/:clusterId/machine-id/bot',
       update: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
       updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
@@ -1880,7 +1881,7 @@ const cfg = {
 
   getBotUrl(
     req: (
-      | { action: 'list' | 'create' | 'gen-wizard-cicd' }
+      | { action: 'list' | 'list-v2' | 'create' | 'gen-wizard-cicd' }
       | {
           action: 'read' | 'update' | 'update-v2' | 'update-v3' | 'delete';
           botName: string;
@@ -1891,6 +1892,10 @@ const cfg = {
     switch (req.action) {
       case 'list':
         return generatePath(cfg.api.bot.list, {
+          clusterId,
+        });
+      case 'list-v2':
+        return generatePath(cfg.api.bot.listV2, {
           clusterId,
         });
       case 'read':

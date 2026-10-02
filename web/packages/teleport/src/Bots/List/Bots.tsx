@@ -16,13 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { Link, useHistory } from 'react-router-dom';
+import {
+  InfiniteData,
+  keepPreviousData,
+  useInfiniteQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
+import { Link, useHistory, useLocation } from 'react-router-dom';
 
 import { Alert, Box, Button, Indicator } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
+import { SearchPanel } from 'shared/components/Search';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
-import { useAttemptNext } from 'shared/hooks';
 
 import { BotList } from 'teleport/Bots/List/BotList';
 import {
@@ -31,8 +37,8 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import { fetchBots } from 'teleport/services/bot/bot';
-import { FlatBot } from 'teleport/services/bot/types';
+import { fetchAllBotsV1, listBots } from 'teleport/services/bot/bot';
+import { FlatBot, ListBotsPage } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { InfoGuide } from '../InfoGuide';
@@ -41,53 +47,80 @@ import { EmptyState } from './EmptyState/EmptyState';
 export function Bots() {
   const ctx = useTeleport();
   const history = useHistory();
+  const location = useLocation();
+  const queryClient = useQueryClient();
   const flags = ctx.getFeatureFlags();
   const hasAddBotPermissions = flags.addBots;
   const canListBots = flags.listBots;
 
-  const [bots, setBots] = useState<FlatBot[]>([]);
+  const search = new URLSearchParams(location.search).get('search') ?? '';
   const [selectedBot, setSelectedBot] = useState<FlatBot | null>();
-  const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext(
-    canListBots ? 'processing' : 'success'
+
+  const {
+    isSuccess,
+    isPlaceholderData,
+    isFetching,
+    data,
+    isLoading,
+    isFetchingNextPage,
+    error,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    enabled: canListBots,
+    queryKey: ['bot', 'list', search],
+    queryFn: ({ pageParam, signal }) =>
+      listBots(
+        { pageSize: 50, pageToken: pageParam, searchTerm: search },
+        signal,
+        // TODO(strideynet): DELETE IN v20.0.0
+        // Older proxies only list every bot at once. Fetch that list afresh
+        // for the first page and reuse it for the rest.
+        () =>
+          queryClient.query({
+            queryKey: ['bot', 'v1-list'],
+            queryFn: ({ signal }) => fetchAllBotsV1(signal),
+            staleTime: pageParam ? Infinity : 0,
+          })
+      ),
+    initialPageParam: '',
+    getNextPageParam: data => data?.next_page_token,
+    placeholderData: keepPreviousData,
+  });
+
+  const bots = useMemo(
+    () => (isSuccess ? data.pages.flatMap(page => page.items) : []),
+    [data?.pages, isSuccess]
   );
 
-  useEffect(() => {
-    const signal = new AbortController();
-    const flags = ctx.getFeatureFlags();
-
-    async function bots(signal: AbortSignal) {
-      return await fetchBots(signal, flags);
-    }
-
-    if (canListBots) {
-      fetchRun(() =>
-        bots(signal.signal).then(botRes => {
-          setBots(botRes.bots);
-        })
-      );
-    }
-    return () => {
-      signal.abort();
-    };
-  }, [ctx, fetchRun, canListBots]);
+  function updateLoadedBots(update: (bots: FlatBot[]) => FlatBot[]) {
+    // Cover every cached search, not just the one on screen.
+    queryClient.setQueriesData<InfiniteData<ListBotsPage>>(
+      { queryKey: ['bot', 'list'] },
+      data =>
+        data
+          ? {
+              ...data,
+              pages: data.pages.map(page => ({
+                ...page,
+                items: update(page.items),
+              })),
+            }
+          : data
+    );
+  }
 
   function onDelete() {
-    setBots(bots.filter(bot => bot.name !== selectedBot.name));
+    updateLoadedBots(bots => bots.filter(bot => bot.name !== selectedBot.name));
     onClose();
   }
 
   function onEdit(updated: FlatBot) {
-    const updatedList = bots.map((item: FlatBot): FlatBot => {
-      if (item.name !== selectedBot?.name) {
-        return item;
-      }
-      return {
-        ...item,
-        ...updated,
-      };
-    });
-
-    setBots(updatedList);
+    updateLoadedBots(bots =>
+      bots.map(bot =>
+        bot.name === selectedBot?.name ? { ...bot, ...updated } : bot
+      )
+    );
     onClose();
   }
 
@@ -102,7 +135,22 @@ export function Bots() {
     [history]
   );
 
-  if (fetchAttempt.status === 'processing') {
+  const handleSearchChange = useCallback(
+    (search: string) => {
+      const params = new URLSearchParams(location.search);
+      if (search) {
+        params.set('search', search);
+      } else {
+        params.delete('search');
+      }
+      history.push({ pathname: location.pathname, search: params.toString() });
+    },
+    [history, location.pathname, location.search]
+  );
+
+  const searchFilter = useMemo(() => ({ search }), [search]);
+
+  if (isLoading) {
     return (
       <FeatureBox>
         <Box textAlign="center" m={10}>
@@ -112,7 +160,10 @@ export function Bots() {
     );
   }
 
-  if (fetchAttempt.status === 'success' && bots.length === 0) {
+  if (
+    !canListBots ||
+    (isSuccess && !isPlaceholderData && !search && !hasNextPage && !bots.length)
+  ) {
     return (
       <FeatureBox>
         {!canListBots && (
@@ -142,11 +193,7 @@ export function Bots() {
             >
               <Button
                 intent="primary"
-                fill={
-                  fetchAttempt.status === 'success' && bots.length === 0
-                    ? 'filled'
-                    : 'border'
-                }
+                fill="border"
                 ml="auto"
                 width="240px"
                 as={Link}
@@ -159,10 +206,14 @@ export function Bots() {
           </InfoGuideButton>
         </Box>
       </FeatureHeader>
-      {fetchAttempt.status == 'failed' && (
-        <Alert kind="danger">{fetchAttempt.statusText}</Alert>
-      )}
-      {fetchAttempt.status == 'success' && (
+      <SearchPanel
+        filter={searchFilter}
+        updateSearch={handleSearchChange}
+        hideAdvancedSearch
+        disableSearch={isFetching}
+      />
+      {error && <Alert kind="danger">{error.message}</Alert>}
+      {isSuccess && (
         <BotList
           bots={bots}
           disabledEdit={!flags.roles || !flags.editBots}
@@ -173,6 +224,10 @@ export function Bots() {
           onSelect={handleSelect}
           selectedBot={selectedBot}
           setSelectedBot={setSelectedBot}
+          // Let a search or refetch settle before loading another page.
+          hasNextPage={hasNextPage && !isFetching}
+          isFetchingNextPage={isFetchingNextPage}
+          onLoadNextPage={fetchNextPage}
         />
       )}
     </FeatureBox>

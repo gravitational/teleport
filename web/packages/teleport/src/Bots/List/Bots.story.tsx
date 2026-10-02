@@ -50,6 +50,9 @@ export const List = () => {
       onSelect={() => {}}
       selectedBot={null}
       setSelectedBot={() => {}}
+      hasNextPage={true}
+      isFetchingNextPage={false}
+      onLoadNextPage={() => {}}
     />
   );
 };

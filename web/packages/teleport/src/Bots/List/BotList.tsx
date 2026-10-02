@@ -18,7 +18,10 @@
 
 import { useState } from 'react';
 
+import { Box } from 'design';
 import Table, { LabelCell } from 'design/DataTable';
+import { Indicator } from 'design/Indicator';
+import { useInfiniteScroll } from 'shared/hooks';
 
 import { BotOptionsCell } from 'teleport/Bots/List/ActionCell';
 import { BotListProps } from 'teleport/Bots/types';
@@ -44,8 +47,19 @@ export function BotList({
   onSelect,
   selectedBot,
   setSelectedBot,
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadNextPage,
 }: BotListProps) {
   const [interaction, setInteraction] = useState<Interaction>(Interaction.NONE);
+
+  const { setTrigger } = useInfiniteScroll({
+    fetch: async () => {
+      if (hasNextPage && !isFetchingNextPage) {
+        onLoadNextPage();
+      }
+    },
+  });
 
   return (
     <>
@@ -55,14 +69,10 @@ export function BotList({
           {
             key: 'name',
             headerText: 'Bot Name',
-            isSortable: true,
           },
           {
             key: 'roles',
             headerText: 'Roles',
-            isSortable: true,
-            onSort: (a, b) =>
-              a.roles.toString().localeCompare(b.roles.toString()),
             render: ({ roles }) => <LabelCell data={roles} />,
           },
           {
@@ -93,13 +103,17 @@ export function BotList({
           },
         ]}
         emptyText="No Bots Found"
-        isSearchable
-        pagination={{ pageSize: 20 }}
         row={{
           onClick: onSelect,
           getStyle: () => ({ cursor: 'pointer' }),
         }}
       />
+      <Box ref={setTrigger} height="40px" />
+      {isFetchingNextPage && (
+        <Box textAlign="center">
+          <Indicator size={32} delay="none" />
+        </Box>
+      )}
       {selectedBot && interaction === Interaction.DELETE && (
         <DeleteDialog
           botName={selectedBot.name}
