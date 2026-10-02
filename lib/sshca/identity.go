@@ -20,7 +20,9 @@
 package sshca
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"strconv"
 	"strings"
@@ -138,6 +140,63 @@ type Identity struct {
 	// GitHubUserID indicates the GitHub username identified by the GitHub
 	// connector.
 	GitHubUsername string
+}
+
+// certExtensionTeleportNamespaceSuffix is the domain suffix Teleport uses to
+// namespace its own reserved ssh certificate extensions.
+const certExtensionTeleportNamespaceSuffix = "@goteleport.com"
+
+// certExtensionTeleportNamespacePrefix is the prefix used by an older set of
+// Teleport-reserved ssh certificate extensions (e.g. x-teleport-role,
+// x-teleport-authority). Prefer [certExtensionTeleportNamespaceSuffix] when
+// introducing new cert extensions.
+const certExtensionTeleportNamespacePrefix = "x-teleport-"
+
+// reservedBareCertExtensions is the set of Teleport-controlled ssh certificate
+// extensions that do not follow a naming convention and therefore must be
+// manually enumerated.
+//
+// The generic OpenSSH permit-* extensions are intentionally excluded: they are
+// standard SSH extensions rather than Teleport-internal state.
+//
+// TODO(Joerger): migrate these to a namespaced suffix so the suffix check alone
+// suffices, at which point this set can be removed.
+var reservedBareCertExtensions = map[string]struct{}{
+	teleport.CertExtensionTeleportRoles:           {},
+	teleport.CertExtensionTeleportRouteToCluster:  {},
+	teleport.CertExtensionTeleportTraits:          {},
+	teleport.CertExtensionTeleportActiveRequests:  {},
+	teleport.CertExtensionMFAVerified:             {},
+	teleport.CertExtensionPreviousIdentityExpires: {},
+	teleport.CertExtensionLoginIP:                 {},
+	teleport.CertExtensionImpersonator:            {},
+	teleport.CertExtensionDisallowReissue:         {},
+	teleport.CertExtensionRenewable:               {},
+	teleport.CertExtensionGeneration:              {},
+	teleport.CertExtensionAllowedResources:        {},
+	teleport.CertExtensionConnectionDiagnosticID:  {},
+	teleport.CertExtensionPrivateKeyPolicy:        {},
+	teleport.CertExtensionDeviceID:                {},
+	teleport.CertExtensionDeviceAssetTag:          {},
+	teleport.CertExtensionDeviceCredentialID:      {},
+}
+
+// IsReservedCertExtension reports whether the given ssh certificate extension
+// name is reserved for Teleport-controlled use and therefore must not be set or
+// overwritten via role-configured cert extensions [Identity.CertificateExtensions].
+//
+// It reserves the three Teleport-owned namespaces:
+//   - @goteleport.com suffix used by Teleport's own extensions
+//   - x-teleport-* prefix used by an older set of Teleport extensions
+//
+// as well as the legacy non-namespaced reserved extensions - [reservedBareCertExtensions].
+func IsReservedCertExtension(name string) bool {
+	if strings.HasSuffix(name, certExtensionTeleportNamespaceSuffix) ||
+		strings.HasPrefix(name, certExtensionTeleportNamespacePrefix) {
+		return true
+	}
+	_, ok := reservedBareCertExtensions[name]
+	return ok
 }
 
 // Encode encodes the identity into an ssh certificate. Note that the returned certificate is incomplete
@@ -268,6 +327,15 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		// TODO(lxea): update behavior when non ssh, non extensions are supported.
 		if extension.Mode != types.CertExtensionMode_EXTENSION ||
 			extension.Type != types.CertExtensionType_SSH {
+			continue
+		}
+		// Role-supplied extensions must not set or overwrite Teleport reserved extensions.
+		if IsReservedCertExtension(extension.Name) {
+			slog.WarnContext(context.Background(),
+				"Ignoring role-supplied ssh certificate extension because its name is reserved for Teleport internal use",
+				"extension", extension.Name,
+				"user", i.Username,
+			)
 			continue
 		}
 		cert.Extensions[extension.Name] = extension.Value
