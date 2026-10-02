@@ -5685,8 +5685,45 @@ func (a *ServerWithRoles) findSessionEndEvent(ctx context.Context, sid session.I
 	if len(sessionEvents) == 1 {
 		return sessionEvents[0], nil
 	}
+	if ev, ok := sameBeamDestroyed(sessionEvents); ok {
+		return ev, nil
+	}
 
 	return nil, trace.NotFound("session end event not found for session ID %q", sid)
+}
+
+// sameBeamDestroyed returns the first of events when they are all copies of one beam.destroyed event.
+//
+// A beam's summary scheduler emits the synthetic beam.destroyed end event and then records that it did. If the
+// record fails, or auth exits in between, the next scan emits the event again, and audit backends do not deduplicate
+// it. Every field of the event is derived from the summary job, so a repeat differs from the original only in its
+// audit event ID and index; it describes the same session and must not make its recording unreadable. Events that
+// disagree in anything else are still ambiguous and resolve to no end event.
+func sameBeamDestroyed(events []apievents.AuditEvent) (apievents.AuditEvent, bool) {
+	if len(events) < 2 {
+		return nil, false
+	}
+	first, ok := events[0].(*apievents.BeamDestroyed)
+	if !ok {
+		return nil, false
+	}
+	for _, ev := range events[1:] {
+		other, ok := ev.(*apievents.BeamDestroyed)
+		if !ok ||
+			other.Metadata.Type != first.Metadata.Type ||
+			other.Metadata.Code != first.Metadata.Code ||
+			other.Metadata.ClusterName != first.Metadata.ClusterName ||
+			!other.Metadata.Time.Equal(first.Metadata.Time) ||
+			other.UserMetadata.User != first.UserMetadata.User ||
+			other.SessionMetadata.SessionID != first.SessionMetadata.SessionID ||
+			other.BeamId != first.BeamId ||
+			other.BeamAlias != first.BeamAlias ||
+			!other.StartTime.Equal(first.StartTime) ||
+			!other.EndTime.Equal(first.EndTime) {
+			return nil, false
+		}
+	}
+	return first, true
 }
 
 // GetRoles returns a list of roles
