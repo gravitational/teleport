@@ -37,7 +37,6 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -115,6 +114,9 @@ type accessPoint interface {
 type ReadNodeAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+
+	// StaticHostUserReader defines methods for reading host users resources.
+	services.StaticHostUserReader
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -1288,10 +1290,8 @@ type Cache interface {
 	// pagination.
 	ListWorkloadIdentities(ctx context.Context, pageSize int, lastToken string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
 
-	// ListStaticHostUsers lists static host users.
-	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
-	// GetStaticHostUser returns a static host user by name.
-	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
+	// StaticHostUserReader defines methods for reading host users resources.
+	services.StaticHostUserReader
 
 	// GetProvisioningState gets a specific provisioning state
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
