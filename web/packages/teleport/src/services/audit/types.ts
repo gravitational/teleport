@@ -48,6 +48,7 @@ export const eventCodes = {
   APP_SESSION_HTTP_RESPONSE_BODY_CHUNK: 'T2018I',
   APP_SESSION_REQUEST_DENIED: 'T2020E',
   APP_SESSION_REQUEST_ALLOWED: 'T2021I',
+  APP_ACCESS: 'T2022I',
   APP_CREATED: 'TAP03I',
   APP_UPDATED: 'TAP04I',
   APP_DELETED: 'TAP05I',
@@ -787,6 +788,12 @@ export type RawEvents = {
       allow_role: string;
       allow_code: string;
       allow_reason?: string;
+    }
+  >;
+  [eventCodes.APP_ACCESS]: RawEvent<
+    typeof eventCodes.APP_ACCESS,
+    {
+      app_name: string;
     }
   >;
   [eventCodes.SUBSYSTEM]: RawEvent<

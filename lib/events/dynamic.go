@@ -217,6 +217,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionRequestDenied{}
 	case AppSessionRequestAllowedEvent:
 		e = &events.AppSessionRequestAllowed{}
+	case AppAccessEvent:
+		e = &events.AppAccess{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:

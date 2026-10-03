@@ -736,6 +736,12 @@ export const formatters: Formatters = {
     format: ({ user, app_name, method, path, allow_role, allow_code }) =>
       `User [${user}] was allowed [${method} ${path}] for application [${app_name}] by role [${allow_role}] with code [${allow_code}]`,
   },
+  [eventCodes.APP_ACCESS]: {
+    type: 'app.access',
+    desc: 'App Accessed',
+    format: ({ user, app_name }) =>
+      `User [${user}] accessed application [${app_name}]`,
+  },
   [eventCodes.SUBSYSTEM]: {
     type: 'subsystem',
     desc: 'Subsystem Requested',

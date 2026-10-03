@@ -3131,6 +3131,10 @@ func (m *AppSessionRequestAllowed) TrimToMaxSize(maxSize int) AuditEvent {
 	})
 }
 
+func (m *AppAccess) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
 func (m *BeamsConfigCreate) TrimToMaxSize(int) AuditEvent {
 	return m
 }

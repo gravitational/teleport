@@ -161,6 +161,8 @@ const (
 	// AppSessionRequestAllowedCode is the fine-grained app access request
 	// allowed event code.
 	AppSessionRequestAllowedCode = "T2021I"
+	// AppAccessCode is the app.access event code.
+	AppAccessCode = "T2022I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"

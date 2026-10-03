@@ -16,6 +16,34 @@ This page lists audit events related to Teleport-protected applications.
 
 
 
+## app.access
+
+App Accessed
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.10:51234",
+  "app_name": "grafana",
+  "app_public_addr": "grafana.root.gravitational.io",
+  "app_session_id": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "app_uri": "http://localhost:3000",
+  "cluster_name": "root",
+  "code": "T2022I",
+  "ei": 0,
+  "event": "app.access",
+  "namespace": "default",
+  "private_key_policy": "none",
+  "server_id": "8e70002c-7a07-4513-a3fa-ac556a1d7534",
+  "server_version": "19.0.0",
+  "time": "2022-08-10T19:54:43.444Z",
+  "uid": "7c9e2b14-3a5d-4f6e-8b1c-2d4f6a8e0c13",
+  "user": "alice",
+  "user_kind": 1
+}
+```
+
 ## app.create
 
 Application Created

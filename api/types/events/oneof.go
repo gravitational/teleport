@@ -280,6 +280,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionRequestAllowed{
 			AppSessionRequestAllowed: e,
 		}
+	case *AppAccess:
+		out.Event = &OneOf_AppAccess{
+			AppAccess: e,
+		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
 			AppCreate: e,

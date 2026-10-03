@@ -3522,6 +3522,50 @@ message AppSessionRequestAllowed {
   string allow_reason = 12 [(gogoproto.jsontag) = "allow_reason,omitempty"];
 }
 
+// AppAccess is emitted when a Teleport service authorizes access to an application.
+message AppAccess {
+  // metadata is the common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // user is the user who accessed the application.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // session holds the MFA and private key policy metadata. The session ID is unset because repeated events for one app
+  // session would otherwise share an audit backend key. Use app_session_id to correlate events.
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // server identifies the instance and version of the service that authorized the access.
+  ServerMetadata server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // connection holds the client source address as seen by the service that authorized the access.
+  ConnectionMetadata connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // app is the application that was accessed.
+  AppMetadata app = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // app_session_id is the session ID from the identity's app route. It correlates this event with other events for the
+  // same app session.
+  string app_session_id = 7 [(gogoproto.jsontag) = "app_session_id"];
+}
+
 // BeamDestroyed marks a garbage-collected beam whose activity has been
 // summarized. It makes the beam appear as a single session recording (played
 // back via BeamReplayService) and is emitted once, when summarization
@@ -5738,6 +5782,7 @@ message OneOf {
     events.GitSessionChunk GitSessionChunk = 278;
     events.GitHTTPRequest GitHTTPRequest = 279;
     events.BeamDestroyed BeamDestroyed = 280;
+    events.AppAccess AppAccess = 281;
   }
 }
 
