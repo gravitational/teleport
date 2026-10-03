@@ -360,9 +360,6 @@ func validateGithub(spec *joiningv1.Github, tokenUsageMode TokenUsageMode) error
 	if spec == nil {
 		return trace.BadParameter("github configuration must be defined for a scoped token when using the github join method")
 	}
-	if tokenUsageMode == TokenUsageModeSingle {
-		return trace.BadParameter("usage mode %q is not supported for github join method", TokenUsageModeSingle)
-	}
 	if strings.Contains(spec.GetEnterpriseServerHost(), "/") {
 		return trace.BadParameter("'github.enterprise_server_host' should not contain the scheme or path")
 	}
@@ -396,9 +393,6 @@ func validateGithub(spec *joiningv1.Github, tokenUsageMode TokenUsageMode) error
 func validateGitLab(spec *joiningv1.GitLab, tokenUsageMode TokenUsageMode) error {
 	if spec == nil {
 		return trace.BadParameter("gitlab configuration must be defined for a scoped token when using the gitlab join method")
-	}
-	if tokenUsageMode == TokenUsageModeSingle {
-		return trace.BadParameter("usage mode %q is not supported for gitlab join method", TokenUsageModeSingle)
 	}
 
 	// empty domain field allowed
@@ -641,6 +635,45 @@ func validateEnv0(spec *joiningv1.Env0) error {
 	return nil
 }
 
+// validateUsageMode ensures the `usage_mode` configured on the given token is
+// valid when used with the configured join method. Join methods must explicitly
+// opt in to supporting `usage_mode: single` here, and an error is raised if
+// configured without configuring the opt-in.
+func validateUsageMode(token *joiningv1.ScopedToken) error {
+	// Nothing to do for bot and unlimited; those modes are always allowed,
+	// and/or enforced separately (for bot joins).
+	if token.GetSpec().GetUsageMode() != string(TokenUsageModeSingle) {
+		return nil
+	}
+
+	// Add join methods to this list to allow `usage_mode: single`. Rough
+	// guidance:
+	// - `token`, cloud providers, and other offline or durable self-hosted
+	//   providers may be viable
+	// - bot-specific providers (CI/CD, especially Terraform) are not viable
+	// - `bound_keypair` or other join methods that have a `status` field
+	//   variant cannot be supported, as single_use is another oneof variant.
+
+	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
+	case types.JoinMethodToken:
+	case types.JoinMethodEC2:
+	case types.JoinMethodIAM:
+	case types.JoinMethodGCP:
+	case types.JoinMethodAzure:
+	case types.JoinMethodOracle:
+	case types.JoinMethodKubernetes:
+	case types.JoinMethodTPM:
+	case types.JoinMethodGenericOIDC:
+	default:
+		return trace.BadParameter(
+			"%s: usage_mode %q is not supported",
+			token.GetSpec().GetJoinMethod(),
+			token.GetSpec().GetUsageMode())
+	}
+
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -815,6 +848,11 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	}
 
 	if err := validateJoinMethod(token); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// validate usage_mode here to avoid checking it in WeakValidateToken()
+	if err := validateUsageMode(token); err != nil {
 		return trace.Wrap(err)
 	}
 
