@@ -378,6 +378,7 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindAuditQuery, append(RO(), types.VerbUse)),
 					types.NewRule(types.KindBotInstance, RO()),
 					types.NewRule(types.KindNotification, RO()),
+					types.NewRule(types.KindClassifier, RO()),
 				},
 			},
 		},
