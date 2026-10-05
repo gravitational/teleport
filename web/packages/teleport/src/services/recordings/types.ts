@@ -75,6 +75,7 @@ export enum SessionRecordingEventType {
   Join = 'join',
   Resize = 'resize',
   Risk = 'risk',
+  Classifier = 'classifier',
 }
 
 export interface SessionRecordingThumbnail {
@@ -156,4 +157,11 @@ export type SessionRecordingEvent =
   | SessionRecordingJoinEvent
   | SessionRecordingResizeEvent
   | SessionRecordingInactivityEvent
-  | SessionRecordingRiskEvent;
+  | SessionRecordingRiskEvent
+  | SessionRecordingClassifierEvent;
+
+export interface SessionRecordingClassifierEvent extends BaseSessionRecordingEvent {
+  type: SessionRecordingEventType.Classifier;
+  classifierName: string;
+  description: string;
+}

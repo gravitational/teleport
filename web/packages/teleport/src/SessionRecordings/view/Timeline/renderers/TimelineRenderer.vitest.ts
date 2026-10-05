@@ -25,8 +25,14 @@ import {
   SessionRecordingMetadata,
   SessionRecordingThumbnail,
 } from 'teleport/services/recordings';
+import { RiskLevel } from 'teleport/services/recordings/types';
 
-import { LEFT_PADDING } from '../constants';
+import {
+  EVENT_SECTION_PADDING,
+  LEFT_PADDING,
+  RULER_HEIGHT,
+} from '../constants';
+import { FramesRenderer } from './FramesRenderer';
 import { TimelineRenderer } from './TimelineRenderer';
 
 const mockMetadata: SessionRecordingMetadata = {
@@ -179,6 +185,71 @@ describe('constructor and initialization', () => {
 
     expect(global.requestAnimationFrame).toHaveBeenCalled();
   });
+});
+
+it('keeps overlapping classifier markers and thumbnails within the timeline when resizing', () => {
+  const setFrameHeight = vi.spyOn(FramesRenderer.prototype, 'setHeight');
+  const { renderer, ctx } = createRenderer(
+    {
+      ...mockMetadata,
+      events: [
+        {
+          type: SessionRecordingEventType.Risk,
+          riskLevel: RiskLevel.High,
+          description: 'Suspicious command',
+          startTime: 0,
+          endTime: 1000,
+        },
+        ...Array.from({ length: 20 }, (_, index) => ({
+          type: SessionRecordingEventType.Classifier as const,
+          classifierName: `classifier-${index}`,
+          description: `Classifier match ${index}`,
+          startTime: 0,
+          endTime: 1000,
+        })),
+      ],
+    },
+    mockFrames,
+    1000,
+    235
+  );
+
+  for (const height of [235, 500, 200]) {
+    renderer.setHeight(height);
+    ctx.__clearEvents();
+    animationFrameCallback!(0);
+
+    const [, eventsHeight] = setFrameHeight.mock.lastCall!;
+    const frameHeight =
+      height - eventsHeight - RULER_HEIGHT - EVENT_SECTION_PADDING * 2;
+    expect(frameHeight).toBeGreaterThan(0);
+
+    const framesRenderer = setFrameHeight.mock.contexts.at(
+      -1
+    ) as FramesRenderer;
+    const frames = framesRenderer.getFramesAtCurrentZoom();
+    expect(frames.length).toBeGreaterThan(0);
+    expect(frames.every(frame => frame.width > 0)).toBe(true);
+
+    const markers = ctx
+      .__getEvents()
+      .filter(event => event.type === 'roundRect');
+    expect(markers.length).toBeGreaterThan(0);
+    for (const marker of markers) {
+      expect(marker.props.y + marker.props.height).toBeLessThanOrEqual(
+        RULER_HEIGHT + eventsHeight
+      );
+    }
+    expect(
+      ctx
+        .__getEvents()
+        .some(
+          event => event.type === 'fillText' && /events$/.test(event.props.text)
+        )
+    ).toBe(true);
+  }
+
+  renderer.destroy();
 });
 
 describe('pan accumulation', () => {

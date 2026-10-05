@@ -47,6 +47,9 @@ type TimelineEventMeasured = SessionRecordingEvent & {
 type TimelineEventPositioned = TimelineEventMeasured & {
   endPosition: number;
   startPosition: number;
+  eventCount: number;
+  mostSevere: SessionRecordingEvent;
+  hasError: boolean;
 };
 
 function getEventStyles(theme: DefaultTheme, event: SessionRecordingEvent) {
@@ -57,6 +60,11 @@ function getEventStyles(theme: DefaultTheme, event: SessionRecordingEvent) {
       return theme.colors.sessionRecordingTimeline.events.resize;
     case SessionRecordingEventType.Join:
       return theme.colors.sessionRecordingTimeline.events.join;
+    case SessionRecordingEventType.Classifier:
+      return {
+        background: theme.colors.sessionRecording.riskLevels.medium,
+        text: 'rgba(0,0,0,0.7)',
+      };
     case SessionRecordingEventType.Risk:
       switch (event.riskLevel) {
         case RiskLevelValue.Low:
@@ -87,6 +95,29 @@ function getEventStyles(theme: DefaultTheme, event: SessionRecordingEvent) {
   }
 }
 
+function getEventSeverity(event: SessionRecordingEvent) {
+  switch (event.type) {
+    case SessionRecordingEventType.Risk:
+      return (
+        [
+          RiskLevelValue.Low,
+          RiskLevelValue.Medium,
+          RiskLevelValue.High,
+          RiskLevelValue.Critical,
+        ].indexOf(event.riskLevel) + 1
+      );
+    case SessionRecordingEventType.Classifier:
+      // Classifier markers are drawn in the medium risk color.
+      return 2;
+    default:
+      return 0;
+  }
+}
+
+function isErrorMarker(event: SessionRecordingEvent) {
+  return event.type === SessionRecordingEventType.Risk && !!event.isError;
+}
+
 function getEventTitle(event: SessionRecordingEvent) {
   switch (event.type) {
     case SessionRecordingEventType.Inactivity:
@@ -94,6 +125,7 @@ function getEventTitle(event: SessionRecordingEvent) {
     case SessionRecordingEventType.Join:
       return `${event.user} joined`;
     case SessionRecordingEventType.Risk:
+    case SessionRecordingEventType.Classifier:
       return event.description;
     default:
       return 'Event';
@@ -113,6 +145,7 @@ const EVENT_HEIGHT = 24;
  */
 export class EventsRenderer extends TimelineCanvasRenderer {
   private height = 0;
+  private maxRows = Infinity;
   // measuredEvents contains all events with their text metrics, sorted by start time
   private measuredEvents: TimelineEventMeasured[] = [];
   // rowsWithPositions are computed after calculate() is called, containing the position
@@ -147,9 +180,11 @@ export class EventsRenderer extends TimelineCanvasRenderer {
         // Width is already calculated in calculate() to include minimum text width
         const width = endX - startX;
 
-        const styles = getEventStyles(this.theme, event);
-        const isError =
-          event.type === SessionRecordingEventType.Risk && event.isError;
+        const styles =
+          event.eventCount > 1 && getEventSeverity(event.mostSevere) === 0
+            ? this.theme.colors.sessionRecordingTimeline.events.default
+            : getEventStyles(this.theme, event.mostSevere);
+        const isError = event.hasError;
 
         this.ctx.beginPath();
         this.ctx.roundRect(x, y, width, EVENT_HEIGHT, EVENT_RADIUS);
@@ -226,6 +261,9 @@ export class EventsRenderer extends TimelineCanvasRenderer {
         ...event,
         endPosition,
         startPosition,
+        eventCount: 1,
+        mostSevere: event,
+        hasError: isErrorMarker(event),
       };
 
       // Try to place the event in an existing row
@@ -241,14 +279,40 @@ export class EventsRenderer extends TimelineCanvasRenderer {
         }
       }
 
-      // If no existing row has space, create a new row
+      // Keep room for thumbnails. Once all rows are occupied, combine the
+      // overlapping markers in the last row without dropping their count.
       if (!placed) {
-        rows.push([positionedEvent]);
+        if (rows.length < this.maxRows) {
+          rows.push([positionedEvent]);
+        } else {
+          const lastRow = rows[rows.length - 1];
+          const overflow = lastRow[lastRow.length - 1];
+          overflow.eventCount++;
+          if (getEventSeverity(event) > getEventSeverity(overflow.mostSevere)) {
+            overflow.mostSevere = event;
+          }
+          overflow.hasError ||= isErrorMarker(event);
+          overflow.title = `${overflow.eventCount} events`;
+          this.ctx.font = `bold 12px ${CANVAS_FONT}`;
+          overflow.textMetrics = this.ctx.measureText(overflow.title);
+          overflow.endPosition = Math.max(
+            overflow.endPosition,
+            endPosition,
+            overflow.startPosition +
+              overflow.textMetrics.width +
+              2 * TEXT_PADDING
+          );
+        }
       }
     }
 
     this.rowsWithPositions = rows;
     this.height = rows.length * EVENT_ROW_HEIGHT + EVENT_SECTION_PADDING;
+  }
+
+  setMaxRows(maxRows: number) {
+    this.maxRows = Math.max(1, Math.floor(maxRows));
+    this.calculate();
   }
 
   getHeight() {

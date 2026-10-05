@@ -23,7 +23,12 @@ import type {
   SessionRecordingThumbnail,
 } from 'teleport/services/recordings';
 
-import { LEFT_PADDING } from '../constants';
+import {
+  EVENT_ROW_HEIGHT,
+  EVENT_SECTION_PADDING,
+  LEFT_PADDING,
+  RULER_HEIGHT,
+} from '../constants';
 import { EventsRenderer } from './EventsRenderer';
 import { FramesRenderer } from './FramesRenderer';
 import { ProgressLineRenderer } from './ProgressLineRenderer';
@@ -40,6 +45,8 @@ interface WheelAccumulation {
   isActive: boolean;
   lastEventTime: number;
 }
+
+const MIN_FRAME_HEIGHT = 80;
 
 /**
  * TimelineRenderer is responsible for rendering the entire timeline,
@@ -268,8 +275,6 @@ export class TimelineRenderer {
 
     this.containerHeight = height;
 
-    this.framesRenderer.setHeight(height, this.eventsRenderer.getHeight());
-
     this.setRenderersTimelineWidth();
 
     const newTimelineWidth = this.calculateTimelineWidth();
@@ -339,17 +344,29 @@ export class TimelineRenderer {
   private setRenderersTimelineWidth() {
     const timelineWidth = this.calculateTimelineWidth();
 
-    for (const renderer of this.renderers) {
-      renderer.setTimelineWidth(timelineWidth);
-    }
+    this.eventsRenderer.setMaxRows(
+      Math.floor(
+        (this.containerHeight -
+          MIN_FRAME_HEIGHT -
+          RULER_HEIGHT -
+          EVENT_SECTION_PADDING * 3) /
+          EVENT_ROW_HEIGHT
+      )
+    );
+    this.eventsRenderer.setTimelineWidth(timelineWidth);
 
-    // The events renderer height may have changed due to timeline width change
-    // (events may overlap less or more), so we need to update the frames renderer height
-    // accordingly.
+    // Lay out events first so thumbnail positions use the remaining height at
+    // the new zoom level, rather than the previous event layout's height.
     this.framesRenderer.setHeight(
       this.containerHeight,
       this.eventsRenderer.getHeight()
     );
+
+    for (const renderer of this.renderers) {
+      if (renderer !== this.eventsRenderer) {
+        renderer.setTimelineWidth(timelineWidth);
+      }
+    }
   }
 
   private _render() {

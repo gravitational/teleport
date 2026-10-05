@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, test, vi } from 'vitest';
 
 import { theme } from 'design/utils/testing';
 
 import {
+  RiskLevel,
   SessionRecordingEventType,
   SessionRecordingMetadata,
+  type SessionRecordingEvent,
 } from 'teleport/services/recordings';
 import type { TimelineRenderContext } from 'teleport/SessionRecordings/view/Timeline/renderers/TimelineCanvasRenderer';
 
@@ -127,6 +129,146 @@ describe('EventsRenderer', () => {
         3 * EVENT_ROW_HEIGHT + EVENT_SECTION_PADDING
       );
     });
+
+    it('combines overflow markers and restores their labels when more rows are available', () => {
+      const { ctx, renderer } = createRenderer({
+        duration: 10000,
+        events: Array.from({ length: 8 }, (_, index) => ({
+          type: SessionRecordingEventType.Classifier,
+          classifierName: `classifier-${index}`,
+          description: `Match ${index}`,
+          startTime: 0,
+          endTime: 1000 + index * 100,
+        })),
+      });
+
+      renderer.setMaxRows(3);
+      renderer.setTimelineWidth(1000);
+
+      const rows = renderer.getRowsWithPositions();
+      expect(rows).toHaveLength(3);
+      expect(rows.flat().map(event => event.eventCount)).toEqual([1, 1, 6]);
+      expect(rows[2][0].title).toBe('6 events');
+      expect(rows[2][0].endPosition).toBe(LEFT_PADDING + 170);
+
+      renderer._render({
+        containerWidth: 1000,
+        containerHeight: 235,
+        eventsHeight: renderer.getHeight(),
+        offset: 0,
+      });
+      expect(
+        ctx
+          .__getDrawCalls()
+          .filter(call => call.type === 'fillText')
+          .map(call => call.props.text)
+      ).toEqual(['Match 0', 'Match 1', '6 events']);
+
+      renderer.setMaxRows(8);
+      expect(renderer.getRowsWithPositions()).toHaveLength(8);
+      expect(
+        renderer
+          .getRowsWithPositions()
+          .flat()
+          .map(event => event.title)
+      ).toEqual(Array.from({ length: 8 }, (_, index) => `Match ${index}`));
+    });
+
+    it('separates grouped markers when zooming gives their labels enough space', () => {
+      const { renderer } = createRenderer({
+        duration: 10000,
+        events: Array.from({ length: 3 }, (_, index) => ({
+          type: SessionRecordingEventType.Classifier,
+          classifierName: `classifier-${index}`,
+          description: `Match ${index}`,
+          startTime: index * 1000,
+          endTime: index * 1000 + 100,
+        })),
+      });
+
+      renderer.setMaxRows(1);
+      renderer.setTimelineWidth(10);
+      expect(renderer.getRowsWithPositions()[0]).toHaveLength(1);
+      expect(renderer.getRowsWithPositions()[0][0].title).toBe('3 events');
+
+      renderer.setTimelineWidth(1000);
+      expect(renderer.getRowsWithPositions()).toHaveLength(1);
+      expect(
+        renderer.getRowsWithPositions()[0].map(event => event.title)
+      ).toEqual(['Match 0', 'Match 1', 'Match 2']);
+    });
+
+    const classifierMarker: SessionRecordingEvent = {
+      type: SessionRecordingEventType.Classifier,
+      classifierName: 'credentials',
+      description: 'Read password hashes',
+      startTime: 0,
+      endTime: 1000,
+    };
+    const criticalMarker: SessionRecordingEvent = {
+      type: SessionRecordingEventType.Risk,
+      riskLevel: RiskLevel.Critical,
+      description: 'Deleted audit logs',
+      startTime: 0,
+      endTime: 1000,
+    };
+    const errorMarker: SessionRecordingEvent = {
+      type: SessionRecordingEventType.Risk,
+      riskLevel: RiskLevel.Unspecified,
+      description: 'whoami',
+      isError: true,
+      startTime: 0,
+      endTime: 1000,
+    };
+
+    it.each([
+      { name: 'folded into', events: [criticalMarker, classifierMarker] },
+      { name: 'folded from', events: [classifierMarker, criticalMarker] },
+    ])(
+      'colors a grouped marker by its most severe event when it is $name',
+      ({ events }) => {
+        const { ctx, renderer } = createRenderer({ duration: 10000, events });
+        const fillStyle = vi.spyOn(ctx, 'fillStyle', 'set');
+
+        renderer.setMaxRows(1);
+        renderer.setTimelineWidth(1000);
+        renderer._render({
+          containerWidth: 1000,
+          containerHeight: 235,
+          eventsHeight: renderer.getHeight(),
+          offset: 0,
+        });
+
+        expect(renderer.getRowsWithPositions()[0][0].title).toBe('2 events');
+        expect(fillStyle).toHaveBeenCalledWith(
+          theme.colors.sessionRecording.riskLevels.critical
+        );
+      }
+    );
+
+    it.each([
+      { name: 'folded into', events: [errorMarker, classifierMarker] },
+      { name: 'folded from', events: [classifierMarker, errorMarker] },
+    ])(
+      'outlines a grouped marker that contains an error when it is $name',
+      ({ events }) => {
+        const { ctx, renderer } = createRenderer({ duration: 10000, events });
+
+        renderer.setMaxRows(1);
+        renderer.setTimelineWidth(1000);
+        renderer._render({
+          containerWidth: 1000,
+          containerHeight: 235,
+          eventsHeight: renderer.getHeight(),
+          offset: 0,
+        });
+
+        expect(renderer.getRowsWithPositions()[0][0].title).toBe('2 events');
+        expect(
+          ctx.__getDrawCalls().filter(call => call.type === 'stroke')
+        ).toHaveLength(1);
+      }
+    );
 
     it('should filter out resize events', () => {
       const { renderer } = createRenderer({
@@ -501,4 +643,32 @@ describe('EventsRenderer', () => {
       expect(roundRectCalls[0].props.width).toBeLessThanOrEqual(eventWidth);
     });
   });
+});
+
+test('renders a classifier marker using its saved description', () => {
+  const { ctx, renderer } = createRenderer({
+    events: [
+      {
+        type: SessionRecordingEventType.Classifier,
+        classifierName: 'credentials',
+        description: 'Read password hashes',
+        startTime: 1000,
+        endTime: 2000,
+      },
+    ],
+  });
+
+  renderer.setTimelineWidth(2000);
+  renderer.calculate();
+  renderer._render({
+    containerWidth: 2000,
+    offset: 0,
+    containerHeight: 200,
+    eventsHeight: renderer.getHeight(),
+  });
+
+  const labels = ctx.__getDrawCalls().filter(call => call.type === 'fillText');
+
+  expect(labels).toHaveLength(1);
+  expect(labels[0].props.text).toBe('Read password hashes');
 });

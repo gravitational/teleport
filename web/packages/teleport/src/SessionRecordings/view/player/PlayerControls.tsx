@@ -206,7 +206,8 @@ export function PlayerControls({
         pl={2}
         pr={4}
         ref={durationRef}
-        width="70px"
+        width="100px"
+        style={{ flexShrink: 0 }}
       >
         0:00
       </Box>
