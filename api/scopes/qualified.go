@@ -151,3 +151,18 @@ func ParseQualifiedName(sqn string) (QualifiedName, error) {
 
 	return QualifiedName{Scope: scope, Name: name}, nil
 }
+
+// ParseSQNs parses raw resource identifiers that may be scope-qualified into
+// QualifiedNames. Bare names are returned with an empty scope. Scoped names
+// are strongly validated.
+func ParseSQNs(rawSQNs []string) ([]QualifiedName, error) {
+	sqns := make([]QualifiedName, 0, len(rawSQNs))
+	for _, rawSQN := range rawSQNs {
+		var sqn QualifiedName
+		if err := sqn.Set(rawSQN); err != nil {
+			return nil, trace.Wrap(err, "invalid sqn %q", rawSQN)
+		}
+		sqns = append(sqns, sqn)
+	}
+	return sqns, nil
+}
