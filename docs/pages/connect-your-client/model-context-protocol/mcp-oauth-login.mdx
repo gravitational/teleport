@@ -1,0 +1,279 @@
+---
+title: Log In to OAuth-Protected MCP Servers
+sidebar_label: OAuth-Protected MCP Servers
+sidebar_position: 2
+description: Explains how to use tsh mcp login to authorize access to remote MCP servers that require their own OAuth login.
+tags:
+ - mcp
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+page_type: how-to
+---
+
+Some remote MCP servers require an OAuth access token issued by their own
+authorization server, separate from your Teleport login. The `tsh mcp login`
+command runs the MCP authorization flow in your browser, stores the resulting
+tokens on your workstation, and makes `tsh` attach them to every request it
+sends to that MCP server.
+
+Teleport still authenticates you and enforces your roles, including which MCP
+tools you can call. The OAuth token only satisfies the MCP server itself.
+
+## How it works
+
+When you run `tsh mcp login`, `tsh` first sends an unauthenticated MCP
+`initialize` request to the server through Teleport. If the server accepts it,
+no login is needed and the command exits. If the server answers with HTTP `401`,
+`tsh` continues:
+
+- It finds the authorization server named in the MCP server's OAuth protected
+  resource metadata, then reads that authorization server's metadata.
+- It registers an OAuth client named `Teleport tsh` using dynamic client
+  registration, unless you supply a pre-registered client with `--client-id`.
+- It opens your browser to the provider's authorization page and listens on a
+  loopback callback address, `http://127.0.0.1:<port>/callback` by default,
+  for the result. You have three minutes to finish authorizing.
+- It exchanges the authorization code for tokens and saves them in
+  `$TELEPORT_HOME/mcp/<proxy>/<user>/<cluster>/<name>.oauth.json`, readable
+  only by your user. `TELEPORT_HOME` defaults to `~/.tsh`.
+
+Requests to the MCP server and its protected resource metadata travel through
+the Teleport Application Service, so the MCP server does not need to be
+reachable from your workstation. Requests to the authorization server go
+directly from your workstation, or through the proxy set in `HTTPS_PROXY`. The
+authorization server must use HTTPS and resolve to public IP addresses; `tsh`
+refuses to contact OAuth endpoints on loopback, private, link-local, or other
+non-public addresses.
+
+After you log in, `tsh mcp connect` and `tsh proxy mcp` send the stored access
+token in the `Authorization` header. When the access token expires, `tsh`
+refreshes it. If the refresh fails, `tsh` opens your browser to log in again
+using the same client and redirect URI as your original login.
+
+Stored credentials are bound to the MCP server's URI and to the authorization
+server that issued them. If your Teleport administrator changes the URI of the
+MCP server, run `tsh mcp login` again.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.11.1 or higher)" clients="\`tsh\` client"!)
+
+- An MCP server that uses streamable-HTTP transport, requires OAuth, and is
+  enrolled in Teleport. See [MCP Access with Streamable-HTTP MCP
+  Server](../../enroll-resources/mcp-access/enrolling-mcp-servers/streamable-http.mdx).
+- A web browser on the machine where you run `tsh`. If you run `tsh` over SSH,
+  see [Troubleshooting](#the-login-times-out) to finish the login in your local
+  browser.
+- HTTPS access from your workstation to the MCP server's OAuth authorization
+  server.
+
+## Step 1/2. Log in to the MCP server
+
+Log in to your Teleport cluster and find the name of the MCP server, assigning
+<Var name="teleport.example.com" /> to the web address of your Teleport Proxy
+Service and <Var name="my_user" /> to your Teleport username:
+
+```code
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="my_user" />
+$ tsh mcp ls
+```
+
+Log in to the MCP server, replacing <Var name="my-mcp-server" /> with its name:
+
+```code
+$ tsh mcp login <Var name="my-mcp-server" />
+Requesting scopes required by the MCP server: mcp:read mcp:write
+Registering OAuth client "Teleport tsh" for MCP server "my-mcp-server"...
+Opening browser for authorization. If it does not open, visit:
+
+  https://auth.example.com/authorize?client_id=...
+
+Authorization complete. Tokens stored in /home/alice/.tsh/mcp/teleport.example.com/alice/teleport.example.com/my-mcp-server.oauth.json.
+MCP server "my-mcp-server" is ready — restart your MCP clients if already running.
+```
+
+Approve the request in your browser. When the browser shows "Login complete",
+return to the terminal.
+
+## Step 2/2. Connect your MCP client
+
+<Admonition type="warning">
+Do not use your MCP client's built-in OAuth login for a Teleport MCP server,
+and do not set an `Authorization` header with `-H` on `tsh mcp connect` or
+`--header` on `tsh mcp config`. That header replaces the credentials stored by
+`tsh mcp login`.
+</Admonition>
+
+If your MCP client runs `tsh mcp connect`, you are done. This is the setup that
+`tsh mcp config` creates, and `tsh mcp connect` uses the stored credentials
+automatically. Restart the MCP client if it was already running. If you have not
+configured your MCP client yet, follow [Access MCP Servers with
+Teleport](./mcp-access.mdx).
+
+Use `tsh proxy mcp` only if your MCP client can't launch `tsh mcp connect` and
+must connect over streamable HTTP. Start it after you log in, or restart it if
+it was already running:
+
+```code
+$ tsh proxy mcp <Var name="my-mcp-server" /> -p 8888
+```
+
+## Log out of an MCP server
+
+Remove the stored credentials for one MCP server:
+
+```code
+$ tsh mcp logout <Var name="my-mcp-server" />
+```
+
+Omit the name to remove the credentials for every MCP server in the current
+cluster. `tsh logout` also removes MCP OAuth credentials along with your
+Teleport credentials.
+
+## `tsh mcp login` flags
+
+By default, `tsh mcp login` needs no flags. Use them when the OAuth provider
+does not support dynamic client registration or expects particular values.
+
+|Flag|Purpose|
+|---|---|
+|`--client-id`|Uses an OAuth client that is already registered with the provider instead of registering a new one.|
+|`--client-secret`|Prompts for the secret of a confidential pre-registered client. Requires `--client-id`. The secret is stored with the tokens so `tsh` can refresh them.|
+|`--callback-port`|Listens on a fixed port, making the redirect URI `http://127.0.0.1:<port>/callback`. Set it to match the redirect URI registered for your client.|
+|`--redirect-uri`|Sets the exact loopback redirect URI, such as `http://localhost:3118/callback`. Use it when the registered redirect URI uses `localhost` or another loopback address instead of `127.0.0.1`. Cannot be combined with `--callback-port`.|
+|`--oauth-scope`|Sets the OAuth scopes to request. Separate scopes with commas or spaces, or repeat the flag. Without it, `tsh` requests the scopes named in the server's `401` challenge, then the scopes listed in its protected resource metadata.|
+|`--browser`|Set to `none` to print the authorization URL instead of opening a browser.|
+
+To log in with a pre-registered client, register
+`http://127.0.0.1:<Var name="3118" />/callback` as a redirect URI with the
+provider and run:
+
+```code
+$ tsh mcp login <Var name="my-mcp-server" /> --client-id=<Var name="client-id" /> --callback-port=<Var name="3118" />
+```
+
+If the client is registered with `http://localhost:<Var name="3118" />/callback`
+instead, use `--redirect-uri`:
+
+```code
+$ tsh mcp login <Var name="my-mcp-server" /> --client-id=<Var name="client-id" /> --redirect-uri=http://localhost:<Var name="3118" />/callback
+```
+
+Add `--client-secret` to either command if the client is confidential. `tsh`
+prompts for the secret so it does not end up in your shell history.
+
+Later refreshes and automatic logins reuse the client ID, secret, redirect URI,
+and scopes from this login, so you only pass these flags once.
+
+## Troubleshooting
+
+Add `--debug` to `tsh mcp login` for more detail when a step fails.
+
+### The provider does not support dynamic client registration
+
+```text
+The MCP server's OAuth provider does not support dynamic client registration.
+```
+
+The authorization server does not publish a registration endpoint. Register an
+OAuth client with the provider, or use a client ID the provider publishes for
+MCP clients, then log in with `--client-id` and `--callback-port` or
+`--redirect-uri` as shown in [`tsh mcp login` flags](#tsh-mcp-login-flags).
+
+### The provider rejected the client registration
+
+```text
+The MCP server's OAuth provider rejected the client registration.
+```
+
+Some providers only let an approved set of MCP clients register. Ask the
+provider's administrator to approve Teleport or to issue a client ID, then log
+in with `--client-id`.
+
+### The provider reports a redirect URI mismatch
+
+Providers compare the redirect URI exactly, including the port and whether the
+host is `127.0.0.1` or `localhost`. Without `--callback-port` or
+`--redirect-uri`, `tsh` picks a random port, which a pre-registered client
+usually does not allow. Find the redirect URI registered for your client and
+pass it with `--redirect-uri`, or pass its port with `--callback-port` if it uses
+`127.0.0.1`.
+
+### The login times out
+
+```text
+timed out waiting for the browser authorization to complete
+```
+
+The browser did not reach the callback address within three minutes. This
+happens when the browser runs on a different machine from `tsh`, for example
+when you run `tsh` over SSH. The callback address is a loopback address on the
+machine running `tsh`, so forward a fixed port to it, replacing
+<Var name="remote-host" /> with the machine where you run `tsh`:
+
+```code
+$ ssh -L <Var name="3118" />:127.0.0.1:<Var name="3118" /> <Var name="remote-host" />
+$ tsh mcp login <Var name="my-mcp-server" /> --callback-port=<Var name="3118" /> --browser=none
+```
+
+Open the printed authorization URL in your local browser.
+
+### The callback port is already in use
+
+```text
+listen tcp 127.0.0.1:3118: bind: address already in use
+```
+
+Another process, often another `tsh mcp login`, is listening on the callback
+port. Stop that process or choose a different port. If you use a pre-registered
+client, the new port must also be registered with the provider.
+
+### An OAuth endpoint uses a prohibited network address
+
+```text
+OAuth authorization endpoint resolves to a prohibited network address
+```
+
+`tsh` only contacts authorization servers over HTTPS at public IP addresses.
+Authorization servers on private networks or served over plain HTTP are not
+supported.
+
+### The MCP client asks you to log in
+
+```text
+Authentication with MCP server "my-mcp-server" is required or has expired. Run `tsh mcp login my-mcp-server` in a terminal, complete authorization in the browser, then retry the request.
+```
+
+```text
+MCP server "my-mcp-server" rejected the request with HTTP 401. Do not use the MCP client's built-in OAuth login for a Teleport endpoint.
+```
+
+`tsh` has no usable credentials for the MCP server, or could not refresh them
+and could not open a browser to log in again. Run `tsh mcp login` and retry the
+request in your MCP client.
+
+### `tsh` says login is not required
+
+```text
+MCP server "my-mcp-server" accepted an unauthenticated request, so OAuth login is not required.
+```
+
+The MCP server accepted an `initialize` request without a token, so `tsh` did
+not start an OAuth flow. Connect to the server without logging in.
+
+### The MCP server does not use HTTP transport
+
+```text
+MCP server "my-mcp-server" does not use HTTP transport; OAuth login only applies to HTTP MCP servers
+```
+
+`tsh mcp login` only applies to MCP servers enrolled with streamable-HTTP
+transport, whose URI starts with `mcp+http://` or `mcp+https://`. Stdio and SSE
+MCP servers do not use MCP OAuth.
+
+## Next steps
+
+- [Access MCP Servers with Teleport](./mcp-access.mdx)
+- [MCP Access Control](../../enroll-resources/mcp-access/rbac.mdx)
+- [`tsh` CLI reference](../../reference/cli/tsh.mdx)
