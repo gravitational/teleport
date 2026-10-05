@@ -20,7 +20,12 @@ import { parse as parseVersion } from 'shared/utils/semVer';
 
 import cfg from 'teleport/config';
 
-import { hcl, type TFObject, type TFValue } from '../terraform';
+import {
+  hcl,
+  teleportProviderConfig,
+  type TFObject,
+  type TFValue,
+} from '../terraform';
 import {
   AzureManagedIdentity,
   AzureTag,
@@ -36,6 +41,13 @@ export type AzureDiscoverTerraformModuleConfig = {
 };
 
 const TF_MODULE = '/teleport/discovery/azure';
+
+const AZURERM_PROVIDER = `
+provider "azurerm" {
+  features {}
+}
+
+`;
 
 const isStaging = (version: string): boolean => {
   const parsed = parseVersion(version);
@@ -69,6 +81,8 @@ export const buildTerraformConfig = ({
 
   const managementGroupIdOrNull = managedIdentity.managementGroupId ?? null;
 
+  const proxyAddr = cfg.proxyCluster + ':443';
+
   const tfModule = hcl`# Terraform Module
 module "azure_discovery" {
   source  = ${moduleSrc}
@@ -76,9 +90,9 @@ module "azure_discovery" {
 
   teleport_integration_use_name_prefix = ${integrationNameOrNull ? false : null}
 
-  teleport_proxy_public_addr    = ${cfg.proxyCluster + ':443'}
+  teleport_proxy_public_addr    = ${proxyAddr}
   teleport_discovery_group_name = "cloud-discovery-group"
-  teleport_integration_name	    = ${integrationNameOrNull}
+  teleport_integration_name     = ${integrationNameOrNull}
 
   # Scope role assignment to a Management Group for discovering resources
   # across all child subscriptions. Provide the Tenant ID to use the
@@ -97,7 +111,11 @@ module "azure_discovery" {
 }
 `;
 
-  return tfModule;
+  return (
+    teleportProviderConfig({ proxyAddr, clusterVersion: version }) +
+    AZURERM_PROVIDER +
+    tfModule
+  );
 };
 
 const buildMatcher = (

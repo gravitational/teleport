@@ -16,12 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import cfg from 'teleport/config';
+
 import {
   AzureDiscoverTerraformModuleConfig,
   buildTerraformConfig,
 } from './tf_module';
 
 describe('buildTerraformConfig', () => {
+  beforeEach(() => {
+    jest.replaceProperty(cfg, 'proxyCluster', 'example.teleport.sh');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   const baseConfig: AzureDiscoverTerraformModuleConfig = {
     integrationName: 'my-integration',
     version: '19.0.0',
@@ -40,6 +50,61 @@ describe('buildTerraformConfig', () => {
       managementGroupId: 'my-mg',
     },
   };
+
+  test('renders a complete root configuration', () => {
+    const result = buildTerraformConfig(baseConfig);
+
+    expect(result).toBe(`terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> 19.0"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = "example.teleport.sh:443"
+}
+
+provider "azurerm" {
+  features {}
+}
+
+# Terraform Module
+module "azure_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/azure"
+  version = "19.0.0"
+
+  teleport_integration_use_name_prefix = false
+
+  teleport_proxy_public_addr    = "example.teleport.sh:443"
+  teleport_discovery_group_name = "cloud-discovery-group"
+  teleport_integration_name     = "my-integration"
+
+  # Scope role assignment to a Management Group for discovering resources
+  # across all child subscriptions. Provide the Tenant ID to use the
+  # Tenant Root Group scope.
+  azure_management_group_id = "my-mg"
+
+  # Name of an existing Azure Resource Group where
+  # Azure resources will be created.
+  azure_resource_group_name = "my-resource-group"
+
+  # Azure region (location) where the managed identity
+  # will be created (e.g., "eastus")
+  azure_managed_identity_location = "eastus"
+
+  azure_matchers = [
+    {
+      types         = ["vm"]
+      subscriptions = ["*"]
+      regions       = ["eastus"]
+    }
+  ]
+}
+`);
+  });
 
   test('uses production registry for release versions', () => {
     const result = buildTerraformConfig(baseConfig);

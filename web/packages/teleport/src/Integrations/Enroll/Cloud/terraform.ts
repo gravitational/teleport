@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { parse as parseVersion } from 'shared/utils/semVer';
+
 export interface TFObject {
   [key: string]: TFValue;
 }
@@ -93,6 +95,35 @@ export const hcl = (
   });
 
   return result;
+};
+
+const TELEPORT_PROVIDER_SOURCE =
+  'terraform.releases.teleport.dev/gravitational/teleport';
+
+export const teleportProviderConfig = ({
+  proxyAddr,
+  clusterVersion,
+}: {
+  proxyAddr: string;
+  clusterVersion: string;
+}): string => {
+  const provider: TFObject = { source: TELEPORT_PROVIDER_SOURCE };
+
+  const parsed = parseVersion(clusterVersion);
+  if (parsed && parsed.prerelease.length === 0) {
+    provider.version = `~> ${parsed.major}.0`;
+  }
+
+  return hcl`terraform {
+  required_providers {
+    teleport = ${provider}
+  }
+}
+
+provider "teleport" {
+  addr = ${proxyAddr}
+}
+`;
 };
 
 const renderValue = (value: TFValue, indent: number): string => {
