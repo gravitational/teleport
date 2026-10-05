@@ -3039,6 +3039,425 @@ func (b0 IsSessionSearchEnabledResponse_builder) Build() *IsSessionSearchEnabled
 	return m0
 }
 
+// ClassifierRunStats is one (classifier evaluated, session) row.
+type ClassifierRunStats struct {
+	state                            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ClassifierName        string                 `protobuf:"bytes,1,opt,name=classifier_name,json=classifierName,proto3"`
+	xxx_hidden_Matched               bool                   `protobuf:"varint,2,opt,name=matched,proto3"`
+	xxx_hidden_Errored               bool                   `protobuf:"varint,3,opt,name=errored,proto3"`
+	xxx_hidden_MatchedEventCount     int32                  `protobuf:"varint,4,opt,name=matched_event_count,json=matchedEventCount,proto3"`
+	xxx_hidden_FlaggedForReview      bool                   `protobuf:"varint,5,opt,name=flagged_for_review,json=flaggedForReview,proto3"`
+	xxx_hidden_EmittedAuditEvent     bool                   `protobuf:"varint,6,opt,name=emitted_audit_event,json=emittedAuditEvent,proto3"`
+	xxx_hidden_AppliedRiskLevelFloor v1.RiskLevel           `protobuf:"varint,7,opt,name=applied_risk_level_floor,json=appliedRiskLevelFloor,proto3,enum=teleport.summarizer.v1.RiskLevel"`
+	xxx_hidden_RiskLevelAfter        v1.RiskLevel           `protobuf:"varint,9,opt,name=risk_level_after,json=riskLevelAfter,proto3,enum=teleport.summarizer.v1.RiskLevel"`
+	xxx_hidden_TokensIn              int64                  `protobuf:"varint,10,opt,name=tokens_in,json=tokensIn,proto3"`
+	xxx_hidden_TokensOut             int64                  `protobuf:"varint,11,opt,name=tokens_out,json=tokensOut,proto3"`
+	xxx_hidden_CacheReadTokens       int64                  `protobuf:"varint,12,opt,name=cache_read_tokens,json=cacheReadTokens,proto3"`
+	xxx_hidden_CacheWriteTokens      int64                  `protobuf:"varint,13,opt,name=cache_write_tokens,json=cacheWriteTokens,proto3"`
+	xxx_hidden_MatchedRules          []string               `protobuf:"bytes,14,rep,name=matched_rules,json=matchedRules,proto3"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
+}
+
+func (x *ClassifierRunStats) Reset() {
+	*x = ClassifierRunStats{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClassifierRunStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClassifierRunStats) ProtoMessage() {}
+
+func (x *ClassifierRunStats) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ClassifierRunStats) GetClassifierName() string {
+	if x != nil {
+		return x.xxx_hidden_ClassifierName
+	}
+	return ""
+}
+
+func (x *ClassifierRunStats) GetMatched() bool {
+	if x != nil {
+		return x.xxx_hidden_Matched
+	}
+	return false
+}
+
+func (x *ClassifierRunStats) GetErrored() bool {
+	if x != nil {
+		return x.xxx_hidden_Errored
+	}
+	return false
+}
+
+func (x *ClassifierRunStats) GetMatchedEventCount() int32 {
+	if x != nil {
+		return x.xxx_hidden_MatchedEventCount
+	}
+	return 0
+}
+
+func (x *ClassifierRunStats) GetFlaggedForReview() bool {
+	if x != nil {
+		return x.xxx_hidden_FlaggedForReview
+	}
+	return false
+}
+
+func (x *ClassifierRunStats) GetEmittedAuditEvent() bool {
+	if x != nil {
+		return x.xxx_hidden_EmittedAuditEvent
+	}
+	return false
+}
+
+func (x *ClassifierRunStats) GetAppliedRiskLevelFloor() v1.RiskLevel {
+	if x != nil {
+		return x.xxx_hidden_AppliedRiskLevelFloor
+	}
+	return v1.RiskLevel(0)
+}
+
+func (x *ClassifierRunStats) GetRiskLevelAfter() v1.RiskLevel {
+	if x != nil {
+		return x.xxx_hidden_RiskLevelAfter
+	}
+	return v1.RiskLevel(0)
+}
+
+func (x *ClassifierRunStats) GetTokensIn() int64 {
+	if x != nil {
+		return x.xxx_hidden_TokensIn
+	}
+	return 0
+}
+
+func (x *ClassifierRunStats) GetTokensOut() int64 {
+	if x != nil {
+		return x.xxx_hidden_TokensOut
+	}
+	return 0
+}
+
+func (x *ClassifierRunStats) GetCacheReadTokens() int64 {
+	if x != nil {
+		return x.xxx_hidden_CacheReadTokens
+	}
+	return 0
+}
+
+func (x *ClassifierRunStats) GetCacheWriteTokens() int64 {
+	if x != nil {
+		return x.xxx_hidden_CacheWriteTokens
+	}
+	return 0
+}
+
+func (x *ClassifierRunStats) GetMatchedRules() []string {
+	if x != nil {
+		return x.xxx_hidden_MatchedRules
+	}
+	return nil
+}
+
+func (x *ClassifierRunStats) SetClassifierName(v string) {
+	x.xxx_hidden_ClassifierName = v
+}
+
+func (x *ClassifierRunStats) SetMatched(v bool) {
+	x.xxx_hidden_Matched = v
+}
+
+func (x *ClassifierRunStats) SetErrored(v bool) {
+	x.xxx_hidden_Errored = v
+}
+
+func (x *ClassifierRunStats) SetMatchedEventCount(v int32) {
+	x.xxx_hidden_MatchedEventCount = v
+}
+
+func (x *ClassifierRunStats) SetFlaggedForReview(v bool) {
+	x.xxx_hidden_FlaggedForReview = v
+}
+
+func (x *ClassifierRunStats) SetEmittedAuditEvent(v bool) {
+	x.xxx_hidden_EmittedAuditEvent = v
+}
+
+func (x *ClassifierRunStats) SetAppliedRiskLevelFloor(v v1.RiskLevel) {
+	x.xxx_hidden_AppliedRiskLevelFloor = v
+}
+
+func (x *ClassifierRunStats) SetRiskLevelAfter(v v1.RiskLevel) {
+	x.xxx_hidden_RiskLevelAfter = v
+}
+
+func (x *ClassifierRunStats) SetTokensIn(v int64) {
+	x.xxx_hidden_TokensIn = v
+}
+
+func (x *ClassifierRunStats) SetTokensOut(v int64) {
+	x.xxx_hidden_TokensOut = v
+}
+
+func (x *ClassifierRunStats) SetCacheReadTokens(v int64) {
+	x.xxx_hidden_CacheReadTokens = v
+}
+
+func (x *ClassifierRunStats) SetCacheWriteTokens(v int64) {
+	x.xxx_hidden_CacheWriteTokens = v
+}
+
+func (x *ClassifierRunStats) SetMatchedRules(v []string) {
+	x.xxx_hidden_MatchedRules = v
+}
+
+type ClassifierRunStats_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// classifier_name identifies the evaluated classifier.
+	ClassifierName string
+	// matched indicates the classifier matched this session.
+	Matched bool
+	// errored indicates the classifier failed to evaluate.
+	Errored bool
+	// matched_event_count is the number of session events the classifier matched.
+	MatchedEventCount int32
+	// flagged_for_review indicates the classifier flagged the session for review.
+	FlaggedForReview bool
+	// emitted_audit_event indicates the classifier emitted an audit event.
+	EmittedAuditEvent bool
+	// applied_risk_level_floor is the minimum risk level the classifier enforced.
+	AppliedRiskLevelFloor v1.RiskLevel
+	// risk_level_after is the risk level produced by this classifier's own match actions,
+	// not the cumulative risk level across classifiers.
+	RiskLevelAfter v1.RiskLevel
+	// tokens_in is the prompt tokens consumed evaluating this classifier.
+	TokensIn int64
+	// tokens_out is the completion tokens produced evaluating this classifier.
+	TokensOut int64
+	// cache_read_tokens is the cache-read input tokens (for honest cost accounting).
+	CacheReadTokens int64
+	// cache_write_tokens is the cache-write input tokens.
+	CacheWriteTokens int64
+	// matched_rules are the names of rules whose refinements applied.
+	MatchedRules []string
+}
+
+func (b0 ClassifierRunStats_builder) Build() *ClassifierRunStats {
+	m0 := &ClassifierRunStats{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_ClassifierName = b.ClassifierName
+	x.xxx_hidden_Matched = b.Matched
+	x.xxx_hidden_Errored = b.Errored
+	x.xxx_hidden_MatchedEventCount = b.MatchedEventCount
+	x.xxx_hidden_FlaggedForReview = b.FlaggedForReview
+	x.xxx_hidden_EmittedAuditEvent = b.EmittedAuditEvent
+	x.xxx_hidden_AppliedRiskLevelFloor = b.AppliedRiskLevelFloor
+	x.xxx_hidden_RiskLevelAfter = b.RiskLevelAfter
+	x.xxx_hidden_TokensIn = b.TokensIn
+	x.xxx_hidden_TokensOut = b.TokensOut
+	x.xxx_hidden_CacheReadTokens = b.CacheReadTokens
+	x.xxx_hidden_CacheWriteTokens = b.CacheWriteTokens
+	x.xxx_hidden_MatchedRules = b.MatchedRules
+	return m0
+}
+
+// SessionEventStats records neutral observations from a command or desktop event.
+type SessionEventStats struct {
+	state                        protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_EventIndex        int32                  `protobuf:"varint,1,opt,name=event_index,json=eventIndex,proto3"`
+	xxx_hidden_Category          v1.CommandCategory     `protobuf:"varint,2,opt,name=category,proto3,enum=teleport.summarizer.v1.CommandCategory"`
+	xxx_hidden_MitreAttackTactic v1.ThreatCategory      `protobuf:"varint,3,opt,name=mitre_attack_tactic,json=mitreAttackTactic,proto3,enum=teleport.summarizer.v1.ThreatCategory"`
+	xxx_hidden_HasSensitiveData  bool                   `protobuf:"varint,4,opt,name=has_sensitive_data,json=hasSensitiveData,proto3"`
+	xxx_hidden_PrivilegeChange   bool                   `protobuf:"varint,5,opt,name=privilege_change,json=privilegeChange,proto3"`
+	xxx_hidden_ExternalTransfer  bool                   `protobuf:"varint,6,opt,name=external_transfer,json=externalTransfer,proto3"`
+	xxx_hidden_PersistentChange  bool                   `protobuf:"varint,7,opt,name=persistent_change,json=persistentChange,proto3"`
+	xxx_hidden_MitreAttackIds    []string               `protobuf:"bytes,8,rep,name=mitre_attack_ids,json=mitreAttackIds,proto3"`
+	xxx_hidden_ObservedEndpoints []string               `protobuf:"bytes,9,rep,name=observed_endpoints,json=observedEndpoints,proto3"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
+}
+
+func (x *SessionEventStats) Reset() {
+	*x = SessionEventStats{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionEventStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionEventStats) ProtoMessage() {}
+
+func (x *SessionEventStats) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *SessionEventStats) GetEventIndex() int32 {
+	if x != nil {
+		return x.xxx_hidden_EventIndex
+	}
+	return 0
+}
+
+func (x *SessionEventStats) GetCategory() v1.CommandCategory {
+	if x != nil {
+		return x.xxx_hidden_Category
+	}
+	return v1.CommandCategory(0)
+}
+
+func (x *SessionEventStats) GetMitreAttackTactic() v1.ThreatCategory {
+	if x != nil {
+		return x.xxx_hidden_MitreAttackTactic
+	}
+	return v1.ThreatCategory(0)
+}
+
+func (x *SessionEventStats) GetHasSensitiveData() bool {
+	if x != nil {
+		return x.xxx_hidden_HasSensitiveData
+	}
+	return false
+}
+
+func (x *SessionEventStats) GetPrivilegeChange() bool {
+	if x != nil {
+		return x.xxx_hidden_PrivilegeChange
+	}
+	return false
+}
+
+func (x *SessionEventStats) GetExternalTransfer() bool {
+	if x != nil {
+		return x.xxx_hidden_ExternalTransfer
+	}
+	return false
+}
+
+func (x *SessionEventStats) GetPersistentChange() bool {
+	if x != nil {
+		return x.xxx_hidden_PersistentChange
+	}
+	return false
+}
+
+func (x *SessionEventStats) GetMitreAttackIds() []string {
+	if x != nil {
+		return x.xxx_hidden_MitreAttackIds
+	}
+	return nil
+}
+
+func (x *SessionEventStats) GetObservedEndpoints() []string {
+	if x != nil {
+		return x.xxx_hidden_ObservedEndpoints
+	}
+	return nil
+}
+
+func (x *SessionEventStats) SetEventIndex(v int32) {
+	x.xxx_hidden_EventIndex = v
+}
+
+func (x *SessionEventStats) SetCategory(v v1.CommandCategory) {
+	x.xxx_hidden_Category = v
+}
+
+func (x *SessionEventStats) SetMitreAttackTactic(v v1.ThreatCategory) {
+	x.xxx_hidden_MitreAttackTactic = v
+}
+
+func (x *SessionEventStats) SetHasSensitiveData(v bool) {
+	x.xxx_hidden_HasSensitiveData = v
+}
+
+func (x *SessionEventStats) SetPrivilegeChange(v bool) {
+	x.xxx_hidden_PrivilegeChange = v
+}
+
+func (x *SessionEventStats) SetExternalTransfer(v bool) {
+	x.xxx_hidden_ExternalTransfer = v
+}
+
+func (x *SessionEventStats) SetPersistentChange(v bool) {
+	x.xxx_hidden_PersistentChange = v
+}
+
+func (x *SessionEventStats) SetMitreAttackIds(v []string) {
+	x.xxx_hidden_MitreAttackIds = v
+}
+
+func (x *SessionEventStats) SetObservedEndpoints(v []string) {
+	x.xxx_hidden_ObservedEndpoints = v
+}
+
+type SessionEventStats_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// event_index is the zero-based position in the summary's session_events.
+	EventIndex int32
+	// category is the category of the observed activity.
+	Category v1.CommandCategory
+	// mitre_attack_tactic describes the mechanics of the activity, not its intent.
+	MitreAttackTactic v1.ThreatCategory
+	// has_sensitive_data indicates sensitive data was accessed or observed.
+	HasSensitiveData bool
+	// privilege_change indicates a privilege level or boundary changed or a change was attempted.
+	PrivilegeChange bool
+	// external_transfer indicates data moved or was staged to move off the recorded host.
+	ExternalTransfer bool
+	// persistent_change indicates a change that outlives the session.
+	PersistentChange bool
+	// mitre_attack_ids are technique IDs matched by mechanics, irrespective of intent.
+	MitreAttackIds []string
+	// observed_endpoints are endpoints and artifact identifiers observed, irrespective of legitimacy.
+	ObservedEndpoints []string
+}
+
+func (b0 SessionEventStats_builder) Build() *SessionEventStats {
+	m0 := &SessionEventStats{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_EventIndex = b.EventIndex
+	x.xxx_hidden_Category = b.Category
+	x.xxx_hidden_MitreAttackTactic = b.MitreAttackTactic
+	x.xxx_hidden_HasSensitiveData = b.HasSensitiveData
+	x.xxx_hidden_PrivilegeChange = b.PrivilegeChange
+	x.xxx_hidden_ExternalTransfer = b.ExternalTransfer
+	x.xxx_hidden_PersistentChange = b.PersistentChange
+	x.xxx_hidden_MitreAttackIds = b.MitreAttackIds
+	x.xxx_hidden_ObservedEndpoints = b.ObservedEndpoints
+	return m0
+}
+
 // FetchMore is sent by the client to request the next batch of results
 // from an in-progress search.
 type SearchSessionSummariesRequest_FetchMore struct {
@@ -3050,7 +3469,7 @@ type SearchSessionSummariesRequest_FetchMore struct {
 
 func (x *SearchSessionSummariesRequest_FetchMore) Reset() {
 	*x = SearchSessionSummariesRequest_FetchMore{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[16]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3062,7 +3481,7 @@ func (x *SearchSessionSummariesRequest_FetchMore) String() string {
 func (*SearchSessionSummariesRequest_FetchMore) ProtoMessage() {}
 
 func (x *SearchSessionSummariesRequest_FetchMore) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[16]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3112,7 +3531,7 @@ type SearchSessionSummariesResponse_BatchComplete struct {
 
 func (x *SearchSessionSummariesResponse_BatchComplete) Reset() {
 	*x = SearchSessionSummariesResponse_BatchComplete{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[18]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3124,7 +3543,7 @@ func (x *SearchSessionSummariesResponse_BatchComplete) String() string {
 func (*SearchSessionSummariesResponse_BatchComplete) ProtoMessage() {}
 
 func (x *SearchSessionSummariesResponse_BatchComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[18]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3318,7 +3737,34 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\x1bStoreSessionSummaryResponse\"\x1f\n" +
 	"\x1dIsSessionSearchEnabledRequest\"o\n" +
 	"\x1eIsSessionSearchEnabledResponse\x12M\n" +
-	"\favailability\x18\x01 \x01(\x0e2).accessgraph.v1.SessionSearchAvailabilityR\favailability*\x7f\n" +
+	"\favailability\x18\x01 \x01(\x0e2).accessgraph.v1.SessionSearchAvailabilityR\favailability\"\xe3\x04\n" +
+	"\x12ClassifierRunStats\x12'\n" +
+	"\x0fclassifier_name\x18\x01 \x01(\tR\x0eclassifierName\x12\x18\n" +
+	"\amatched\x18\x02 \x01(\bR\amatched\x12\x18\n" +
+	"\aerrored\x18\x03 \x01(\bR\aerrored\x12.\n" +
+	"\x13matched_event_count\x18\x04 \x01(\x05R\x11matchedEventCount\x12,\n" +
+	"\x12flagged_for_review\x18\x05 \x01(\bR\x10flaggedForReview\x12.\n" +
+	"\x13emitted_audit_event\x18\x06 \x01(\bR\x11emittedAuditEvent\x12Z\n" +
+	"\x18applied_risk_level_floor\x18\a \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\x15appliedRiskLevelFloor\x12K\n" +
+	"\x10risk_level_after\x18\t \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\x0eriskLevelAfter\x12\x1b\n" +
+	"\ttokens_in\x18\n" +
+	" \x01(\x03R\btokensIn\x12\x1d\n" +
+	"\n" +
+	"tokens_out\x18\v \x01(\x03R\ttokensOut\x12*\n" +
+	"\x11cache_read_tokens\x18\f \x01(\x03R\x0fcacheReadTokens\x12,\n" +
+	"\x12cache_write_tokens\x18\r \x01(\x03R\x10cacheWriteTokens\x12#\n" +
+	"\rmatched_rules\x18\x0e \x03(\tR\fmatchedRules\"\xdd\x03\n" +
+	"\x11SessionEventStats\x12\x1f\n" +
+	"\vevent_index\x18\x01 \x01(\x05R\n" +
+	"eventIndex\x12C\n" +
+	"\bcategory\x18\x02 \x01(\x0e2'.teleport.summarizer.v1.CommandCategoryR\bcategory\x12V\n" +
+	"\x13mitre_attack_tactic\x18\x03 \x01(\x0e2&.teleport.summarizer.v1.ThreatCategoryR\x11mitreAttackTactic\x12,\n" +
+	"\x12has_sensitive_data\x18\x04 \x01(\bR\x10hasSensitiveData\x12)\n" +
+	"\x10privilege_change\x18\x05 \x01(\bR\x0fprivilegeChange\x12+\n" +
+	"\x11external_transfer\x18\x06 \x01(\bR\x10externalTransfer\x12+\n" +
+	"\x11persistent_change\x18\a \x01(\bR\x10persistentChange\x12(\n" +
+	"\x10mitre_attack_ids\x18\b \x03(\tR\x0emitreAttackIds\x12-\n" +
+	"\x12observed_endpoints\x18\t \x03(\tR\x11observedEndpoints*\x7f\n" +
 	"\n" +
 	"SearchMode\x12\x1b\n" +
 	"\x17SEARCH_MODE_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -3341,7 +3787,7 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\x16IsSessionSearchEnabled\x12-.accessgraph.v1.IsSessionSearchEnabledRequest\x1a..accessgraph.v1.IsSessionSearchEnabledResponseBMZKgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1;accessgraphv1b\x06proto3"
 
 var file_accessgraph_v1_session_search_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_accessgraph_v1_session_search_proto_goTypes = []any{
 	(SearchMode)(0),                                 // 0: accessgraph.v1.SearchMode
 	(DesktopType)(0),                                // 1: accessgraph.v1.DesktopType
@@ -3362,64 +3808,72 @@ var file_accessgraph_v1_session_search_proto_goTypes = []any{
 	(*StoreSessionSummaryResponse)(nil),             // 16: accessgraph.v1.StoreSessionSummaryResponse
 	(*IsSessionSearchEnabledRequest)(nil),           // 17: accessgraph.v1.IsSessionSearchEnabledRequest
 	(*IsSessionSearchEnabledResponse)(nil),          // 18: accessgraph.v1.IsSessionSearchEnabledResponse
-	(*SearchSessionSummariesRequest_FetchMore)(nil), // 19: accessgraph.v1.SearchSessionSummariesRequest.FetchMore
-	nil, // 20: accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
-	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 21: accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
-	nil,                           // 22: accessgraph.v1.SessionSummary.ResourceLabelsEntry
-	nil,                           // 23: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
-	(*timestamppb.Timestamp)(nil), // 24: google.protobuf.Timestamp
-	(v1.RiskLevel)(0),             // 25: teleport.summarizer.v1.RiskLevel
-	(v1.NeedsReviewReason)(0),     // 26: teleport.summarizer.v1.NeedsReviewReason
-	(*structpb.Struct)(nil),       // 27: google.protobuf.Struct
+	(*ClassifierRunStats)(nil),                      // 19: accessgraph.v1.ClassifierRunStats
+	(*SessionEventStats)(nil),                       // 20: accessgraph.v1.SessionEventStats
+	(*SearchSessionSummariesRequest_FetchMore)(nil), // 21: accessgraph.v1.SearchSessionSummariesRequest.FetchMore
+	nil, // 22: accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
+	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 23: accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	nil,                           // 24: accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	nil,                           // 25: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	(*timestamppb.Timestamp)(nil), // 26: google.protobuf.Timestamp
+	(v1.RiskLevel)(0),             // 27: teleport.summarizer.v1.RiskLevel
+	(v1.NeedsReviewReason)(0),     // 28: teleport.summarizer.v1.NeedsReviewReason
+	(*structpb.Struct)(nil),       // 29: google.protobuf.Struct
+	(v1.CommandCategory)(0),       // 30: teleport.summarizer.v1.CommandCategory
+	(v1.ThreatCategory)(0),        // 31: teleport.summarizer.v1.ThreatCategory
 }
 var file_accessgraph_v1_session_search_proto_depIdxs = []int32{
 	4,  // 0: accessgraph.v1.SearchSessionSummariesRequest.search_params:type_name -> accessgraph.v1.SearchSessionSummariesParams
-	19, // 1: accessgraph.v1.SearchSessionSummariesRequest.fetch_more:type_name -> accessgraph.v1.SearchSessionSummariesRequest.FetchMore
-	24, // 2: accessgraph.v1.SearchSessionSummariesParams.start_time:type_name -> google.protobuf.Timestamp
-	24, // 3: accessgraph.v1.SearchSessionSummariesParams.end_time:type_name -> google.protobuf.Timestamp
-	20, // 4: accessgraph.v1.SearchSessionSummariesParams.resource_labels:type_name -> accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
+	21, // 1: accessgraph.v1.SearchSessionSummariesRequest.fetch_more:type_name -> accessgraph.v1.SearchSessionSummariesRequest.FetchMore
+	26, // 2: accessgraph.v1.SearchSessionSummariesParams.start_time:type_name -> google.protobuf.Timestamp
+	26, // 3: accessgraph.v1.SearchSessionSummariesParams.end_time:type_name -> google.protobuf.Timestamp
+	22, // 4: accessgraph.v1.SearchSessionSummariesParams.resource_labels:type_name -> accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
 	6,  // 5: accessgraph.v1.SearchSessionSummariesParams.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	25, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	27, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
 	5,  // 7: accessgraph.v1.SearchSessionSummariesParams.search_queries:type_name -> accessgraph.v1.EmbeddedQuery
 	0,  // 8: accessgraph.v1.SearchSessionSummariesParams.search_mode:type_name -> accessgraph.v1.SearchMode
-	26, // 9: accessgraph.v1.SearchSessionSummariesParams.filter_needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	28, // 9: accessgraph.v1.SearchSessionSummariesParams.filter_needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
 	7,  // 10: accessgraph.v1.ResourceProperties.ssh:type_name -> accessgraph.v1.SSHProperties
 	8,  // 11: accessgraph.v1.ResourceProperties.kubernetes:type_name -> accessgraph.v1.KubernetesProperties
 	9,  // 12: accessgraph.v1.ResourceProperties.database:type_name -> accessgraph.v1.DatabaseProperties
 	10, // 13: accessgraph.v1.ResourceProperties.desktop:type_name -> accessgraph.v1.DesktopProperties
 	1,  // 14: accessgraph.v1.DesktopProperties.type:type_name -> accessgraph.v1.DesktopType
 	12, // 15: accessgraph.v1.SearchSessionSummariesResponse.summary:type_name -> accessgraph.v1.SummaryAndCheckpoint
-	21, // 16: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	23, // 16: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
 	13, // 17: accessgraph.v1.SummaryAndCheckpoint.summary:type_name -> accessgraph.v1.SessionSummary
-	24, // 18: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
-	27, // 19: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
-	22, // 20: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	26, // 18: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
+	29, // 19: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
+	24, // 20: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
 	6,  // 21: accessgraph.v1.SessionSummary.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	25, // 22: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	27, // 23: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
-	24, // 24: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
-	26, // 25: accessgraph.v1.SessionSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	24, // 26: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
-	24, // 27: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
-	27, // 28: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
-	23, // 29: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	27, // 22: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	29, // 23: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
+	26, // 24: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
+	28, // 25: accessgraph.v1.SessionSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	26, // 26: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
+	26, // 27: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
+	29, // 28: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
+	25, // 29: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
 	6,  // 30: accessgraph.v1.StoreSessionSummaryRequest.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	25, // 31: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	27, // 32: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
+	27, // 31: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	29, // 32: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
 	15, // 33: accessgraph.v1.StoreSessionSummaryRequest.embeddings:type_name -> accessgraph.v1.EmbeddingChunk
-	26, // 34: accessgraph.v1.StoreSessionSummaryRequest.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	28, // 34: accessgraph.v1.StoreSessionSummaryRequest.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
 	2,  // 35: accessgraph.v1.IsSessionSearchEnabledResponse.availability:type_name -> accessgraph.v1.SessionSearchAvailability
-	3,  // 36: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
-	14, // 37: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
-	17, // 38: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:input_type -> accessgraph.v1.IsSessionSearchEnabledRequest
-	11, // 39: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
-	16, // 40: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
-	18, // 41: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:output_type -> accessgraph.v1.IsSessionSearchEnabledResponse
-	39, // [39:42] is the sub-list for method output_type
-	36, // [36:39] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	27, // 36: accessgraph.v1.ClassifierRunStats.applied_risk_level_floor:type_name -> teleport.summarizer.v1.RiskLevel
+	27, // 37: accessgraph.v1.ClassifierRunStats.risk_level_after:type_name -> teleport.summarizer.v1.RiskLevel
+	30, // 38: accessgraph.v1.SessionEventStats.category:type_name -> teleport.summarizer.v1.CommandCategory
+	31, // 39: accessgraph.v1.SessionEventStats.mitre_attack_tactic:type_name -> teleport.summarizer.v1.ThreatCategory
+	3,  // 40: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
+	14, // 41: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
+	17, // 42: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:input_type -> accessgraph.v1.IsSessionSearchEnabledRequest
+	11, // 43: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
+	16, // 44: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
+	18, // 45: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:output_type -> accessgraph.v1.IsSessionSearchEnabledResponse
+	43, // [43:46] is the sub-list for method output_type
+	40, // [40:43] is the sub-list for method input_type
+	40, // [40:40] is the sub-list for extension type_name
+	40, // [40:40] is the sub-list for extension extendee
+	0,  // [0:40] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1_session_search_proto_init() }
@@ -3452,7 +3906,7 @@ func file_accessgraph_v1_session_search_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessgraph_v1_session_search_proto_rawDesc), len(file_accessgraph_v1_session_search_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   21,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

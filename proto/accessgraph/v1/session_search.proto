@@ -559,3 +559,56 @@ message IsSessionSearchEnabledResponse {
   // feature. UNSPECIFIED means the feature is available and ready.
   SessionSearchAvailability availability = 1;
 }
+
+// ClassifierRunStats is one (classifier evaluated, session) row.
+message ClassifierRunStats {
+  // classifier_name identifies the evaluated classifier.
+  string classifier_name = 1;
+  // matched indicates the classifier matched this session.
+  bool matched = 2;
+  // errored indicates the classifier failed to evaluate.
+  bool errored = 3;
+  // matched_event_count is the number of session events the classifier matched.
+  int32 matched_event_count = 4;
+  // flagged_for_review indicates the classifier flagged the session for review.
+  bool flagged_for_review = 5;
+  // emitted_audit_event indicates the classifier emitted an audit event.
+  bool emitted_audit_event = 6;
+  // applied_risk_level_floor is the minimum risk level the classifier enforced.
+  teleport.summarizer.v1.RiskLevel applied_risk_level_floor = 7;
+  // risk_level_after is the risk level produced by this classifier's own match actions,
+  // not the cumulative risk level across classifiers.
+  teleport.summarizer.v1.RiskLevel risk_level_after = 9;
+  // tokens_in is the prompt tokens consumed evaluating this classifier.
+  int64 tokens_in = 10;
+  // tokens_out is the completion tokens produced evaluating this classifier.
+  int64 tokens_out = 11;
+  // cache_read_tokens is the cache-read input tokens (for honest cost accounting).
+  int64 cache_read_tokens = 12;
+  // cache_write_tokens is the cache-write input tokens.
+  int64 cache_write_tokens = 13;
+  // matched_rules are the names of rules whose refinements applied.
+  repeated string matched_rules = 14;
+}
+
+// SessionEventStats records neutral observations from a command or desktop event.
+message SessionEventStats {
+  // event_index is the zero-based position in the summary's session_events.
+  int32 event_index = 1;
+  // category is the category of the observed activity.
+  teleport.summarizer.v1.CommandCategory category = 2;
+  // mitre_attack_tactic describes the mechanics of the activity, not its intent.
+  teleport.summarizer.v1.ThreatCategory mitre_attack_tactic = 3;
+  // has_sensitive_data indicates sensitive data was accessed or observed.
+  bool has_sensitive_data = 4;
+  // privilege_change indicates a privilege level or boundary changed or a change was attempted.
+  bool privilege_change = 5;
+  // external_transfer indicates data moved or was staged to move off the recorded host.
+  bool external_transfer = 6;
+  // persistent_change indicates a change that outlives the session.
+  bool persistent_change = 7;
+  // mitre_attack_ids are technique IDs matched by mechanics, irrespective of intent.
+  repeated string mitre_attack_ids = 8;
+  // observed_endpoints are endpoints and artifact identifiers observed, irrespective of legitimacy.
+  repeated string observed_endpoints = 9;
+}
