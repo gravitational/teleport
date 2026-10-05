@@ -245,7 +245,10 @@ func (b0 ProcessSAMLIdPRequestRequest_builder) Build() *ProcessSAMLIdPRequestReq
 type ProcessSAMLIdPRequestResponse struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// response is the SAML response.
-	Response      []byte `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
+	Response []byte `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
+	// ca_override holds the CA override details. Optional.
+	// If present then a CA override was active during signing of the response.
+	CaOverride    *proto.CAOverrideCertificateDetails `protobuf:"bytes,2,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -282,6 +285,13 @@ func (x *ProcessSAMLIdPRequestResponse) GetResponse() []byte {
 	return nil
 }
 
+func (x *ProcessSAMLIdPRequestResponse) GetCaOverride() *proto.CAOverrideCertificateDetails {
+	if x != nil {
+		return x.CaOverride
+	}
+	return nil
+}
+
 func (x *ProcessSAMLIdPRequestResponse) SetResponse(v []byte) {
 	if v == nil {
 		v = []byte{}
@@ -289,11 +299,29 @@ func (x *ProcessSAMLIdPRequestResponse) SetResponse(v []byte) {
 	x.Response = v
 }
 
+func (x *ProcessSAMLIdPRequestResponse) SetCaOverride(v *proto.CAOverrideCertificateDetails) {
+	x.CaOverride = v
+}
+
+func (x *ProcessSAMLIdPRequestResponse) HasCaOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaOverride != nil
+}
+
+func (x *ProcessSAMLIdPRequestResponse) ClearCaOverride() {
+	x.CaOverride = nil
+}
+
 type ProcessSAMLIdPRequestResponse_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	// response is the SAML response.
 	Response []byte
+	// ca_override holds the CA override details. Optional.
+	// If present then a CA override was active during signing of the response.
+	CaOverride *proto.CAOverrideCertificateDetails
 }
 
 func (b0 ProcessSAMLIdPRequestResponse_builder) Build() *ProcessSAMLIdPRequestResponse {
@@ -301,6 +329,7 @@ func (b0 ProcessSAMLIdPRequestResponse_builder) Build() *ProcessSAMLIdPRequestRe
 	b, x := &b0, m0
 	_, _ = b, x
 	x.Response = b.Response
+	x.CaOverride = b.CaOverride
 	return m0
 }
 
@@ -546,9 +575,11 @@ const file_teleport_samlidp_v1_samlidp_proto_rawDesc = "" +
 	"\x10signature_method\x18\x05 \x01(\tR\x0fsignatureMethod\x12\x1c\n" +
 	"\tassertion\x18\x06 \x01(\fR\tassertion\x12E\n" +
 	"\x1fservice_provider_sso_descriptor\x18\a \x01(\fR\x1cserviceProviderSsoDescriptor\x12A\n" +
-	"\fmfa_response\x18\b \x01(\v2\x1e.proto.MFAAuthenticateResponseR\vmfaResponse\";\n" +
+	"\fmfa_response\x18\b \x01(\v2\x1e.proto.MFAAuthenticateResponseR\vmfaResponse\"\x81\x01\n" +
 	"\x1dProcessSAMLIdPRequestResponse\x12\x1a\n" +
-	"\bresponse\x18\x01 \x01(\fR\bresponse\"\x95\x01\n" +
+	"\bresponse\x18\x01 \x01(\fR\bresponse\x12D\n" +
+	"\vca_override\x18\x02 \x01(\v2#.proto.CAOverrideCertificateDetailsR\n" +
+	"caOverride\"\x95\x01\n" +
 	"\"TestSAMLIdPAttributeMappingRequest\x12J\n" +
 	"\x10service_provider\x18\x01 \x01(\v2\x1f.types.SAMLIdPServiceProviderV1R\x0fserviceProvider\x12#\n" +
 	"\x05users\x18\x02 \x03(\v2\r.types.UserV2R\x05users\"x\n" +
@@ -574,27 +605,29 @@ var file_teleport_samlidp_v1_samlidp_proto_goTypes = []any{
 	nil,                                         // 5: teleport.samlidp.v1.MappedAttribute.MappedValuesEntry
 	(*timestamppb.Timestamp)(nil),               // 6: google.protobuf.Timestamp
 	(*proto.MFAAuthenticateResponse)(nil),       // 7: proto.MFAAuthenticateResponse
-	(*types.SAMLIdPServiceProviderV1)(nil),      // 8: types.SAMLIdPServiceProviderV1
-	(*types.UserV2)(nil),                        // 9: types.UserV2
-	(*wrappers.StringValues)(nil),               // 10: wrappers.StringValues
+	(*proto.CAOverrideCertificateDetails)(nil),  // 8: proto.CAOverrideCertificateDetails
+	(*types.SAMLIdPServiceProviderV1)(nil),      // 9: types.SAMLIdPServiceProviderV1
+	(*types.UserV2)(nil),                        // 10: types.UserV2
+	(*wrappers.StringValues)(nil),               // 11: wrappers.StringValues
 }
 var file_teleport_samlidp_v1_samlidp_proto_depIdxs = []int32{
 	6,  // 0: teleport.samlidp.v1.ProcessSAMLIdPRequestRequest.request_time:type_name -> google.protobuf.Timestamp
 	7,  // 1: teleport.samlidp.v1.ProcessSAMLIdPRequestRequest.mfa_response:type_name -> proto.MFAAuthenticateResponse
-	8,  // 2: teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest.service_provider:type_name -> types.SAMLIdPServiceProviderV1
-	9,  // 3: teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest.users:type_name -> types.UserV2
-	4,  // 4: teleport.samlidp.v1.TestSAMLIdPAttributeMappingResponse.mapped_attributes:type_name -> teleport.samlidp.v1.MappedAttribute
-	5,  // 5: teleport.samlidp.v1.MappedAttribute.mapped_values:type_name -> teleport.samlidp.v1.MappedAttribute.MappedValuesEntry
-	10, // 6: teleport.samlidp.v1.MappedAttribute.MappedValuesEntry.value:type_name -> wrappers.StringValues
-	0,  // 7: teleport.samlidp.v1.SAMLIdPService.ProcessSAMLIdPRequest:input_type -> teleport.samlidp.v1.ProcessSAMLIdPRequestRequest
-	2,  // 8: teleport.samlidp.v1.SAMLIdPService.TestSAMLIdPAttributeMapping:input_type -> teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest
-	1,  // 9: teleport.samlidp.v1.SAMLIdPService.ProcessSAMLIdPRequest:output_type -> teleport.samlidp.v1.ProcessSAMLIdPRequestResponse
-	3,  // 10: teleport.samlidp.v1.SAMLIdPService.TestSAMLIdPAttributeMapping:output_type -> teleport.samlidp.v1.TestSAMLIdPAttributeMappingResponse
-	9,  // [9:11] is the sub-list for method output_type
-	7,  // [7:9] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	8,  // 2: teleport.samlidp.v1.ProcessSAMLIdPRequestResponse.ca_override:type_name -> proto.CAOverrideCertificateDetails
+	9,  // 3: teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest.service_provider:type_name -> types.SAMLIdPServiceProviderV1
+	10, // 4: teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest.users:type_name -> types.UserV2
+	4,  // 5: teleport.samlidp.v1.TestSAMLIdPAttributeMappingResponse.mapped_attributes:type_name -> teleport.samlidp.v1.MappedAttribute
+	5,  // 6: teleport.samlidp.v1.MappedAttribute.mapped_values:type_name -> teleport.samlidp.v1.MappedAttribute.MappedValuesEntry
+	11, // 7: teleport.samlidp.v1.MappedAttribute.MappedValuesEntry.value:type_name -> wrappers.StringValues
+	0,  // 8: teleport.samlidp.v1.SAMLIdPService.ProcessSAMLIdPRequest:input_type -> teleport.samlidp.v1.ProcessSAMLIdPRequestRequest
+	2,  // 9: teleport.samlidp.v1.SAMLIdPService.TestSAMLIdPAttributeMapping:input_type -> teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest
+	1,  // 10: teleport.samlidp.v1.SAMLIdPService.ProcessSAMLIdPRequest:output_type -> teleport.samlidp.v1.ProcessSAMLIdPRequestResponse
+	3,  // 11: teleport.samlidp.v1.SAMLIdPService.TestSAMLIdPAttributeMapping:output_type -> teleport.samlidp.v1.TestSAMLIdPAttributeMappingResponse
+	10, // [10:12] is the sub-list for method output_type
+	8,  // [8:10] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_samlidp_v1_samlidp_proto_init() }

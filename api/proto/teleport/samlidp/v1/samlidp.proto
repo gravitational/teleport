@@ -48,6 +48,9 @@ message ProcessSAMLIdPRequestRequest {
 message ProcessSAMLIdPRequestResponse {
   // response is the SAML response.
   bytes response = 1;
+  // ca_override holds the CA override details. Optional.
+  // If present then a CA override was active during signing of the response.
+  proto.CAOverrideCertificateDetails ca_override = 2;
 }
 
 // SAMLIdPService provides utility methods for the SAML identity provider.
