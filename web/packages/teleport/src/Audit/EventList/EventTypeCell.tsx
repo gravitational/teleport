@@ -398,6 +398,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.RETRIEVAL_MODEL_CREATE]: Icons.Info,
   [eventCodes.RETRIEVAL_MODEL_UPDATE]: Icons.Info,
   [eventCodes.RETRIEVAL_MODEL_DELETE]: Icons.Info,
+  [eventCodes.CLASSIFIER_MATCHED]: Icons.Info,
   [eventCodes.CLASSIFIER_CREATE]: Icons.Info,
   [eventCodes.CLASSIFIER_CREATE_FAILURE]: Icons.Warning,
   [eventCodes.CLASSIFIER_UPDATE]: Icons.Info,

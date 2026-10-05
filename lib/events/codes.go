@@ -979,6 +979,8 @@ const (
 	ClassifierDeleteCode = "INF016I"
 	// ClassifierDeleteFailureCode is the classifier delete failure event code.
 	ClassifierDeleteFailureCode = "INF016E"
+	// ClassifierMatchedCode identifies a classifier match.
+	ClassifierMatchedCode = "INF017I"
 
 	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
 	CertAuthOverrideCreateCode = "TCO01I"

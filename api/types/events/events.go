@@ -3184,3 +3184,12 @@ func (m *ScopedTokenUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *ScopedTokenDelete) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
+
+// TrimToMaxSize implements AuditEvent.
+func (m *ClassifierMatched) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *ClassifierMatched) fieldTrimmer {
+		return fieldTrimmers{
+			newStrSliceTrimmer(m.MatchedRules, &out.MatchedRules),
+		}
+	})
+}

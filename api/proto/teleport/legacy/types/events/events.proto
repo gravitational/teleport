@@ -5783,6 +5783,7 @@ message OneOf {
     events.GitHTTPRequest GitHTTPRequest = 279;
     events.BeamDestroyed BeamDestroyed = 280;
     events.AppAccess AppAccess = 281;
+    events.ClassifierMatched ClassifierMatched = 282;
   }
 }
 
@@ -11619,4 +11620,47 @@ message AppSessionTargetDialDenied {
   // BlockedPrefix is the configured prefix that matched BlockedIP, when
   // denied_hosts caused the denial.
   string BlockedPrefix = 11 [(gogoproto.jsontag) = "blocked_prefix,omitempty"];
+}
+
+// ClassifierMatched is emitted when a session summary matches a classifier
+// configured to emit an audit event on match.
+message ClassifierMatched {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionType is the type of the session (ssh, k8s, db, desktop).
+  string SessionType = 3 [(gogoproto.jsontag) = "session_type,omitempty"];
+
+  // User is the user who initiated the session. It is embedded as in other
+  // session events so Athena indexes the event under that user.
+  UserMetadata User = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ClassifierName is the name of the classifier resource that matched.
+  string ClassifierName = 5 [(gogoproto.jsontag) = "classifier_name"];
+
+  // MatchedCommandCount is the number of analyzed commands that triggered the
+  // match. Zero for simple summaries, which carry no per-command analysis.
+  int32 MatchedCommandCount = 6 [(gogoproto.jsontag) = "matched_command_count,omitempty"];
+
+  // RiskLevelAfter is the risk level attributed to this classifier's match
+  // actions. Empty if no risk level is assigned, including for simple summaries.
+  string RiskLevelAfter = 7 [(gogoproto.jsontag) = "risk_level_after,omitempty"];
+
+  // MatchedRules are the classifier rules whose refinements applied.
+  repeated string MatchedRules = 8 [(gogoproto.jsontag) = "matched_rules,omitempty"];
 }

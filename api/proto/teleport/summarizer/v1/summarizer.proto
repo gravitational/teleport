@@ -261,6 +261,14 @@ message ClassifierMatch {
   // MatchedRules are the names of the classifier's rules that applied to this
   // match, if any.
   repeated string matched_rules = 4;
+  // ShortDescription is a concise label for the activity that triggered the match.
+  string short_description = 5;
+  // FlaggedForReview records whether this match requested further review.
+  bool flagged_for_review = 6;
+  // EmittedAuditEvent records whether this match requested an audit event.
+  bool emitted_audit_event = 7;
+  // AppliedRiskLevelFloor records the combined floor from the classifier and its matched rules.
+  RiskLevel applied_risk_level_floor = 8;
 }
 
 // SummaryState is the state of the summarization process.
@@ -321,6 +329,9 @@ message Summary {
   // TotalDuration is the full recording length, the denominator for progress.
   // May be unset.
   google.protobuf.Duration total_duration = 12;
+  // ClassificationErrors records incomplete classification independently of the
+  // summary format. Successful matches remain available alongside these errors.
+  repeated ClassificationError classification_errors = 13;
 }
 
 // The following enums and messages should be kept in sync with `e/lib/auth/summarizer/schema/command.go`
@@ -607,6 +618,8 @@ enum NeedsReviewReason {
   // NeedsReviewReasonClassifierMatched indicates that the session matched a
   // classifier configured to flag matching sessions for review.
   NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED = 6;
+  // ClassificationFailed indicates that classifier evaluation was incomplete.
+  NEEDS_REVIEW_REASON_CLASSIFICATION_FAILED = 7;
 }
 
 // RiskScoreReason represents a reason that contributed to the overall risk score of a session.
@@ -715,4 +728,13 @@ message RetrievalModelSpec {
   // language search queries into API requests and generate prose from a session
   // summary.
   string inference_model_name = 2;
+}
+
+// ClassificationError describes a failed part of session classification.
+message ClassificationError {
+  // ClassifierName identifies the classifier, or is empty for a failure that
+  // prevents evaluation of all classifiers, such as failing to load them.
+  string classifier_name = 1;
+  // ErrorMessage is a user-safe explanation, without raw provider responses.
+  string error_message = 2;
 }

@@ -647,6 +647,7 @@ func parseSeverity(s string) (summarizerv1pb.RiskLevel, error) {
 // NeedsReviewReason enum value.
 var reviewReasonNames = map[string]summarizerv1pb.NeedsReviewReason{
 	"access_request_resource_mismatch": summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH,
+	"classification_failed":            summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFICATION_FAILED,
 	"command_analysis_failed":          summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED,
 	"failed_to_fetch_access_request":   summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST,
 	"output_not_fully_captured":        summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED,

@@ -66,6 +66,26 @@ describe('formatRawEventForUI', () => {
 });
 
 describe('makeEvent', () => {
+  test('formats classifier matches and uses the backend event type for filtering', () => {
+    const input = {
+      code: eventCodes.CLASSIFIER_MATCHED,
+      event: 'classifier.matched',
+      time: '2026-01-01T00:00:00.000Z',
+      sid: 'session',
+      classifier_name: 'credentials',
+      matched_rules: ['production'],
+    };
+
+    const event = makeEvent(input);
+
+    expect(event.codeDesc).toBe('Classifier Matched');
+    expect(event.message).toBe(
+      'Session [session] matched classifier [credentials]'
+    );
+    expect(event.raw).toBe(input);
+    expect(formatters[eventCodes.CLASSIFIER_MATCHED].type).toBe(input.event);
+  });
+
   test.each([
     [
       eventCodes.SPIFFE_FEDERATION_CREATE,
