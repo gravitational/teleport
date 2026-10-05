@@ -75,6 +75,11 @@ type CAOverrideResolver struct {
 // LoadCAOverrideResolver may skip reading the CA override if other flags
 // disable the feature.
 //
+// If no CA override exists, or if caGetter does not support CA overrides (for
+// example, an older auth server without the SubCA service), the returned
+// resolver has no overrides and leaves the self-signed CA certificates
+// unchanged.
+//
 //   - caGetter a CA override source, likely a cached
 //     services.SubCAServiceGetter implementation.
 //   - isEnterpriseBuild should be set to `modules.Modules.IsEnterpriseBuild()`
@@ -96,8 +101,8 @@ func LoadCAOverrideResolver(
 			Observe(time.Since(start).Seconds())
 	}()
 
-	parsed, isNotFound, err := getParsedCAOverride(ctx, caGetter, id)
-	if isNotFound {
+	parsed, noOverride, err := getParsedCAOverride(ctx, caGetter, id)
+	if noOverride {
 		return &CAOverrideResolver{}, nil
 	}
 	if err != nil {
@@ -122,11 +127,11 @@ func getParsedCAOverride(
 	ctx context.Context,
 	caGetter CAOverrideGetter,
 	id types.CertAuthorityOverrideID,
-) (_ *ParsedCertAuthorityOverride, isNotFound bool, _ error) {
+) (_ *ParsedCertAuthorityOverride, noOverride bool, _ error) {
 	caOverride, err := caGetter.GetCertAuthorityOverride(ctx, id)
-	if trace.IsNotFound(err) {
-		isNotFound = true
-		return nil, isNotFound, nil
+	if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
+		noOverride = true
+		return nil, noOverride, nil
 	}
 	if err != nil {
 		return nil, false, trace.Wrap(err, "read CA override")
