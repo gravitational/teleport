@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -93,11 +92,22 @@ type ScopedTokensCommand struct {
 
 	// Stdout allows to switch the standard output source. Used in tests.
 	Stdout io.Writer
+
+	// now is to facilitate testing.
+	now func() time.Time
+}
+
+type ScopedTokensClient interface {
+	joinInstructionsClient
+	ListScopedTokens(context.Context, *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error)
+	DeleteScopedToken(context.Context, *joiningv1.DeleteScopedTokenRequest) error
+	CreateScopedToken(context.Context, *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error)
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (c *ScopedTokensCommand) initialize(scopedCmd *kingpin.CmdClause, stdout io.Writer) {
+func (c *ScopedTokensCommand) initialize(scopedCmd *kingpin.CmdClause, stdout io.Writer, now func() time.Time) {
 	c.Stdout = stdout
+	c.now = now
 
 	tokens := scopedCmd.Command("tokens", "List or revoke scoped invitation tokens")
 
@@ -130,7 +140,7 @@ func (c *ScopedTokensCommand) initialize(scopedCmd *kingpin.CmdClause, stdout io
 
 // TryRun attempts to run subcommands like like "scoped tokens ls".
 func (c *ScopedTokensCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client ScopedTokensClient) error
 	switch cmd {
 	case c.tokenAdd.FullCommand():
 		commandFunc = c.Add
@@ -152,7 +162,7 @@ func (c *ScopedTokensCommand) TryRun(ctx context.Context, cmd string, clientFunc
 }
 
 // Add is called to execute "scoped tokens add ..." command.
-func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client) error {
+func (c *ScopedTokensCommand) Add(ctx context.Context, client ScopedTokensClient) error {
 	// Parse string to see if it's a type of role that Teleport supports.
 	roles, err := types.ParseTeleportRoles(c.tokenType)
 	if err != nil {
@@ -197,7 +207,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		}
 	}
 
-	expires := time.Now().UTC().Add(c.ttl)
+	expires := c.now().UTC().Add(c.ttl)
 	tok := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
@@ -234,7 +244,6 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 	// Print token information formatted with JSON, YAML, or just print the raw token.
 	switch c.format {
 	case teleport.JSON, teleport.YAML:
-		expires := time.Now().Add(c.ttl)
 		tokenInfo := map[string]any{
 			"token":        token.String(),
 			"roles":        roles,
@@ -272,7 +281,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 }
 
 // Del is called to execute "scoped tokens del ..." command.
-func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client) error {
+func (c *ScopedTokensCommand) Del(ctx context.Context, client ScopedTokensClient) error {
 	if c.name == "" {
 		return trace.BadParameter("Need an argument: token")
 	}
@@ -300,7 +309,7 @@ func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client
 }
 
 // List is called to execute "tokens ls" command.
-func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Client) error {
+func (c *ScopedTokensCommand) List(ctx context.Context, client ScopedTokensClient) error {
 	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*joiningv1.ScopedToken, string, error) {
 		res, err := client.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
 			Limit:       uint32(pageSize),
@@ -345,7 +354,7 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 			fmt.Fprintln(c.Stdout, scopes.QualifiedName{Name: token.GetMetadata().GetName(), Scope: token.GetScope()}.String())
 		}
 	default:
-		fmt.Fprint(c.Stdout, resources.ScopedTokenTextHelper(tokens, c.withSecrets).String())
+		fmt.Fprint(c.Stdout, resources.ScopedTokenTextHelper(tokens, c.now(), c.withSecrets).String())
 	}
 	return nil
 }

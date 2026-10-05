@@ -968,7 +968,7 @@ func generateAgentValues(params valueGeneratorParams) ([]byte, error) {
 }
 
 type joinInstructionsInput struct {
-	client     *authclient.Client
+	client     joinInstructionsClient
 	roles      types.SystemRoles
 	out        io.Writer
 	token      string
@@ -979,6 +979,13 @@ type joinInstructionsInput struct {
 	dbURI      string
 	dbProtocol string
 	caPins     []string
+}
+
+type joinInstructionsClient interface {
+	ListAuthServers(context.Context, int, string) ([]types.Server, string, error)
+	GetAuthServers() ([]types.Server, error)
+	ListProxyServers(context.Context, int, string) ([]types.Server, string, error)
+	GetProxies() ([]types.Server, error)
 }
 
 func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
@@ -1093,7 +1100,7 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 
 // controlPlaneAddr gets the address of the cluster control plane for
 // agent joining, preferring the proxy public address.
-func controlPlaneAddr(ctx context.Context, client *authclient.Client, authAddr string) string {
+func controlPlaneAddr(ctx context.Context, client joinInstructionsClient, authAddr string) string {
 	proxies, err := clientutils.CollectWithFallback(ctx, client.ListProxyServers, func(context.Context) ([]types.Server, error) {
 		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		return client.GetProxies()
