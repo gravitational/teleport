@@ -104,6 +104,7 @@ PROTOS = \
 	teleport/autoupdate/v1/autoupdate.proto \
 	teleport/summarizer/v1/summarizer.proto \
 	teleport/accessmonitoringrules/v1/access_monitoring_rules.proto \
+	teleport/crownjewel/v1/crownjewel.proto \
 	teleport/scopes/joining/v1/token.proto \
 	teleport/scopes/access/v1/role.proto \
 	teleport/scopes/access/v1/assignment.proto

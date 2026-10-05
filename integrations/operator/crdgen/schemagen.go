@@ -519,6 +519,11 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	case field.TypeName() == ".types.CertExtensionType" || field.TypeName() == ".types.CertExtensionMode":
 		prop.Type = "integer"
 		prop.Format = "int32"
+	case field.TypeName() == ".google.protobuf.StringValue":
+		// StringValue is a well-known wrapper type. protojson represents it as
+		// a bare JSON string (or null), not as an object with a "value" field,
+		// so it must not go through the generic message treatment below.
+		prop.Type = "string"
 	case field.TypeName() == ".google.protobuf.Struct":
 		// This is a fairly special well-known type that should/can hold any
 		// JSON object. We can't know the structure ahead of time and there can

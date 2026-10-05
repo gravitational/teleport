@@ -284,6 +284,12 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			},
 		},
 		{
+			name: "CrownJewel",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+			},
+		},
+		{
 			name: "ScopedToken",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
