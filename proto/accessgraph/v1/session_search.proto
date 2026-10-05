@@ -31,6 +31,10 @@ option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/
 // the access graph and then applies its own access-control filtering before
 // returning results to end users.
 service SessionRecordingService {
+  // RecordSessionStats stores statistics from a completed summarization job.
+  // Re-sending a session overwrites its rows. This does not require embeddings.
+  rpc RecordSessionStats(RecordSessionStatsRequest) returns (RecordSessionStatsResponse);
+
   // SearchSessionSummaries establishes a bidirectional stream for batched
   // searching of session summaries.
   //
@@ -560,6 +564,75 @@ message IsSessionSearchEnabledResponse {
   SessionSearchAvailability availability = 1;
 }
 
+// RecordSessionStatsRequest carries the stats for a summarized session.
+message RecordSessionStatsRequest {
+  // session_id is the unique identifier of the summarized session (primary key).
+  string session_id = 1;
+  // occurred_at is the session timestamp; all time-bucketed stats key off it.
+  google.protobuf.Timestamp occurred_at = 2;
+  // kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
+  string kind = 3;
+  // cluster_name is the Teleport cluster the session belongs to.
+  string cluster_name = 4;
+  // user_name is the Teleport user who initiated the session.
+  string user_name = 5;
+  // host is the target host/resource the session accessed.
+  string host = 6;
+  // policy_name is the inference policy that governed summarization.
+  string policy_name = 7;
+  // model_name is the inference model used.
+  string model_name = 8;
+  // provider_model is the provider-specific model identifier.
+  string provider_model = 9;
+  // provider is the inference provider (e.g. "bedrock", "openai").
+  string provider = 10;
+  // eligible indicates the session was eligible for summarization.
+  bool eligible = 11;
+  // summarized indicates a summary was successfully produced.
+  bool summarized = 12;
+  // errored indicates summarization failed.
+  bool errored = 13;
+  // needs_review_reasons are the reasons this session was flagged for review.
+  repeated teleport.summarizer.v1.NeedsReviewReason needs_review_reasons = 14;
+  // risk_level is the overall risk level assigned by matching classifiers.
+  teleport.summarizer.v1.RiskLevel risk_level = 15;
+  // has_external_transfer indicates data moved or was staged to move off the recorded host.
+  bool has_external_transfer = 16;
+  // has_privilege_change indicates a privilege level or boundary changed or a change was attempted.
+  bool has_privilege_change = 17;
+  // has_persistent_change indicates a change outliving the session was observed.
+  bool has_persistent_change = 18;
+  // has_sensitive_data indicates access to sensitive data was detected.
+  bool has_sensitive_data = 19;
+  // latency_ms is the inference span in milliseconds.
+  int32 latency_ms = 20;
+  // run_duration_ms is elapsed job time through summary persistence, in
+  // milliseconds, including classification but excluding stats export and embedding.
+  int32 run_duration_ms = 21;
+  // total_duration_ms is the recording length in milliseconds.
+  int64 total_duration_ms = 22;
+  // tokens_in is the total prompt tokens consumed by summarization, excluding classification.
+  int64 tokens_in = 23;
+  // tokens_out is the total completion tokens produced by summarization, excluding classification.
+  int64 tokens_out = 24;
+  // matched_classifiers are the names of classifiers that matched - a
+  // denormalized rollup of the matched classifier_runs for single-table faceting.
+  repeated string matched_classifiers = 25;
+  // mitre_attack_tactics are the distinct MITRE tactics matched by activity mechanics (rollup).
+  repeated teleport.summarizer.v1.ThreatCategory mitre_attack_tactics = 26;
+  // mitre_attack_ids are the distinct MITRE ATT&CK technique IDs observed (rollup).
+  repeated string mitre_attack_ids = 27;
+  // observed_endpoints are the distinct endpoints and artifact identifiers observed (rollup).
+  repeated string observed_endpoints = 28;
+  // session_end_event is the raw session-end audit event, stored as-is so the
+  // Auth server can RBAC-filter the recordings listing without the audit log.
+  google.protobuf.Struct session_end_event = 29;
+  // classifiers are the per-classifier evaluation rows for this session.
+  repeated ClassifierRunStats classifiers = 30;
+  // session_events are the per-analyzed-event rows for this session.
+  repeated SessionEventStats session_events = 31;
+}
+
 // ClassifierRunStats is one (classifier evaluated, session) row.
 message ClassifierRunStats {
   // classifier_name identifies the evaluated classifier.
@@ -612,3 +685,6 @@ message SessionEventStats {
   // observed_endpoints are endpoints and artifact identifiers observed, irrespective of legitimacy.
   repeated string observed_endpoints = 9;
 }
+
+// RecordSessionStatsResponse is returned after stats are recorded.
+message RecordSessionStatsResponse {}

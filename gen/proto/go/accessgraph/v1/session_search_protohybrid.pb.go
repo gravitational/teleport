@@ -3107,6 +3107,574 @@ func (b0 IsSessionSearchEnabledResponse_builder) Build() *IsSessionSearchEnabled
 	return m0
 }
 
+// RecordSessionStatsRequest carries the stats for a summarized session.
+type RecordSessionStatsRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// session_id is the unique identifier of the summarized session (primary key).
+	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// occurred_at is the session timestamp; all time-bucketed stats key off it.
+	OccurredAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	// kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
+	Kind string `protobuf:"bytes,3,opt,name=kind,proto3" json:"kind,omitempty"`
+	// cluster_name is the Teleport cluster the session belongs to.
+	ClusterName string `protobuf:"bytes,4,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	// user_name is the Teleport user who initiated the session.
+	UserName string `protobuf:"bytes,5,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	// host is the target host/resource the session accessed.
+	Host string `protobuf:"bytes,6,opt,name=host,proto3" json:"host,omitempty"`
+	// policy_name is the inference policy that governed summarization.
+	PolicyName string `protobuf:"bytes,7,opt,name=policy_name,json=policyName,proto3" json:"policy_name,omitempty"`
+	// model_name is the inference model used.
+	ModelName string `protobuf:"bytes,8,opt,name=model_name,json=modelName,proto3" json:"model_name,omitempty"`
+	// provider_model is the provider-specific model identifier.
+	ProviderModel string `protobuf:"bytes,9,opt,name=provider_model,json=providerModel,proto3" json:"provider_model,omitempty"`
+	// provider is the inference provider (e.g. "bedrock", "openai").
+	Provider string `protobuf:"bytes,10,opt,name=provider,proto3" json:"provider,omitempty"`
+	// eligible indicates the session was eligible for summarization.
+	Eligible bool `protobuf:"varint,11,opt,name=eligible,proto3" json:"eligible,omitempty"`
+	// summarized indicates a summary was successfully produced.
+	Summarized bool `protobuf:"varint,12,opt,name=summarized,proto3" json:"summarized,omitempty"`
+	// errored indicates summarization failed.
+	Errored bool `protobuf:"varint,13,opt,name=errored,proto3" json:"errored,omitempty"`
+	// needs_review_reasons are the reasons this session was flagged for review.
+	NeedsReviewReasons []v1.NeedsReviewReason `protobuf:"varint,14,rep,packed,name=needs_review_reasons,json=needsReviewReasons,proto3,enum=teleport.summarizer.v1.NeedsReviewReason" json:"needs_review_reasons,omitempty"`
+	// risk_level is the overall risk level assigned by matching classifiers.
+	RiskLevel v1.RiskLevel `protobuf:"varint,15,opt,name=risk_level,json=riskLevel,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"risk_level,omitempty"`
+	// has_external_transfer indicates data moved or was staged to move off the recorded host.
+	HasExternalTransfer bool `protobuf:"varint,16,opt,name=has_external_transfer,json=hasExternalTransfer,proto3" json:"has_external_transfer,omitempty"`
+	// has_privilege_change indicates a privilege level or boundary changed or a change was attempted.
+	HasPrivilegeChange bool `protobuf:"varint,17,opt,name=has_privilege_change,json=hasPrivilegeChange,proto3" json:"has_privilege_change,omitempty"`
+	// has_persistent_change indicates a change outliving the session was observed.
+	HasPersistentChange bool `protobuf:"varint,18,opt,name=has_persistent_change,json=hasPersistentChange,proto3" json:"has_persistent_change,omitempty"`
+	// has_sensitive_data indicates access to sensitive data was detected.
+	HasSensitiveData bool `protobuf:"varint,19,opt,name=has_sensitive_data,json=hasSensitiveData,proto3" json:"has_sensitive_data,omitempty"`
+	// latency_ms is the inference span in milliseconds.
+	LatencyMs int32 `protobuf:"varint,20,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`
+	// run_duration_ms is elapsed job time through summary persistence, in
+	// milliseconds, including classification but excluding stats export and embedding.
+	RunDurationMs int32 `protobuf:"varint,21,opt,name=run_duration_ms,json=runDurationMs,proto3" json:"run_duration_ms,omitempty"`
+	// total_duration_ms is the recording length in milliseconds.
+	TotalDurationMs int64 `protobuf:"varint,22,opt,name=total_duration_ms,json=totalDurationMs,proto3" json:"total_duration_ms,omitempty"`
+	// tokens_in is the total prompt tokens consumed by summarization, excluding classification.
+	TokensIn int64 `protobuf:"varint,23,opt,name=tokens_in,json=tokensIn,proto3" json:"tokens_in,omitempty"`
+	// tokens_out is the total completion tokens produced by summarization, excluding classification.
+	TokensOut int64 `protobuf:"varint,24,opt,name=tokens_out,json=tokensOut,proto3" json:"tokens_out,omitempty"`
+	// matched_classifiers are the names of classifiers that matched - a
+	// denormalized rollup of the matched classifier_runs for single-table faceting.
+	MatchedClassifiers []string `protobuf:"bytes,25,rep,name=matched_classifiers,json=matchedClassifiers,proto3" json:"matched_classifiers,omitempty"`
+	// mitre_attack_tactics are the distinct MITRE tactics matched by activity mechanics (rollup).
+	MitreAttackTactics []v1.ThreatCategory `protobuf:"varint,26,rep,packed,name=mitre_attack_tactics,json=mitreAttackTactics,proto3,enum=teleport.summarizer.v1.ThreatCategory" json:"mitre_attack_tactics,omitempty"`
+	// mitre_attack_ids are the distinct MITRE ATT&CK technique IDs observed (rollup).
+	MitreAttackIds []string `protobuf:"bytes,27,rep,name=mitre_attack_ids,json=mitreAttackIds,proto3" json:"mitre_attack_ids,omitempty"`
+	// observed_endpoints are the distinct endpoints and artifact identifiers observed (rollup).
+	ObservedEndpoints []string `protobuf:"bytes,28,rep,name=observed_endpoints,json=observedEndpoints,proto3" json:"observed_endpoints,omitempty"`
+	// session_end_event is the raw session-end audit event, stored as-is so the
+	// Auth server can RBAC-filter the recordings listing without the audit log.
+	SessionEndEvent *structpb.Struct `protobuf:"bytes,29,opt,name=session_end_event,json=sessionEndEvent,proto3" json:"session_end_event,omitempty"`
+	// classifiers are the per-classifier evaluation rows for this session.
+	Classifiers []*ClassifierRunStats `protobuf:"bytes,30,rep,name=classifiers,proto3" json:"classifiers,omitempty"`
+	// session_events are the per-analyzed-event rows for this session.
+	SessionEvents []*SessionEventStats `protobuf:"bytes,31,rep,name=session_events,json=sessionEvents,proto3" json:"session_events,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordSessionStatsRequest) Reset() {
+	*x = RecordSessionStatsRequest{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordSessionStatsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordSessionStatsRequest) ProtoMessage() {}
+
+func (x *RecordSessionStatsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RecordSessionStatsRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *RecordSessionStatsRequest) GetOccurredAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.OccurredAt
+	}
+	return nil
+}
+
+func (x *RecordSessionStatsRequest) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *RecordSessionStatsRequest) GetClusterName() string {
+	if x != nil {
+		return x.ClusterName
+	}
+	return ""
+}
+
+func (x *RecordSessionStatsRequest) GetUserName() string {
+	if x != nil {
+		return x.UserName
+	}
+	return ""
+}
+
+func (x *RecordSessionStatsRequest) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *RecordSessionStatsRequest) GetPolicyName() string {
+	if x != nil {
+		return x.PolicyName
+	}
+	return ""
+}
+
+func (x *RecordSessionStatsRequest) GetModelName() string {
+	if x != nil {
+		return x.ModelName
+	}
+	return ""
+}
+
+func (x *RecordSessionStatsRequest) GetProviderModel() string {
+	if x != nil {
+		return x.ProviderModel
+	}
+	return ""
+}
+
+func (x *RecordSessionStatsRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *RecordSessionStatsRequest) GetEligible() bool {
+	if x != nil {
+		return x.Eligible
+	}
+	return false
+}
+
+func (x *RecordSessionStatsRequest) GetSummarized() bool {
+	if x != nil {
+		return x.Summarized
+	}
+	return false
+}
+
+func (x *RecordSessionStatsRequest) GetErrored() bool {
+	if x != nil {
+		return x.Errored
+	}
+	return false
+}
+
+func (x *RecordSessionStatsRequest) GetNeedsReviewReasons() []v1.NeedsReviewReason {
+	if x != nil {
+		return x.NeedsReviewReasons
+	}
+	return nil
+}
+
+func (x *RecordSessionStatsRequest) GetRiskLevel() v1.RiskLevel {
+	if x != nil {
+		return x.RiskLevel
+	}
+	return v1.RiskLevel(0)
+}
+
+func (x *RecordSessionStatsRequest) GetHasExternalTransfer() bool {
+	if x != nil {
+		return x.HasExternalTransfer
+	}
+	return false
+}
+
+func (x *RecordSessionStatsRequest) GetHasPrivilegeChange() bool {
+	if x != nil {
+		return x.HasPrivilegeChange
+	}
+	return false
+}
+
+func (x *RecordSessionStatsRequest) GetHasPersistentChange() bool {
+	if x != nil {
+		return x.HasPersistentChange
+	}
+	return false
+}
+
+func (x *RecordSessionStatsRequest) GetHasSensitiveData() bool {
+	if x != nil {
+		return x.HasSensitiveData
+	}
+	return false
+}
+
+func (x *RecordSessionStatsRequest) GetLatencyMs() int32 {
+	if x != nil {
+		return x.LatencyMs
+	}
+	return 0
+}
+
+func (x *RecordSessionStatsRequest) GetRunDurationMs() int32 {
+	if x != nil {
+		return x.RunDurationMs
+	}
+	return 0
+}
+
+func (x *RecordSessionStatsRequest) GetTotalDurationMs() int64 {
+	if x != nil {
+		return x.TotalDurationMs
+	}
+	return 0
+}
+
+func (x *RecordSessionStatsRequest) GetTokensIn() int64 {
+	if x != nil {
+		return x.TokensIn
+	}
+	return 0
+}
+
+func (x *RecordSessionStatsRequest) GetTokensOut() int64 {
+	if x != nil {
+		return x.TokensOut
+	}
+	return 0
+}
+
+func (x *RecordSessionStatsRequest) GetMatchedClassifiers() []string {
+	if x != nil {
+		return x.MatchedClassifiers
+	}
+	return nil
+}
+
+func (x *RecordSessionStatsRequest) GetMitreAttackTactics() []v1.ThreatCategory {
+	if x != nil {
+		return x.MitreAttackTactics
+	}
+	return nil
+}
+
+func (x *RecordSessionStatsRequest) GetMitreAttackIds() []string {
+	if x != nil {
+		return x.MitreAttackIds
+	}
+	return nil
+}
+
+func (x *RecordSessionStatsRequest) GetObservedEndpoints() []string {
+	if x != nil {
+		return x.ObservedEndpoints
+	}
+	return nil
+}
+
+func (x *RecordSessionStatsRequest) GetSessionEndEvent() *structpb.Struct {
+	if x != nil {
+		return x.SessionEndEvent
+	}
+	return nil
+}
+
+func (x *RecordSessionStatsRequest) GetClassifiers() []*ClassifierRunStats {
+	if x != nil {
+		return x.Classifiers
+	}
+	return nil
+}
+
+func (x *RecordSessionStatsRequest) GetSessionEvents() []*SessionEventStats {
+	if x != nil {
+		return x.SessionEvents
+	}
+	return nil
+}
+
+func (x *RecordSessionStatsRequest) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *RecordSessionStatsRequest) SetOccurredAt(v *timestamppb.Timestamp) {
+	x.OccurredAt = v
+}
+
+func (x *RecordSessionStatsRequest) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *RecordSessionStatsRequest) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *RecordSessionStatsRequest) SetUserName(v string) {
+	x.UserName = v
+}
+
+func (x *RecordSessionStatsRequest) SetHost(v string) {
+	x.Host = v
+}
+
+func (x *RecordSessionStatsRequest) SetPolicyName(v string) {
+	x.PolicyName = v
+}
+
+func (x *RecordSessionStatsRequest) SetModelName(v string) {
+	x.ModelName = v
+}
+
+func (x *RecordSessionStatsRequest) SetProviderModel(v string) {
+	x.ProviderModel = v
+}
+
+func (x *RecordSessionStatsRequest) SetProvider(v string) {
+	x.Provider = v
+}
+
+func (x *RecordSessionStatsRequest) SetEligible(v bool) {
+	x.Eligible = v
+}
+
+func (x *RecordSessionStatsRequest) SetSummarized(v bool) {
+	x.Summarized = v
+}
+
+func (x *RecordSessionStatsRequest) SetErrored(v bool) {
+	x.Errored = v
+}
+
+func (x *RecordSessionStatsRequest) SetNeedsReviewReasons(v []v1.NeedsReviewReason) {
+	x.NeedsReviewReasons = v
+}
+
+func (x *RecordSessionStatsRequest) SetRiskLevel(v v1.RiskLevel) {
+	x.RiskLevel = v
+}
+
+func (x *RecordSessionStatsRequest) SetHasExternalTransfer(v bool) {
+	x.HasExternalTransfer = v
+}
+
+func (x *RecordSessionStatsRequest) SetHasPrivilegeChange(v bool) {
+	x.HasPrivilegeChange = v
+}
+
+func (x *RecordSessionStatsRequest) SetHasPersistentChange(v bool) {
+	x.HasPersistentChange = v
+}
+
+func (x *RecordSessionStatsRequest) SetHasSensitiveData(v bool) {
+	x.HasSensitiveData = v
+}
+
+func (x *RecordSessionStatsRequest) SetLatencyMs(v int32) {
+	x.LatencyMs = v
+}
+
+func (x *RecordSessionStatsRequest) SetRunDurationMs(v int32) {
+	x.RunDurationMs = v
+}
+
+func (x *RecordSessionStatsRequest) SetTotalDurationMs(v int64) {
+	x.TotalDurationMs = v
+}
+
+func (x *RecordSessionStatsRequest) SetTokensIn(v int64) {
+	x.TokensIn = v
+}
+
+func (x *RecordSessionStatsRequest) SetTokensOut(v int64) {
+	x.TokensOut = v
+}
+
+func (x *RecordSessionStatsRequest) SetMatchedClassifiers(v []string) {
+	x.MatchedClassifiers = v
+}
+
+func (x *RecordSessionStatsRequest) SetMitreAttackTactics(v []v1.ThreatCategory) {
+	x.MitreAttackTactics = v
+}
+
+func (x *RecordSessionStatsRequest) SetMitreAttackIds(v []string) {
+	x.MitreAttackIds = v
+}
+
+func (x *RecordSessionStatsRequest) SetObservedEndpoints(v []string) {
+	x.ObservedEndpoints = v
+}
+
+func (x *RecordSessionStatsRequest) SetSessionEndEvent(v *structpb.Struct) {
+	x.SessionEndEvent = v
+}
+
+func (x *RecordSessionStatsRequest) SetClassifiers(v []*ClassifierRunStats) {
+	x.Classifiers = v
+}
+
+func (x *RecordSessionStatsRequest) SetSessionEvents(v []*SessionEventStats) {
+	x.SessionEvents = v
+}
+
+func (x *RecordSessionStatsRequest) HasOccurredAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.OccurredAt != nil
+}
+
+func (x *RecordSessionStatsRequest) HasSessionEndEvent() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionEndEvent != nil
+}
+
+func (x *RecordSessionStatsRequest) ClearOccurredAt() {
+	x.OccurredAt = nil
+}
+
+func (x *RecordSessionStatsRequest) ClearSessionEndEvent() {
+	x.SessionEndEvent = nil
+}
+
+type RecordSessionStatsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// session_id is the unique identifier of the summarized session (primary key).
+	SessionId string
+	// occurred_at is the session timestamp; all time-bucketed stats key off it.
+	OccurredAt *timestamppb.Timestamp
+	// kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
+	Kind string
+	// cluster_name is the Teleport cluster the session belongs to.
+	ClusterName string
+	// user_name is the Teleport user who initiated the session.
+	UserName string
+	// host is the target host/resource the session accessed.
+	Host string
+	// policy_name is the inference policy that governed summarization.
+	PolicyName string
+	// model_name is the inference model used.
+	ModelName string
+	// provider_model is the provider-specific model identifier.
+	ProviderModel string
+	// provider is the inference provider (e.g. "bedrock", "openai").
+	Provider string
+	// eligible indicates the session was eligible for summarization.
+	Eligible bool
+	// summarized indicates a summary was successfully produced.
+	Summarized bool
+	// errored indicates summarization failed.
+	Errored bool
+	// needs_review_reasons are the reasons this session was flagged for review.
+	NeedsReviewReasons []v1.NeedsReviewReason
+	// risk_level is the overall risk level assigned by matching classifiers.
+	RiskLevel v1.RiskLevel
+	// has_external_transfer indicates data moved or was staged to move off the recorded host.
+	HasExternalTransfer bool
+	// has_privilege_change indicates a privilege level or boundary changed or a change was attempted.
+	HasPrivilegeChange bool
+	// has_persistent_change indicates a change outliving the session was observed.
+	HasPersistentChange bool
+	// has_sensitive_data indicates access to sensitive data was detected.
+	HasSensitiveData bool
+	// latency_ms is the inference span in milliseconds.
+	LatencyMs int32
+	// run_duration_ms is elapsed job time through summary persistence, in
+	// milliseconds, including classification but excluding stats export and embedding.
+	RunDurationMs int32
+	// total_duration_ms is the recording length in milliseconds.
+	TotalDurationMs int64
+	// tokens_in is the total prompt tokens consumed by summarization, excluding classification.
+	TokensIn int64
+	// tokens_out is the total completion tokens produced by summarization, excluding classification.
+	TokensOut int64
+	// matched_classifiers are the names of classifiers that matched - a
+	// denormalized rollup of the matched classifier_runs for single-table faceting.
+	MatchedClassifiers []string
+	// mitre_attack_tactics are the distinct MITRE tactics matched by activity mechanics (rollup).
+	MitreAttackTactics []v1.ThreatCategory
+	// mitre_attack_ids are the distinct MITRE ATT&CK technique IDs observed (rollup).
+	MitreAttackIds []string
+	// observed_endpoints are the distinct endpoints and artifact identifiers observed (rollup).
+	ObservedEndpoints []string
+	// session_end_event is the raw session-end audit event, stored as-is so the
+	// Auth server can RBAC-filter the recordings listing without the audit log.
+	SessionEndEvent *structpb.Struct
+	// classifiers are the per-classifier evaluation rows for this session.
+	Classifiers []*ClassifierRunStats
+	// session_events are the per-analyzed-event rows for this session.
+	SessionEvents []*SessionEventStats
+}
+
+func (b0 RecordSessionStatsRequest_builder) Build() *RecordSessionStatsRequest {
+	m0 := &RecordSessionStatsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	x.OccurredAt = b.OccurredAt
+	x.Kind = b.Kind
+	x.ClusterName = b.ClusterName
+	x.UserName = b.UserName
+	x.Host = b.Host
+	x.PolicyName = b.PolicyName
+	x.ModelName = b.ModelName
+	x.ProviderModel = b.ProviderModel
+	x.Provider = b.Provider
+	x.Eligible = b.Eligible
+	x.Summarized = b.Summarized
+	x.Errored = b.Errored
+	x.NeedsReviewReasons = b.NeedsReviewReasons
+	x.RiskLevel = b.RiskLevel
+	x.HasExternalTransfer = b.HasExternalTransfer
+	x.HasPrivilegeChange = b.HasPrivilegeChange
+	x.HasPersistentChange = b.HasPersistentChange
+	x.HasSensitiveData = b.HasSensitiveData
+	x.LatencyMs = b.LatencyMs
+	x.RunDurationMs = b.RunDurationMs
+	x.TotalDurationMs = b.TotalDurationMs
+	x.TokensIn = b.TokensIn
+	x.TokensOut = b.TokensOut
+	x.MatchedClassifiers = b.MatchedClassifiers
+	x.MitreAttackTactics = b.MitreAttackTactics
+	x.MitreAttackIds = b.MitreAttackIds
+	x.ObservedEndpoints = b.ObservedEndpoints
+	x.SessionEndEvent = b.SessionEndEvent
+	x.Classifiers = b.Classifiers
+	x.SessionEvents = b.SessionEvents
+	return m0
+}
+
 // ClassifierRunStats is one (classifier evaluated, session) row.
 type ClassifierRunStats struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -3143,7 +3711,7 @@ type ClassifierRunStats struct {
 
 func (x *ClassifierRunStats) Reset() {
 	*x = ClassifierRunStats{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[16]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3155,7 +3723,7 @@ func (x *ClassifierRunStats) String() string {
 func (*ClassifierRunStats) ProtoMessage() {}
 
 func (x *ClassifierRunStats) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[16]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3388,7 +3956,7 @@ type SessionEventStats struct {
 
 func (x *SessionEventStats) Reset() {
 	*x = SessionEventStats{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[17]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3400,7 +3968,7 @@ func (x *SessionEventStats) String() string {
 func (*SessionEventStats) ProtoMessage() {}
 
 func (x *SessionEventStats) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[17]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3549,6 +4117,50 @@ func (b0 SessionEventStats_builder) Build() *SessionEventStats {
 	return m0
 }
 
+// RecordSessionStatsResponse is returned after stats are recorded.
+type RecordSessionStatsResponse struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordSessionStatsResponse) Reset() {
+	*x = RecordSessionStatsResponse{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordSessionStatsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordSessionStatsResponse) ProtoMessage() {}
+
+func (x *RecordSessionStatsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type RecordSessionStatsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RecordSessionStatsResponse_builder) Build() *RecordSessionStatsResponse {
+	m0 := &RecordSessionStatsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 // FetchMore is sent by the client to request the next batch of results
 // from an in-progress search.
 type SearchSessionSummariesRequest_FetchMore struct {
@@ -3563,7 +4175,7 @@ type SearchSessionSummariesRequest_FetchMore struct {
 
 func (x *SearchSessionSummariesRequest_FetchMore) Reset() {
 	*x = SearchSessionSummariesRequest_FetchMore{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[18]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3575,7 +4187,7 @@ func (x *SearchSessionSummariesRequest_FetchMore) String() string {
 func (*SearchSessionSummariesRequest_FetchMore) ProtoMessage() {}
 
 func (x *SearchSessionSummariesRequest_FetchMore) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[18]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3627,7 +4239,7 @@ type SearchSessionSummariesResponse_BatchComplete struct {
 
 func (x *SearchSessionSummariesResponse_BatchComplete) Reset() {
 	*x = SearchSessionSummariesResponse_BatchComplete{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[20]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3639,7 +4251,7 @@ func (x *SearchSessionSummariesResponse_BatchComplete) String() string {
 func (*SearchSessionSummariesResponse_BatchComplete) ProtoMessage() {}
 
 func (x *SearchSessionSummariesResponse_BatchComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[20]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3833,7 +4445,49 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\x1bStoreSessionSummaryResponse\"\x1f\n" +
 	"\x1dIsSessionSearchEnabledRequest\"o\n" +
 	"\x1eIsSessionSearchEnabledResponse\x12M\n" +
-	"\favailability\x18\x01 \x01(\x0e2).accessgraph.v1.SessionSearchAvailabilityR\favailability\"\xe3\x04\n" +
+	"\favailability\x18\x01 \x01(\x0e2).accessgraph.v1.SessionSearchAvailabilityR\favailability\"\x87\v\n" +
+	"\x19RecordSessionStatsRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12;\n" +
+	"\voccurred_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"occurredAt\x12\x12\n" +
+	"\x04kind\x18\x03 \x01(\tR\x04kind\x12!\n" +
+	"\fcluster_name\x18\x04 \x01(\tR\vclusterName\x12\x1b\n" +
+	"\tuser_name\x18\x05 \x01(\tR\buserName\x12\x12\n" +
+	"\x04host\x18\x06 \x01(\tR\x04host\x12\x1f\n" +
+	"\vpolicy_name\x18\a \x01(\tR\n" +
+	"policyName\x12\x1d\n" +
+	"\n" +
+	"model_name\x18\b \x01(\tR\tmodelName\x12%\n" +
+	"\x0eprovider_model\x18\t \x01(\tR\rproviderModel\x12\x1a\n" +
+	"\bprovider\x18\n" +
+	" \x01(\tR\bprovider\x12\x1a\n" +
+	"\beligible\x18\v \x01(\bR\beligible\x12\x1e\n" +
+	"\n" +
+	"summarized\x18\f \x01(\bR\n" +
+	"summarized\x12\x18\n" +
+	"\aerrored\x18\r \x01(\bR\aerrored\x12[\n" +
+	"\x14needs_review_reasons\x18\x0e \x03(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x12needsReviewReasons\x12@\n" +
+	"\n" +
+	"risk_level\x18\x0f \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\triskLevel\x122\n" +
+	"\x15has_external_transfer\x18\x10 \x01(\bR\x13hasExternalTransfer\x120\n" +
+	"\x14has_privilege_change\x18\x11 \x01(\bR\x12hasPrivilegeChange\x122\n" +
+	"\x15has_persistent_change\x18\x12 \x01(\bR\x13hasPersistentChange\x12,\n" +
+	"\x12has_sensitive_data\x18\x13 \x01(\bR\x10hasSensitiveData\x12\x1d\n" +
+	"\n" +
+	"latency_ms\x18\x14 \x01(\x05R\tlatencyMs\x12&\n" +
+	"\x0frun_duration_ms\x18\x15 \x01(\x05R\rrunDurationMs\x12*\n" +
+	"\x11total_duration_ms\x18\x16 \x01(\x03R\x0ftotalDurationMs\x12\x1b\n" +
+	"\ttokens_in\x18\x17 \x01(\x03R\btokensIn\x12\x1d\n" +
+	"\n" +
+	"tokens_out\x18\x18 \x01(\x03R\ttokensOut\x12/\n" +
+	"\x13matched_classifiers\x18\x19 \x03(\tR\x12matchedClassifiers\x12X\n" +
+	"\x14mitre_attack_tactics\x18\x1a \x03(\x0e2&.teleport.summarizer.v1.ThreatCategoryR\x12mitreAttackTactics\x12(\n" +
+	"\x10mitre_attack_ids\x18\x1b \x03(\tR\x0emitreAttackIds\x12-\n" +
+	"\x12observed_endpoints\x18\x1c \x03(\tR\x11observedEndpoints\x12C\n" +
+	"\x11session_end_event\x18\x1d \x01(\v2\x17.google.protobuf.StructR\x0fsessionEndEvent\x12D\n" +
+	"\vclassifiers\x18\x1e \x03(\v2\".accessgraph.v1.ClassifierRunStatsR\vclassifiers\x12H\n" +
+	"\x0esession_events\x18\x1f \x03(\v2!.accessgraph.v1.SessionEventStatsR\rsessionEvents\"\xe3\x04\n" +
 	"\x12ClassifierRunStats\x12'\n" +
 	"\x0fclassifier_name\x18\x01 \x01(\tR\x0eclassifierName\x12\x18\n" +
 	"\amatched\x18\x02 \x01(\bR\amatched\x12\x18\n" +
@@ -3860,7 +4514,8 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\x11external_transfer\x18\x06 \x01(\bR\x10externalTransfer\x12+\n" +
 	"\x11persistent_change\x18\a \x01(\bR\x10persistentChange\x12(\n" +
 	"\x10mitre_attack_ids\x18\b \x03(\tR\x0emitreAttackIds\x12-\n" +
-	"\x12observed_endpoints\x18\t \x03(\tR\x11observedEndpoints*\x7f\n" +
+	"\x12observed_endpoints\x18\t \x03(\tR\x11observedEndpoints\"\x1c\n" +
+	"\x1aRecordSessionStatsResponse*\x7f\n" +
 	"\n" +
 	"SearchMode\x12\x1b\n" +
 	"\x17SEARCH_MODE_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -3876,14 +4531,15 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"%SESSION_SEARCH_AVAILABILITY_AVAILABLE\x10\x01\x12/\n" +
 	"+SESSION_SEARCH_AVAILABILITY_NOT_IMPLEMENTED\x10\x02\x123\n" +
 	"/SESSION_SEARCH_AVAILABILITY_PG_TRGM_UNAVAILABLE\x10\x03\x125\n" +
-	"1SESSION_SEARCH_AVAILABILITY_PG_VECTOR_UNAVAILABLE\x10\x042\xff\x02\n" +
-	"\x17SessionRecordingService\x12{\n" +
+	"1SESSION_SEARCH_AVAILABILITY_PG_VECTOR_UNAVAILABLE\x10\x042\xec\x03\n" +
+	"\x17SessionRecordingService\x12k\n" +
+	"\x12RecordSessionStats\x12).accessgraph.v1.RecordSessionStatsRequest\x1a*.accessgraph.v1.RecordSessionStatsResponse\x12{\n" +
 	"\x16SearchSessionSummaries\x12-.accessgraph.v1.SearchSessionSummariesRequest\x1a..accessgraph.v1.SearchSessionSummariesResponse(\x010\x01\x12n\n" +
 	"\x13StoreSessionSummary\x12*.accessgraph.v1.StoreSessionSummaryRequest\x1a+.accessgraph.v1.StoreSessionSummaryResponse\x12w\n" +
 	"\x16IsSessionSearchEnabled\x12-.accessgraph.v1.IsSessionSearchEnabledRequest\x1a..accessgraph.v1.IsSessionSearchEnabledResponseBMZKgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1;accessgraphv1b\x06proto3"
 
 var file_accessgraph_v1_session_search_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_accessgraph_v1_session_search_proto_goTypes = []any{
 	(SearchMode)(0),                                 // 0: accessgraph.v1.SearchMode
 	(DesktopType)(0),                                // 1: accessgraph.v1.DesktopType
@@ -3904,72 +4560,83 @@ var file_accessgraph_v1_session_search_proto_goTypes = []any{
 	(*StoreSessionSummaryResponse)(nil),             // 16: accessgraph.v1.StoreSessionSummaryResponse
 	(*IsSessionSearchEnabledRequest)(nil),           // 17: accessgraph.v1.IsSessionSearchEnabledRequest
 	(*IsSessionSearchEnabledResponse)(nil),          // 18: accessgraph.v1.IsSessionSearchEnabledResponse
-	(*ClassifierRunStats)(nil),                      // 19: accessgraph.v1.ClassifierRunStats
-	(*SessionEventStats)(nil),                       // 20: accessgraph.v1.SessionEventStats
-	(*SearchSessionSummariesRequest_FetchMore)(nil), // 21: accessgraph.v1.SearchSessionSummariesRequest.FetchMore
-	nil, // 22: accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
-	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 23: accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
-	nil,                           // 24: accessgraph.v1.SessionSummary.ResourceLabelsEntry
-	nil,                           // 25: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
-	(*timestamppb.Timestamp)(nil), // 26: google.protobuf.Timestamp
-	(v1.RiskLevel)(0),             // 27: teleport.summarizer.v1.RiskLevel
-	(v1.NeedsReviewReason)(0),     // 28: teleport.summarizer.v1.NeedsReviewReason
-	(*structpb.Struct)(nil),       // 29: google.protobuf.Struct
-	(v1.CommandCategory)(0),       // 30: teleport.summarizer.v1.CommandCategory
-	(v1.ThreatCategory)(0),        // 31: teleport.summarizer.v1.ThreatCategory
+	(*RecordSessionStatsRequest)(nil),               // 19: accessgraph.v1.RecordSessionStatsRequest
+	(*ClassifierRunStats)(nil),                      // 20: accessgraph.v1.ClassifierRunStats
+	(*SessionEventStats)(nil),                       // 21: accessgraph.v1.SessionEventStats
+	(*RecordSessionStatsResponse)(nil),              // 22: accessgraph.v1.RecordSessionStatsResponse
+	(*SearchSessionSummariesRequest_FetchMore)(nil), // 23: accessgraph.v1.SearchSessionSummariesRequest.FetchMore
+	nil, // 24: accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
+	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 25: accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	nil,                           // 26: accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	nil,                           // 27: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	(*timestamppb.Timestamp)(nil), // 28: google.protobuf.Timestamp
+	(v1.RiskLevel)(0),             // 29: teleport.summarizer.v1.RiskLevel
+	(v1.NeedsReviewReason)(0),     // 30: teleport.summarizer.v1.NeedsReviewReason
+	(*structpb.Struct)(nil),       // 31: google.protobuf.Struct
+	(v1.ThreatCategory)(0),        // 32: teleport.summarizer.v1.ThreatCategory
+	(v1.CommandCategory)(0),       // 33: teleport.summarizer.v1.CommandCategory
 }
 var file_accessgraph_v1_session_search_proto_depIdxs = []int32{
 	4,  // 0: accessgraph.v1.SearchSessionSummariesRequest.search_params:type_name -> accessgraph.v1.SearchSessionSummariesParams
-	21, // 1: accessgraph.v1.SearchSessionSummariesRequest.fetch_more:type_name -> accessgraph.v1.SearchSessionSummariesRequest.FetchMore
-	26, // 2: accessgraph.v1.SearchSessionSummariesParams.start_time:type_name -> google.protobuf.Timestamp
-	26, // 3: accessgraph.v1.SearchSessionSummariesParams.end_time:type_name -> google.protobuf.Timestamp
-	22, // 4: accessgraph.v1.SearchSessionSummariesParams.resource_labels:type_name -> accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
+	23, // 1: accessgraph.v1.SearchSessionSummariesRequest.fetch_more:type_name -> accessgraph.v1.SearchSessionSummariesRequest.FetchMore
+	28, // 2: accessgraph.v1.SearchSessionSummariesParams.start_time:type_name -> google.protobuf.Timestamp
+	28, // 3: accessgraph.v1.SearchSessionSummariesParams.end_time:type_name -> google.protobuf.Timestamp
+	24, // 4: accessgraph.v1.SearchSessionSummariesParams.resource_labels:type_name -> accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
 	6,  // 5: accessgraph.v1.SearchSessionSummariesParams.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	27, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	29, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
 	5,  // 7: accessgraph.v1.SearchSessionSummariesParams.search_queries:type_name -> accessgraph.v1.EmbeddedQuery
 	0,  // 8: accessgraph.v1.SearchSessionSummariesParams.search_mode:type_name -> accessgraph.v1.SearchMode
-	28, // 9: accessgraph.v1.SearchSessionSummariesParams.filter_needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	30, // 9: accessgraph.v1.SearchSessionSummariesParams.filter_needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
 	7,  // 10: accessgraph.v1.ResourceProperties.ssh:type_name -> accessgraph.v1.SSHProperties
 	8,  // 11: accessgraph.v1.ResourceProperties.kubernetes:type_name -> accessgraph.v1.KubernetesProperties
 	9,  // 12: accessgraph.v1.ResourceProperties.database:type_name -> accessgraph.v1.DatabaseProperties
 	10, // 13: accessgraph.v1.ResourceProperties.desktop:type_name -> accessgraph.v1.DesktopProperties
 	1,  // 14: accessgraph.v1.DesktopProperties.type:type_name -> accessgraph.v1.DesktopType
 	12, // 15: accessgraph.v1.SearchSessionSummariesResponse.summary:type_name -> accessgraph.v1.SummaryAndCheckpoint
-	23, // 16: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	25, // 16: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
 	13, // 17: accessgraph.v1.SummaryAndCheckpoint.summary:type_name -> accessgraph.v1.SessionSummary
-	26, // 18: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
-	29, // 19: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
-	24, // 20: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	28, // 18: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
+	31, // 19: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
+	26, // 20: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
 	6,  // 21: accessgraph.v1.SessionSummary.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	27, // 22: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	29, // 23: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
-	26, // 24: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
-	28, // 25: accessgraph.v1.SessionSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	26, // 26: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
-	26, // 27: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
-	29, // 28: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
-	25, // 29: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	29, // 22: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	31, // 23: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
+	28, // 24: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
+	30, // 25: accessgraph.v1.SessionSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	28, // 26: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
+	28, // 27: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
+	31, // 28: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
+	27, // 29: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
 	6,  // 30: accessgraph.v1.StoreSessionSummaryRequest.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	27, // 31: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	29, // 32: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
+	29, // 31: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	31, // 32: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
 	15, // 33: accessgraph.v1.StoreSessionSummaryRequest.embeddings:type_name -> accessgraph.v1.EmbeddingChunk
-	28, // 34: accessgraph.v1.StoreSessionSummaryRequest.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	30, // 34: accessgraph.v1.StoreSessionSummaryRequest.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
 	2,  // 35: accessgraph.v1.IsSessionSearchEnabledResponse.availability:type_name -> accessgraph.v1.SessionSearchAvailability
-	27, // 36: accessgraph.v1.ClassifierRunStats.applied_risk_level_floor:type_name -> teleport.summarizer.v1.RiskLevel
-	27, // 37: accessgraph.v1.ClassifierRunStats.risk_level_after:type_name -> teleport.summarizer.v1.RiskLevel
-	30, // 38: accessgraph.v1.SessionEventStats.category:type_name -> teleport.summarizer.v1.CommandCategory
-	31, // 39: accessgraph.v1.SessionEventStats.mitre_attack_tactic:type_name -> teleport.summarizer.v1.ThreatCategory
-	3,  // 40: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
-	14, // 41: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
-	17, // 42: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:input_type -> accessgraph.v1.IsSessionSearchEnabledRequest
-	11, // 43: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
-	16, // 44: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
-	18, // 45: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:output_type -> accessgraph.v1.IsSessionSearchEnabledResponse
-	43, // [43:46] is the sub-list for method output_type
-	40, // [40:43] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	28, // 36: accessgraph.v1.RecordSessionStatsRequest.occurred_at:type_name -> google.protobuf.Timestamp
+	30, // 37: accessgraph.v1.RecordSessionStatsRequest.needs_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	29, // 38: accessgraph.v1.RecordSessionStatsRequest.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	32, // 39: accessgraph.v1.RecordSessionStatsRequest.mitre_attack_tactics:type_name -> teleport.summarizer.v1.ThreatCategory
+	31, // 40: accessgraph.v1.RecordSessionStatsRequest.session_end_event:type_name -> google.protobuf.Struct
+	20, // 41: accessgraph.v1.RecordSessionStatsRequest.classifiers:type_name -> accessgraph.v1.ClassifierRunStats
+	21, // 42: accessgraph.v1.RecordSessionStatsRequest.session_events:type_name -> accessgraph.v1.SessionEventStats
+	29, // 43: accessgraph.v1.ClassifierRunStats.applied_risk_level_floor:type_name -> teleport.summarizer.v1.RiskLevel
+	29, // 44: accessgraph.v1.ClassifierRunStats.risk_level_after:type_name -> teleport.summarizer.v1.RiskLevel
+	33, // 45: accessgraph.v1.SessionEventStats.category:type_name -> teleport.summarizer.v1.CommandCategory
+	32, // 46: accessgraph.v1.SessionEventStats.mitre_attack_tactic:type_name -> teleport.summarizer.v1.ThreatCategory
+	19, // 47: accessgraph.v1.SessionRecordingService.RecordSessionStats:input_type -> accessgraph.v1.RecordSessionStatsRequest
+	3,  // 48: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
+	14, // 49: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
+	17, // 50: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:input_type -> accessgraph.v1.IsSessionSearchEnabledRequest
+	22, // 51: accessgraph.v1.SessionRecordingService.RecordSessionStats:output_type -> accessgraph.v1.RecordSessionStatsResponse
+	11, // 52: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
+	16, // 53: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
+	18, // 54: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:output_type -> accessgraph.v1.IsSessionSearchEnabledResponse
+	51, // [51:55] is the sub-list for method output_type
+	47, // [47:51] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for extension type_name
+	47, // [47:47] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1_session_search_proto_init() }
@@ -4002,7 +4669,7 @@ func file_accessgraph_v1_session_search_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessgraph_v1_session_search_proto_rawDesc), len(file_accessgraph_v1_session_search_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   23,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

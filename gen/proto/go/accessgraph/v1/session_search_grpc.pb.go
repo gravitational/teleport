@@ -36,6 +36,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	SessionRecordingService_RecordSessionStats_FullMethodName     = "/accessgraph.v1.SessionRecordingService/RecordSessionStats"
 	SessionRecordingService_SearchSessionSummaries_FullMethodName = "/accessgraph.v1.SessionRecordingService/SearchSessionSummaries"
 	SessionRecordingService_StoreSessionSummary_FullMethodName    = "/accessgraph.v1.SessionRecordingService/StoreSessionSummary"
 	SessionRecordingService_IsSessionSearchEnabled_FullMethodName = "/accessgraph.v1.SessionRecordingService/IsSessionSearchEnabled"
@@ -50,6 +51,9 @@ const (
 // the access graph and then applies its own access-control filtering before
 // returning results to end users.
 type SessionRecordingServiceClient interface {
+	// RecordSessionStats stores statistics from a completed summarization job.
+	// Re-sending a session overwrites its rows. This does not require embeddings.
+	RecordSessionStats(ctx context.Context, in *RecordSessionStatsRequest, opts ...grpc.CallOption) (*RecordSessionStatsResponse, error)
 	// SearchSessionSummaries establishes a bidirectional stream for batched
 	// searching of session summaries.
 	//
@@ -99,6 +103,16 @@ func NewSessionRecordingServiceClient(cc grpc.ClientConnInterface) SessionRecord
 	return &sessionRecordingServiceClient{cc}
 }
 
+func (c *sessionRecordingServiceClient) RecordSessionStats(ctx context.Context, in *RecordSessionStatsRequest, opts ...grpc.CallOption) (*RecordSessionStatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordSessionStatsResponse)
+	err := c.cc.Invoke(ctx, SessionRecordingService_RecordSessionStats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *sessionRecordingServiceClient) SearchSessionSummaries(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SearchSessionSummariesRequest, SearchSessionSummariesResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &SessionRecordingService_ServiceDesc.Streams[0], SessionRecordingService_SearchSessionSummaries_FullMethodName, cOpts...)
@@ -141,6 +155,9 @@ func (c *sessionRecordingServiceClient) IsSessionSearchEnabled(ctx context.Conte
 // the access graph and then applies its own access-control filtering before
 // returning results to end users.
 type SessionRecordingServiceServer interface {
+	// RecordSessionStats stores statistics from a completed summarization job.
+	// Re-sending a session overwrites its rows. This does not require embeddings.
+	RecordSessionStats(context.Context, *RecordSessionStatsRequest) (*RecordSessionStatsResponse, error)
 	// SearchSessionSummaries establishes a bidirectional stream for batched
 	// searching of session summaries.
 	//
@@ -190,6 +207,9 @@ type SessionRecordingServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedSessionRecordingServiceServer struct{}
 
+func (UnimplementedSessionRecordingServiceServer) RecordSessionStats(context.Context, *RecordSessionStatsRequest) (*RecordSessionStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordSessionStats not implemented")
+}
 func (UnimplementedSessionRecordingServiceServer) SearchSessionSummaries(grpc.BidiStreamingServer[SearchSessionSummariesRequest, SearchSessionSummariesResponse]) error {
 	return status.Error(codes.Unimplemented, "method SearchSessionSummaries not implemented")
 }
@@ -219,6 +239,24 @@ func RegisterSessionRecordingServiceServer(s grpc.ServiceRegistrar, srv SessionR
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&SessionRecordingService_ServiceDesc, srv)
+}
+
+func _SessionRecordingService_RecordSessionStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordSessionStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionRecordingServiceServer).RecordSessionStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionRecordingService_RecordSessionStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionRecordingServiceServer).RecordSessionStats(ctx, req.(*RecordSessionStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _SessionRecordingService_SearchSessionSummaries_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -271,6 +309,10 @@ var SessionRecordingService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "accessgraph.v1.SessionRecordingService",
 	HandlerType: (*SessionRecordingServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "RecordSessionStats",
+			Handler:    _SessionRecordingService_RecordSessionStats_Handler,
+		},
 		{
 			MethodName: "StoreSessionSummary",
 			Handler:    _SessionRecordingService_StoreSessionSummary_Handler,
