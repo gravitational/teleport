@@ -392,45 +392,35 @@ enum RiskLevel {
   RISK_LEVEL_CRITICAL = 4;
 }
 
-// ThreatCategory represents the category of a detected threat.
+// ThreatCategory is the MITRE ATT&CK tactic of the technique whose mechanics an activity matches. Despite the name it
+// is not a threat verdict, routine activity is assigned a tactic too.
 enum ThreatCategory {
-  // ThreatCategoryUnspecified is the default value and indicates that the threat
-  // category is not specified.
+  // ThreatCategoryUnspecified is the default value and indicates that no tactic was assigned.
   THREAT_CATEGORY_UNSPECIFIED = 0;
-  // ThreatCategoryReconnaissance indicates that the threat is related to reconnaissance
-  // activities, such as scanning or probing the system.
+  // ThreatCategoryReconnaissance is the Reconnaissance tactic, such as scanning or probing systems.
   THREAT_CATEGORY_RECONNAISSANCE = 1;
-  // ThreatCategoryExecution indicates that the threat is related to execution activities,
-  // such as running malicious code.
+  // ThreatCategoryExecution is the Execution tactic, such as running a command or script.
   THREAT_CATEGORY_EXECUTION = 2;
-  // ThreatCategoryPersistence indicates that the threat is related to persistence
-  // activities, such as installing backdoors.
+  // ThreatCategoryPersistence is the Persistence tactic, such as installing a service that outlives the session.
   THREAT_CATEGORY_PERSISTENCE = 3;
-  // ThreatCategoryPrivilegeEscalation indicates that the threat is related to privilege
-  // escalation activities, such as exploiting vulnerabilities to gain higher privileges.
+  // ThreatCategoryPrivilegeEscalation is the Privilege Escalation tactic, such as switching to a more privileged
+  // account.
   THREAT_CATEGORY_PRIVILEGE_ESCALATION = 4;
-  // ThreatCategoryDefenseEvasion indicates that the threat is related to defense evasion
-  // activities, such as disabling security software.
+  // ThreatCategoryDefenseEvasion is the Defense Evasion tactic, such as disabling logging or security tooling.
   THREAT_CATEGORY_DEFENSE_EVASION = 5;
-  // ThreatCategoryCredentialAccess indicates that the threat is related to credential
-  // access activities, such as stealing passwords.
+  // ThreatCategoryCredentialAccess is the Credential Access tactic, such as reading stored credentials.
   THREAT_CATEGORY_CREDENTIAL_ACCESS = 6;
-  // ThreatCategoryDiscovery indicates that the threat is related to discovery activities,
-  // such as gathering information about the system.
+  // ThreatCategoryDiscovery is the Discovery tactic, such as listing users, processes or network configuration.
   THREAT_CATEGORY_DISCOVERY = 7;
-  // ThreatCategoryLateralMovement indicates that the threat is related to lateral movement
-  // activities, such as moving laterally within the network.
+  // ThreatCategoryLateralMovement is the Lateral Movement tactic, such as connecting onward to another host.
   THREAT_CATEGORY_LATERAL_MOVEMENT = 8;
-  // ThreatCategoryCollection indicates that the threat is related to collection activities,
-  // such as collecting sensitive data.
+  // ThreatCategoryCollection is the Collection tactic, such as gathering files or data together.
   THREAT_CATEGORY_COLLECTION = 9;
-  // ThreatCategoryExfiltration indicates that the threat is related to exfiltration
-  // activities, such as stealing data from the system.
+  // ThreatCategoryExfiltration is the Exfiltration tactic, such as transferring data to an outside destination.
   THREAT_CATEGORY_EXFILTRATION = 10;
-  // ThreatCategoryImpact indicates that the threat is related to impact activities,
-  // such as disrupting system operations.
+  // ThreatCategoryImpact is the Impact tactic, such as stopping services or deleting data.
   THREAT_CATEGORY_IMPACT = 11;
-  // ThreatCategoryNone indicates that there is no threat detected.
+  // ThreatCategoryNone indicates that the activity matched no technique's mechanics.
   THREAT_CATEGORY_NONE = 12;
 }
 
@@ -442,7 +432,8 @@ message SessionEvent {
   RiskLevel risk_level = 2;
   // RiskScore is a numerical score representing the risk associated with the command.
   int32 risk_score = 3;
-  // ThreatCategory is the category of any detected threat associated with the command.
+  // ThreatCategory is the MITRE ATT&CK tactic whose technique the command's mechanics match. It is assigned even for
+  // routine activity and is not a threat verdict.
   ThreatCategory threat_category = 4;
   // TimelineTitle is a brief title for the command's entry in the session timeline.
   string timeline_title = 5;
@@ -459,17 +450,21 @@ message SessionEvent {
   repeated string sensitive_items = 10;
   // SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
   repeated string suspicious_patterns = 11;
-  // IOCs contains any indicators of compromise associated with the command.
+  // IOCs contains the endpoints observed in the command, whether or not they look legitimate. Summaries written
+  // before analysis became neutral hold indicators of compromise here instead.
   repeated string iocs = 12;
   // MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
   repeated string mitre_attack_ids = 13;
   // HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
   bool has_sensitive_data = 14;
-  // PrivilegeEscalation indicates whether the command involved privilege escalation.
+  // PrivilegeEscalation indicates whether the command changed or attempted to change a privilege level or boundary.
+  // It describes the mechanics, not intent, so routine administration sets it too.
   bool privilege_escalation = 15;
-  // DataExfiltration indicates whether the command involved data exfiltration.
+  // DataExfiltration indicates whether the command moved or staged data toward a destination outside the host. It
+  // describes the mechanics, not intent, so routine transfers such as backups set it too.
   bool data_exfiltration = 16;
-  // Persistence indicates whether the command involved persistence mechanisms.
+  // Persistence indicates whether the command created or changed something that outlives the session. It describes
+  // the mechanics, not intent, so routine changes such as installing a service set it too.
   bool persistence = 17;
   // StartOffset is the start time of the command, relative to the start of the session.
   google.protobuf.Duration start_offset = 18;
@@ -481,6 +476,10 @@ message SessionEvent {
   // scrolled off the screen faster than it could be captured or was truncated to bound size - and so the command
   // was only partially analyzed. Empty when the output was fully captured.
   string output_incomplete_reason = 23;
+  // NotableObservations contains plain-English, free-text observations generated by the configured inference
+  // model from this event's command output or desktop screenshots. They preserve concrete details for later
+  // analysis without assigning a security judgement.
+  repeated string notable_observations = 24;
   // Details is the type-specific details of the event.
   oneof details {
     // CommandEventDetails holds the details for a command ran during a TTY session.
@@ -527,7 +526,8 @@ message CommandAnalysis {
   RiskLevel risk_level = 4;
   // RiskScore is a numerical score representing the risk associated with the command.
   int32 risk_score = 5;
-  // ThreatCategory is the category of any detected threat associated with the command.
+  // ThreatCategory is the MITRE ATT&CK tactic whose technique the command's mechanics match. It is assigned even for
+  // routine activity and is not a threat verdict.
   ThreatCategory threat_category = 6;
   // TimelineTitle is a brief title for the command's entry in the session timeline.
   string timeline_title = 7;
@@ -546,17 +546,21 @@ message CommandAnalysis {
   repeated string sensitive_items = 13;
   // SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
   repeated string suspicious_patterns = 14;
-  // IOCs contains any indicators of compromise associated with the command.
+  // IOCs contains the endpoints observed in the command, whether or not they look legitimate. Summaries written
+  // before analysis became neutral hold indicators of compromise here instead.
   repeated string iocs = 15;
   // MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
   repeated string mitre_attack_ids = 16;
   // HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
   bool has_sensitive_data = 17;
-  // PrivilegeEscalation indicates whether the command involved privilege escalation.
+  // PrivilegeEscalation indicates whether the command changed or attempted to change a privilege level or boundary.
+  // It describes the mechanics, not intent, so routine administration sets it too.
   bool privilege_escalation = 18;
-  // DataExfiltration indicates whether the command involved data exfiltration.
+  // DataExfiltration indicates whether the command moved or staged data toward a destination outside the host. It
+  // describes the mechanics, not intent, so routine transfers such as backups set it too.
   bool data_exfiltration = 19;
-  // Persistence indicates whether the command involved persistence mechanisms.
+  // Persistence indicates whether the command created or changed something that outlives the session. It describes
+  // the mechanics, not intent, so routine changes such as installing a service set it too.
   bool persistence = 20;
   // StartOffset is the start time of the command, relative to the start of the session.
   google.protobuf.Duration start_offset = 21;
@@ -564,6 +568,10 @@ message CommandAnalysis {
   google.protobuf.Duration end_offset = 22;
   // InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
   string inference_error_message = 23;
+  // NotableObservations contains plain-English, free-text observations generated by the configured inference
+  // model from this command and its output. They preserve concrete details for later analysis without
+  // assigning a security judgement.
+  repeated string notable_observations = 24;
 }
 
 // SecurityRecommendation represents a security recommendation related to a command
@@ -666,6 +674,10 @@ message EnhancedSummary {
   // InstructionAssessment is a free-text explanation of how the agent's actions
   // related to its LLM instructions. Empty for non-beam summaries.
   string instruction_assessment = 18;
+  // NotableObservations contains plain-English, free-text observations generated by the configured inference
+  // model when synthesizing the session's event analyses. They preserve concrete details for later analysis
+  // without assigning a security judgement.
+  repeated string notable_observations = 19;
 }
 
 // RetrievalModel resource specifies the model configuration used to

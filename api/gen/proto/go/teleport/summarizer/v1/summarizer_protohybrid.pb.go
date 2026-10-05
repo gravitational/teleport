@@ -330,47 +330,37 @@ func (x RiskLevel) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// ThreatCategory represents the category of a detected threat.
+// ThreatCategory is the MITRE ATT&CK tactic of the technique whose mechanics an activity matches. Despite the name it
+// is not a threat verdict, routine activity is assigned a tactic too.
 type ThreatCategory int32
 
 const (
-	// ThreatCategoryUnspecified is the default value and indicates that the threat
-	// category is not specified.
+	// ThreatCategoryUnspecified is the default value and indicates that no tactic was assigned.
 	ThreatCategory_THREAT_CATEGORY_UNSPECIFIED ThreatCategory = 0
-	// ThreatCategoryReconnaissance indicates that the threat is related to reconnaissance
-	// activities, such as scanning or probing the system.
+	// ThreatCategoryReconnaissance is the Reconnaissance tactic, such as scanning or probing systems.
 	ThreatCategory_THREAT_CATEGORY_RECONNAISSANCE ThreatCategory = 1
-	// ThreatCategoryExecution indicates that the threat is related to execution activities,
-	// such as running malicious code.
+	// ThreatCategoryExecution is the Execution tactic, such as running a command or script.
 	ThreatCategory_THREAT_CATEGORY_EXECUTION ThreatCategory = 2
-	// ThreatCategoryPersistence indicates that the threat is related to persistence
-	// activities, such as installing backdoors.
+	// ThreatCategoryPersistence is the Persistence tactic, such as installing a service that outlives the session.
 	ThreatCategory_THREAT_CATEGORY_PERSISTENCE ThreatCategory = 3
-	// ThreatCategoryPrivilegeEscalation indicates that the threat is related to privilege
-	// escalation activities, such as exploiting vulnerabilities to gain higher privileges.
+	// ThreatCategoryPrivilegeEscalation is the Privilege Escalation tactic, such as switching to a more privileged
+	// account.
 	ThreatCategory_THREAT_CATEGORY_PRIVILEGE_ESCALATION ThreatCategory = 4
-	// ThreatCategoryDefenseEvasion indicates that the threat is related to defense evasion
-	// activities, such as disabling security software.
+	// ThreatCategoryDefenseEvasion is the Defense Evasion tactic, such as disabling logging or security tooling.
 	ThreatCategory_THREAT_CATEGORY_DEFENSE_EVASION ThreatCategory = 5
-	// ThreatCategoryCredentialAccess indicates that the threat is related to credential
-	// access activities, such as stealing passwords.
+	// ThreatCategoryCredentialAccess is the Credential Access tactic, such as reading stored credentials.
 	ThreatCategory_THREAT_CATEGORY_CREDENTIAL_ACCESS ThreatCategory = 6
-	// ThreatCategoryDiscovery indicates that the threat is related to discovery activities,
-	// such as gathering information about the system.
+	// ThreatCategoryDiscovery is the Discovery tactic, such as listing users, processes or network configuration.
 	ThreatCategory_THREAT_CATEGORY_DISCOVERY ThreatCategory = 7
-	// ThreatCategoryLateralMovement indicates that the threat is related to lateral movement
-	// activities, such as moving laterally within the network.
+	// ThreatCategoryLateralMovement is the Lateral Movement tactic, such as connecting onward to another host.
 	ThreatCategory_THREAT_CATEGORY_LATERAL_MOVEMENT ThreatCategory = 8
-	// ThreatCategoryCollection indicates that the threat is related to collection activities,
-	// such as collecting sensitive data.
+	// ThreatCategoryCollection is the Collection tactic, such as gathering files or data together.
 	ThreatCategory_THREAT_CATEGORY_COLLECTION ThreatCategory = 9
-	// ThreatCategoryExfiltration indicates that the threat is related to exfiltration
-	// activities, such as stealing data from the system.
+	// ThreatCategoryExfiltration is the Exfiltration tactic, such as transferring data to an outside destination.
 	ThreatCategory_THREAT_CATEGORY_EXFILTRATION ThreatCategory = 10
-	// ThreatCategoryImpact indicates that the threat is related to impact activities,
-	// such as disrupting system operations.
+	// ThreatCategoryImpact is the Impact tactic, such as stopping services or deleting data.
 	ThreatCategory_THREAT_CATEGORY_IMPACT ThreatCategory = 11
-	// ThreatCategoryNone indicates that there is no threat detected.
+	// ThreatCategoryNone indicates that the activity matched no technique's mechanics.
 	ThreatCategory_THREAT_CATEGORY_NONE ThreatCategory = 12
 )
 
@@ -2639,7 +2629,8 @@ type SessionEvent struct {
 	RiskLevel RiskLevel `protobuf:"varint,2,opt,name=risk_level,json=riskLevel,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"risk_level,omitempty"`
 	// RiskScore is a numerical score representing the risk associated with the command.
 	RiskScore int32 `protobuf:"varint,3,opt,name=risk_score,json=riskScore,proto3" json:"risk_score,omitempty"`
-	// ThreatCategory is the category of any detected threat associated with the command.
+	// ThreatCategory is the MITRE ATT&CK tactic whose technique the command's mechanics match. It is assigned even for
+	// routine activity and is not a threat verdict.
 	ThreatCategory ThreatCategory `protobuf:"varint,4,opt,name=threat_category,json=threatCategory,proto3,enum=teleport.summarizer.v1.ThreatCategory" json:"threat_category,omitempty"`
 	// TimelineTitle is a brief title for the command's entry in the session timeline.
 	TimelineTitle string `protobuf:"bytes,5,opt,name=timeline_title,json=timelineTitle,proto3" json:"timeline_title,omitempty"`
@@ -2656,17 +2647,21 @@ type SessionEvent struct {
 	SensitiveItems []string `protobuf:"bytes,10,rep,name=sensitive_items,json=sensitiveItems,proto3" json:"sensitive_items,omitempty"`
 	// SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
 	SuspiciousPatterns []string `protobuf:"bytes,11,rep,name=suspicious_patterns,json=suspiciousPatterns,proto3" json:"suspicious_patterns,omitempty"`
-	// IOCs contains any indicators of compromise associated with the command.
+	// IOCs contains the endpoints observed in the command, whether or not they look legitimate. Summaries written
+	// before analysis became neutral hold indicators of compromise here instead.
 	Iocs []string `protobuf:"bytes,12,rep,name=iocs,proto3" json:"iocs,omitempty"`
 	// MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
 	MitreAttackIds []string `protobuf:"bytes,13,rep,name=mitre_attack_ids,json=mitreAttackIds,proto3" json:"mitre_attack_ids,omitempty"`
 	// HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
 	HasSensitiveData bool `protobuf:"varint,14,opt,name=has_sensitive_data,json=hasSensitiveData,proto3" json:"has_sensitive_data,omitempty"`
-	// PrivilegeEscalation indicates whether the command involved privilege escalation.
+	// PrivilegeEscalation indicates whether the command changed or attempted to change a privilege level or boundary.
+	// It describes the mechanics, not intent, so routine administration sets it too.
 	PrivilegeEscalation bool `protobuf:"varint,15,opt,name=privilege_escalation,json=privilegeEscalation,proto3" json:"privilege_escalation,omitempty"`
-	// DataExfiltration indicates whether the command involved data exfiltration.
+	// DataExfiltration indicates whether the command moved or staged data toward a destination outside the host. It
+	// describes the mechanics, not intent, so routine transfers such as backups set it too.
 	DataExfiltration bool `protobuf:"varint,16,opt,name=data_exfiltration,json=dataExfiltration,proto3" json:"data_exfiltration,omitempty"`
-	// Persistence indicates whether the command involved persistence mechanisms.
+	// Persistence indicates whether the command created or changed something that outlives the session. It describes
+	// the mechanics, not intent, so routine changes such as installing a service set it too.
 	Persistence bool `protobuf:"varint,17,opt,name=persistence,proto3" json:"persistence,omitempty"`
 	// StartOffset is the start time of the command, relative to the start of the session.
 	StartOffset *durationpb.Duration `protobuf:"bytes,18,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"`
@@ -2678,6 +2673,10 @@ type SessionEvent struct {
 	// scrolled off the screen faster than it could be captured or was truncated to bound size - and so the command
 	// was only partially analyzed. Empty when the output was fully captured.
 	OutputIncompleteReason string `protobuf:"bytes,23,opt,name=output_incomplete_reason,json=outputIncompleteReason,proto3" json:"output_incomplete_reason,omitempty"`
+	// NotableObservations contains plain-English, free-text observations generated by the configured inference
+	// model from this event's command output or desktop screenshots. They preserve concrete details for later
+	// analysis without assigning a security judgement.
+	NotableObservations []string `protobuf:"bytes,24,rep,name=notable_observations,json=notableObservations,proto3" json:"notable_observations,omitempty"`
 	// Details is the type-specific details of the event.
 	//
 	// Types that are valid to be assigned to Details:
@@ -2861,6 +2860,13 @@ func (x *SessionEvent) GetOutputIncompleteReason() string {
 	return ""
 }
 
+func (x *SessionEvent) GetNotableObservations() []string {
+	if x != nil {
+		return x.NotableObservations
+	}
+	return nil
+}
+
 func (x *SessionEvent) GetDetails() isSessionEvent_Details {
 	if x != nil {
 		return x.Details
@@ -2970,6 +2976,10 @@ func (x *SessionEvent) SetOutputIncompleteReason(v string) {
 	x.OutputIncompleteReason = v
 }
 
+func (x *SessionEvent) SetNotableObservations(v []string) {
+	x.NotableObservations = v
+}
+
 func (x *SessionEvent) SetCommandEventDetails(v *CommandEventDetails) {
 	if v == nil {
 		x.Details = nil
@@ -3074,7 +3084,8 @@ type SessionEvent_builder struct {
 	RiskLevel RiskLevel
 	// RiskScore is a numerical score representing the risk associated with the command.
 	RiskScore int32
-	// ThreatCategory is the category of any detected threat associated with the command.
+	// ThreatCategory is the MITRE ATT&CK tactic whose technique the command's mechanics match. It is assigned even for
+	// routine activity and is not a threat verdict.
 	ThreatCategory ThreatCategory
 	// TimelineTitle is a brief title for the command's entry in the session timeline.
 	TimelineTitle string
@@ -3091,17 +3102,21 @@ type SessionEvent_builder struct {
 	SensitiveItems []string
 	// SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
 	SuspiciousPatterns []string
-	// IOCs contains any indicators of compromise associated with the command.
+	// IOCs contains the endpoints observed in the command, whether or not they look legitimate. Summaries written
+	// before analysis became neutral hold indicators of compromise here instead.
 	Iocs []string
 	// MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
 	MitreAttackIds []string
 	// HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
 	HasSensitiveData bool
-	// PrivilegeEscalation indicates whether the command involved privilege escalation.
+	// PrivilegeEscalation indicates whether the command changed or attempted to change a privilege level or boundary.
+	// It describes the mechanics, not intent, so routine administration sets it too.
 	PrivilegeEscalation bool
-	// DataExfiltration indicates whether the command involved data exfiltration.
+	// DataExfiltration indicates whether the command moved or staged data toward a destination outside the host. It
+	// describes the mechanics, not intent, so routine transfers such as backups set it too.
 	DataExfiltration bool
-	// Persistence indicates whether the command involved persistence mechanisms.
+	// Persistence indicates whether the command created or changed something that outlives the session. It describes
+	// the mechanics, not intent, so routine changes such as installing a service set it too.
 	Persistence bool
 	// StartOffset is the start time of the command, relative to the start of the session.
 	StartOffset *durationpb.Duration
@@ -3113,6 +3128,10 @@ type SessionEvent_builder struct {
 	// scrolled off the screen faster than it could be captured or was truncated to bound size - and so the command
 	// was only partially analyzed. Empty when the output was fully captured.
 	OutputIncompleteReason string
+	// NotableObservations contains plain-English, free-text observations generated by the configured inference
+	// model from this event's command output or desktop screenshots. They preserve concrete details for later
+	// analysis without assigning a security judgement.
+	NotableObservations []string
 	// Details is the type-specific details of the event.
 
 	// Fields of oneof Details:
@@ -3148,6 +3167,7 @@ func (b0 SessionEvent_builder) Build() *SessionEvent {
 	x.EndOffset = b.EndOffset
 	x.InferenceErrorMessage = b.InferenceErrorMessage
 	x.OutputIncompleteReason = b.OutputIncompleteReason
+	x.NotableObservations = b.NotableObservations
 	if b.CommandEventDetails != nil {
 		x.Details = &SessionEvent_CommandEventDetails{b.CommandEventDetails}
 	}
@@ -3401,7 +3421,8 @@ type CommandAnalysis struct {
 	RiskLevel RiskLevel `protobuf:"varint,4,opt,name=risk_level,json=riskLevel,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"risk_level,omitempty"`
 	// RiskScore is a numerical score representing the risk associated with the command.
 	RiskScore int32 `protobuf:"varint,5,opt,name=risk_score,json=riskScore,proto3" json:"risk_score,omitempty"`
-	// ThreatCategory is the category of any detected threat associated with the command.
+	// ThreatCategory is the MITRE ATT&CK tactic whose technique the command's mechanics match. It is assigned even for
+	// routine activity and is not a threat verdict.
 	ThreatCategory ThreatCategory `protobuf:"varint,6,opt,name=threat_category,json=threatCategory,proto3,enum=teleport.summarizer.v1.ThreatCategory" json:"threat_category,omitempty"`
 	// TimelineTitle is a brief title for the command's entry in the session timeline.
 	TimelineTitle string `protobuf:"bytes,7,opt,name=timeline_title,json=timelineTitle,proto3" json:"timeline_title,omitempty"`
@@ -3420,17 +3441,21 @@ type CommandAnalysis struct {
 	SensitiveItems []string `protobuf:"bytes,13,rep,name=sensitive_items,json=sensitiveItems,proto3" json:"sensitive_items,omitempty"`
 	// SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
 	SuspiciousPatterns []string `protobuf:"bytes,14,rep,name=suspicious_patterns,json=suspiciousPatterns,proto3" json:"suspicious_patterns,omitempty"`
-	// IOCs contains any indicators of compromise associated with the command.
+	// IOCs contains the endpoints observed in the command, whether or not they look legitimate. Summaries written
+	// before analysis became neutral hold indicators of compromise here instead.
 	Iocs []string `protobuf:"bytes,15,rep,name=iocs,proto3" json:"iocs,omitempty"`
 	// MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
 	MitreAttackIds []string `protobuf:"bytes,16,rep,name=mitre_attack_ids,json=mitreAttackIds,proto3" json:"mitre_attack_ids,omitempty"`
 	// HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
 	HasSensitiveData bool `protobuf:"varint,17,opt,name=has_sensitive_data,json=hasSensitiveData,proto3" json:"has_sensitive_data,omitempty"`
-	// PrivilegeEscalation indicates whether the command involved privilege escalation.
+	// PrivilegeEscalation indicates whether the command changed or attempted to change a privilege level or boundary.
+	// It describes the mechanics, not intent, so routine administration sets it too.
 	PrivilegeEscalation bool `protobuf:"varint,18,opt,name=privilege_escalation,json=privilegeEscalation,proto3" json:"privilege_escalation,omitempty"`
-	// DataExfiltration indicates whether the command involved data exfiltration.
+	// DataExfiltration indicates whether the command moved or staged data toward a destination outside the host. It
+	// describes the mechanics, not intent, so routine transfers such as backups set it too.
 	DataExfiltration bool `protobuf:"varint,19,opt,name=data_exfiltration,json=dataExfiltration,proto3" json:"data_exfiltration,omitempty"`
-	// Persistence indicates whether the command involved persistence mechanisms.
+	// Persistence indicates whether the command created or changed something that outlives the session. It describes
+	// the mechanics, not intent, so routine changes such as installing a service set it too.
 	Persistence bool `protobuf:"varint,20,opt,name=persistence,proto3" json:"persistence,omitempty"`
 	// StartOffset is the start time of the command, relative to the start of the session.
 	StartOffset *durationpb.Duration `protobuf:"bytes,21,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"`
@@ -3438,8 +3463,12 @@ type CommandAnalysis struct {
 	EndOffset *durationpb.Duration `protobuf:"bytes,22,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
 	// InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
 	InferenceErrorMessage string `protobuf:"bytes,23,opt,name=inference_error_message,json=inferenceErrorMessage,proto3" json:"inference_error_message,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// NotableObservations contains plain-English, free-text observations generated by the configured inference
+	// model from this command and its output. They preserve concrete details for later analysis without
+	// assigning a security judgement.
+	NotableObservations []string `protobuf:"bytes,24,rep,name=notable_observations,json=notableObservations,proto3" json:"notable_observations,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *CommandAnalysis) Reset() {
@@ -3628,6 +3657,13 @@ func (x *CommandAnalysis) GetInferenceErrorMessage() string {
 	return ""
 }
 
+func (x *CommandAnalysis) GetNotableObservations() []string {
+	if x != nil {
+		return x.NotableObservations
+	}
+	return nil
+}
+
 func (x *CommandAnalysis) SetCommand(v string) {
 	x.Command = v
 }
@@ -3720,6 +3756,10 @@ func (x *CommandAnalysis) SetInferenceErrorMessage(v string) {
 	x.InferenceErrorMessage = v
 }
 
+func (x *CommandAnalysis) SetNotableObservations(v []string) {
+	x.NotableObservations = v
+}
+
 func (x *CommandAnalysis) HasStartOffset() bool {
 	if x == nil {
 		return false
@@ -3755,7 +3795,8 @@ type CommandAnalysis_builder struct {
 	RiskLevel RiskLevel
 	// RiskScore is a numerical score representing the risk associated with the command.
 	RiskScore int32
-	// ThreatCategory is the category of any detected threat associated with the command.
+	// ThreatCategory is the MITRE ATT&CK tactic whose technique the command's mechanics match. It is assigned even for
+	// routine activity and is not a threat verdict.
 	ThreatCategory ThreatCategory
 	// TimelineTitle is a brief title for the command's entry in the session timeline.
 	TimelineTitle string
@@ -3774,17 +3815,21 @@ type CommandAnalysis_builder struct {
 	SensitiveItems []string
 	// SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
 	SuspiciousPatterns []string
-	// IOCs contains any indicators of compromise associated with the command.
+	// IOCs contains the endpoints observed in the command, whether or not they look legitimate. Summaries written
+	// before analysis became neutral hold indicators of compromise here instead.
 	Iocs []string
 	// MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
 	MitreAttackIds []string
 	// HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
 	HasSensitiveData bool
-	// PrivilegeEscalation indicates whether the command involved privilege escalation.
+	// PrivilegeEscalation indicates whether the command changed or attempted to change a privilege level or boundary.
+	// It describes the mechanics, not intent, so routine administration sets it too.
 	PrivilegeEscalation bool
-	// DataExfiltration indicates whether the command involved data exfiltration.
+	// DataExfiltration indicates whether the command moved or staged data toward a destination outside the host. It
+	// describes the mechanics, not intent, so routine transfers such as backups set it too.
 	DataExfiltration bool
-	// Persistence indicates whether the command involved persistence mechanisms.
+	// Persistence indicates whether the command created or changed something that outlives the session. It describes
+	// the mechanics, not intent, so routine changes such as installing a service set it too.
 	Persistence bool
 	// StartOffset is the start time of the command, relative to the start of the session.
 	StartOffset *durationpb.Duration
@@ -3792,6 +3837,10 @@ type CommandAnalysis_builder struct {
 	EndOffset *durationpb.Duration
 	// InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
 	InferenceErrorMessage string
+	// NotableObservations contains plain-English, free-text observations generated by the configured inference
+	// model from this command and its output. They preserve concrete details for later analysis without
+	// assigning a security judgement.
+	NotableObservations []string
 }
 
 func (b0 CommandAnalysis_builder) Build() *CommandAnalysis {
@@ -3821,6 +3870,7 @@ func (b0 CommandAnalysis_builder) Build() *CommandAnalysis {
 	x.StartOffset = b.StartOffset
 	x.EndOffset = b.EndOffset
 	x.InferenceErrorMessage = b.InferenceErrorMessage
+	x.NotableObservations = b.NotableObservations
 	return m0
 }
 
@@ -4044,8 +4094,12 @@ type EnhancedSummary struct {
 	// InstructionAssessment is a free-text explanation of how the agent's actions
 	// related to its LLM instructions. Empty for non-beam summaries.
 	InstructionAssessment string `protobuf:"bytes,18,opt,name=instruction_assessment,json=instructionAssessment,proto3" json:"instruction_assessment,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// NotableObservations contains plain-English, free-text observations generated by the configured inference
+	// model when synthesizing the session's event analyses. They preserve concrete details for later analysis
+	// without assigning a security judgement.
+	NotableObservations []string `protobuf:"bytes,19,rep,name=notable_observations,json=notableObservations,proto3" json:"notable_observations,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *EnhancedSummary) Reset() {
@@ -4201,6 +4255,13 @@ func (x *EnhancedSummary) GetInstructionAssessment() string {
 	return ""
 }
 
+func (x *EnhancedSummary) GetNotableObservations() []string {
+	if x != nil {
+		return x.NotableObservations
+	}
+	return nil
+}
+
 func (x *EnhancedSummary) SetShortDescription(v string) {
 	x.ShortDescription = v
 }
@@ -4275,6 +4336,10 @@ func (x *EnhancedSummary) SetInstructionAssessment(v string) {
 	x.InstructionAssessment = v
 }
 
+func (x *EnhancedSummary) SetNotableObservations(v []string) {
+	x.NotableObservations = v
+}
+
 // Deprecated: Marked as deprecated in teleport/summarizer/v1/summarizer.proto.
 func (x *EnhancedSummary) HasNeedsFurtherReview() bool {
 	if x == nil {
@@ -4339,6 +4404,10 @@ type EnhancedSummary_builder struct {
 	// InstructionAssessment is a free-text explanation of how the agent's actions
 	// related to its LLM instructions. Empty for non-beam summaries.
 	InstructionAssessment string
+	// NotableObservations contains plain-English, free-text observations generated by the configured inference
+	// model when synthesizing the session's event analyses. They preserve concrete details for later analysis
+	// without assigning a security judgement.
+	NotableObservations []string
 }
 
 func (b0 EnhancedSummary_builder) Build() *EnhancedSummary {
@@ -4363,6 +4432,7 @@ func (b0 EnhancedSummary_builder) Build() *EnhancedSummary {
 	x.SessionEvents = b.SessionEvents
 	x.InstructionConsistency = b.InstructionConsistency
 	x.InstructionAssessment = b.InstructionAssessment
+	x.NotableObservations = b.NotableObservations
 	return m0
 }
 
@@ -4820,7 +4890,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x12classifier_matches\x18\n" +
 	" \x03(\v2'.teleport.summarizer.v1.ClassifierMatchR\x11classifierMatches\x12H\n" +
 	"\x12processed_duration\x18\v \x01(\v2\x19.google.protobuf.DurationR\x11processedDuration\x12@\n" +
-	"\x0etotal_duration\x18\f \x01(\v2\x19.google.protobuf.DurationR\rtotalDuration\"\xe7\t\n" +
+	"\x0etotal_duration\x18\f \x01(\v2\x19.google.protobuf.DurationR\rtotalDuration\"\x9a\n" +
+	"\n" +
 	"\fSessionEvent\x12C\n" +
 	"\bcategory\x18\x01 \x01(\x0e2'.teleport.summarizer.v1.CommandCategoryR\bcategory\x12@\n" +
 	"\n" +
@@ -4846,7 +4917,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\n" +
 	"end_offset\x18\x13 \x01(\v2\x19.google.protobuf.DurationR\tendOffset\x126\n" +
 	"\x17inference_error_message\x18\x14 \x01(\tR\x15inferenceErrorMessage\x128\n" +
-	"\x18output_incomplete_reason\x18\x17 \x01(\tR\x16outputIncompleteReason\x12a\n" +
+	"\x18output_incomplete_reason\x18\x17 \x01(\tR\x16outputIncompleteReason\x121\n" +
+	"\x14notable_observations\x18\x18 \x03(\tR\x13notableObservations\x12a\n" +
 	"\x15command_event_details\x18\x15 \x01(\v2+.teleport.summarizer.v1.CommandEventDetailsH\x00R\x13commandEventDetails\x12a\n" +
 	"\x15desktop_event_details\x18\x16 \x01(\v2+.teleport.summarizer.v1.DesktopEventDetailsH\x00R\x13desktopEventDetailsB\t\n" +
 	"\adetails\"p\n" +
@@ -4858,7 +4930,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\fapplications\x18\x01 \x03(\tR\fapplications\x12!\n" +
 	"\fvisible_urls\x18\x02 \x03(\tR\vvisibleUrls\x12,\n" +
 	"\x12visible_file_paths\x18\x03 \x03(\tR\x10visibleFilePaths\x12.\n" +
-	"\x13active_window_title\x18\x04 \x01(\tR\x11activeWindowTitle\"\xba\b\n" +
+	"\x13active_window_title\x18\x04 \x01(\tR\x11activeWindowTitle\"\xed\b\n" +
 	"\x0fCommandAnalysis\x12\x18\n" +
 	"\acommand\x18\x01 \x01(\tR\acommand\x12C\n" +
 	"\bcategory\x18\x02 \x01(\x0e2'.teleport.summarizer.v1.CommandCategoryR\bcategory\x12\x18\n" +
@@ -4886,14 +4958,15 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\fstart_offset\x18\x15 \x01(\v2\x19.google.protobuf.DurationR\vstartOffset\x128\n" +
 	"\n" +
 	"end_offset\x18\x16 \x01(\v2\x19.google.protobuf.DurationR\tendOffset\x126\n" +
-	"\x17inference_error_message\x18\x17 \x01(\tR\x15inferenceErrorMessage\"\x8f\x01\n" +
+	"\x17inference_error_message\x18\x17 \x01(\tR\x15inferenceErrorMessage\x121\n" +
+	"\x14notable_observations\x18\x18 \x03(\tR\x13notableObservations\"\x8f\x01\n" +
 	"\x16SecurityRecommendation\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12=\n" +
 	"\bseverity\x18\x03 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\bseverity\"L\n" +
 	"\x0fRiskScoreReason\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12!\n" +
-	"\fscore_impact\x18\x02 \x01(\x05R\vscoreImpact\"\x95\n" +
+	"\fscore_impact\x18\x02 \x01(\x05R\vscoreImpact\"\xc8\n" +
 	"\n" +
 	"\x0fEnhancedSummary\x12+\n" +
 	"\x11short_description\x18\x01 \x01(\tR\x10shortDescription\x121\n" +
@@ -4917,7 +4990,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x1cneeds_further_review_reasons\x18\x0f \x03(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x19needsFurtherReviewReasons\x12K\n" +
 	"\x0esession_events\x18\x10 \x03(\v2$.teleport.summarizer.v1.SessionEventR\rsessionEvents\x12k\n" +
 	"\x17instruction_consistency\x18\x11 \x01(\x0e22.teleport.summarizer.v1.BeamInstructionConsistencyR\x16instructionConsistency\x125\n" +
-	"\x16instruction_assessment\x18\x12 \x01(\tR\x15instructionAssessmentB\x17\n" +
+	"\x16instruction_assessment\x18\x12 \x01(\tR\x15instructionAssessment\x121\n" +
+	"\x14notable_observations\x18\x13 \x03(\tR\x13notableObservationsB\x17\n" +
 	"\x15_needs_further_review\"\xd3\x01\n" +
 	"\x0eRetrievalModel\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +

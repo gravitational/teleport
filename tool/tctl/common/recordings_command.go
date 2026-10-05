@@ -840,7 +840,10 @@ func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
 
 	// Enhanced summary information
 	if enhanced := summary.GetEnhancedSummary(); enhanced != nil {
-		fmt.Fprintf(&buf, "\n%s %s\n", bold("Risk Level:"), enhanced.GetRiskLevel())
+		// An unspecified level means the session was not assessed, which is not the same as no risk.
+		if level := enhanced.GetRiskLevel(); level != summarizerv1pb.RiskLevel_RISK_LEVEL_UNSPECIFIED {
+			fmt.Fprintf(&buf, "\n%s %s\n", bold("Risk Level:"), level)
+		}
 
 		if enhanced.GetCompromiseIndicators() {
 			fmt.Fprintf(&buf, "\n%s Compromise indicators detected!\n", bold("WARNING:"))
@@ -872,11 +875,13 @@ func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
 			fmt.Fprintf(&buf, "[%d] %s\n", i+1, cmd.command)
 
 			// Risk and category information
-			fmt.Fprintf(&buf, "    %s %s", bold("Risk Level:"), cmd.GetRiskLevel())
-			if cmd.GetRiskScore() > 0 {
-				fmt.Fprintf(&buf, " (Score: %d)", cmd.GetRiskScore())
+			if level := cmd.GetRiskLevel(); level != summarizerv1pb.RiskLevel_RISK_LEVEL_UNSPECIFIED {
+				fmt.Fprintf(&buf, "    %s %s", bold("Risk Level:"), level)
+				if cmd.GetRiskScore() > 0 {
+					fmt.Fprintf(&buf, " (Score: %d)", cmd.GetRiskScore())
+				}
+				fmt.Fprintf(&buf, "\n")
 			}
-			fmt.Fprintf(&buf, "\n")
 
 			if cmd.GetCategory() != summarizerv1pb.CommandCategory_COMMAND_CATEGORY_UNSPECIFIED {
 				fmt.Fprintf(&buf, "    %s %s\n", bold("Category:"), cmd.GetCategory())
@@ -904,27 +909,31 @@ func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
 				fmt.Fprintf(&buf, "    %s Failed\n", bold("Status:"))
 			}
 
-			// Security flags
+			// These flags record what the command did mechanically, not a judgement of intent, so routine
+			// administration sets them too.
 			var flags []string
 			if cmd.GetPrivilegeEscalation() {
-				flags = append(flags, "Privilege Escalation")
+				flags = append(flags, "Privilege Change")
 			}
 			if cmd.GetDataExfiltration() {
-				flags = append(flags, "Data Exfiltration")
+				flags = append(flags, "External Transfer")
 			}
 			if cmd.GetPersistence() {
-				flags = append(flags, "Persistence")
+				flags = append(flags, "Persistent Change")
 			}
 			if cmd.GetHasSensitiveData() {
 				flags = append(flags, "Sensitive Data")
 			}
 			if len(flags) > 0 {
-				fmt.Fprintf(&buf, "    %s %s\n", bold("Security Flags:"), strings.Join(flags, ", "))
+				fmt.Fprintf(&buf, "    %s %s\n", bold("Activity:"), strings.Join(flags, ", "))
 			}
 
-			// Threat information
-			if cmd.GetThreatCategory() != summarizerv1pb.ThreatCategory_THREAT_CATEGORY_UNSPECIFIED {
-				fmt.Fprintf(&buf, "    %s %s\n", bold("Threat Category:"), cmd.GetThreatCategory())
+			// ThreatCategory holds the tactic whose technique the command's mechanics match, even for benign activity.
+			if category := cmd.GetThreatCategory(); category != summarizerv1pb.ThreatCategory_THREAT_CATEGORY_UNSPECIFIED &&
+				category != summarizerv1pb.ThreatCategory_THREAT_CATEGORY_NONE {
+				//nolint:misspell // MITRE ATT&CK is the official name.
+				fmt.Fprintf(&buf, "    %s %s\n", bold("MITRE ATT&CK Tactic:"),
+					strings.TrimPrefix(category.String(), "THREAT_CATEGORY_"))
 			}
 
 			// Threat framework mappings
@@ -949,7 +958,7 @@ func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
 				}
 			}
 
-			// Suspicious patterns and IOCs
+			// Only summaries written before analysis became neutral contain suspicious patterns.
 			if len(cmd.GetSuspiciousPatterns()) > 0 {
 				fmt.Fprintf(&buf, "\n    %s\n", bold("Suspicious Patterns:"))
 				for _, pattern := range cmd.GetSuspiciousPatterns() {
@@ -958,9 +967,9 @@ func formatSummaryText(w io.Writer, summary *summarizerv1pb.Summary) error {
 			}
 
 			if len(cmd.GetIocs()) > 0 {
-				fmt.Fprintf(&buf, "\n    %s\n", bold("IOCs:"))
-				for _, ioc := range cmd.GetIocs() {
-					fmt.Fprintf(&buf, "      - %s\n", ioc)
+				fmt.Fprintf(&buf, "\n    %s\n", bold("Observed Endpoints:"))
+				for _, endpoint := range cmd.GetIocs() {
+					fmt.Fprintf(&buf, "      - %s\n", endpoint)
 				}
 			}
 
