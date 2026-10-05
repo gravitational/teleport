@@ -574,13 +574,14 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 		switch proto {
 		case ProtoProxy:
+			// v1 headers are always unsigned, so disabled mode can reject them without reading the body.
+			if m.PROXYProtocolMode == PROXYProtocolOff {
+				return nil, trace.BadParameter("%s", externalProxyProtocolDisabledError)
+			}
+
 			newPROXYLine, err := ReadProxyLine(reader)
 			if err != nil {
 				return nil, trace.Wrap(err, invalidProxyLineError)
-			}
-
-			if m.PROXYProtocolMode == PROXYProtocolOff {
-				return nil, trace.BadParameter("%s", externalProxyProtocolDisabledError)
 			}
 
 			if unsignedPROXYLineReceived {

@@ -176,12 +176,23 @@ func (p *ProxyLine) Bytes() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+// maxProxyV1LineLen allows room for v1 headers while bounding parsing allocations.
+const maxProxyV1LineLen = 256
+
 // ReadProxyLine reads proxy line protocol from the reader
 func ReadProxyLine(reader *bufio.Reader) (*ProxyLine, error) {
-	line, err := reader.ReadString('\n')
+	// ReadSlice is bounded by the reader's buffer, unlike ReadString.
+	lineBytes, err := reader.ReadSlice('\n')
 	if err != nil {
+		if errors.Is(err, bufio.ErrBufferFull) {
+			return nil, trace.BadParameter("PROXY v1 line too long")
+		}
 		return nil, trace.Wrap(err)
 	}
+	if len(lineBytes) > maxProxyV1LineLen {
+		return nil, trace.BadParameter("PROXY v1 line too long")
+	}
+	line := string(lineBytes)
 	if !strings.HasSuffix(line, proxyCRLF) {
 		return nil, trace.BadParameter("expected CRLF in proxy protocol, got something else")
 	}
