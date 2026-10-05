@@ -60,6 +60,10 @@ This is the URL where the identity provider XML metadata can be retrieved from.
 Service providers will require information from this file to establish the
 trust between the service provider and identity provider.
 
+By default, the metadata advertises the self-signed Teleport SAML IdP
+certificate. To advertise a certificate issued by your own CA instead, configure
+a [`saml_idp` CA override](../../zero-trust-access/management/security/ca-overrides.mdx#saml_idp).
+
 ### Single Sign-On Service URL
 
 `https://<proxy-address>/enterprise/saml-idp/sso`

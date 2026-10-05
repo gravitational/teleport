@@ -92,12 +92,12 @@ The `cert_authority_override` resource targets a CA with the following fields:
   Assign the `<Var name="ca-override-admin" />` role to the user who will manage
   CA overrides.
 
-- Only the following CAs are currently supported: `db_client`, `spiffe-tls`, and
-  `windows`.
+- Only the following CAs are currently supported: `db_client`, `saml_idp`,
+  `spiffe-tls`, and `windows`.
 
 - All Auth Service instances and related services, such as Windows Desktop
-  Service and Database Service instances, must be upgraded to the same CA
-  override-aware Teleport version.
+  Service, Database Service, and Proxy Service instances, must be upgraded to
+  the same CA override-aware Teleport version.
 
 - For safety, back up your cluster state before starting and retain downstream
   trust in the self-signed CA certificates until the upgrade is fully verified.
@@ -272,6 +272,30 @@ requires that you:
 
    tctl edit ca_overrides/db_client
    ```
+
+### saml_idp
+
+When the override is enabled, Teleport signs SAML assertions with the override
+certificate and advertises it in both the metadata XML and the Web UI.
+
+Cutover behavior depends on how your service provider (SP) manages IdP
+certificates:
+
+- Multi-certificate SPs: Before enabling the override, add the override
+  certificate from step 2 alongside the existing Teleport certificate, the
+  same way you provided the IdP certificate when [configuring the service
+  provider](../../../identity-governance/idps/saml-guide.mdx#step-24-configure-the-service-provider).
+- Single-certificate SPs: After enabling the override in step 5, update the
+  SP with the override certificate. Logins to these SPs may fail until the
+  certificate is updated.
+- Metadata URL SPs: After enabling the override in step 5, refresh the SP's
+  metadata or wait for the SP to poll the metadata URL. Logins to these SPs
+  may fail until the metadata is refreshed.
+
+Teleport does not distribute intermediate or root CAs. If your SP validates
+the full certificate chain, obtain the chain out of band from your external
+CA. We recommend checking your SP documentation and verifying logins in a
+controlled environment after enabling the override.
 
 ### spiffe-tls
 
