@@ -198,9 +198,13 @@ Example `rate_limit` block:
 kind: plugin
 version: v1
 metadata:
-  name: scim
+  name: scim-generic
 spec:
   Settings:
+    scim:
+      connector_info:
+        name: okta
+        type: saml
       rate_limit:
         average: 1200
         burst: 2000
