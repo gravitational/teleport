@@ -622,7 +622,13 @@ var (
 	// CreateWindowsUserOID is an extension OID used to indicate that the user should be created.
 	CreateWindowsUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
 
-	// DesktopsLimitExceededOID is an extension OID used indicate if number of non-AD desktops exceeds the limit for OSS distribution.
+	// DesktopsLimitExceededOID is an extension OID used to indicate if the
+	// number of non-AD desktops exceeds the limit for Teleport Community.
+	//
+	// It also serves as a server-controlled marker that prevents Windows
+	// smart-card certificates from being accepted as Teleport client
+	// credentials. Do not remove it from issued Windows desktop certificates
+	// without replacing that authentication safeguard.
 	DesktopsLimitExceededOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 17}
 
 	// BotASN1ExtensionOID is an extension OID used to indicate an identity is associated with a Machine ID bot.
@@ -701,6 +707,47 @@ var (
 	// present.
 	CAClusterNameExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 4, 1}
 )
+
+var (
+	// teleportASN1Namespace is the private space under which Teleport encodes identity
+	// and authorization in certificate subjects and extensions.
+	teleportASN1Namespace = asn1.ObjectIdentifier{1, 3, 9999}
+
+	// nonIdentityTeleportOIDs are the only OIDs under [teleportASN1Namespace] that
+	// carry no Teleport identity or authorization. They are all set on Windows
+	// desktop certificates, which are not Teleport credentials.
+	nonIdentityTeleportOIDs = []asn1.ObjectIdentifier{
+		ADStatusOID,
+		CreateWindowsUserOID,
+		DesktopsLimitExceededOID,
+		LicenseOID,
+	}
+
+	// identityNameOIDs are standard attribute types that Teleport
+	// repurposes to encode identity and authorization in a certificate
+	// subject. Keep in sync with [FromSubject].
+	identityNameOIDs = []asn1.ObjectIdentifier{
+		{2, 5, 4, 10}, // organizationName  -> Identity.Groups (Teleport roles)
+		{2, 5, 4, 7},  // localityName      -> Identity.Principals
+		{2, 5, 4, 9},  // streetAddress     -> Identity.RouteToCluster
+		{2, 5, 4, 17}, // postalCode        -> Identity.Traits
+	}
+)
+
+// IsIdentityOID reports whether oid is used by Teleport to encode identity or
+// authorization in a certificate subject or extension.
+//
+// Every unrecognized OID under Teleport's 1.3.9999 namespace returns true so that
+// OIDs added in the future are rejected by default.
+func IsIdentityOID(oid asn1.ObjectIdentifier) bool {
+	if slices.ContainsFunc(identityNameOIDs, oid.Equal) {
+		return true
+	}
+	if len(oid) < len(teleportASN1Namespace) || !slices.Equal(oid[:len(teleportASN1Namespace)], teleportASN1Namespace) {
+		return false
+	}
+	return !slices.ContainsFunc(nonIdentityTeleportOIDs, oid.Equal)
+}
 
 // Device Trust OIDs.
 // Namespace 1.3.9999.3.x.

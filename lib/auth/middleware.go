@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -686,6 +687,20 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 		}, nil
 	}
 	clientCert := peers[0]
+
+	// Windows desktop certs were signed by the user CA prior to 18.7.0.
+	// These certs are intended to be presented to Windows and should not
+	// be accepted as Teleport client credentials.
+	if isDesktopCert := slices.ContainsFunc(
+		clientCert.Extensions,
+		// Use the DesktopsLimitExceededOID as an indicator that this
+		// is a cert intended for Windows desktop access.
+		func(extension pkix.Extension) bool {
+			return extension.Id.Equal(tlsca.DesktopsLimitExceededOID)
+		}); isDesktopCert {
+		logger.WarnContext(context.Background(), "Windows smart-card certificate rejected while accessing a Teleport endpoint")
+		return nil, trace.AccessDenied("access denied: invalid client certificate")
+	}
 
 	identity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
 	if err != nil {
