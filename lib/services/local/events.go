@@ -1992,7 +1992,10 @@ func (p *crownJewelParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAppParser() *appParser {
 	return &appParser{
-		baseParser: newBaseParser(backend.NewKey(appPrefix)),
+		baseParser: newBaseParser(
+			backend.NewKey(appPrefix),
+			backend.NewKey(scopedPrefix, appPrefix),
+		),
 	}
 }
 
@@ -2003,7 +2006,31 @@ type appParser struct {
 func (p *appParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(appPrefix)).String()
+		key := event.Item.Key
+		scopedAppPrefix := backend.NewKey(scopedPrefix, appPrefix)
+		if key.HasPrefix(scopedAppPrefix) {
+			components := key.TrimPrefix(scopedAppPrefix).Components()
+			if len(components) != 2 {
+				return nil, trace.NotFound("failed parsing %v", key.String())
+			}
+
+			scope, err := scopes.DecodeFromKey(components[0])
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &types.AppV3{
+				Kind:    types.KindApp,
+				Version: types.V3,
+				Metadata: types.Metadata{
+					Name:      components[1],
+					Namespace: apidefaults.Namespace,
+				},
+				Scope: scope,
+			}, nil
+		}
+
+		name := key.TrimPrefix(backend.NewKey(appPrefix)).String()
 		if name == "" {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}

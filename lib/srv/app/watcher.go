@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
@@ -84,6 +85,10 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 			Client:    s.c.AccessPoint,
 		},
 		AppGetter: s.c.AccessPoint,
+		// An unscoped agent can only watch for unscoped apps.
+		// A scoped agent can only watch apps that match the agent's scope.
+		// The API layer will automatically decide when a nil filter is set by the client.
+		ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{}.Build()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,9 +100,8 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 			case apps := <-watcher.ResourcesC:
 				for _, app := range apps {
 					if app.GetPublicAddr() == "" {
-						// TODO (williamo/scopes): Dynamic app registration does not support scoped apps
-						// add scoped app here when we do support it.
-						pubAddr, err := FindPublicAddr(ctx, s.c.AccessPoint, app.GetPublicAddr(), app.GetName(), "")
+						// Scoped apps derive their address from (scope, name);
+						pubAddr, err := FindPublicAddr(ctx, s.c.AccessPoint, app.GetPublicAddr(), app.GetName(), app.GetScope())
 						if err == nil {
 							app.SetPublicAddr(pubAddr)
 						} else {

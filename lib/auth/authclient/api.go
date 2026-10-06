@@ -252,17 +252,14 @@ type ReadProxyAccessPoint interface {
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
-	// GetApps returns all application resources.
-	GetApps(ctx context.Context) ([]types.Application, error)
+	// GetApplication returns a scoped or unscoped application by name.
+	GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error)
 
-	// ListApps returns a page of application resources.
-	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+	// ListApplications returns a page of applications respecting scope filters.
+	ListApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) ([]types.Application, string, error)
 
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
-
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
+	// RangeApplications returns applications within the range [start, end).
+	RangeApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) iter.Seq2[types.Application, error]
 
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
@@ -637,17 +634,14 @@ type ReadAppsAccessPoint interface {
 	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
 	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
-	// GetApps returns all application resources.
-	GetApps(ctx context.Context) ([]types.Application, error)
+	// GetApplication returns a scoped or unscoped application by name.
+	GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error)
 
-	// ListApps returns a page of application resources.
-	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+	// ListApplications returns a page of applications respecting scope filters.
+	ListApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) ([]types.Application, string, error)
 
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
-
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
+	// RangeApplications returns applications within the range [start, end).
+	RangeApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) iter.Seq2[types.Application, error]
 }
 
 // AppsAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -882,17 +876,14 @@ type ReadDiscoveryAccessPoint interface {
 	// GetDatabase returns a database resource with the given name if it exists.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
-	// GetApps returns all application resources.
-	GetApps(context.Context) ([]types.Application, error)
+	// GetApplication returns a scoped or unscoped application by name.
+	GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error)
 
-	// ListApps returns a page of application resources.
-	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+	// ListApplications returns a page of applications respecting scope filters.
+	ListApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) ([]types.Application, string, error)
 
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
-
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
+	// RangeApplications returns applications within the range [start, end).
+	RangeApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) iter.Seq2[types.Application, error]
 
 	// DiscoveryConfigsGetter lists and reads discovery config resources.
 	services.DiscoveryConfigsGetter
@@ -943,8 +934,8 @@ type DiscoveryAccessPoint interface {
 	CreateApp(context.Context, types.Application) error
 	// UpdateApp updates an existing application resource.
 	UpdateApp(context.Context, types.Application) error
-	// DeleteApp removes the specified application resource.
-	DeleteApp(ctx context.Context, name string) error
+	// DeleteApplication removes a scoped or unscoped application.
+	DeleteApplication(ctx context.Context, req *presencev1.DeleteApplicationRequest) error
 
 	// SubmitUsageEvent submits an external usage event.
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
@@ -1214,18 +1205,6 @@ type Cache interface {
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
-
-	// GetApps returns all application resources.
-	GetApps(ctx context.Context) ([]types.Application, error)
-
-	// ListApps returns a page of application resources.
-	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
-
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, startKey, endKey string) iter.Seq2[types.Application, error]
-
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
@@ -1791,8 +1770,8 @@ func (w *DiscoveryWrapper) UpdateApp(ctx context.Context, app types.Application)
 	return w.NoCache.UpdateApp(ctx, app)
 }
 
-func (w *DiscoveryWrapper) DeleteApp(ctx context.Context, name string) error {
-	return w.NoCache.DeleteApp(ctx, name)
+func (w *DiscoveryWrapper) DeleteApplication(ctx context.Context, req *presencev1.DeleteApplicationRequest) error {
+	return w.NoCache.DeleteApplication(ctx, req)
 }
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.

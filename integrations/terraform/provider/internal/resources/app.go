@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 
+	"github.com/gravitational/teleport/api/scopes"
 	apitypes "github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
@@ -28,9 +29,9 @@ import (
 )
 
 // NewAppDataSourceType returns the app data source type.
-func NewAppDataSourceType() tfdriver.DataSourceType[apitypes.AppV3, tfdriver.NameIdentifier] {
-	return tfdriver.DataSourceType[apitypes.AppV3, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[apitypes.AppV3, tfdriver.NameIdentifier] {
+func NewAppDataSourceType() tfdriver.DataSourceType[apitypes.AppV3, tfdriver.ScopeQualifiedNameIdentifier] {
+	return tfdriver.DataSourceType[apitypes.AppV3, tfdriver.ScopeQualifiedNameIdentifier]{
+		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[apitypes.AppV3, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewAppClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindApp,
@@ -38,14 +39,19 @@ func NewAppDataSourceType() tfdriver.DataSourceType[apitypes.AppV3, tfdriver.Nam
 			SchemaFunc:  tfschema.GenSchemaAppV3,
 			ToStateFunc: tfschema.CopyAppV3ToTerraform,
 		},
-		Identifier: tfdriver.NameIdentifierFromPath(path.Root("metadata").AtName("name")),
+		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			},
+		),
 	}
 }
 
 // NewAppResourceType returns the app resource type.
-func NewAppResourceType() tfdriver.ResourceType[apitypes.AppV3, tfdriver.NameIdentifier] {
-	return tfdriver.ResourceType[apitypes.AppV3, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[apitypes.AppV3, tfdriver.NameIdentifier] {
+func NewAppResourceType() tfdriver.ResourceType[apitypes.AppV3, tfdriver.ScopeQualifiedNameIdentifier] {
+	return tfdriver.ResourceType[apitypes.AppV3, tfdriver.ScopeQualifiedNameIdentifier]{
+		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[apitypes.AppV3, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewAppClient(clientFromProvider(p))
 		},
 		Kind: apitypes.KindApp,
@@ -55,9 +61,17 @@ func NewAppResourceType() tfdriver.ResourceType[apitypes.AppV3, tfdriver.NameIde
 			FromPlanFunc: tfschema.CopyAppV3FromTerraform,
 		},
 		Normalizer: tfdriver.CheckAndSetDefaults[apitypes.AppV3](),
-		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(av *apitypes.AppV3) string {
-			return av.GetMetadata().Name
-		}),
+		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(
+			tfdriver.ScopeQualifiedPath{
+				Name:  path.Root("metadata").AtName("name"),
+				Scope: path.Root("scope"),
+			},
+			func(av *apitypes.AppV3) scopes.QualifiedName {
+				return scopes.QualifiedName{
+					Name:  av.GetMetadata().Name,
+					Scope: av.GetScope(),
+				}
+			}),
 		ResourceRevision: func(st *apitypes.AppV3) string {
 			return st.GetMetadata().Revision
 		},

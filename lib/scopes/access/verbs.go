@@ -148,6 +148,9 @@ func isAllowedScopedRule(kind string, verb string) bool {
 	case types.KindAppServer:
 		// app servers can be read/written, and embed an app resource that carries no credential material.
 		return isReadWriteNoSecrets(verb)
+	case types.KindApp:
+		// apps can be read/written, and carry no credential material beyond labels/config.
+		return isReadWriteNoSecrets(verb)
 	case types.KindNode:
 		// ssh servers can be read/written, and do not currently contain a concept of a secret.
 		return isReadWriteNoSecrets(verb)

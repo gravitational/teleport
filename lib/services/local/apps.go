@@ -21,147 +21,131 @@ package local
 import (
 	"context"
 	"iter"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // AppService manages application resources in the backend.
 type AppService struct {
 	backend.Backend
+	logger *slog.Logger
+	svc    *generic.ScopeAwareService[types.Application]
 }
 
 // NewAppService creates a new AppService.
-func NewAppService(backend backend.Backend) *AppService {
-	return &AppService{Backend: backend}
-}
-
-// Apps returns application resources within the range [start, end).
-func (s *AppService) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
-	return func(yield func(types.Application, error) bool) {
-		appKey := backend.NewKey(appPrefix)
-		endKey := backend.RangeEnd(appKey)
-		if end != "" {
-			endKey = appKey.AppendKey(backend.KeyFromString(end)).ExactKey()
-		}
-		for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
-			StartKey: appKey.AppendKey(backend.KeyFromString(start)),
-			EndKey:   endKey,
-		}) {
+func NewAppService(b backend.Backend) (*AppService, error) {
+	svc, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[types.Application]{
+		Backend:               b,
+		ResourceKind:          types.KindApp,
+		UnscopedBackendPrefix: appsUnscopedPrefix(),
+		ScopedBackendPrefix:   appsScopedPrefix(),
+		MarshalFunc: func(app types.Application, option ...services.MarshalOption) ([]byte, error) {
+			return services.MarshalApp(app, option...)
+		},
+		UnmarshalFunc: func(bytes []byte, option ...services.MarshalOption) (types.Application, error) {
+			app, err := services.UnmarshalApp(bytes, option...)
 			if err != nil {
-				yield(nil, err)
-				return
+				return nil, trace.Wrap(err)
 			}
-
-			app, err := services.UnmarshalApp(item.Value,
-				services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-			if err != nil {
-				continue
-			}
-
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			if end != "" && app.GetName() >= end {
-				return
-			}
-
-			if !yield(app, nil) {
-				return
-			}
-		}
-	}
-}
-
-// ListApps returns a page of application resources.
-func (s *AppService) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
-	// Adjust page size, so it can't be too large.
-	if limit <= 0 || limit > defaults.DefaultChunkSize {
-		limit = defaults.DefaultChunkSize
-	}
-
-	appKey := backend.NewKey(appPrefix)
-	var out []types.Application
-	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
-		StartKey: appKey.AppendKey(backend.KeyFromString(startKey)),
-		EndKey:   backend.RangeEnd(appKey),
-	}) {
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		app, err := services.UnmarshalApp(item.Value,
-			services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-		if err != nil {
-			continue
-		}
-
-		if len(out) == limit {
-			return out, app.GetName(), nil
-		}
-
-		out = append(out, app)
-	}
-
-	return out, "", nil
-}
-
-// GetApps returns all application resources.
-func (s *AppService) GetApps(ctx context.Context) ([]types.Application, error) {
-	startKey := backend.ExactKey(appPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+			return app, nil
+		},
+		ValidateFunc: validateApp,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	apps := make([]types.Application, len(result.Items))
-	for i, item := range result.Items {
-		app, err := services.UnmarshalApp(item.Value,
-			services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-		if err != nil {
+
+	return &AppService{
+		Backend: b,
+		logger:  slog.With(teleport.ComponentKey, "AppService"),
+		svc:     svc,
+	}, nil
+}
+
+// ListApplications returns a page of registered applications respecting scope filters.
+func (s *AppService) ListApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) ([]types.Application, string, error) {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	filterFn := func(app types.Application) bool {
+		return scopes.MatchScope(scopeFilter, app.GetScope())
+	}
+
+	return s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), filterFn)
+}
+
+// RangeApplications returns applications within the range [start, end).
+func (s *AppService) RangeApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) iter.Seq2[types.Application, error] {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return stream.Fail[types.Application](trace.Wrap(err))
+	}
+
+	filterFn := func(app types.Application) (types.Application, bool) {
+		return app, scopes.MatchScope(scopeFilter, app.GetScope())
+	}
+
+	return stream.FilterMap(s.svc.Resources(ctx, req.GetPageToken(), ""), filterFn)
+}
+
+// GetApplication returns the specified application resource.
+func (s *AppService) GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error) {
+	sqn := apiscopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}
+
+	if sqn.Scope != "" {
+		if err := sqn.WeakValidate(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		apps[i] = app
 	}
-	return apps, nil
+
+	return s.svc.GetResource(ctx, sqn)
 }
 
-// GetApp returns the specified application resource.
-func (s *AppService) GetApp(ctx context.Context, name string) (types.Application, error) {
-	item, err := s.Get(ctx, backend.NewKey(appPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("application %q doesn't exist", name)
-		}
-		return nil, trace.Wrap(err)
-	}
-	app, err := services.UnmarshalApp(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return app, nil
+// DeleteApplication removes the specified application resource.
+func (s *AppService) DeleteApplication(ctx context.Context, req *presencev1.DeleteApplicationRequest) error {
+	return s.svc.DeleteResource(ctx, apiscopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	})
 }
 
 // CreateApp creates a new application resource.
 func (s *AppService) CreateApp(ctx context.Context, app types.Application) error {
-	if err := services.CheckAndSetDefaults(app); err != nil {
-		return trace.Wrap(err)
-	}
-	item, err := itemFromApp(app)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = s.Create(ctx, *item)
+	_, err := s.svc.CreateResource(ctx, app)
 	if trace.IsAlreadyExists(err) {
-		return trace.AlreadyExists("app %q already exists", app.GetName())
+		return trace.AlreadyExists("app %q already exists", apiscopes.QualifiedName{Scope: app.GetScope(), Name: app.GetName()}.String())
 	}
+	return trace.Wrap(err)
+}
 
-	if err != nil {
-		return trace.Wrap(err)
+// UpdateApp updates an existing application resource.
+func (s *AppService) UpdateApp(ctx context.Context, app types.Application) error {
+	_, err := s.svc.UpdateResource(ctx, app)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("app %q doesn't exist", apiscopes.QualifiedName{Scope: app.GetScope(), Name: app.GetName()}.String())
 	}
-	return nil
+	return trace.Wrap(err)
+}
+
+// DeleteAllApps removes all application resources.
+func (s *AppService) DeleteAllApps(ctx context.Context) error {
+	return s.svc.DeleteAllResources(ctx)
 }
 
 // AppendPutAppActions adds conditional actions to an atomic write to create or
@@ -171,69 +155,18 @@ func (s *AppService) AppendPutAppActions(
 	app types.Application,
 	condition backend.Condition,
 ) ([]backend.ConditionalAction, error) {
-	if err := services.CheckAndSetDefaults(app); err != nil {
+	if err := validateApp(app); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item, err := itemFromApp(app)
+	item, err := s.svc.MakeBackendItem(app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return append(actions, backend.ConditionalAction{
 		Key:       item.Key,
 		Condition: condition,
-		Action:    backend.Put(*item),
+		Action:    backend.Put(item),
 	}), nil
-}
-
-func itemFromApp(app types.Application) (*backend.Item, error) {
-	value, err := services.MarshalApp(app)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &backend.Item{
-		Key:     backend.NewKey(appPrefix, app.GetName()),
-		Value:   value,
-		Expires: app.Expiry(),
-	}, nil
-}
-
-// UpdateApp updates an existing application resource.
-func (s *AppService) UpdateApp(ctx context.Context, app types.Application) error {
-	if err := services.CheckAndSetDefaults(app); err != nil {
-		return trace.Wrap(err)
-	}
-	rev := app.GetRevision()
-	value, err := services.MarshalApp(app)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:      backend.NewKey(appPrefix, app.GetName()),
-		Value:    value,
-		Expires:  app.Expiry(),
-		Revision: rev,
-	}
-	_, err = s.Update(ctx, item)
-	if trace.IsNotFound(err) {
-		return trace.NotFound("app %q doesn't exist", app.GetName())
-	}
-
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteApp removes the specified application resource.
-func (s *AppService) DeleteApp(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.NewKey(appPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("application %q doesn't exist", name)
-		}
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // AppendDeleteAppActions adds conditional actions to an atomic write to delete
@@ -243,21 +176,73 @@ func (s *AppService) AppendDeleteAppActions(
 	name string,
 	condition backend.Condition,
 ) ([]backend.ConditionalAction, error) {
+	svc, err := s.svc.WithScopePrefix("")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return append(actions, backend.ConditionalAction{
-		Key:       backend.NewKey(appPrefix, name),
+		Key:       svc.MakeKey(backend.NewKey(name)),
 		Condition: condition,
 		Action:    backend.Delete(),
 	}), nil
 }
 
-// DeleteAllApps removes all application resources.
-func (s *AppService) DeleteAllApps(ctx context.Context) error {
-	startKey := backend.ExactKey(appPrefix)
-	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	if err != nil {
+// validateApp runs shared validation for an application resource.
+// Scoped apps currently reject dynamic labels, MCP, LLM, and integrations
+func validateApp(app types.Application) error {
+	if err := services.CheckAndSetDefaults(app); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if app.GetScope() == "" {
+		return nil
+	}
+
+	if err := apiscopes.StrongValidate(app.GetScope()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if app.GetCloud() != "" {
+		return trace.BadParameter("scoped applications do not support cloud apps")
+	}
+
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return trace.BadParameter("unsupported application type %T", app)
+	}
+	if appV3.Spec.AWS != nil {
+		return trace.BadParameter("scoped applications do not support AWS configuration")
+	}
+
+	if len(app.GetRequiredAppNames()) > 0 {
+		return trace.BadParameter("scoped applications do not support required app names")
+	}
+
+	if len(app.GetDynamicLabels()) > 0 {
+		return trace.BadParameter("scoped applications do not support dynamic labels")
+	}
+
+	if app.IsMCP() {
+		return trace.BadParameter("scoped applications do not support stdio MCP servers")
+	}
+
+	if app.IsLLM() {
+		return trace.BadParameter("scoped applications do not support LLM apps")
+	}
+
+	if app.GetIntegration() != "" {
+		return trace.BadParameter("scoped applications do not support integrations")
+	}
+
 	return nil
+}
+
+func appsUnscopedPrefix() backend.Key {
+	return backend.NewKey(appPrefix)
+}
+
+func appsScopedPrefix() backend.Key {
+	return backend.NewKey(scopedPrefix, appPrefix)
 }
 
 const (

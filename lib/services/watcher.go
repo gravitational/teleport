@@ -468,6 +468,11 @@ type AppWatcherConfig struct {
 	AppsC chan []types.Application
 	// ResourceWatcherConfig is the resource watcher configuration.
 	ResourceWatcherConfig
+	// ScopeFilter is an optional scope filter applied to the app watch. See
+	// GenericWatcherConfig.ScopeFilter for discussion of function. An app
+	// service agent should filter to its own pinned scope or MODE_UNSCOPED
+	// when unscoped so it only serves apps it is responsible for.
+	ScopeFilter *types.ScopeFilter
 }
 
 // NewAppWatcher returns a new instance of AppWatcher.
@@ -479,9 +484,21 @@ func NewAppWatcher(ctx context.Context, cfg AppWatcherConfig) (*GenericWatcher[t
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Application, readonly.Application]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindApp,
-		ResourceKey:           types.Application.GetName,
-		ResourceGetter:        cfg.AppGetter.GetApps,
-		ResourcesC:            cfg.AppsC,
+		ScopeFilter:           cfg.ScopeFilter,
+		ResourceKey:           GetCursorForApp,
+		ResourceGetter: func(ctx context.Context) ([]types.Application, error) {
+			return iterstream.Collect(cfg.AppGetter.RangeApplications(ctx, presencev1.ListApplicationsRequest_builder{
+				ScopeFilter: cfg.ScopeFilter.ToProto(),
+			}.Build()))
+		},
+		ResourcesC: cfg.AppsC,
+		DeleteKey: func(res types.Resource) string {
+			app, ok := res.(types.Application)
+			if ok {
+				return GetCursorForApp(app)
+			}
+			return res.GetName()
+		},
 		CloneFunc: func(resource types.Application) types.Application {
 			return resource.Copy()
 		},

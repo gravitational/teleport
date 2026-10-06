@@ -508,36 +508,6 @@ func (a *appServerCollection) WriteYAML(w io.Writer) error {
 	return utils.WriteYAML(w, a.servers)
 }
 
-type appCollection struct {
-	apps []types.Application
-}
-
-func (c *appCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.apps {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *appCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, app := range c.apps {
-		labels := common.FormatLabels(app.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), labels, app.GetVersion(),
-		})
-	}
-	headers := []string{"Name", "Description", "URI", "Public Address", "Labels", "Version"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type authPrefCollection struct {
 	authPref types.AuthPreference
 }

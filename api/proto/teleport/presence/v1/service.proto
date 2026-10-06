@@ -73,6 +73,13 @@ service PresenceService {
   rpc ListSSHServers(ListSSHServersRequest) returns (ListSSHServersResponse);
   // Deletes an ssh server resource from the backend.
   rpc DeleteSSHServer(DeleteSSHServerRequest) returns (DeleteSSHServerResponse);
+
+  // Gets a specific application resource from the backend.
+  rpc GetApplication(GetApplicationRequest) returns (GetApplicationResponse);
+  // Lists application resources from the backend.
+  rpc ListApplications(ListApplicationsRequest) returns (ListApplicationsResponse);
+  // Deletes an application resource from the backend.
+  rpc DeleteApplication(DeleteApplicationRequest) returns (DeleteApplicationResponse);
 }
 
 // Request for GetRemoteCluster
@@ -350,3 +357,47 @@ message DeleteSSHServerRequest {
 
 // The response when deleting an SSH server.
 message DeleteSSHServerResponse {}
+
+// The request for fetching an application.
+message GetApplicationRequest {
+  // The name of the application.
+  string name = 1;
+  // The scope of the application.
+  string scope = 2;
+}
+
+// The response when fetching an application.
+message GetApplicationResponse {
+  types.AppV3 application = 1;
+}
+
+// The request for listing applications.
+message ListApplicationsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // Filters applications by scope.
+  teleport.scopes.v1.Filter scope_filter = 3;
+}
+
+// The response when listing applications.
+message ListApplicationsResponse {
+  // The page of applications that matched the request.
+  repeated types.AppV3 applications = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// The request for deleting an application.
+message DeleteApplicationRequest {
+  // The name of the application.
+  string name = 1;
+  // The scope of the application.
+  string scope = 2;
+}
+
+// The response when deleting an application.
+message DeleteApplicationResponse {}

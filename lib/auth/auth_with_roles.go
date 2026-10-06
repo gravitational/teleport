@@ -1345,7 +1345,8 @@ func supportedScopedWatchKind(kind string) bool {
 		scopedaccess.KindScopedRoleAssignment,
 		types.KindKubernetesCluster,
 		types.KindWorkloadIdentity,
-		types.KindNode:
+		types.KindNode,
+		types.KindApp:
 		return true
 	default:
 		return false
@@ -7783,20 +7784,27 @@ func hasInternalBeamsLabel(labels map[string]string) bool {
 }
 
 // CreateApp creates a new application resource.
-func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) error {
-	if err := a.authorizeAction(types.KindApp, types.VerbCreate); err != nil {
+func (a *ScopedServerWithRoles) CreateApp(ctx context.Context, app types.Application) error {
+	ruleCtx := a.scopedContext.RuleContext()
+
+	// Scoped apps never carry a user-supplied public address (RFD 0309).
+	if err := services.EnsureScopedAppPubAddrEmpty(app); err != nil {
 		return trace.Wrap(err)
 	}
-	// Reject scoped apps before the rest of validation
-	if err := services.EnsureNotScopedApp(app); err != nil {
-		return trace.Wrap(err)
-	}
+
+	// Validate before the access check so callers with
+	// the correct role see input errors rather than access-denied from
+	// a label mismatch on a malformed app.
 	if err := services.ValidateApp(app, a.authServer); err != nil {
 		return trace.Wrap(err)
 	}
-	// Don't allow users create apps they wouldn't have access to (e.g.
-	// non-matching labels).
-	if err := a.checkAccessToApp(app); err != nil {
+
+	if err := a.scopedContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Create); err != nil {
+			return err
+		}
+		return checker.App().CanAccessApp(app)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7810,30 +7818,45 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 }
 
 // UpdateApp updates existing application resource.
-func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
-	if err := a.authorizeAction(types.KindApp, types.VerbUpdate); err != nil {
+func (a *ScopedServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
+	ruleCtx := a.scopedContext.RuleContext()
+
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Update); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// TODO (williamo/scopes): While a blanket deny is fine for update for now,
-	// when scoped dynamic app registration is supported, we must check whether
-	// the updated scope differs or not, and reject if different.
-	if err := services.EnsureNotScopedApp(app); err != nil {
+	// Scoped apps never carry a user-supplied public address (RFD 0309).
+	if err := services.EnsureScopedAppPubAddrEmpty(app); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Validate before the existence check so a malformed name returns
+	// the input error rather than "doesn't exist".
 	if err := services.ValidateApp(app, a.authServer); err != nil {
 		return trace.Wrap(err)
 	}
+
 	// Don't allow users update apps they don't have access to (e.g.
 	// non-matching labels). Make sure to check existing app too.
-	existing, err := a.authServer.GetApp(ctx, app.GetName())
+	existing, err := a.authServer.GetApplication(ctx, presencev1.GetApplicationRequest_builder{
+		Scope: app.GetScope(),
+		Name:  app.GetName(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToApp(existing); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.checkAccessToApp(app); err != nil {
+	if err := a.scopedContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Update); err != nil {
+			return err
+		}
+		if err := checker.App().CanAccessApp(existing); err != nil {
+			return err
+		}
+		if err := checker.App().CanAccessApp(app); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7847,11 +7870,14 @@ func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) 
 }
 
 // GetApp returns specified application resource.
+// TODO (williamo): Remove in v20
+//
+// Deprecated: Use GetApplication from lib/auth/presence/presencev1/service.go instead.
 func (a *ServerWithRoles) GetApp(ctx context.Context, name string) (types.Application, error) {
 	if err := a.authorizeAction(types.KindApp, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	app, err := a.authServer.GetApp(ctx, name)
+	app, err := a.authServer.GetApplication(ctx, presencev1.GetApplicationRequest_builder{Name: name}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -7862,16 +7888,22 @@ func (a *ServerWithRoles) GetApp(ctx context.Context, name string) (types.Applic
 }
 
 // GetApps returns all application resources.
+// TODO (williamo): Remove in v20
+//
+// Deprecated: Use ListApplications from lib/auth/presence/presencev1/service.go instead.
 func (a *ServerWithRoles) GetApps(ctx context.Context) (result []types.Application, err error) {
 	if err := a.authorizeAction(types.KindApp, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Legacy callers can only get unscoped apps
+	scopeFilter := a.ScopedServerWithRoles().scopedContext.CheckerContext.ResolveScopeFilter(nil)
 	// Filter out apps user doesn't have access to.
-	apps, err := a.authServer.GetApps(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, app := range apps {
+	for app, err := range a.authServer.RangeApplications(ctx, presencev1.ListApplicationsRequest_builder{
+		ScopeFilter: scopeFilter,
+	}.Build()) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if err := a.checkAccessToApp(app); err == nil {
 			result = append(result, app)
 		}
@@ -7880,6 +7912,9 @@ func (a *ServerWithRoles) GetApps(ctx context.Context) (result []types.Applicati
 }
 
 // ListApps returns a page of application resources.
+// TODO (williamo): Remove in v20
+//
+// Deprecated: Use ListApplications from lib/auth/presence/presencev1/service.go instead.
 func (a *ServerWithRoles) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
 	if err := a.authorizeAction(types.KindApp, types.VerbList, types.VerbRead); err != nil {
 		return nil, "", trace.Wrap(err)
@@ -7890,15 +7925,22 @@ func (a *ServerWithRoles) ListApps(ctx context.Context, limit int, startKey stri
 	}
 
 	var result []types.Application
+	// Legacy callers can only list unscoped apps
+	scopeFilter := a.ScopedServerWithRoles().scopedContext.CheckerContext.ResolveScopeFilter(nil)
 	// Filter out apps user doesn't have access to.
-	for app, err := range a.authServer.Apps(ctx, startKey, "") {
+	for app, err := range a.authServer.RangeApplications(ctx, presencev1.ListApplicationsRequest_builder{
+		PageToken:   startKey,
+		ScopeFilter: scopeFilter,
+	}.Build()) {
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
 		if err := a.checkAccessToApp(app); err == nil {
 			if len(result) == limit {
-				return result, app.GetName(), nil
+				// For unscoped apps the cursor is the bare name, which is what
+				// legacy callers expect as a start key.
+				return result, services.GetCursorForApp(app), nil
 			}
 
 			result = append(result, app)
@@ -7908,18 +7950,22 @@ func (a *ServerWithRoles) ListApps(ctx context.Context, limit int, startKey stri
 }
 
 // DeleteApp removes the specified application resource.
+//
+// Deprecated: Use DeleteApplication from lib/auth/presence/presencev1/service.go instead.
+// TODO (williamo): Remove in v20
 func (a *ServerWithRoles) DeleteApp(ctx context.Context, name string) error {
 	if err := a.authorizeAction(types.KindApp, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	// Make sure user has access to the application before deleting.
-	app, err := a.authServer.GetApp(ctx, name)
+	app, err := a.authServer.GetApplication(ctx, presencev1.GetApplicationRequest_builder{Name: name}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.checkAccessToApp(app); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return trace.Wrap(a.authServer.DeleteApp(ctx, name))
 }
 
@@ -7928,12 +7974,15 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 	if err := a.authorizeAction(types.KindApp, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+	// Legacy callers should only be able to delete unscoped apps
+	scopeFilter := a.ScopedServerWithRoles().scopedContext.CheckerContext.ResolveScopeFilter(nil)
 	// Make sure to only delete apps user has access to.
-	apps, err := a.authServer.GetApps(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, app := range apps {
+	for app, err := range a.authServer.RangeApplications(ctx, presencev1.ListApplicationsRequest_builder{
+		ScopeFilter: scopeFilter,
+	}.Build()) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		if err := a.checkAccessToApp(app); err == nil {
 			if err := a.authServer.DeleteApp(ctx, app.GetName()); err != nil {
 				return trace.Wrap(err)

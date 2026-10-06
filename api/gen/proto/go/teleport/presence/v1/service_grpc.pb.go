@@ -55,6 +55,9 @@ const (
 	PresenceService_GetSSHServer_FullMethodName        = "/teleport.presence.v1.PresenceService/GetSSHServer"
 	PresenceService_ListSSHServers_FullMethodName      = "/teleport.presence.v1.PresenceService/ListSSHServers"
 	PresenceService_DeleteSSHServer_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteSSHServer"
+	PresenceService_GetApplication_FullMethodName      = "/teleport.presence.v1.PresenceService/GetApplication"
+	PresenceService_ListApplications_FullMethodName    = "/teleport.presence.v1.PresenceService/ListApplications"
+	PresenceService_DeleteApplication_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteApplication"
 )
 
 // PresenceServiceClient is the client API for PresenceService service.
@@ -103,6 +106,12 @@ type PresenceServiceClient interface {
 	ListSSHServers(ctx context.Context, in *ListSSHServersRequest, opts ...grpc.CallOption) (*ListSSHServersResponse, error)
 	// Deletes an ssh server resource from the backend.
 	DeleteSSHServer(ctx context.Context, in *DeleteSSHServerRequest, opts ...grpc.CallOption) (*DeleteSSHServerResponse, error)
+	// Gets a specific application resource from the backend.
+	GetApplication(ctx context.Context, in *GetApplicationRequest, opts ...grpc.CallOption) (*GetApplicationResponse, error)
+	// Lists application resources from the backend.
+	ListApplications(ctx context.Context, in *ListApplicationsRequest, opts ...grpc.CallOption) (*ListApplicationsResponse, error)
+	// Deletes an application resource from the backend.
+	DeleteApplication(ctx context.Context, in *DeleteApplicationRequest, opts ...grpc.CallOption) (*DeleteApplicationResponse, error)
 }
 
 type presenceServiceClient struct {
@@ -313,6 +322,36 @@ func (c *presenceServiceClient) DeleteSSHServer(ctx context.Context, in *DeleteS
 	return out, nil
 }
 
+func (c *presenceServiceClient) GetApplication(ctx context.Context, in *GetApplicationRequest, opts ...grpc.CallOption) (*GetApplicationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetApplicationResponse)
+	err := c.cc.Invoke(ctx, PresenceService_GetApplication_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) ListApplications(ctx context.Context, in *ListApplicationsRequest, opts ...grpc.CallOption) (*ListApplicationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListApplicationsResponse)
+	err := c.cc.Invoke(ctx, PresenceService_ListApplications_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) DeleteApplication(ctx context.Context, in *DeleteApplicationRequest, opts ...grpc.CallOption) (*DeleteApplicationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteApplicationResponse)
+	err := c.cc.Invoke(ctx, PresenceService_DeleteApplication_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PresenceServiceServer is the server API for PresenceService service.
 // All implementations must embed UnimplementedPresenceServiceServer
 // for forward compatibility.
@@ -359,6 +398,12 @@ type PresenceServiceServer interface {
 	ListSSHServers(context.Context, *ListSSHServersRequest) (*ListSSHServersResponse, error)
 	// Deletes an ssh server resource from the backend.
 	DeleteSSHServer(context.Context, *DeleteSSHServerRequest) (*DeleteSSHServerResponse, error)
+	// Gets a specific application resource from the backend.
+	GetApplication(context.Context, *GetApplicationRequest) (*GetApplicationResponse, error)
+	// Lists application resources from the backend.
+	ListApplications(context.Context, *ListApplicationsRequest) (*ListApplicationsResponse, error)
+	// Deletes an application resource from the backend.
+	DeleteApplication(context.Context, *DeleteApplicationRequest) (*DeleteApplicationResponse, error)
 	mustEmbedUnimplementedPresenceServiceServer()
 }
 
@@ -428,6 +473,15 @@ func (UnimplementedPresenceServiceServer) ListSSHServers(context.Context, *ListS
 }
 func (UnimplementedPresenceServiceServer) DeleteSSHServer(context.Context, *DeleteSSHServerRequest) (*DeleteSSHServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteSSHServer not implemented")
+}
+func (UnimplementedPresenceServiceServer) GetApplication(context.Context, *GetApplicationRequest) (*GetApplicationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetApplication not implemented")
+}
+func (UnimplementedPresenceServiceServer) ListApplications(context.Context, *ListApplicationsRequest) (*ListApplicationsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListApplications not implemented")
+}
+func (UnimplementedPresenceServiceServer) DeleteApplication(context.Context, *DeleteApplicationRequest) (*DeleteApplicationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteApplication not implemented")
 }
 func (UnimplementedPresenceServiceServer) mustEmbedUnimplementedPresenceServiceServer() {}
 func (UnimplementedPresenceServiceServer) testEmbeddedByValue()                         {}
@@ -810,6 +864,60 @@ func _PresenceService_DeleteSSHServer_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PresenceService_GetApplication_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetApplicationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).GetApplication(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_GetApplication_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).GetApplication(ctx, req.(*GetApplicationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_ListApplications_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListApplicationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).ListApplications(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_ListApplications_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).ListApplications(ctx, req.(*ListApplicationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_DeleteApplication_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteApplicationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).DeleteApplication(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_DeleteApplication_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).DeleteApplication(ctx, req.(*DeleteApplicationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PresenceService_ServiceDesc is the grpc.ServiceDesc for PresenceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -896,6 +1004,18 @@ var PresenceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteSSHServer",
 			Handler:    _PresenceService_DeleteSSHServer_Handler,
+		},
+		{
+			MethodName: "GetApplication",
+			Handler:    _PresenceService_GetApplication_Handler,
+		},
+		{
+			MethodName: "ListApplications",
+			Handler:    _PresenceService_ListApplications_Handler,
+		},
+		{
+			MethodName: "DeleteApplication",
+			Handler:    _PresenceService_DeleteApplication_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

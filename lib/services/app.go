@@ -41,6 +41,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -55,14 +56,12 @@ import (
 
 // AppGetter defines interface for fetching application resources.
 type AppGetter interface {
-	// GetApps returns all application resources.
-	GetApps(context.Context) ([]types.Application, error)
-	// ListApps returns a page of application resources.
-	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
+	// GetApplication returns a scoped or unscoped application by name.
+	GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error)
+	// ListApplications returns a page of applications respecting scope filters.
+	ListApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) ([]types.Application, string, error)
+	// RangeApplications returns applications within the range [start, end).
+	RangeApplications(ctx context.Context, req *presencev1.ListApplicationsRequest) iter.Seq2[types.Application, error]
 }
 
 // Applications defines an interface for managing application resources.
@@ -73,9 +72,9 @@ type Applications interface {
 	CreateApp(context.Context, types.Application) error
 	// UpdateApp updates an existing application resource.
 	UpdateApp(context.Context, types.Application) error
-	// DeleteApp removes the specified application resource.
-	DeleteApp(ctx context.Context, name string) error
-	// DeleteAllApps removes all database resources.
+	// DeleteApplication removes a scoped or unscoped application.
+	DeleteApplication(ctx context.Context, req *presencev1.DeleteApplicationRequest) error
+	// DeleteAllApps removes all application resources, in every scope.
 	DeleteAllApps(context.Context) error
 }
 
@@ -100,14 +99,15 @@ type ApplicationsInternal interface {
 	) ([]backend.ConditionalAction, error)
 }
 
-// TODO(williamo/scopes): remove once dynamic scoped app registration is
-// supported.
-func EnsureNotScopedApp(app types.Application) error {
+// EnsureScopedAppPubAddrEmpty rejects a scoped app that specifies a public
+// address. A scoped app's address is derived from its (scope, name) by the app
+// agent at heartbeat time and is never user-configured.
+func EnsureScopedAppPubAddrEmpty(app types.Application) error {
 	if app == nil {
 		return trace.BadParameter("nil application")
 	}
-	if scope := app.GetScope(); scope != "" {
-		return trace.BadParameter("application %q cannot be created with scope %q: dynamic registration of scoped applications is not supported, remove the scope attribute", app.GetName(), scope)
+	if app.GetScope() != "" && app.GetPublicAddr() != "" {
+		return trace.BadParameter("scoped application %q cannot specify a public address (got %q): the address is derived from the app's scope and name", app.GetName(), app.GetPublicAddr())
 	}
 	return nil
 }
@@ -143,15 +143,15 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		}
 	}
 
+	// If no public address is set, there's nothing to validate.
+	if app.GetPublicAddr() == "" {
+		return nil
+	}
+
 	if scope := app.GetScope(); scope != "" {
 		if !scopedapp.ScopedAppPublicAddrValid(scope, app.GetName(), app.GetPublicAddr()) {
 			return trace.BadParameter("scoped app %q public address %q does not match its derived address for scope %q", app.GetName(), app.GetPublicAddr(), scope)
 		}
-	}
-	// If no public address is set, there's nothing to validate.
-
-	if app.GetPublicAddr() == "" {
-		return nil
 	}
 
 	// The app's spec has already been validated in CheckAndSetDefaults, so we can assume the public address is a valid
@@ -329,6 +329,10 @@ func ValidateAppServer(server types.AppServer, proxyGetter ProxyGetter) error {
 		return trace.BadParameter("app server %q scope %q does not match its embedded app scope %q", server.GetName(), server.GetScope(), app.GetScope())
 	}
 
+	if app != nil && app.GetScope() != "" && app.GetPublicAddr() == "" {
+		return trace.BadParameter("app server %q must carry the derived public address of scoped app %q", server.GetName(), app.GetName())
+	}
+
 	return trace.Wrap(ValidateApp(app, proxyGetter))
 }
 
@@ -348,6 +352,13 @@ func AppServerScopesEqual(serverScope, appScope string) bool {
 // and "~scoped/<encoded-scope>/<host-id>/<name>" for scoped apps.
 func GetCursorForAppServer(server types.AppServer) string {
 	return scopes.MakeResourceCursorWithHost(server.GetScope(), server.GetHostID(), server.GetName())
+}
+
+// GetCursorForApp returns the resource cursor identifying an app in the logical
+// resource stream: "<name>" for unscoped apps and "~scoped/<encoded-scope>/<name>"
+// for scoped apps.
+func GetCursorForApp(app types.Application) string {
+	return scopes.MakeResourceCursor(app.GetScope(), app.GetName())
 }
 
 // ValidatePublicAddr requires a lowercase DNS-1123 hostname. An

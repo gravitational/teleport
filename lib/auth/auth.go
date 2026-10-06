@@ -332,7 +332,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
 	}
 	if cfg.Apps == nil {
-		cfg.Apps = local.NewAppService(cfg.Backend)
+		cfg.Apps, err = local.NewAppService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
@@ -7640,7 +7643,7 @@ func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRe
 
 // CreateApp creates a new application resource.
 func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
-	if err := services.EnsureNotScopedApp(app); err != nil {
+	if err := services.ValidateApp(app, a); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.Services.CreateApp(ctx, app); err != nil {
@@ -7655,6 +7658,7 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    app.GetName(),
 			Expires: app.Expiry(),
+			Scope:   app.GetScope(),
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),
@@ -7669,10 +7673,7 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 
 // UpdateApp updates an existing application resource.
 func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
-	// TODO (williamo/scopes): While a blanket deny is fine for update for now,
-	// when scoped dynamic app registration is supported, we must check whether
-	// the updated scope differs or not, and reject if different.
-	if err := services.EnsureNotScopedApp(app); err != nil {
+	if err := services.ValidateApp(app, a); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.Services.UpdateApp(ctx, app); err != nil {
@@ -7687,6 +7688,7 @@ func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    app.GetName(),
 			Expires: app.Expiry(),
+			Scope:   app.GetScope(),
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),
@@ -7701,7 +7703,7 @@ func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
 
 // DeleteApp deletes an application resource.
 func (a *Server) DeleteApp(ctx context.Context, name string) error {
-	if err := a.Services.DeleteApp(ctx, name); err != nil {
+	if err := a.Services.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{Name: name}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.AppDelete{

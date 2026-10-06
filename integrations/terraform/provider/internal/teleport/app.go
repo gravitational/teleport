@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -37,9 +38,12 @@ type AppClient struct {
 	client *client.Client
 }
 
-// Get reads an app by name.
-func (r AppClient) Get(ctx context.Context, id tfdriver.NameIdentifier) (*types.AppV3, error) {
-	app, err := r.client.GetApp(ctx, id.Name)
+// Get reads an app by name and scope.
+func (r AppClient) Get(ctx context.Context, id tfdriver.ScopeQualifiedNameIdentifier) (*types.AppV3, error) {
+	app, err := r.client.GetApplication(ctx, presencev1.GetApplicationRequest_builder{
+		Name:  id.Name,
+		Scope: id.Scope,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -70,7 +74,10 @@ func (r AppClient) Upsert(ctx context.Context, app *types.AppV3) error {
 	return nil
 }
 
-// Delete deletes an app by name.
-func (r AppClient) Delete(ctx context.Context, id tfdriver.NameIdentifier) error {
-	return trace.Wrap(r.client.DeleteApp(ctx, id.Name))
+// Delete deletes an app by name and scope.
+func (r AppClient) Delete(ctx context.Context, id tfdriver.ScopeQualifiedNameIdentifier) error {
+	return trace.Wrap(r.client.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{
+		Name:  id.Name,
+		Scope: id.Scope,
+	}.Build()))
 }

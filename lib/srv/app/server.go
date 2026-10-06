@@ -217,11 +217,6 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(williamo/scopes): remove this validation once dynamic app registration supports scopes.
-	if c.GetScope() != "" && len(c.ResourceMatchers) > 0 {
-		return nil, trace.BadParameter("dynamic app registration not supported for scoped app_service, resource matchers must be empty")
-	}
-
 	closeContext, closeFunc := context.WithCancel(ctx)
 	// in case of errors cancel context to avoid context leak
 	callClose := true
@@ -746,7 +741,6 @@ func (s *Server) appWithUpdatedLabelsLocked(app types.Application) *types.AppV3 
 	// agent's scope.
 	// If it doesn't match this agent's scope, the resulting server/app scope mismatch
 	// is rejected via heartbeat (ValidateAppServer and the inventory controller).
-	// TODO (williamo/scopes) - reject scoped app creation via tctl
 	if copy.GetScope() == "" {
 		copy.Scope = s.c.GetScope()
 	}

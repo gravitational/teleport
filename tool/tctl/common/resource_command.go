@@ -153,7 +153,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindUIConfig:                           rc.createUIConfig,
 		types.KindLock:                               rc.createLock,
 		types.KindNetworkRestrictions:                rc.createNetworkRestrictions,
-		types.KindApp:                                rc.createApp,
 		types.KindAppServer:                          rc.createAppServer,
 		types.KindDatabase:                           rc.createDatabase,
 		types.KindToken:                              rc.createToken,
@@ -1133,28 +1132,6 @@ func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclie
 	return nil
 }
 
-func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	app, err := services.UnmarshalApp(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := client.CreateApp(ctx, app); err != nil {
-		if trace.IsAlreadyExists(err) {
-			if !rc.force {
-				return trace.AlreadyExists("application %q already exists", app.GetName())
-			}
-			if err := client.UpdateApp(ctx, app); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("application %q has been updated\n", app.GetName())
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-	fmt.Printf("application %q has been created\n", app.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1960,11 +1937,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
-	case types.KindApp:
-		if err = client.DeleteApp(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("application %q has been deleted\n", ref.Name)
 	case types.KindDatabase:
 		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
 		databases, err := clientutils.CollectWithFallback(ctx, client.ListDatabases, client.GetDatabases)
@@ -2816,22 +2788,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 			return nil, trace.Wrap(err)
 		}
 		return &netRestrictionsCollection{nr}, nil
-	case types.KindApp:
-		if ref.Name == "" {
-			// TODO(tross): DELETE IN v21.0.0, replace with regular Collect
-			apps, err := clientutils.CollectWithFallback(ctx, client.ListApps, client.GetApps)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &appCollection{apps: apps}, nil
-		}
-
-		app, err := client.GetApp(ctx, ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindDatabase:
 		// TODO(okraport): DELETE IN v21.0.0, replace with regular Collect
 		databases, err := clientutils.CollectWithFallback(ctx, client.ListDatabases, client.GetDatabases)

@@ -65,6 +65,10 @@ type Backend interface {
 	GetSSHServer(ctx context.Context, req *presencepb.GetSSHServerRequest) (types.Server, error)
 	RangeSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) iter.Seq2[types.Server, error]
 	DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSHServerRequest) error
+
+	GetApplication(ctx context.Context, req *presencepb.GetApplicationRequest) (types.Application, error)
+	RangeApplications(ctx context.Context, req *presencepb.ListApplicationsRequest) iter.Seq2[types.Application, error]
+	DeleteApplication(ctx context.Context, req *presencepb.DeleteApplicationRequest) error
 }
 
 type Cache interface {
@@ -918,4 +922,148 @@ func (s *Service) DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSH
 		return nil, trace.Wrap(err)
 	}
 	return presencepb.DeleteSSHServerResponse_builder{}.Build(), nil
+}
+
+// GetApplication returns the specified application resource.
+func (s *Service) GetApplication(ctx context.Context, req *presencepb.GetApplicationRequest) (*presencepb.GetApplicationResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Read); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	app, err := s.backend.GetApplication(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Read); err != nil {
+			return err
+		}
+		return checker.App().CanAccessApp(app)
+	}); err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, trace.NotFound("not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	appV3, ok := app.(*types.AppV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid application")
+	}
+	return presencepb.GetApplicationResponse_builder{
+		Application: appV3,
+	}.Build(), nil
+}
+
+// getCursorForApp wraps [services.GetCursorForApp] with a signature referencing
+// [*types.AppV3] directly, to help go infer the typing for
+// [generic.CollectPageAndCursor].
+func getCursorForApp(app *types.AppV3) string {
+	return services.GetCursorForApp(app)
+}
+
+// ListApplications returns a page of registered applications.
+func (s *Service) ListApplications(ctx context.Context, req *presencepb.ListApplicationsRequest) (*presencepb.ListApplicationsResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindApp, scopedaccess.List, scopedaccess.Read); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
+	apps, nextToken, err := generic.CollectPageAndCursor(
+		stream.FilterMap(
+			s.backend.RangeApplications(ctx, req),
+			func(app types.Application) (*types.AppV3, bool) {
+				// Filter out apps the user doesn't have access to.
+				if err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.List, scopedaccess.Read); err != nil {
+						return err
+					}
+					return checker.App().CanAccessApp(app)
+				}); err == nil {
+					appV3, ok := app.(*types.AppV3)
+					return appV3, ok
+				}
+				return nil, false
+			},
+		),
+		int(req.GetPageSize()),
+		getCursorForApp,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return presencepb.ListApplicationsResponse_builder{
+		Applications:  apps,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
+// DeleteApplication removes the specified application resource.
+func (s *Service) DeleteApplication(ctx context.Context, req *presencepb.DeleteApplicationRequest) (*presencepb.DeleteApplicationResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Delete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Make sure the user has access to the app before deleting it.
+	app, err := s.backend.GetApplication(ctx, presencepb.GetApplicationRequest_builder{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Delete); err != nil {
+			return err
+		}
+		return checker.App().CanAccessApp(app)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteApplication(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.AppDelete{
+		Metadata: apievents.Metadata{
+			Type: events.AppDeleteEvent,
+			Code: events.AppDeleteCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:  req.GetName(),
+			Scope: req.GetScope(),
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit app delete event", "error", err)
+	}
+
+	return presencepb.DeleteApplicationResponse_builder{}.Build(), nil
 }

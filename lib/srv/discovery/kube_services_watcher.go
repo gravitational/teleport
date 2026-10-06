@@ -24,8 +24,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,7 +49,7 @@ func (s *Server) startKubeAppsWatchers() error {
 		services.ReconcilerConfig[types.Application]{
 			Matcher: func(_ types.Application) bool { return true },
 			GetCurrentResources: func() map[string]types.Application {
-				apps, err := s.AccessPoint.GetApps(s.ctx)
+				apps, err := iterstream.Collect(s.AccessPoint.RangeApplications(s.ctx, presencev1.ListApplicationsRequest_builder{}.Build()))
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Unable to get applications from cache", "error", err)
 					return nil
@@ -124,7 +126,7 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 	// the resource.
 	if err != nil {
 		err := s.resolveCreateErr(err, types.OriginDiscoveryKubernetes, func() (types.ResourceWithLabels, error) {
-			return s.AccessPoint.GetApp(ctx, app.GetName())
+			return s.AccessPoint.GetApplication(ctx, presencev1.GetApplicationRequest_builder{Name: app.GetName()}.Build())
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -150,5 +152,5 @@ func (s *Server) onAppUpdate(ctx context.Context, app, _ types.Application) erro
 
 func (s *Server) onAppDelete(ctx context.Context, app types.Application) error {
 	s.Log.DebugContext(ctx, "Deleting app", "app_name", app.GetName())
-	return trace.Wrap(s.AccessPoint.DeleteApp(ctx, app.GetName()))
+	return trace.Wrap(s.AccessPoint.DeleteApplication(ctx, presencev1.DeleteApplicationRequest_builder{Name: app.GetName()}.Build()))
 }
