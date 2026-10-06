@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on GitHub Actions
-description: How to install and configure the Machine & Workload Identity agent, `tbot`, on GitHub Actions
+description: Install and configure the Machine & Workload Identity agent, tbot, on GitHub Actions.
 sidebar_label: GitHub Actions
 tags:
  - ci-cd
@@ -11,7 +11,7 @@ page_type: how-to
 ---
 
 GitHub Actions is a popular CI/CD platform that works as a part of the larger
-GitHub ecosystem. Teleport Machine & Workload Identity allows GitHub Actions to
+GitHub ecosystem. Teleport **Machine & Workload Identity** allows GitHub Actions to
 securely interact with Teleport protected resources without the need for
 long-lived credentials.
 
@@ -45,6 +45,10 @@ access Teleport-protected infrastructure.
 - A GitHub repository with GitHub Actions enabled. This guide uses the example
   `gravitational/example` repo, however this value should be replaced with
   your own unique repo.
+- If you use self-hosted GitHub Actions runners or GitHub Enterprise Server,
+  your runners must be on version v2.327.1 or later. The examples in this guide
+  use `actions/checkout@v5`, which requires the Node 24 runtime included in
+  that runner version.
 
 ## Step 1/3. Create a Bot
 
@@ -144,7 +148,7 @@ Token       Type Labels Expiry Time (UTC)
 example-bot Bot         01 Jan 00 00:00 UTC (2562047h47m16.854775807s)
 ```
 
-## Step 3/3. Configure a GitHub Actions Workflow
+## Step 3/3. Configure a GitHub Actions workflow
 
 Now that the bot has been successfully created, you need to configure your
 GitHub Action's workflow to authenticate as this bot and then use the
@@ -158,6 +162,9 @@ with the actions.
 
 What follows is examples demonstrating two of the GitHub Actions available as
 well as showing how to manually configure `tbot` for use with GitHub Actions.
+The examples below pin `actions/checkout` and `azure/setup-kubectl` to
+versions confirmed to run on the Node.js runtime that GitHub Actions currently
+supports. Update these pins if GitHub retires that runtime in the future.
 
 ### Example: `teleport-actions/auth`
 
@@ -168,7 +175,7 @@ configure `tsh` and `tctl` to use this identity.
 
 <Admonition type="info" title="Guided integration available">
     You can use the GitHub Action + SSH integration guide via the
-    Teleport Web UI?
+    Teleport Web UI.
 
     The guide walks you through connecting your GitHub Actions
     workflow to Teleport and giving it the permissions it needs to access your
@@ -232,7 +239,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
@@ -305,7 +312,7 @@ modified to deploy to a Kubernetes cluster with `kubectl` or `helm`.
 
 <Admonition type="info" title="Guided integration available">
     You can use the GitHub Action + Kubernetes integration guide via the
-    Teleport Web UI?
+    Teleport Web UI.
 
     The guide walks you through connecting your GitHub Actions
     workflow to Teleport and giving it the permissions it needs to access your
@@ -368,9 +375,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
     - name: Fetch kubectl
-      uses: azure/setup-kubectl@v3
+      uses: azure/setup-kubectl@v5
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
@@ -473,7 +480,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
@@ -585,7 +592,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
@@ -686,7 +693,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
@@ -795,7 +802,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
@@ -874,7 +881,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:

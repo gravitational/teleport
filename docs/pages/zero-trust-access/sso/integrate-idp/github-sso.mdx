@@ -1,7 +1,7 @@
 ---
 title: Set up Single Sign-On with GitHub
 sidebar_label: GitHub
-description: Setting up GitHub SSO
+description: Configure GitHub as a single sign-on provider for Teleport.
 videoBanner: XjgN2WWFCX8
 tags:
  - sso
@@ -11,7 +11,7 @@ tags:
 page_type: how-to
 ---
 
-In this guide, you will set up GitHub Single Sign On (SSO) so you can
+In this guide, you will set up GitHub Single Sign-On (SSO) so you can
 automatically map teams in your GitHub organization to users and roles in
 Teleport.
 
@@ -54,7 +54,7 @@ limitation.
   either GitHub Cloud or GitHub Enterprise Server.
 
 - Teleport role with access to maintaining `github` resources for using `tctl`
-  from the Desktop. This is available in the default `editor` role.
+  from your workstation. This is available in the default `editor` role.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -66,14 +66,18 @@ Create and register a GitHub OAuth App. When you do so, ensure that your OAuth
 App's "Authentication callback URL" is the following:
 
 ```
-https://PROXY_ADDRESS/v1/webapi/github/
+https://PROXY_ADDRESS/v1/webapi/github/callback
 ```
 
-Replace `PROXY_ADDRESS` with be the public address of the Teleport Proxy Service
+Replace `PROXY_ADDRESS` with the public address of the Teleport Proxy Service
 or your Teleport Cloud workspace URL (e.g., `example.teleport.sh`). If you have
 a self-hosted cluster with multiple public addresses for the Teleport Proxy
 Service (the value of `proxy_service.public_addr` in the Teleport configuration
 file), ensure that this address points to the first one listed.
+
+GitHub validates this URL with an exact string match against the redirect URL
+that Teleport sends during authentication, so enter it exactly as shown above,
+including the `/callback` path segment.
 
 The app must have the `read:org` scope in order to be able to read org and team
 membership details.
@@ -227,7 +231,7 @@ $  tctl sso configure github \
 ```
 
 ```yaml
-spec.
+spec:
   teams_to_roles:
     - organization: org-name
       roles:
@@ -510,7 +514,7 @@ After logging out of `tsh`, you can log back in without specifying
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
 
-### Teams Not Mapping to Roles
+### Teams not mapping to roles
 
 If you are not seeing teams mapping to roles as expected confirm you 
 are using the slug of the organizations and teams in the connector.
@@ -532,4 +536,3 @@ shows the slug is `my-team`. Update the teams to roles mapping.
         - reviewer
       team: my-team
 ```
-

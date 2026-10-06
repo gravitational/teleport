@@ -1,6 +1,6 @@
 ---
 title: Proxy Git Commands with Teleport for GitHub
-description:  How to use Teleport's short-lived SSH certificates with the GitHub Certificate Authority.
+description: Use Teleport's short-lived SSH certificates with the GitHub Certificate Authority.
 tags:
  - how-to
  - zero-trust
@@ -43,12 +43,12 @@ continue to access GitHub through their browsers.
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v17.2 or higher)"!)
-- Access to GitHub Enterprise Cloud and permissions to modify GitHub's SSH
+- Access to **GitHub Enterprise Cloud** and permissions to modify GitHub's SSH
   certificate authorities and configure OAuth applications.
   <Admonition type="info" title="GitHub Enterprise compatibility">
   GitHub integration requires a GitHub Enterprise plan and is currently
-  supported for **GitHub Enterprise Cloud**. Support for **GitHub Enterprise
-  Server (self-hosted)** is not available as of the current release.
+  supported for GitHub Enterprise Cloud. Support for GitHub Enterprise
+  Server (self-hosted) is not available as of the current release.
   </Admonition>
 - (!docs/pages/includes/tctl.mdx!)
 - Git locally installed
@@ -56,11 +56,8 @@ continue to access GitHub through their browsers.
 ## Step 1/4. Configure a GitHub OAuth application
 
 The GitHub integration requires a GitHub OAuth application to obtain users'
-GitHub identities. If your Teleport cluster uses GitHub SSO for login, the
-GitHub identities are already available from the SSO flow and you can skip this
-step. For clusters that use local users and other SSO providers in addition to
-the GitHub SSO connector, a dedicated OAuth application for GitHub integration
-is recommended.
+GitHub identities. You can skip this step if the Teleport users use GitHub SSO
+to sign in to Teleport.
 
 Go to "OAuth Apps" under "Developer Settings" of your organization's settings.
 Click on "New OAuth App".
@@ -80,10 +77,9 @@ client ID and the secret for the next step:
 
 ## Step 2/4. Create a GitHub integration and export the CAs
 
-Now create a yaml file that represents the Github integration.  Replace
-<Var name="my-github-org" /> with the organization name,
-<Var name="teleport-proxy-address"/> with the host and HTTPS port of your
-Teleport Proxy Service, and replace <Var name="oauth-app-client-id" />
+Now create a YAML file that represents the GitHub integration. Replace
+<Var name="my-github-org" /> with the organization name, and replace
+<Var name="oauth-app-client-id" />
 and <Var name="oauth-app-client-secret" /> with values from the previous step.
 
 ```yaml
@@ -114,8 +110,8 @@ $ tctl auth export --type github --integration github-<Var name="my-github-org"/
 ```
 
 Now go to the "Authentication Security" page of your GitHub organization. Click
-on "New CA" under the "SSH certificate authorities" section, and copy-paste the CA
-exported from the above `tctl auth export` command.
+on "New CA" under the "SSH certificate authorities" section, and paste the CA
+exported from the `tctl auth export` command above.
 
 ![GitHub SSH certificate authorities](../../../../img/management/github-new-ca@2x.png)
 

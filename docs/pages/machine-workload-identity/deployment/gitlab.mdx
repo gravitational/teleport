@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on GitLab CI
-description: How to install and configure the Machine & Workload Identity agent, `tbot`, on GitLab CI
+description: Install and configure the Machine & Workload Identity agent, tbot, so GitLab CI pipelines can join a Teleport cluster without long-lived secrets.
 sidebar_label: GitLab CI
 tags:
  - ci-cd
@@ -12,7 +12,7 @@ page_type: how-to
 
 {/* lint disable page-structure remark-lint */}
 
-In this guide, you will use Teleport Machine & Workload Identity to allow a
+In this guide, you will use Teleport **Machine & Workload Identity** to allow a
 GitLab pipeline to securely connect to a Teleport SSH node without the need for
 long-lived secrets.
 
@@ -92,7 +92,7 @@ Apply this to your Teleport cluster using `tctl`:
 $ tctl create -f bot-token.yaml
 ```
 
-## Step 3/3. Configure a GitLab Pipeline
+## Step 3/3. Configure a GitLab pipeline
 
 With the bot and join token created, you can now configure a GitLab pipeline
 that sets up `tbot` to use these.
@@ -118,8 +118,9 @@ services: []
 
 Replace:
 
-- <Var name="example.teleport.sh"/> with the address of your Teleport Proxy or
-  Auth Service. Prefer using the address of a Teleport Proxy.
+- <Var name="example.teleport.sh"/> with the address of your Teleport Proxy
+  Service or Auth Service. Prefer using the address of a Teleport Proxy
+  Service.
 - `example-bot` with the name of the token you created in the second step
 
 Now, the GitLab CI pipeline can be defined. Before the pipeline can use `tbot`,
@@ -128,7 +129,7 @@ downloading `tbot` as part of the CI step, but in a production implementation
 you may wish to build a docker image that contains this binary to avoid
 depending on the Teleport CDN.
 
-Create `.gitlab-ci.yml`  within your repository:
+Create `.gitlab-ci.yml` within your repository:
 
 ```yaml
 stages:
@@ -154,6 +155,21 @@ deploy-job:
     - curl "https://<Var name="example.teleport.sh"/>:443/scripts/install.sh" | bash
     - 'TELEPORT_ANONYMOUS_TELEMETRY=1 tbot start -c tbot.yaml'
 ```
+
+The install script downloads the Teleport binaries, including `tbot`, using
+`teleport-update`, which requires root privileges. GitLab's default
+Docker executor runs jobs as the `root` user, so this step works unmodified
+for most pipelines. If your job uses a custom image with a non-root `USER`
+directive, pipe the install script to `sudo bash` instead of `bash`, or
+otherwise ensure the job runs as root, so the install script can complete:
+
+```yaml
+  script:
+    - curl "https://<Var name="example.teleport.sh"/>:443/scripts/install.sh" | sudo bash
+```
+
+This requires the image to include `sudo` and to let the job user run it
+without a password prompt.
 
 Replace:
 

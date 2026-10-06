@@ -1,7 +1,7 @@
 ---
-title: Authentication With GitLab as an SSO provider
+title: Authentication With GitLab as an SSO Provider
 sidebar_label: GitLab
-description: How to configure Teleport access using GitLab for SSO
+description: Configure GitLab as a single sign-on identity provider for Teleport.
 tags:
  - sso
  - how-to
@@ -16,7 +16,7 @@ credentials to specific groups of users. When used in combination with role
 based access control (RBAC), it allows administrators to define policies like:
 
 - Only members of the "DBA" group can access PostgreSQL databases.
-- Only members of "ProductionKubernetes" can access production Kubernetes clusters
+- Only members of "ProductionKubernetes" can access production Kubernetes clusters.
 - Developers must never SSH into production servers.
 
 ## How it works
@@ -26,8 +26,9 @@ based access control (RBAC), it allows administrators to define policies like:
 ## Prerequisites
 
 - At least two groups in GitLab with users assigned. In our examples below,
-  we'll assume a group named `company` with two subgroups, `admin` and `dev`.
-- Teleport role with access to maintaining `oidc` resources.  This is available
+  we use a parent group named `company` with two subgroups, `admins` and
+  `devs`.
+- Teleport role with access to maintaining `oidc` resources. This is available
   in the default `editor` role.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
@@ -37,8 +38,8 @@ based access control (RBAC), it allows administrators to define policies like:
 ## Step 1/3. Configure GitLab
 
 You should have at least one group configured in GitLab to map to Teleport roles.
-In this example we use the names `devs` and `admins`.  Assign users
-to each of these groups.
+In this example we use the subgroups `admins` and `devs`, nested under the
+parent group `company`. Assign users to each of these groups.
 
 1. Create an application in one of your groups (**Group overview** ->
    **Settings** -> **Applications**) that will allow using GitLab as an OAuth
@@ -52,8 +53,12 @@ to each of these groups.
 
    Settings:
 
-   - Redirect URL: `https://<Var name="teleport.example.com" />/v1/webapi/oidc/callback`.
+   - Redirect URL: `https://<Var name="teleport.example.com" />:443/v1/webapi/oidc/callback`.
    - Check `Confidential`, `openid`, `profile`, and `email`.
+
+   GitLab returns the `groups` claim through its UserInfo endpoint rather than
+   the ID token. The `openid` scope is all Teleport needs to receive it. GitLab
+   does not offer a separate `groups` scope, so do not request one.
 
    ![Create App](../../../../img/sso/gitlab/gitlab-oidc-0.png)
 
@@ -65,9 +70,9 @@ to each of these groups.
 1. Confirm the GitLab issuer address.
 
    For GitLab.com, the issuer address is `https://gitlab.com`. This allows
-   Teleport to access the Open-ID configuration at
+   Teleport to access the Open ID configuration at
    `https://gitlab.com/.well-known/openid-configuration`. If you are self
-   hosting the issuer address is the path to your GitLab instance.
+   hosting, the issuer address is the path to your GitLab instance.
 
 ## Step 2/3. Connect GitLab to Teleport
 
@@ -77,7 +82,34 @@ issue certificates to users.
 
 ### Assign a role mapping
 
-(!docs/pages/includes/sso/role-mapping.mdx fieldType="claim"!)
+When a user authenticates to Teleport, the Teleport Auth Service issues SSH and
+TLS certificates to the user that contain the user's Teleport roles.
+
+For SSO authentication connectors, the Auth Service determines which roles to
+encode in the certificate by reading the authentication connector's **role
+mapping**. The role mapping indicates which Teleport roles to assign based on
+data that your identity provider stores about the user.
+
+When you configure an authentication connector using the `tctl` CLI, a role
+mapping takes the following format:
+
+```text
+<claim_name>,<claim_value>,<teleport_role_1>,<teleport_role_2>,...,<teleport_role_n>
+```
+
+For the purpose of this guide, assign two separate role mappings:
+
+- A more permissive role mapping: <Var name="gitlab_mapping_1" initial="groups,company/admins,auditor,editor" />
+- A more restrictive role mapping: <Var name="gitlab_mapping_2" initial="groups,company/devs,access" />
+
+Edit <Var name="gitlab_mapping_1" /> and <Var name="gitlab_mapping_2" /> to
+match your GitLab groups and the Teleport roles you want to assign.
+
+GitLab's `groups` claim reports the full path of a group, including any parent
+group. For the `admins` and `devs` subgroups of `company` used throughout this
+guide, the claim value Teleport receives is `company/admins` and `company/devs`,
+not the bare subgroup name. Use the full path as the claim value when you
+configure the connector below.
 
 ### Configure an OIDC connector
 
@@ -88,35 +120,40 @@ your client secret.
 
 <Tabs>
 <TabItem label="GitLab.com">
-Replace the application ID and secret with the values from GitLab:
+Replace the application ID and secret with the values from GitLab.
+With the default role mappings, this command maps the `admins` subgroup of
+`company` to the `auditor` and `editor` roles and the `devs` subgroup to the
+`access` role, and writes the connector definition to `oidc.yaml`.
 
 ```code
 $ tctl sso configure oidc --preset gitlab \
 --id <APPLICATION-ID> \
---secret $( cat client-secret.txt) \
---claims-to-roles <Var name="mapping_1" /> \
---claims-to-roles <Var name="mapping_2" /> > oidc.yaml
+--secret $(cat client-secret.txt) \
+--claims-to-roles <Var name="gitlab_mapping_1" /> \
+--claims-to-roles <Var name="gitlab_mapping_2" /> > oidc.yaml
 ```
 
 </TabItem>
 <TabItem label="Self-hosted">
 Replace the application ID and secret with the values from GitLab, and replace
-`https://gitlab.company.com` with the path to your self-hosted GitLab instance:
+`https://gitlab.company.com` with the path to your self-hosted GitLab instance.
+With the default role mappings, this command maps the `admins` subgroup of
+`company` to the `auditor` and `editor` roles and the `devs` subgroup to the
+`access` role, and writes the connector definition to `oidc.yaml`.
 
 ```code
 $ tctl sso configure oidc --preset gitlab \
 --id <APPLICATION-ID> \
 --issuer-url https://gitlab.company.com \
---secret $( cat client-secret.txt) \
---claims-to-roles <Var name="mapping_1" /> \
---claims-to-roles <Var name="mapping_2" /> > oidc.yaml
+--secret $(cat client-secret.txt) \
+--claims-to-roles <Var name="gitlab_mapping_1" /> \
+--claims-to-roles <Var name="gitlab_mapping_2" /> > oidc.yaml
 ```
 
 </TabItem>
 </Tabs>
 
-This example maps the two subgroups `admins` and `devs` of the parent group
-`company` to the `auditor` and `access` roles in Teleport, and creates the `oidc.yaml` file:
+The resulting `oidc.yaml` file looks like this:
 
 ```yaml
 kind: oidc
@@ -140,7 +177,6 @@ spec:
   prompt: none
   redirect_url: https://<Var name="teleport.example.com" />:443/v1/webapi/oidc/callback
 version: v3
-
 ```
 
 (!docs/pages/includes/sso/username-claim.mdx!)
@@ -166,7 +202,7 @@ of the command to diagnose.
 
 ### Create the connector
 
-Create the connector using `tctl` tool:
+Create the connector using `tctl`:
 
 ```code
 $ tctl create -f oidc.yaml
@@ -179,15 +215,15 @@ the same as before:
 $ tsh --proxy=<Var name="teleport.example.com" /> login
 ```
 
-This command will print the SSO login URL (and will try to open it
-automatically in a browser).
+This command will print the SSO login URL and will try to open it
+automatically in a browser.
 
 <Admonition
   type="tip"
   title="Tip"
 >
   Teleport can use multiple OIDC/SAML connectors. In this case a connector name
-  can be passed via `tsh login --auth=connector_name`
+  can be passed via `tsh login --auth=connector_name`.
 </Admonition>
 
 <Admonition
@@ -210,4 +246,3 @@ automatically in a browser).
 ## Troubleshooting
 
 (!docs/pages/includes/sso/oidc-login-troubleshooting.mdx!)
-
