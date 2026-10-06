@@ -32,9 +32,11 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -157,7 +159,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
 		Required().StringVar(&u.login)
 
-	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token "+helpPrefix+".")
+	u.userResetPassword = users.Command("reset", "Reset a user's password (if applicable) and second factor devices.")
 	u.userResetPassword.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
@@ -192,23 +194,58 @@ func (u *UserCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 	return true, trace.Wrap(err)
 }
 
-// ResetPassword resets user password and generates a token to setup new password
+// ResetPassword resets a user's password (if applicable) and MFA devices.
+// For local users, this will return a password reset token.
+// For SSO users, this just deletes their MFA devices.
 func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Client) error {
-	req := authclient.CreateUserTokenRequest{
+	rsp, err := client.ResetUser(ctx, userspb.ResetUserRequest_builder{
 		Name: u.login,
-		TTL:  u.ttl,
-		Type: authclient.UserTokenTypeResetPassword,
-	}
-	token, err := client.CreateResetPasswordToken(ctx, req)
-	if err != nil {
-		return err
-	}
-
-	err = u.PrintResetPasswordToken(token)
+		Type: userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_PASSWORD,
+		Ttl:  durationpb.New(u.ttl),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	switch rsp.GetUserKind() {
+	case userspb.ResetUserKind_RESET_USER_KIND_SSO, userspb.ResetUserKind_RESET_USER_KIND_DELETED:
+		return trace.Wrap(u.printMFADevicesRemoved(rsp))
+	default:
+		return trace.Wrap(u.PrintResetPasswordToken(rsp.GetPasswordResetToken()))
+	}
+}
+
+// printMFADevicesRemoved prints the result of a reset for an SSO user or deleted user
+func (u *UserCommand) printMFADevicesRemoved(rsp *userspb.ResetUserResponse) error {
+	kind := "sso"
+	if rsp.GetUserKind() == userspb.ResetUserKind_RESET_USER_KIND_DELETED {
+		kind = "deleted"
+	}
+	summary := struct {
+		User              string `json:"user"`
+		UserKind          string `json:"user_kind"`
+		MFADevicesRemoved int32  `json:"mfa_devices_removed"`
+	}{u.login, kind, rsp.GetMfaDevicesRemoved()}
+
+	switch strings.ToLower(u.format) {
+	case teleport.JSON:
+		out, err := json.MarshalIndent(summary, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal user reset result")
+		}
+		fmt.Print(string(out))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(os.Stdout, summary), "failed to marshal user reset result")
+	case teleport.Text:
+		devices := "MFA devices"
+		if rsp.GetMfaDevicesRemoved() == 1 {
+			devices = "MFA device"
+		}
+		// For the sake of preventing potential user confusion, in the language here we don't distinguish between "deleted" and "sso" users
+		fmt.Printf("SSO user %q has been reset. Removed %d %s.\n", u.login, rsp.GetMfaDevicesRemoved(), devices)
+	default:
+		return trace.BadParameter("unknown format %q", u.format)
+	}
 	return nil
 }
 

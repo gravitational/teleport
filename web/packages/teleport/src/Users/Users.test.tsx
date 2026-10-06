@@ -245,6 +245,52 @@ describe('email password reset integration', () => {
     expect(screen.getByText('Reset User Authentication?')).toBeInTheDocument();
     expect(screen.queryByText('New Reset UI')).not.toBeInTheDocument();
   });
+
+  test('routes SSO users to the MFA reset dialog even when email reset is configured', () => {
+    render(
+      <MemoryRouter>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users
+              {...props}
+              operation={{
+                type: 'reset',
+                user: { name: 'bob', roles: [], isLocal: false },
+              }}
+              EmailPasswordReset={() => <div>Email Reset Dialog</div>}
+            />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Reset User Authentication?')).toBeInTheDocument();
+    expect(screen.queryByText('Email Reset Dialog')).not.toBeInTheDocument();
+  });
+
+  test('routes local users to the email reset dialog when configured', () => {
+    render(
+      <MemoryRouter>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users
+              {...props}
+              operation={{
+                type: 'reset',
+                user: { name: 'alice', roles: [], isLocal: true },
+              }}
+              EmailPasswordReset={() => <div>Email Reset Dialog</div>}
+            />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Email Reset Dialog')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Reset User Authentication?')
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe('permission handling', () => {

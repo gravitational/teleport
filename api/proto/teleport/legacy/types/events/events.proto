@@ -1544,6 +1544,45 @@ message UserDelete {
   ];
 }
 
+// UserReset is emitted when a user's authentication is reset. For local users this resets their
+// password and MFA devices, for SSO users only their MFA devices are removed.
+message UserReset {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User identifies the admin performing the reset
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource identifies the user that was reset
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the reset was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
 // UserPasswordChange is emitted when the user changes their own password.
 message UserPasswordChange {
   // Metadata is a common event metadata
@@ -5313,6 +5352,7 @@ message OneOf {
     events.ScopedTokenUpdate ScopedTokenUpdate = 264;
     events.ScopedTokenDelete ScopedTokenDelete = 265;
     events.BillingSubscriptionCancel BillingSubscriptionCancel = 273;
+    events.UserReset UserReset = 275;
   }
 }
 

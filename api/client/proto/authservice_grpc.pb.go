@@ -412,10 +412,14 @@ type AuthServiceClient interface {
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, in *GetResetPasswordTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
+	// Deprecated: Do not use.
 	// CreateResetPasswordToken resets users current password and second factors and creates a reset
 	// password token.
 	//
 	// Only local users may be reset.
+	//
+	// Deprecated: Use [teleport.users.v1.UsersService.ResetUser] instead.
+	// TODO(rudream): DELETE IN 21.0.0
 	CreateResetPasswordToken(ctx context.Context, in *CreateResetPasswordTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
 	// ListResetPasswordTokens returns a page of user tokens.
 	ListResetPasswordTokens(ctx context.Context, in *ListResetPasswordTokenRequest, opts ...grpc.CallOption) (*ListResetPasswordTokenResponse, error)
@@ -1544,6 +1548,7 @@ func (c *authServiceClient) GetResetPasswordToken(ctx context.Context, in *GetRe
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) CreateResetPasswordToken(ctx context.Context, in *CreateResetPasswordTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.UserTokenV3)
@@ -4084,10 +4089,14 @@ type AuthServiceServer interface {
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(context.Context, *GetResetPasswordTokenRequest) (*types.UserTokenV3, error)
+	// Deprecated: Do not use.
 	// CreateResetPasswordToken resets users current password and second factors and creates a reset
 	// password token.
 	//
 	// Only local users may be reset.
+	//
+	// Deprecated: Use [teleport.users.v1.UsersService.ResetUser] instead.
+	// TODO(rudream): DELETE IN 21.0.0
 	CreateResetPasswordToken(context.Context, *CreateResetPasswordTokenRequest) (*types.UserTokenV3, error)
 	// ListResetPasswordTokens returns a page of user tokens.
 	ListResetPasswordTokens(context.Context, *ListResetPasswordTokenRequest) (*ListResetPasswordTokenResponse, error)

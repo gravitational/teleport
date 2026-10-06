@@ -306,6 +306,7 @@ const cfg = {
     scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
     webRenewTokenPath: '/v1/webapi/sessions/web/renew',
     resetPasswordTokenPath: '/v1/webapi/users/password/token',
+    resetUserPath: '/v1/webapi/users/reset',
     webSessionPath: '/v1/webapi/sessions/web',
     userContextPath: '/v1/webapi/sites/:clusterId/context',
     userStatusPath: '/v1/webapi/user/status',

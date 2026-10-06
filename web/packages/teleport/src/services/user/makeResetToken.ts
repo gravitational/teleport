@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ResetToken } from './types';
+import { ResetToken, ResetUserResponse } from './types';
 
 export function makeResetToken(json): ResetToken {
   json = json || {};
@@ -25,5 +25,14 @@ export function makeResetToken(json): ResetToken {
     username: user || '',
     expires: expiry ? new Date(expiry) : null,
     value: tokenId || '',
+  };
+}
+
+export function makeResetUserResponse(json): ResetUserResponse {
+  json = json || {};
+  return {
+    token: json.token ? makeResetToken(json.token) : undefined,
+    userKind: json.userKind,
+    mfaDevicesRemoved: json.mfaDevicesRemoved || 0,
   };
 }

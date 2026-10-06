@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.users.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 
@@ -35,6 +36,8 @@ service UsersService {
   rpc UpsertUser(UpsertUserRequest) returns (UpsertUserResponse);
   // DeleteUser removes an existing user by name.
   rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+  // ResetUser resets a user's password (if applicable) and MFA devices.
+  rpc ResetUser(ResetUserRequest) returns (ResetUserResponse);
 }
 
 // Request for GetUser.
@@ -125,4 +128,49 @@ message UpsertUserResponse {
 message DeleteUserRequest {
   // Name of the user to remove.
   string name = 1;
+}
+
+// ResetUserKind is the kind of user that was reset.
+enum ResetUserKind {
+  // RESET_USER_KIND_UNSPECIFIED is the default/unspecified value for ResetUserKind.
+  RESET_USER_KIND_UNSPECIFIED = 0;
+  // RESET_USER_KIND_LOCAL is a local user.
+  RESET_USER_KIND_LOCAL = 1;
+  // RESET_USER_KIND_SSO is a single sign-on user.
+  RESET_USER_KIND_SSO = 2;
+  // RESET_USER_KIND_DELETED is a user that no longer exists, such as an SSO user who is logged out.
+  RESET_USER_KIND_DELETED = 3;
+}
+
+// ResetUserTokenType is the type of token created by a reset.
+enum ResetUserTokenType {
+  // RESET_USER_TOKEN_TYPE_UNSPECIFIED is the default/unspecified value for ResetUserTokenType,
+  // this will be treated as RESET_USER_TOKEN_TYPE_PASSWORD.
+  RESET_USER_TOKEN_TYPE_UNSPECIFIED = 0;
+  // RESET_USER_TOKEN_TYPE_PASSWORD is a token for an existing user to set a new password.
+  RESET_USER_TOKEN_TYPE_PASSWORD = 1;
+  // RESET_USER_TOKEN_TYPE_INVITE is a token for the invitation flow.
+  RESET_USER_TOKEN_TYPE_INVITE = 2;
+}
+
+// Request for ResetUser.
+message ResetUserRequest {
+  // Username of the user to reset.
+  string name = 1;
+  // The type of token to create.
+  ResetUserTokenType type = 2;
+  // Ttl of the created token.
+  // Defaults to 8h for password with a maximum of 24h, and 1h for invite with a maximum of 48h.
+  google.protobuf.Duration ttl = 3;
+}
+
+// Response for ResetUser.
+message ResetUserResponse {
+  // Token to set up new credentials with. Only set for local users.
+  types.UserTokenV3 password_reset_token = 1;
+  // Kind of the user that was reset.
+  ResetUserKind user_kind = 2;
+  // Number of MFA devices that were removed.
+  // This will only be set for SSO and deleted users because local users have theirs removed as part of the password reset.
+  int32 mfa_devices_removed = 3;
 }

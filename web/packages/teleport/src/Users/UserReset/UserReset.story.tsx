@@ -22,11 +22,13 @@ import { useEffect, useState } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
+import { ResetUserResponse, User } from 'teleport/services/user';
 
 import { UserReset } from './UserReset';
 
 type StoryProps = {
   status: 'processing' | 'success' | 'error';
+  isLocalUser: boolean;
   isMfaEnabled: boolean;
   allowPasswordless: boolean;
 };
@@ -42,6 +44,7 @@ const meta: Meta<StoryProps> = {
   },
   args: {
     status: 'processing',
+    isLocalUser: true,
     isMfaEnabled: true,
     allowPasswordless: true,
   },
@@ -68,14 +71,23 @@ export function Story(props: StoryProps) {
     };
   }, [props.isMfaEnabled, props.allowPasswordless]);
 
+  const user = { name: 'smith', isLocal: props.isLocalUser } as User;
+  const response: ResetUserResponse = props.isLocalUser
+    ? {
+        token: {
+          value: '0c536179038b386728dfee6602ca297f',
+          expires: new Date('2021-04-08T07:30:00Z'),
+          username: 'smith',
+        },
+        userKind: 'local',
+        mfaDevicesRemoved: 0,
+      }
+    : { userKind: 'sso', mfaDevicesRemoved: 2 };
+
   return (
     <UserReset
-      username="smith"
-      token={{
-        value: '0c536179038b386728dfee6602ca297f',
-        expires: new Date('2021-04-08T07:30:00Z'),
-        username: 'Lester',
-      }}
+      user={user}
+      response={response}
       onReset={() => {}}
       onClose={() => {}}
       attempt={statusToAttempt[props.status]}

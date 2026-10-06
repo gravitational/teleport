@@ -65,15 +65,17 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.Cr
 	switch user, err := a.GetUser(ctx, req.Name, false /* withSecrets */); {
 	case err != nil:
 		return nil, trace.Wrap(err)
+	case user.IsBot():
+		return nil, trace.BadParameter("bots may not be reset")
 	case user.GetUserType() != types.UserTypeLocal:
-		return nil, trace.AccessDenied("only local users may be reset")
+		return nil, trace.AccessDenied("only local users may be reset with a password reset token")
 	}
 
 	if err := a.resetPassword(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.resetMFA(ctx, req.Name); err != nil {
+	if _, err := a.ResetMFADevices(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -88,7 +90,7 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = a.CreateUserToken(ctx, token)
+	token, err = a.CreateUserToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -108,19 +110,29 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.Cr
 		a.logger.WarnContext(ctx, "Failed to emit create reset password token event", "error", err)
 	}
 
-	return a.GetUserToken(ctx, token.GetName())
+	return token, nil
 }
 
-func (a *Server) resetMFA(ctx context.Context, user string) error {
-	devs, err := a.Services.GetMFADevices(ctx, user, false)
+// ResetMFADevices removes all of a user's MFA devices and returns how many were removed.
+func (a *Server) ResetMFADevices(ctx context.Context, user string) (int, error) {
+	devices, err := a.Services.GetMFADevices(ctx, user, false)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
+	var removed int
 	var errs []error
-	for _, d := range devs {
-		errs = append(errs, a.DeleteMFADevice(ctx, user, d.Id))
+	for _, device := range devices {
+		if device.GetSso() != nil {
+			// SSO MFA devices are generated from the auth connector and aren't real stored devices
+			continue
+		}
+		if err := a.DeleteMFADevice(ctx, user, device.Id); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		removed++
 	}
-	return trace.NewAggregate(errs...)
+	return removed, trace.NewAggregate(errs...)
 }
 
 // proxyDomainGetter is a reduced subset of the Auth API for formatAccountName.

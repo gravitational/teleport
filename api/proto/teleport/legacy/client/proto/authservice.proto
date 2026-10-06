@@ -3234,7 +3234,12 @@ service AuthService {
   // password token.
   //
   // Only local users may be reset.
-  rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
+  //
+  // Deprecated: Use [teleport.users.v1.UsersService.ResetUser] instead.
+  // TODO(rudream): DELETE IN 21.0.0
+  rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3) {
+    option deprecated = true;
+  }
 
   // ListResetPasswordTokens returns a page of user tokens.
   rpc ListResetPasswordTokens(ListResetPasswordTokenRequest) returns (ListResetPasswordTokenResponse);

@@ -780,6 +780,47 @@ Example:
 }
 ```
 
+## user.reset
+
+There are multiple events with the `user.reset` type.
+
+### T1017I
+
+User Reset
+
+Example:
+
+```json
+{
+  "code": "T1017I",
+  "uid": "b121fc4c-e419-56a2-a760-19cd746c0650",
+  "time": "2020-06-05T16:24:05Z",
+  "event": "user.reset",
+  "name": "bob",
+  "user": "benarent",
+  "success": true
+}
+```
+
+### T1017W
+
+User Reset Failed
+
+Example:
+
+```json
+{
+  "code": "T1017W",
+  "uid": "b121fc4c-e419-56a2-a760-19cd746c0650",
+  "time": "2020-06-05T16:24:05Z",
+  "event": "user.reset",
+  "name": "bob",
+  "user": "benarent",
+  "success": false,
+  "error": "access denied"
+}
+```
+
 ## user.update
 
 User Updated

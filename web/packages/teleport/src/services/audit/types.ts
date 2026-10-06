@@ -200,6 +200,8 @@ export const eventCodes = {
   UNKNOWN: 'TCC00E',
   USER_CREATED: 'T1002I',
   USER_DELETED: 'T1004I',
+  USER_RESET: 'T1017I',
+  USER_RESET_FAILURE: 'T1017W',
   USER_LOCAL_LOGIN: 'T1000I',
   USER_LOCAL_LOGINFAILURE: 'T1000W',
   USER_PASSWORD_CHANGED: 'T1005I',
@@ -708,6 +710,10 @@ export type RawEvents = {
   >;
   [eventCodes.USER_CREATED]: RawEventUser<typeof eventCodes.USER_CREATED>;
   [eventCodes.USER_DELETED]: RawEventUser<typeof eventCodes.USER_DELETED>;
+  [eventCodes.USER_RESET]: RawEventUser<typeof eventCodes.USER_RESET>;
+  [eventCodes.USER_RESET_FAILURE]: RawEventUser<
+    typeof eventCodes.USER_RESET_FAILURE
+  >;
   [eventCodes.USER_UPDATED]: RawEventUser<typeof eventCodes.USER_UPDATED>;
   [eventCodes.USER_PASSWORD_CHANGED]: RawEvent<
     typeof eventCodes.USER_PASSWORD_CHANGED,

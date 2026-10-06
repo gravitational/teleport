@@ -22,13 +22,14 @@ import session from 'teleport/services/websession';
 
 import { MfaChallengeResponse } from '../mfa';
 import { isPathNotFoundError } from '../version/unsupported';
-import { makeResetToken } from './makeResetToken';
+import { makeResetToken, makeResetUserResponse } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
 import makeUserContext from './makeUserContext';
 import {
   CreateUserVariables,
   ExcludeUserField,
   ResetPasswordType,
+  ResetUserResponse,
   User,
   UserContext,
   type UpdateUserVariables,
@@ -134,6 +135,20 @@ const service = {
     return api
       .post(cfg.api.resetPasswordTokenPath, { name, type }, null, mfaResponse)
       .then(makeResetToken);
+  },
+
+  resetUser(
+    name: string,
+    mfaResponse?: MfaChallengeResponse
+  ): Promise<ResetUserResponse> {
+    return api
+      .post(
+        cfg.api.resetUserPath,
+        { name, tokenType: 'password' },
+        null,
+        mfaResponse
+      )
+      .then(makeResetUserResponse);
   },
 
   deleteUser(name: string) {

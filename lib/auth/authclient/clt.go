@@ -491,6 +491,7 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 
 // CreateResetPasswordToken creates reset password token
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
+	//nolint:staticcheck // SA1019
 	return c.APIClient.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
 		Name: req.Name,
 		TTL:  proto.Duration(req.TTL),
@@ -1129,6 +1130,9 @@ type IdentityService interface {
 
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
+
+	// ResetUser resets a user's password (if applicable) and MFA devices.
+	ResetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error)
 
 	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).

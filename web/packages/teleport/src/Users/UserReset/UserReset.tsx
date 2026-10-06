@@ -28,7 +28,7 @@ import Dialog, {
 import { useAttemptNext } from 'shared/hooks';
 
 import cfg from 'teleport/config';
-import { ResetToken } from 'teleport/services/user';
+import { ResetUserResponse, User } from 'teleport/services/user';
 
 import UserTokenLink from './../UserTokenLink';
 
@@ -38,21 +38,59 @@ export default function Container(props: Props) {
 }
 
 export function UserReset({
-  username,
+  user,
   onReset,
   onClose,
   attempt,
-  token,
+  response,
 }: ReturnType<typeof useDialog>) {
+  // When you reset a local user, the response will have the password reset token used for
+  // their reset link.
+  // SSO users don't get a link and instead just have their MFA devices reset.
+  if (attempt.status === 'success' && response?.token) {
+    return (
+      <UserTokenLink
+        onClose={onClose}
+        token={response.token}
+        asInvite={false}
+      />
+    );
+  }
+
   if (attempt.status === 'success') {
-    return <UserTokenLink onClose={onClose} token={token} asInvite={false} />;
+    const removed = response?.mfaDevicesRemoved ?? 0;
+    return (
+      <Dialog
+        dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
+        disableEscapeKeyDown={false}
+        onClose={onClose}
+        open={true}
+      >
+        <DialogHeader>
+          <DialogTitle>Authentication Reset</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+          <P2>
+            Removed {removed} MFA {removed === 1 ? 'device' : 'devices'} for
+            user{' '}
+            <Text bold as="strong">
+              {user.name}
+            </Text>
+            .
+          </P2>
+        </DialogContent>
+        <DialogFooter>
+          <ButtonPrimary onClick={onClose}>Close</ButtonPrimary>
+        </DialogFooter>
+      </Dialog>
+    );
   }
 
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
       disableEscapeKeyDown={false}
-      onClose={close}
+      onClose={onClose}
       open={true}
     >
       <DialogHeader>
@@ -62,27 +100,39 @@ export function UserReset({
         {attempt.status === 'failed' && (
           <Alert kind="danger">{attempt.statusText}</Alert>
         )}
-        <P2>
-          You are about to reset authentication for user{' '}
-          <Text bold as="strong">
-            {username}
-          </Text>
-          . This will generate a&nbsp;temporary URL which can be used to set up
-          new authentication.
-        </P2>
-        {cfg.isMfaUserConfigurable() && (
+        {user.isLocal ? (
+          <>
+            <P2>
+              You are about to reset authentication for user{' '}
+              <Text bold as="strong">
+                {user.name}
+              </Text>
+              . This will generate a&nbsp;temporary URL which can be used to set
+              up new authentication.
+            </P2>
+            {cfg.isMfaUserConfigurable() && (
+              <P2>
+                All{' '}
+                {cfg.isPasswordlessEnabled()
+                  ? 'passkeys and MFA methods'
+                  : 'MFA methods'}{' '}
+                of this user will be removed. The user will be able to set up{' '}
+                {cfg.isPasswordlessEnabled() ? (
+                  <>a&nbsp;new passkey or an MFA method</>
+                ) : (
+                  <>a&nbsp;new method</>
+                )}{' '}
+                after following the URL.
+              </P2>
+            )}
+          </>
+        ) : (
           <P2>
-            All{' '}
-            {cfg.isPasswordlessEnabled()
-              ? 'passkeys and MFA methods'
-              : 'MFA methods'}{' '}
-            of this user will be removed. The user will be able to set up{' '}
-            {cfg.isPasswordlessEnabled() ? (
-              <>a&nbsp;new passkey or an MFA method</>
-            ) : (
-              <>a&nbsp;new method</>
-            )}{' '}
-            after following the URL.
+            You are about to remove all MFA devices for SSO user{' '}
+            <Text bold as="strong">
+              {user.name}
+            </Text>
+            . They can register new devices the next time they sign in.
           </P2>
         )}
       </DialogContent>
@@ -92,7 +142,7 @@ export function UserReset({
           disabled={attempt.status === 'processing'}
           onClick={onReset}
         >
-          Generate Reset URL
+          {user.isLocal ? 'Generate Reset URL' : 'Reset MFA Devices'}
         </ButtonPrimary>
         <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
       </DialogFooter>
@@ -102,23 +152,23 @@ export function UserReset({
 
 function useDialog(props: Props) {
   const { attempt, run } = useAttemptNext();
-  const [token, setToken] = useState<ResetToken>(null);
+  const [response, setResponse] = useState<ResetUserResponse>(null);
 
   function onReset() {
-    run(() => props.onReset(props.username).then(setToken));
+    run(() => props.onReset(props.user.name).then(setResponse));
   }
 
   return {
-    username: props.username,
+    user: props.user,
     onClose: props.onClose,
-    token,
+    response,
     onReset,
     attempt,
   };
 }
 
 type Props = {
-  username: string;
+  user: User;
   onClose(): void;
-  onReset(username: string): Promise<any>;
+  onReset(username: string): Promise<ResetUserResponse>;
 };

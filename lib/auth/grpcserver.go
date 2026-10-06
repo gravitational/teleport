@@ -6157,6 +6157,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
 		Cache:            cfg.AuthServer.Cache,
 		Backend:          cfg.AuthServer.Services,
+		AuthServer:       cfg.AuthServer,
 		Emitter:          cfg.Emitter,
 		Reporter:         cfg.AuthServer.Services.UsageReporter,
 		Clock:            cfg.AuthServer.GetClock(),

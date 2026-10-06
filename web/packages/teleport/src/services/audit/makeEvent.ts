@@ -675,6 +675,18 @@ export const formatters: Formatters = {
     desc: 'User Deleted',
     format: ({ name }) => `User [${name}] has been deleted`,
   },
+  [eventCodes.USER_RESET]: {
+    type: 'user.reset',
+    desc: 'User Reset',
+    format: ({ user, name }) =>
+      `User [${user}] reset authentication for user [${name}]`,
+  },
+  [eventCodes.USER_RESET_FAILURE]: {
+    type: 'user.reset',
+    desc: 'User Reset Failed',
+    format: ({ user, name }) =>
+      `User [${user}] failed to reset authentication for user [${name}]`,
+  },
   [eventCodes.USER_LOCAL_LOGIN]: {
     type: 'user.login',
     desc: 'Local Login',

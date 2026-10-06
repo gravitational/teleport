@@ -203,6 +203,16 @@ export interface ResetToken {
 
 export type ResetPasswordType = 'invite' | 'password';
 
+// ResetUserKind is the kind of user that was reset
+type ResetUserKind = 'local' | 'sso' | 'deleted';
+
+export interface ResetUserResponse {
+  // token is only set for local users
+  token?: ResetToken;
+  userKind: ResetUserKind;
+  mfaDevicesRemoved: number;
+}
+
 // OnboardDiscover describes states related to onboarding a
 // user to using the discover wizard to add a resource.
 export type OnboardDiscover = {

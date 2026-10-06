@@ -188,6 +188,10 @@ export function Users(props: State) {
 
   const isMissingPermissions = requiredPermissions.some(v => !v.value);
 
+  // On Cloud, local users are reset via an emailed link (EmailPasswordReset). SSO users always use
+  // the UserReset dialog instead so their MFA devices are removed.
+  const showEmailReset = !!(EmailPasswordReset && operation.user?.isLocal);
+
   return (
     <FeatureBox>
       <FeatureHeader justifyContent="space-between">
@@ -319,14 +323,10 @@ export function Users(props: State) {
           modifyFetchedData={serverSidePagination.modifyFetchedData}
         />
       )}
-      {operation.type === 'reset' && !EmailPasswordReset && (
-        <UserReset
-          onClose={onClose}
-          onReset={onReset}
-          username={operation.user.name}
-        />
+      {operation.type === 'reset' && !showEmailReset && (
+        <UserReset onClose={onClose} onReset={onReset} user={operation.user} />
       )}
-      {operation.type === 'reset' && EmailPasswordReset && (
+      {operation.type === 'reset' && showEmailReset && (
         <EmailPasswordReset
           onClose={onEmailPasswordResetClose}
           username={operation.user.name}

@@ -93,6 +93,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.USER_CREATED]: Icons.User,
   [eventCodes.USER_UPDATED]: Icons.User,
   [eventCodes.USER_DELETED]: Icons.User,
+  [eventCodes.USER_RESET]: Icons.Info,
+  [eventCodes.USER_RESET_FAILURE]: Icons.Warning,
   [eventCodes.BOT_CREATED]: Icons.Info,
   [eventCodes.BOT_UPDATED]: Icons.Info,
   [eventCodes.BOT_DELETED]: Icons.Info,

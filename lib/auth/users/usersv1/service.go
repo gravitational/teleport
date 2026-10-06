@@ -32,6 +32,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -52,6 +53,8 @@ type Cache interface {
 
 // Backend is the subset of the backend resources that the Service modifies.
 type Backend interface {
+	// GetUser returns a user by name.
+	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	// CreateUser creates user, only if the user entry does not exist
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	// UpdateUser updates an existing user if revisions match.
@@ -64,6 +67,13 @@ type Backend interface {
 	DeleteUser(ctx context.Context, user string) error
 }
 
+type AuthServer interface {
+	// CreateResetPasswordToken resets a local user's credentials and creates a reset password token.
+	CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error)
+	// ResetMFADevices removes all of the user's MFA devices and returns how many were removed.
+	ResetMFADevices(ctx context.Context, user string) (int, error)
+}
+
 // ServiceConfig holds configuration options for
 // the users gRPC service.
 type ServiceConfig struct {
@@ -71,6 +81,7 @@ type ServiceConfig struct {
 	ScopedAuthorizer authz.ScopedAuthorizer
 	Cache            Cache
 	Backend          Backend
+	AuthServer       AuthServer
 	Logger           *slog.Logger
 	Emitter          apievents.Emitter
 	Reporter         usagereporter.UsageReporter
@@ -85,6 +96,7 @@ type Service struct {
 	scopedAuthorizer authz.ScopedAuthorizer
 	cache            Cache
 	backend          Backend
+	authServer       AuthServer
 	logger           *slog.Logger
 	emitter          apievents.Emitter
 	reporter         usagereporter.UsageReporter
@@ -98,6 +110,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("cache service is required")
 	case cfg.Backend == nil:
 		return nil, trace.BadParameter("backend service is required")
+	case cfg.AuthServer == nil:
+		return nil, trace.BadParameter("auth server is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.ScopedAuthorizer == nil:
@@ -121,6 +135,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		scopedAuthorizer: cfg.ScopedAuthorizer,
 		cache:            cfg.Cache,
 		backend:          cfg.Backend,
+		authServer:       cfg.AuthServer,
 		emitter:          cfg.Emitter,
 		reporter:         cfg.Reporter,
 		clock:            cfg.Clock,
@@ -614,4 +629,139 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 
 	rsp, err := s.cache.ListUsers(ctx, req)
 	return rsp, trace.Wrap(err)
+}
+
+func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		s.emitUserResetEvent(ctx, req.GetName(), err)
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbUpdate); err != nil {
+		s.emitUserResetEvent(ctx, req.GetName(), err)
+		return nil, trace.Wrap(err)
+	}
+
+	if authz.IsLocalOrRemoteService(*authCtx) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		err := trace.AccessDenied("access denied")
+		s.emitUserResetEvent(ctx, req.GetName(), err)
+		return nil, err
+	}
+
+	// Don't emit a failure event here since a reused MFA challenge is a normal part of the
+	// admin action flow
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := s.resetUser(ctx, req)
+	s.emitUserResetEvent(ctx, req.GetName(), err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// resetUser performs the reset once the caller has been authorized, resolving whether the
+// user is local, SSO, or already deleted and returning the response for the client.
+func (s *Service) resetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
+	var tokenType string
+	switch req.GetType() {
+	case userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_UNSPECIFIED, userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_PASSWORD:
+		tokenType = authclient.UserTokenTypeResetPassword
+	case userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_INVITE:
+		tokenType = authclient.UserTokenTypeResetPasswordInvite
+	default:
+		return nil, trace.BadParameter("unknown token type %q", req.GetType())
+	}
+
+	tokenReq := authclient.CreateUserTokenRequest{
+		Name: req.GetName(),
+		TTL:  req.GetTtl().AsDuration(),
+		Type: tokenType,
+	}
+	if err := tokenReq.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We read from the backend rather than the cache here so that a newly created local user that
+	// hasn't propagated to the cache yet won't be mistaken for a deleted one, which would remove
+	// their MFA devices without giving us a reset token.
+	user, err := s.backend.GetUser(ctx, tokenReq.Name, false)
+	if trace.IsNotFound(err) {
+		return s.resetDeletedUser(ctx, tokenReq.Name)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if user.GetUserType() == types.UserTypeSSO {
+		removed, err := s.authServer.ResetMFADevices(ctx, user.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// For SSO users the response is just the number of MFA devices removed
+		return userspb.ResetUserResponse_builder{
+			UserKind:          userspb.ResetUserKind_RESET_USER_KIND_SSO,
+			MfaDevicesRemoved: int32(removed),
+		}.Build(), nil
+	}
+
+	// CreateResetPasswordToken resets the user's password and also removes their MFA devices
+	token, err := s.authServer.CreateResetPasswordToken(ctx, tokenReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tokenV3, ok := token.(*types.UserTokenV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected UserToken type %T", token)
+	}
+	// For local users the response is just the password reset token
+	return userspb.ResetUserResponse_builder{
+		UserKind:           userspb.ResetUserKind_RESET_USER_KIND_LOCAL,
+		PasswordResetToken: tokenV3,
+	}.Build(), nil
+}
+
+// emitUserResetEvent emits an audit event that the named user's authentication was reset.
+func (s *Service) emitUserResetEvent(ctx context.Context, name string, resetErr error) {
+	code := events.UserResetCode
+	var errorMessage string
+	if resetErr != nil {
+		code = events.UserResetFailureCode
+		errorMessage = resetErr.Error()
+	}
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserReset{
+		Metadata: apievents.Metadata{
+			Type: events.UserResetEvent,
+			Code: code,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: name,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: resetErr == nil,
+			Error:   errorMessage,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit user reset event", "error", err)
+	}
+}
+
+// resetDeletedUser removes MFA devices for a user that no longer exists (aka an expired SSO user)
+func (s *Service) resetDeletedUser(ctx context.Context, name string) (*userspb.ResetUserResponse, error) {
+	removed, err := s.authServer.ResetMFADevices(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if removed == 0 {
+		return nil, trace.NotFound("user %q not found", name)
+	}
+	return userspb.ResetUserResponse_builder{
+		UserKind:          userspb.ResetUserKind_RESET_USER_KIND_DELETED,
+		MfaDevicesRemoved: int32(removed),
+	}.Build(), nil
 }

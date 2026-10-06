@@ -157,18 +157,27 @@ const ActionCell = ({
     return <Cell align="right" />;
   }
 
-  if (user.isBot || !user.isLocal) {
+  if (user.isBot) {
+    return <Cell align="right" />;
+  }
+
+  const showReset = canEdit;
+  // SSO users can't be edited or deleted
+  const showEdit = canEdit && user.isLocal;
+  const showDelete = canDelete && user.isLocal;
+
+  if (!(showEdit || showReset || showDelete)) {
     return <Cell align="right" />;
   }
 
   return (
     <Cell align="right">
       <MenuButton>
-        {canEdit && <MenuItem onClick={onEdit}>Edit...</MenuItem>}
-        {canEdit && (
+        {showEdit && <MenuItem onClick={onEdit}>Edit...</MenuItem>}
+        {showReset && (
           <MenuItem onClick={onReset}>Reset Authentication...</MenuItem>
         )}
-        {canDelete && <MenuItem onClick={onDelete}>Delete...</MenuItem>}
+        {showDelete && <MenuItem onClick={onDelete}>Delete...</MenuItem>}
       </MenuButton>
     </Cell>
   );

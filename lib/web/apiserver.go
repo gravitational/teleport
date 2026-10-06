@@ -73,6 +73,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
@@ -942,6 +943,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/users/password/token", h.WithLimiter(h.changeUserAuthentication))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
+	h.POST("/webapi/users/reset", h.WithAuth(h.resetUser))
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
 	h.POST("/webapi/headless/login", h.WithUnauthenticatedLimiter(h.headlessLogin))
@@ -3305,7 +3307,76 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 	}, nil
 }
 
-func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+type resetUserReq struct {
+	// Name is the user to reset.
+	Name string `json:"name"`
+	// TokenType is the reset token type for local users, either "password" (default) or "invite".
+	TokenType string `json:"tokenType"`
+}
+
+type resetUserResponse struct {
+	// Token is a password reset token for local users.
+	Token *ui.ResetPasswordToken `json:"token,omitempty"`
+	// UserKind is the kind of user that was reset, either "local", "sso" or "deleted".
+	UserKind string `json:"userKind"`
+	// MFADevicesRemoved is how many MFA devices were removed, only returned for sso and deleted users.
+	MFADevicesRemoved int32 `json:"mfaDevicesRemoved"`
+}
+
+// resetUser resets a user's authentication.
+// Local users get a password reset token back, SSO users and deleted users only have their MFA devices removed.
+func (h *Handler) resetUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (any, error) {
+	var req resetUserReq
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokenType := userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_PASSWORD
+	if req.TokenType == "invite" {
+		tokenType = userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_INVITE
+	}
+
+	resp, err := clt.ResetUser(r.Context(), userspb.ResetUserRequest_builder{
+		Name: req.Name,
+		Type: tokenType,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := resetUserResponse{
+		UserKind:          resetUserKindString(resp.GetUserKind()),
+		MFADevicesRemoved: resp.GetMfaDevicesRemoved(),
+	}
+	if token := resp.GetPasswordResetToken(); token != nil {
+		out.Token = &ui.ResetPasswordToken{
+			TokenID: token.GetName(),
+			User:    token.GetUser(),
+			Expiry:  token.Expiry(),
+		}
+	}
+	return out, nil
+}
+
+func resetUserKindString(kind userspb.ResetUserKind) string {
+	switch kind {
+	case userspb.ResetUserKind_RESET_USER_KIND_LOCAL:
+		return "local"
+	case userspb.ResetUserKind_RESET_USER_KIND_SSO:
+		return "sso"
+	case userspb.ResetUserKind_RESET_USER_KIND_DELETED:
+		return "deleted"
+	default:
+		return ""
+	}
+}
+
+func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	result, err := h.getResetPasswordToken(r.Context(), p.ByName("token"))
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Failed to fetch a reset password token", "error", err)

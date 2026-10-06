@@ -1176,6 +1176,44 @@ func (c *Client) DeleteUser(ctx context.Context, user string) error {
 	return trace.Wrap(err)
 }
 
+// ResetUser resets a user's password (if applicable) and MFA devices.
+// For local users, this will return a password reset token.
+// For SSO users, this just deletes their MFA devices.
+func (c *Client) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
+	rsp, err := userspb.NewUsersServiceClient(c.conn).ResetUser(ctx, req)
+	if err == nil {
+		return rsp, nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback to the old RPC for backwards compatibility with older auth servers that don't implement ResetUser yet
+	// TODO(rudream): DELETE IN 21.0.0
+	var tokenType string
+	switch req.GetType() {
+	case userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_UNSPECIFIED, userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_PASSWORD:
+		tokenType = "password"
+	case userspb.ResetUserTokenType_RESET_USER_TOKEN_TYPE_INVITE:
+		tokenType = "invite"
+	default:
+		return nil, trace.BadParameter("unknown token type %q", req.GetType())
+	}
+	//nolint:staticcheck // SA1019
+	token, err := c.grpc.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
+		Name: req.GetName(),
+		TTL:  proto.Duration(req.GetTtl().AsDuration()),
+		Type: tokenType,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return userspb.ResetUserResponse_builder{
+		PasswordResetToken: token,
+		UserKind:           userspb.ResetUserKind_RESET_USER_KIND_LOCAL,
+	}.Build(), nil
+}
+
 // GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 // text format, signs it using User Certificate Authority signing key and
 // returns the resulting certificates.
@@ -1241,7 +1279,11 @@ func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (typ
 }
 
 // CreateResetPasswordToken creates reset password token.
+//
+// Deprecated. Use [Client.ResetUser] instead
+// TODO(rudream): DELETE IN 21.0.0
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (types.UserToken, error) {
+	//nolint:staticcheck // SA1019
 	token, err := c.grpc.CreateResetPasswordToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
