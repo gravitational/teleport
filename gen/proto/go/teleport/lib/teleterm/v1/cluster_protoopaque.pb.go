@@ -411,6 +411,7 @@ type LoggedInUser struct {
 	xxx_hidden_IsDeviceTrusted          bool                           `protobuf:"varint,9,opt,name=is_device_trusted,json=isDeviceTrusted,proto3"`
 	xxx_hidden_TrustedDeviceRequirement types.TrustedDeviceRequirement `protobuf:"varint,10,opt,name=trusted_device_requirement,json=trustedDeviceRequirement,proto3,enum=types.TrustedDeviceRequirement"`
 	xxx_hidden_ValidUntil               *timestamppb.Timestamp         `protobuf:"bytes,11,opt,name=valid_until,json=validUntil,proto3"`
+	xxx_hidden_Display                  *UserDisplay                   `protobuf:"bytes,12,opt,name=display,proto3"`
 	unknownFields                       protoimpl.UnknownFields
 	sizeCache                           protoimpl.SizeCache
 }
@@ -510,6 +511,13 @@ func (x *LoggedInUser) GetValidUntil() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *LoggedInUser) GetDisplay() *UserDisplay {
+	if x != nil {
+		return x.xxx_hidden_Display
+	}
+	return nil
+}
+
 func (x *LoggedInUser) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
@@ -550,6 +558,10 @@ func (x *LoggedInUser) SetValidUntil(v *timestamppb.Timestamp) {
 	x.xxx_hidden_ValidUntil = v
 }
 
+func (x *LoggedInUser) SetDisplay(v *UserDisplay) {
+	x.xxx_hidden_Display = v
+}
+
 func (x *LoggedInUser) HasAcl() bool {
 	if x == nil {
 		return false
@@ -564,12 +576,23 @@ func (x *LoggedInUser) HasValidUntil() bool {
 	return x.xxx_hidden_ValidUntil != nil
 }
 
+func (x *LoggedInUser) HasDisplay() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Display != nil
+}
+
 func (x *LoggedInUser) ClearAcl() {
 	x.xxx_hidden_Acl = nil
 }
 
 func (x *LoggedInUser) ClearValidUntil() {
 	x.xxx_hidden_ValidUntil = nil
+}
+
+func (x *LoggedInUser) ClearDisplay() {
+	x.xxx_hidden_Display = nil
 }
 
 type LoggedInUser_builder struct {
@@ -597,6 +620,9 @@ type LoggedInUser_builder struct {
 	TrustedDeviceRequirement types.TrustedDeviceRequirement
 	// Expiration time of the certificate.
 	ValidUntil *timestamppb.Timestamp
+	// display holds the user's display values.
+	// Only present when detailed information is queried from the auth server.
+	Display *UserDisplay
 }
 
 func (b0 LoggedInUser_builder) Build() *LoggedInUser {
@@ -613,6 +639,81 @@ func (b0 LoggedInUser_builder) Build() *LoggedInUser {
 	x.xxx_hidden_IsDeviceTrusted = b.IsDeviceTrusted
 	x.xxx_hidden_TrustedDeviceRequirement = b.TrustedDeviceRequirement
 	x.xxx_hidden_ValidUntil = b.ValidUntil
+	x.xxx_hidden_Display = b.Display
+	return m0
+}
+
+// UserDisplay contains display values derived from a user.
+type UserDisplay struct {
+	state                protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Primary   string                 `protobuf:"bytes,1,opt,name=primary,proto3"`
+	xxx_hidden_Secondary string                 `protobuf:"bytes,2,opt,name=secondary,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *UserDisplay) Reset() {
+	*x = UserDisplay{}
+	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserDisplay) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserDisplay) ProtoMessage() {}
+
+func (x *UserDisplay) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UserDisplay) GetPrimary() string {
+	if x != nil {
+		return x.xxx_hidden_Primary
+	}
+	return ""
+}
+
+func (x *UserDisplay) GetSecondary() string {
+	if x != nil {
+		return x.xxx_hidden_Secondary
+	}
+	return ""
+}
+
+func (x *UserDisplay) SetPrimary(v string) {
+	x.xxx_hidden_Primary = v
+}
+
+func (x *UserDisplay) SetSecondary(v string) {
+	x.xxx_hidden_Secondary = v
+}
+
+type UserDisplay_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// primary is a human-readable name when distinct from the username. May be empty.
+	Primary string
+	// secondary is supporting context, usually an email, when distinct from the username. May be empty.
+	Secondary string
+}
+
+func (b0 UserDisplay_builder) Build() *UserDisplay {
+	m0 := &UserDisplay{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Primary = b.Primary
+	x.xxx_hidden_Secondary = b.Secondary
 	return m0
 }
 
@@ -641,7 +742,7 @@ type ACL struct {
 
 func (x *ACL) Reset() {
 	*x = ACL{}
-	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[2]
+	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -653,7 +754,7 @@ func (x *ACL) String() string {
 func (*ACL) ProtoMessage() {}
 
 func (x *ACL) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[2]
+	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1058,7 +1159,7 @@ type ResourceAccess struct {
 
 func (x *ResourceAccess) Reset() {
 	*x = ResourceAccess{}
-	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[3]
+	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1070,7 +1171,7 @@ func (x *ResourceAccess) String() string {
 func (*ResourceAccess) ProtoMessage() {}
 
 func (x *ResourceAccess) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[3]
+	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1188,7 +1289,7 @@ type Features struct {
 
 func (x *Features) Reset() {
 	*x = Features{}
-	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[4]
+	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1200,7 +1301,7 @@ func (x *Features) String() string {
 func (*Features) ProtoMessage() {}
 
 func (x *Features) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[4]
+	mi := &file_teleport_lib_teleterm_v1_cluster_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1270,7 +1371,7 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	" \x01(\tR\fproxyVersion\x12N\n" +
 	"\x0eshow_resources\x18\v \x01(\x0e2'.teleport.lib.teleterm.v1.ShowResourcesR\rshowResources\x120\n" +
 	"\x14profile_status_error\x18\f \x01(\tR\x12profileStatusError\x12\x19\n" +
-	"\bsso_host\x18\r \x01(\tR\assoHost\"\xe7\x04\n" +
+	"\bsso_host\x18\r \x01(\tR\assoHost\"\xa8\x05\n" +
 	"\fLoggedInUser\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12/\n" +
@@ -1283,12 +1384,16 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	"\x1atrusted_device_requirement\x18\n" +
 	" \x01(\x0e2\x1f.types.TrustedDeviceRequirementR\x18trustedDeviceRequirement\x12;\n" +
 	"\vvalid_until\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"validUntil\"M\n" +
+	"validUntil\x12?\n" +
+	"\adisplay\x18\f \x01(\v2%.teleport.lib.teleterm.v1.UserDisplayR\adisplay\"M\n" +
 	"\bUserType\x12\x19\n" +
 	"\x15USER_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fUSER_TYPE_LOCAL\x10\x01\x12\x11\n" +
 	"\rUSER_TYPE_SSO\x10\x02J\x04\b\x03\x10\x04R\n" +
-	"ssh_logins\"\xe9\b\n" +
+	"ssh_logins\"E\n" +
+	"\vUserDisplay\x12\x18\n" +
+	"\aprimary\x18\x01 \x01(\tR\aprimary\x12\x1c\n" +
+	"\tsecondary\x18\x02 \x01(\tR\tsecondary\"\xe9\b\n" +
 	"\x03ACL\x12Q\n" +
 	"\x0fauth_connectors\x18\x02 \x01(\v2(.teleport.lib.teleterm.v1.ResourceAccessR\x0eauthConnectors\x12>\n" +
 	"\x05roles\x18\x03 \x01(\v2(.teleport.lib.teleterm.v1.ResourceAccessR\x05roles\x12>\n" +
@@ -1323,44 +1428,46 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	"\x1eSHOW_RESOURCES_ACCESSIBLE_ONLY\x10\x02BTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
 var file_teleport_lib_teleterm_v1_cluster_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_lib_teleterm_v1_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_lib_teleterm_v1_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_lib_teleterm_v1_cluster_proto_goTypes = []any{
 	(ShowResources)(0),                  // 0: teleport.lib.teleterm.v1.ShowResources
 	(LoggedInUser_UserType)(0),          // 1: teleport.lib.teleterm.v1.LoggedInUser.UserType
 	(*Cluster)(nil),                     // 2: teleport.lib.teleterm.v1.Cluster
 	(*LoggedInUser)(nil),                // 3: teleport.lib.teleterm.v1.LoggedInUser
-	(*ACL)(nil),                         // 4: teleport.lib.teleterm.v1.ACL
-	(*ResourceAccess)(nil),              // 5: teleport.lib.teleterm.v1.ResourceAccess
-	(*Features)(nil),                    // 6: teleport.lib.teleterm.v1.Features
-	(types.TrustedDeviceRequirement)(0), // 7: types.TrustedDeviceRequirement
-	(*timestamppb.Timestamp)(nil),       // 8: google.protobuf.Timestamp
+	(*UserDisplay)(nil),                 // 4: teleport.lib.teleterm.v1.UserDisplay
+	(*ACL)(nil),                         // 5: teleport.lib.teleterm.v1.ACL
+	(*ResourceAccess)(nil),              // 6: teleport.lib.teleterm.v1.ResourceAccess
+	(*Features)(nil),                    // 7: teleport.lib.teleterm.v1.Features
+	(types.TrustedDeviceRequirement)(0), // 8: types.TrustedDeviceRequirement
+	(*timestamppb.Timestamp)(nil),       // 9: google.protobuf.Timestamp
 }
 var file_teleport_lib_teleterm_v1_cluster_proto_depIdxs = []int32{
 	3,  // 0: teleport.lib.teleterm.v1.Cluster.logged_in_user:type_name -> teleport.lib.teleterm.v1.LoggedInUser
-	6,  // 1: teleport.lib.teleterm.v1.Cluster.features:type_name -> teleport.lib.teleterm.v1.Features
+	7,  // 1: teleport.lib.teleterm.v1.Cluster.features:type_name -> teleport.lib.teleterm.v1.Features
 	0,  // 2: teleport.lib.teleterm.v1.Cluster.show_resources:type_name -> teleport.lib.teleterm.v1.ShowResources
-	4,  // 3: teleport.lib.teleterm.v1.LoggedInUser.acl:type_name -> teleport.lib.teleterm.v1.ACL
+	5,  // 3: teleport.lib.teleterm.v1.LoggedInUser.acl:type_name -> teleport.lib.teleterm.v1.ACL
 	1,  // 4: teleport.lib.teleterm.v1.LoggedInUser.user_type:type_name -> teleport.lib.teleterm.v1.LoggedInUser.UserType
-	7,  // 5: teleport.lib.teleterm.v1.LoggedInUser.trusted_device_requirement:type_name -> types.TrustedDeviceRequirement
-	8,  // 6: teleport.lib.teleterm.v1.LoggedInUser.valid_until:type_name -> google.protobuf.Timestamp
-	5,  // 7: teleport.lib.teleterm.v1.ACL.auth_connectors:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 8: teleport.lib.teleterm.v1.ACL.roles:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 9: teleport.lib.teleterm.v1.ACL.users:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 10: teleport.lib.teleterm.v1.ACL.trusted_clusters:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 11: teleport.lib.teleterm.v1.ACL.events:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 12: teleport.lib.teleterm.v1.ACL.tokens:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 13: teleport.lib.teleterm.v1.ACL.servers:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 14: teleport.lib.teleterm.v1.ACL.apps:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 15: teleport.lib.teleterm.v1.ACL.dbs:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 16: teleport.lib.teleterm.v1.ACL.kubeservers:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 17: teleport.lib.teleterm.v1.ACL.access_requests:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 18: teleport.lib.teleterm.v1.ACL.recorded_sessions:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 19: teleport.lib.teleterm.v1.ACL.active_sessions:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	20, // [20:20] is the sub-list for method output_type
-	20, // [20:20] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	8,  // 5: teleport.lib.teleterm.v1.LoggedInUser.trusted_device_requirement:type_name -> types.TrustedDeviceRequirement
+	9,  // 6: teleport.lib.teleterm.v1.LoggedInUser.valid_until:type_name -> google.protobuf.Timestamp
+	4,  // 7: teleport.lib.teleterm.v1.LoggedInUser.display:type_name -> teleport.lib.teleterm.v1.UserDisplay
+	6,  // 8: teleport.lib.teleterm.v1.ACL.auth_connectors:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 9: teleport.lib.teleterm.v1.ACL.roles:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 10: teleport.lib.teleterm.v1.ACL.users:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 11: teleport.lib.teleterm.v1.ACL.trusted_clusters:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 12: teleport.lib.teleterm.v1.ACL.events:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 13: teleport.lib.teleterm.v1.ACL.tokens:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 14: teleport.lib.teleterm.v1.ACL.servers:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 15: teleport.lib.teleterm.v1.ACL.apps:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 16: teleport.lib.teleterm.v1.ACL.dbs:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 17: teleport.lib.teleterm.v1.ACL.kubeservers:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 18: teleport.lib.teleterm.v1.ACL.access_requests:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 19: teleport.lib.teleterm.v1.ACL.recorded_sessions:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	6,  // 20: teleport.lib.teleterm.v1.ACL.active_sessions:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_cluster_proto_init() }
@@ -1374,7 +1481,7 @@ func file_teleport_lib_teleterm_v1_cluster_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_cluster_proto_rawDesc), len(file_teleport_lib_teleterm_v1_cluster_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -25,6 +25,8 @@ import Logger from 'teleterm/logger';
 const SENSITIVE_PROPERTIES = [
   'password',
   'authClusterId',
+  // Display can contain a user's name and email, so omit it from tshd logs.
+  'display',
   'pin',
   'puk',
   // Filter out output of auxiliary commands run as a part of VNet diag report.

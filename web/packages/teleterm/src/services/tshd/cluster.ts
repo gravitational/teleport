@@ -69,6 +69,13 @@ export function mergeClusterProfileWithDetails({
   profile: Cluster;
   details: Cluster;
 }): Cluster {
+  // A failed sync can leave stale details, so only trust details that belong to
+  // this user.
+  const detailsUser =
+    details.loggedInUser?.name === profile.loggedInUser?.name
+      ? details.loggedInUser
+      : undefined;
+
   return {
     uri: profile.uri,
     connected: profile.connected,
@@ -87,14 +94,14 @@ export function mergeClusterProfileWithDetails({
       roles: profile.loggedInUser.roles,
       isDeviceTrusted: profile.loggedInUser.isDeviceTrusted,
       validUntil: profile.loggedInUser.validUntil,
-      userType:
-        details.loggedInUser?.userType || LoggedInUser_UserType.UNSPECIFIED,
+      userType: detailsUser?.userType || LoggedInUser_UserType.UNSPECIFIED,
       trustedDeviceRequirement:
-        details.loggedInUser?.trustedDeviceRequirement ||
+        detailsUser?.trustedDeviceRequirement ||
         TrustedDeviceRequirement.UNSPECIFIED,
-      requestableRoles: details.loggedInUser?.requestableRoles || [],
-      suggestedReviewers: details.loggedInUser?.suggestedReviewers || [],
-      acl: details.loggedInUser?.acl || undefined,
+      requestableRoles: detailsUser?.requestableRoles || [],
+      suggestedReviewers: detailsUser?.suggestedReviewers || [],
+      acl: detailsUser?.acl || undefined,
+      display: detailsUser?.display,
     },
   };
 }

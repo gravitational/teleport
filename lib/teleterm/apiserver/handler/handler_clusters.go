@@ -25,6 +25,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -136,6 +137,12 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 		return nil, trace.Wrap(err)
 	}
 	apiCluster.GetLoggedInUser().SetUserType(userType)
+	if display := cluster.UserDisplay; display != (types.UserDisplay{}) {
+		apiCluster.GetLoggedInUser().SetDisplay(api.UserDisplay_builder{
+			Primary:   display.Primary,
+			Secondary: display.Secondary,
+		}.Build())
+	}
 	apiCluster.GetLoggedInUser().SetTrustedDeviceRequirement(cluster.TrustedDeviceRequirement)
 	apiCluster.SetProxyVersion(cluster.ProxyVersion)
 

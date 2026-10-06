@@ -27,6 +27,7 @@ import { wait } from 'shared/utils/wait';
 import Logger from 'teleterm/logger';
 import { isTshdRpcError } from 'teleterm/services/tshd';
 import { mergeClusterProfileWithDetails } from 'teleterm/services/tshd/cluster';
+import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 interface TshClient {
@@ -112,7 +113,10 @@ export async function* watchProfiles({
 
         const changes = detectChanges(oldClusters, newClusters);
         if (changes.length > 0) {
-          logger.info('Detected profile changes', changes);
+          logger.info(
+            'Detected profile changes',
+            changes.map(filterSensitiveProperties)
+          );
           yield changes;
         } else {
           logger.info('No profile changes detected');

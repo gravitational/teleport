@@ -53,6 +53,7 @@ const CornerUserDisplay = styled(UserDisplayName)`
   color: ${props =>
     cfg.customTheme === 'csco' ? '#f7f7f7' : props.theme.colors.text.main};
   display: none;
+  max-width: min(320px, 25vw);
   @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     display: inline-flex;
   }

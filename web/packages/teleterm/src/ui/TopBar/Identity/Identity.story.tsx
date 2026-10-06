@@ -151,6 +151,7 @@ const clusterOrange = makeRootCluster({
   name: 'orange-psv-eindhoven-eredivisie-production-lorem-ipsum',
   loggedInUser: makeLoggedInUser({
     name: 'ruud-van-nistelrooy-van-der-sar',
+    display: { primary: 'Ruud van Nistelrooy van der Sar', secondary: '' },
     roles,
   }),
   uri: '/clusters/orange',
@@ -159,6 +160,7 @@ const clusterViolet = makeRootCluster({
   name: 'violet',
   loggedInUser: makeLoggedInUser({
     name: 'sammy',
+    display: { primary: 'Sammy Example', secondary: '' },
     roles: ['access', 'editor'],
   }),
   uri: '/clusters/violet',

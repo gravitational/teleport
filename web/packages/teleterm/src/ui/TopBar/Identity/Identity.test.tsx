@@ -119,6 +119,107 @@ test('roles list remembers it was expanded', async () => {
   expect(await screen.findByText('requests-reviewer')).toBeVisible();
 });
 
+test('shows display and username only in the active profile header', async () => {
+  // Setup: two connected profiles share a display name.
+  const appContext = new MockAppContext();
+  appContext.addRootCluster(
+    makeRootCluster({
+      uri: '/clusters/active',
+      loggedInUser: makeLoggedInUser({
+        name: 'alice',
+        display: { primary: 'Same Name', secondary: '' },
+      }),
+    })
+  );
+  appContext.addRootCluster(
+    makeRootCluster({
+      uri: '/clusters/other',
+      loggedInUser: makeLoggedInUser({
+        name: 'bob',
+        display: { primary: 'Same Name', secondary: '' },
+      }),
+    }),
+    { noActivate: true }
+  );
+
+  // Execute: open the Profiles popover.
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <IdentityContainer />
+    </MockAppContextProvider>
+  );
+  await toggleProfiles();
+
+  // Assert: the active header identifies Alice, while Bob's row stays username-only.
+  const activeHeader = screen.getByTestId('active-profile-header');
+  expect(within(activeHeader).getByText('Same Name')).toBeVisible();
+  expect(within(activeHeader).getByText('alice')).toBeVisible();
+  const otherRow = screen.getByTitle('Switch to other');
+  expect(within(otherRow).getByText('bob')).toBeVisible();
+  expect(within(otherRow).queryByText('Same Name')).not.toBeInTheDocument();
+});
+
+test.each([
+  { name: 'before details arrive', display: undefined },
+  {
+    name: 'when primary value is empty',
+    display: { primary: '', secondary: '' },
+  },
+])('shows only the username $name', async ({ display }) => {
+  // Setup: the user has no display primary.
+  const appContext = new MockAppContext();
+  appContext.addRootCluster(
+    makeRootCluster({
+      uri: '/clusters/active',
+      loggedInUser: makeLoggedInUser({
+        name: 'alice',
+        display,
+      }),
+    })
+  );
+
+  // Execute: open the Profiles popover.
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <IdentityContainer />
+    </MockAppContextProvider>
+  );
+  await toggleProfiles();
+
+  // Assert: the header falls back to the username.
+  const activeHeader = screen.getByTestId('active-profile-header');
+  expect(within(activeHeader).getByText('alice')).toBeVisible();
+});
+
+test('hides stale display when the active username is empty', async () => {
+  // Setup: an external logout cleared the username but left old details in state.
+  const appContext = new MockAppContext();
+  appContext.addRootCluster(
+    makeRootCluster({
+      uri: '/clusters/active',
+      loggedInUser: makeLoggedInUser({
+        name: '',
+        display: { primary: 'Alice Example', secondary: '' },
+      }),
+    })
+  );
+
+  // Execute: open the Profiles popover.
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <IdentityContainer />
+    </MockAppContextProvider>
+  );
+  await toggleProfiles();
+
+  // Assert: neither the stale display nor an empty subtitle appears.
+  const activeHeader = screen.getByTestId('active-profile-header');
+  expect(
+    within(activeHeader).queryByText('Alice Example')
+  ).not.toBeInTheDocument();
+  expect(within(activeHeader).queryByText('alice')).not.toBeInTheDocument();
+});
+
 test('shows each identity row with the correct profile status and action', async () => {
   const appContext = new MockAppContext();
   const activeCluster = makeRootCluster({

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { ReactNode } from 'react';
 import styled from 'styled-components';
 
 import { ButtonText, Flex, P3, Text } from 'design';
@@ -158,9 +159,12 @@ function WithIconItem(props: {
   );
 }
 
-export function TitleAndSubtitle(props: { title: string; subtitle?: string }) {
+export function TitleAndSubtitle(props: {
+  title: string;
+  subtitle?: ReactNode;
+}) {
   return (
-    <Flex flexDirection="column">
+    <Flex flexDirection="column" minWidth="0">
       <Text
         typography="body2"
         fontWeight="400"
@@ -171,16 +175,18 @@ export function TitleAndSubtitle(props: { title: string; subtitle?: string }) {
         {props.title}
       </Text>
 
-      {props.subtitle && (
-        <P3
-          color="text.slightlyMuted"
-          css={`
-            line-height: 1.3;
-          `}
-        >
-          {props.subtitle}
-        </P3>
-      )}
+      {typeof props.subtitle === 'string'
+        ? props.subtitle && (
+            <P3
+              color="text.slightlyMuted"
+              css={`
+                line-height: 1.3;
+              `}
+            >
+              {props.subtitle}
+            </P3>
+          )
+        : props.subtitle}
     </Flex>
   );
 }

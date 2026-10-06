@@ -114,6 +114,17 @@ message LoggedInUser {
   types.TrustedDeviceRequirement trusted_device_requirement = 10;
   // Expiration time of the certificate.
   google.protobuf.Timestamp valid_until = 11;
+  // display holds the user's display values.
+  // Only present when detailed information is queried from the auth server.
+  UserDisplay display = 12;
+}
+
+// UserDisplay contains display values derived from a user.
+message UserDisplay {
+  // primary is a human-readable name when distinct from the username. May be empty.
+  string primary = 1;
+  // secondary is supporting context, usually an email, when distinct from the username. May be empty.
+  string secondary = 2;
 }
 
 // ACL is the access control list of the user

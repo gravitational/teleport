@@ -198,6 +198,13 @@ export interface LoggedInUser {
      * @generated from protobuf field: google.protobuf.Timestamp valid_until = 11;
      */
     validUntil?: Timestamp;
+    /**
+     * display holds the user's display values.
+     * Only present when detailed information is queried from the auth server.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.UserDisplay display = 12;
+     */
+    display?: UserDisplay;
 }
 /**
  * UserType indicates whether the user was created through an SSO provider or in Teleport itself.
@@ -218,6 +225,25 @@ export enum LoggedInUser_UserType {
      * @generated from protobuf enum value: USER_TYPE_SSO = 2;
      */
     SSO = 2
+}
+/**
+ * UserDisplay contains display values derived from a user.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.UserDisplay
+ */
+export interface UserDisplay {
+    /**
+     * primary is a human-readable name when distinct from the username. May be empty.
+     *
+     * @generated from protobuf field: string primary = 1;
+     */
+    primary: string;
+    /**
+     * secondary is supporting context, usually an email, when distinct from the username. May be empty.
+     *
+     * @generated from protobuf field: string secondary = 2;
+     */
+    secondary: string;
 }
 /**
  * ACL is the access control list of the user
@@ -549,7 +575,8 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
             { no: 8, name: "user_type", kind: "enum", T: () => ["teleport.lib.teleterm.v1.LoggedInUser.UserType", LoggedInUser_UserType, "USER_TYPE_"] },
             { no: 9, name: "is_device_trusted", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 10, name: "trusted_device_requirement", kind: "enum", T: () => ["types.TrustedDeviceRequirement", TrustedDeviceRequirement, "TRUSTED_DEVICE_REQUIREMENT_"] },
-            { no: 11, name: "valid_until", kind: "message", T: () => Timestamp }
+            { no: 11, name: "valid_until", kind: "message", T: () => Timestamp },
+            { no: 12, name: "display", kind: "message", T: () => UserDisplay }
         ]);
     }
     create(value?: PartialMessage<LoggedInUser>): LoggedInUser {
@@ -601,6 +628,9 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
                 case /* google.protobuf.Timestamp valid_until */ 11:
                     message.validUntil = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.validUntil);
                     break;
+                case /* teleport.lib.teleterm.v1.UserDisplay display */ 12:
+                    message.display = UserDisplay.internalBinaryRead(reader, reader.uint32(), options, message.display);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -643,6 +673,9 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         /* google.protobuf.Timestamp valid_until = 11; */
         if (message.validUntil)
             Timestamp.internalBinaryWrite(message.validUntil, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.UserDisplay display = 12; */
+        if (message.display)
+            UserDisplay.internalBinaryWrite(message.display, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -653,6 +686,61 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.LoggedInUser
  */
 export const LoggedInUser = new LoggedInUser$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UserDisplay$Type extends MessageType<UserDisplay> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.UserDisplay", [
+            { no: 1, name: "primary", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "secondary", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UserDisplay>): UserDisplay {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.primary = "";
+        message.secondary = "";
+        if (value !== undefined)
+            reflectionMergePartial<UserDisplay>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UserDisplay): UserDisplay {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string primary */ 1:
+                    message.primary = reader.string();
+                    break;
+                case /* string secondary */ 2:
+                    message.secondary = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UserDisplay, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string primary = 1; */
+        if (message.primary !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.primary);
+        /* string secondary = 2; */
+        if (message.secondary !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.secondary);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UserDisplay
+ */
+export const UserDisplay = new UserDisplay$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ACL$Type extends MessageType<ACL> {
     constructor() {

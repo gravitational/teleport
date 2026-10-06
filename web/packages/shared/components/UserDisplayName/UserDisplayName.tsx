@@ -184,6 +184,7 @@ const InlineSupportingValues = styled(Text).attrs({
   ${containedContent}
   display: inline-flex;
   align-items: baseline;
+  flex-shrink: 0;
 
   &::before {
     content: '(';

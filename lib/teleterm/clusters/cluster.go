@@ -83,6 +83,8 @@ type ClusterWithDetails struct {
 	ACL *api.ACL
 	// UserType identifies whether the user is a local user or comes from an SSO provider.
 	UserType types.UserType
+	// UserDisplay contains display values for the logged-in user.
+	UserDisplay types.UserDisplay
 	// ProxyVersion is the cluster proxy's service version.
 	ProxyVersion string
 	// ShowResources tells if the cluster can show requestable resources on the resources page.
@@ -225,6 +227,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		AuthClusterID:            authClusterID,
 		ACL:                      acl,
 		UserType:                 user.GetUserType(),
+		UserDisplay:              user.GetDisplay(),
 		ProxyVersion:             clusterPingResponse.ServerVersion,
 		ShowResources:            webConfig.UI.ShowResources,
 		TrustedDeviceRequirement: trustedDeviceRequirement,

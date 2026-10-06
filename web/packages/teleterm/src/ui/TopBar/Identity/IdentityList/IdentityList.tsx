@@ -31,6 +31,7 @@ import {
 import Link from 'design/Link';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
 import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
@@ -57,6 +58,7 @@ export function ActiveCluster(props: {
   onLogout(): void;
 }) {
   const clusterName = routing.parseClusterName(props.activeCluster.uri);
+  const loggedInUser = props.activeCluster.loggedInUser;
   const validUntil =
     props.activeCluster.loggedInUser?.validUntil &&
     Timestamp.toDate(props.activeCluster.loggedInUser.validUntil);
@@ -69,7 +71,11 @@ export function ActiveCluster(props: {
   return (
     <>
       <Flex p={3} pb={2} flexWrap="nowrap" gap={2} flexDirection="column">
-        <Flex gap={4} justifyContent="space-between">
+        <Flex
+          gap={4}
+          justifyContent="space-between"
+          data-testid="active-profile-header"
+        >
           <Flex alignItems="center" flex={1} minWidth="0" gap={2}>
             <ColorPicker
               letter={getProfileNameLetter(props.activeCluster.uri)}
@@ -78,7 +84,15 @@ export function ActiveCluster(props: {
             />
             <TitleAndSubtitle
               title={clusterName}
-              subtitle={props.activeCluster.loggedInUser?.name}
+              subtitle={
+                loggedInUser?.name && (
+                  <ProfileUserDisplay
+                    layout="inline"
+                    username={loggedInUser.name}
+                    primaryText={loggedInUser.display?.primary}
+                  />
+                )
+              }
             />
           </Flex>
 
@@ -149,6 +163,14 @@ export function ActiveCluster(props: {
     </>
   );
 }
+
+const ProfileUserDisplay = styled(UserDisplayName)`
+  span {
+    ${props => props.theme.typography.body3}
+    color: ${props => props.theme.colors.text.slightlyMuted};
+    line-height: 1.3;
+  }
+`;
 
 export function IdentityList(props: {
   items: IdentityItem[];

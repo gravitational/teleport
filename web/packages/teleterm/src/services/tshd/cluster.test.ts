@@ -16,7 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { proxyHostToBrowserProxyHost } from './cluster';
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+import { LoggedInUser_UserType } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
+import {
+  mergeClusterProfileWithDetails,
+  proxyHostToBrowserProxyHost,
+} from './cluster';
+import { makeAcl, makeLoggedInUser, makeRootCluster } from './testHelpers';
 
 describe('proxyHostToBrowserProxyHost', () => {
   describe('valid inputs', () => {
@@ -72,5 +79,89 @@ describe('proxyHostToBrowserProxyHost', () => {
         /invalid proxy host/i
       );
     });
+  });
+});
+
+describe('mergeClusterProfileWithDetails', () => {
+  const detailsUser = makeLoggedInUser({
+    name: 'alice',
+    display: { primary: 'Alice Example', secondary: 'alice@example.com' },
+    userType: LoggedInUser_UserType.LOCAL,
+    trustedDeviceRequirement: TrustedDeviceRequirement.REQUIRED,
+    requestableRoles: ['requester'],
+    suggestedReviewers: ['reviewer'],
+    acl: makeAcl(),
+  });
+
+  const keptDetails = {
+    display: detailsUser.display,
+    userType: detailsUser.userType,
+    trustedDeviceRequirement: detailsUser.trustedDeviceRequirement,
+    requestableRoles: detailsUser.requestableRoles,
+    suggestedReviewers: detailsUser.suggestedReviewers,
+    acl: detailsUser.acl,
+  };
+
+  const droppedDetails = {
+    display: undefined,
+    userType: LoggedInUser_UserType.UNSPECIFIED,
+    trustedDeviceRequirement: TrustedDeviceRequirement.UNSPECIFIED,
+    requestableRoles: [],
+    suggestedReviewers: [],
+    acl: undefined,
+  };
+
+  test.each([
+    {
+      name: 'matching username',
+      profileName: 'alice',
+      expectedDetails: keptDetails,
+    },
+    {
+      name: 'changed username',
+      profileName: 'bob',
+      expectedDetails: droppedDetails,
+    },
+    {
+      name: 'empty username',
+      profileName: '',
+      expectedDetails: droppedDetails,
+    },
+  ])('$name', ({ profileName, expectedDetails }) => {
+    // Setup: details belong to Alice while the disk profile can change independently.
+    const details = makeRootCluster({ loggedInUser: detailsUser });
+    const profile = makeRootCluster({
+      loggedInUser: makeLoggedInUser({ name: profileName }),
+    });
+
+    // Execute: merge the new profile with previously fetched details.
+    const merged = mergeClusterProfileWithDetails({ profile, details });
+
+    // Assert: details belong only to the matching username.
+    expect({
+      display: merged.loggedInUser?.display,
+      userType: merged.loggedInUser?.userType,
+      trustedDeviceRequirement: merged.loggedInUser?.trustedDeviceRequirement,
+      requestableRoles: merged.loggedInUser?.requestableRoles,
+      suggestedReviewers: merged.loggedInUser?.suggestedReviewers,
+      acl: merged.loggedInUser?.acl,
+    }).toEqual(expectedDetails);
+  });
+
+  test('keeps the username when details have no display', () => {
+    // Setup: details contain no resolved display.
+    const profile = makeRootCluster({
+      loggedInUser: makeLoggedInUser({ name: 'alice' }),
+    });
+    const details = makeRootCluster({
+      loggedInUser: makeLoggedInUser({ name: 'alice' }),
+    });
+
+    // Execute: merge the profile and details.
+    const merged = mergeClusterProfileWithDetails({ profile, details });
+
+    // Assert: the username remains and display is absent.
+    expect(merged.loggedInUser?.name).toBe('alice');
+    expect(merged.loggedInUser?.display).toBeUndefined();
   });
 });
