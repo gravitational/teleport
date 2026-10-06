@@ -291,6 +291,15 @@ func (q *sqliteQueue) Enqueue(event apievents.AuditEvent) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if len(payload) > MaxPayloadBytes {
+		eventsTooLarge.Inc()
+		return trace.Wrap(
+			ErrEventTooLarge,
+			"audit event of %d bytes exceeds the %d byte limit",
+			len(payload),
+			MaxPayloadBytes,
+		)
+	}
 
 	req := writeRequest{
 		payload: payload,

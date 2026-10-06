@@ -30,14 +30,26 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
-// DefaultDeliveryTimeout is the default bound on a single invocation of the
-// delivery handler over one batch of events.
-const DefaultDeliveryTimeout = apidefaults.DefaultIOTimeout
+const (
+	// DefaultDeliveryTimeout is the default bound on a single invocation of the
+	// delivery handler over one batch of events.
+	DefaultDeliveryTimeout = apidefaults.DefaultIOTimeout
+
+	// MaxPayloadBytes is used to enforce that events stay within the limit for
+	// gRPC messages. It is the largest audit event that Enqueue will accept.
+	// The minus 256k is to account for overhead such as age headers, protobuf
+	// overhead, etc.
+	MaxPayloadBytes = (4 * 1024 * 1024) - (256 * 1024)
+)
 
 var (
 	// ErrQueueFull is returned by Enqueue when the queue has no room for more
 	// events.
 	ErrQueueFull = errors.New("audit queue is full")
+
+	// ErrEventTooLarge is returned by Enqueue when an event's encoding exceeds
+	// MaxPayloadBytes. The event is not stored if the caller gets this error.
+	ErrEventTooLarge = errors.New("audit event is too large to be delivered")
 
 	// ErrAlreadyRunning is returned by Run when another goroutine is already
 	// consuming the queue. Run is single consumer.

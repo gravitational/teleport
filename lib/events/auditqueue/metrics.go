@@ -114,6 +114,14 @@ var eventsEnqueued = prometheus.NewCounter(
 	},
 )
 
+var eventsTooLarge = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_events_too_large_total",
+		Help:      "Total number of audit events rejected by enqueue because their encoding exceeds the gRPC size limit.",
+	},
+)
+
 var eventsDelivered = prometheus.NewCounter(
 	prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
@@ -185,6 +193,7 @@ var prometheusCollectors = []prometheus.Collector{
 	deadLetterExpired,
 	deadLetterEvicted,
 	eventsEnqueued,
+	eventsTooLarge,
 	eventsDelivered,
 	corruptEvents,
 	corruptRecovered,

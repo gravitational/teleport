@@ -470,8 +470,9 @@ func (a *AsyncEmitter) deliverBatch(ctx context.Context, batchEmitter apievents.
 }
 
 // EmitAuditEvent enqueues the audit event without blocking on delivery. It
-// fails when the queue is full. When the audit queue is disabled, the event is
-// sent to the in-memory channel and dropped if the channel is full.
+// fails when the queue is full or the event is too large for gRPC. When the
+// audit queue is disabled, the event is sent to the in-memory channel and
+// dropped if the channel is full.
 func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	if a.queue == nil {
 		// This block was copied from the legacy implementation. It be removed when we delete the legacy code.
@@ -486,14 +487,22 @@ func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 		}
 	}
 	err := a.queue.Enqueue(event)
-	if errors.Is(err, auditqueue.ErrQueueFull) {
+	switch {
+	case errors.Is(err, auditqueue.ErrQueueFull):
 		slog.ErrorContext(
 			ctx,
 			"Failed to emit audit event. Audit queue is full.",
 			"event_type", event.GetType(),
 			"event_code", event.GetCode(),
 		)
-		return trace.Wrap(err)
+	case errors.Is(err, auditqueue.ErrEventTooLarge):
+		slog.ErrorContext(
+			ctx,
+			"Failed to emit audit event. The event is larger than the gRPC limit.",
+			"event_type", event.GetType(),
+			"event_code", event.GetCode(),
+			"error", err,
+		)
 	}
 	return trace.Wrap(err)
 }
