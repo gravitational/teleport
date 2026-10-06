@@ -50,7 +50,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
+	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
@@ -70,7 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
-	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -934,9 +934,9 @@ func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.Inventory
 	return a.authServer.PingInventory(ctx, req)
 }
 
-func (a *ServerWithRoles) GetInstances(ctx context.Context, filter types.InstanceFilter) iterstream.Stream[types.Instance] {
+func (a *ServerWithRoles) GetInstances(ctx context.Context, filter types.InstanceFilter) stream.Stream[types.Instance] {
 	if err := a.authorizeAction(types.KindInstance, types.VerbList, types.VerbRead); err != nil {
-		return iterstream.Fail[types.Instance](trace.Wrap(err))
+		return stream.Fail[types.Instance](trace.Wrap(err))
 	}
 
 	return a.authServer.GetInstances(ctx, filter)
@@ -1165,7 +1165,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 
 // NewStream returns a new event stream (equivalent to NewWatcher, but with slightly different
 // performance characteristics).
-func (a *ScopedServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
+func (a *ScopedServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (apistream.Stream[types.Event], error) {
 	// NOTE: authorizeWatchRequest modifies requests inflight in order to apply proper scope filtering to the
 	// event stream and to apply partial success subselection (if appropriate).
 	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
@@ -2180,7 +2180,7 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	return a.ScopedServerWithRoles().GetSSHTargets(ctx, req)
 }
 
-func (a *ServerWithRoles) sshTargets(ctx context.Context, host, port string) iterstream.Stream[*types.ServerV2] {
+func (a *ServerWithRoles) sshTargets(ctx context.Context, host, port string) stream.Stream[*types.ServerV2] {
 	return a.ScopedServerWithRoles().sshTargets(ctx, host, port)
 }
 
@@ -2188,14 +2188,14 @@ func (a *ServerWithRoles) sshTargets(ctx context.Context, host, port string) ite
 // search_as_roles: unscoped callers have it enabled (full access semantics); scoped callers do
 // not (not yet supported). Everything else is uniform.
 func (a *ScopedServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error) {
-	servers, err := iterstream.Collect(a.sshTargets(ctx, req.GetHost(), req.GetPort()))
+	servers, err := stream.Collect(a.sshTargets(ctx, req.GetHost(), req.GetPort()))
 	if err != nil {
 		return nil, err
 	}
 	return &proto.GetSSHTargetsResponse{Servers: servers}, nil
 }
 
-func (a *ScopedServerWithRoles) sshTargets(ctx context.Context, host, port string) iterstream.Stream[*types.ServerV2] {
+func (a *ScopedServerWithRoles) sshTargets(ctx context.Context, host, port string) stream.Stream[*types.ServerV2] {
 	// try to detect case-insensitive routing setting, but default to false if we can't load
 	// networking config (equivalent to proxy routing behavior).
 	var caseInsensitiveRouting bool
@@ -2210,7 +2210,7 @@ func (a *ScopedServerWithRoles) sshTargets(ctx context.Context, host, port strin
 		DisableUnqualifiedLookups: disableUnqualifiedLookups,
 	})
 	if err != nil {
-		return iterstream.Fail[*types.ServerV2](trace.Wrap(err))
+		return stream.Fail[*types.ServerV2](trace.Wrap(err))
 	}
 
 	// search_as_roles is not yet supported for scoped identities.
@@ -2230,7 +2230,7 @@ func (a *ScopedServerWithRoles) sshTargets(ctx context.Context, host, port strin
 		return resp.GetResources(), resp.GetNextKey(), nil
 	})
 
-	return iterstream.FilterMap(resources, func(rsc *proto.PaginatedResource) (*types.ServerV2, bool) {
+	return stream.FilterMap(resources, func(rsc *proto.PaginatedResource) (*types.ServerV2, bool) {
 		srv := rsc.GetNode()
 		if srv == nil {
 			a.authServer.logger.WarnContext(ctx, "Skipping unexpected resource type, expected *types.ServerV2",
@@ -2254,7 +2254,7 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 		routeToMostRecent = cfg.GetRoutingStrategy() == types.RoutingStrategy_MOST_RECENT
 	}
 
-	var servers iterstream.Stream[*types.ServerV2]
+	var servers stream.Stream[*types.ServerV2]
 	switch {
 	case req.Host != "":
 		if len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0 {
@@ -2285,7 +2285,7 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 			return resp.GetResources(), resp.GetNextKey(), nil
 		})
 
-		servers = iterstream.FilterMap(resources, func(rsc *proto.PaginatedResource) (*types.ServerV2, bool) {
+		servers = stream.FilterMap(resources, func(rsc *proto.PaginatedResource) (*types.ServerV2, bool) {
 			srv := rsc.GetNode()
 			if srv == nil {
 				a.authServer.logger.WarnContext(ctx, "Skipping unexpected resource type, expected *types.ServerV2",
@@ -3078,7 +3078,7 @@ func (a *ScopedServerWithRoles) GetAuthServers() ([]types.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := iterstream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListAuthServers))
+	out, err := stream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListAuthServers))
 	return out, trace.Wrap(err)
 }
 
@@ -3133,7 +3133,7 @@ func (a *ScopedServerWithRoles) GetProxies() ([]types.Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := iterstream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListProxyServers))
+	out, err := stream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListProxyServers))
 	return out, trace.Wrap(err)
 }
 
@@ -6137,7 +6137,7 @@ func (a *ServerWithRoles) ListInstallers(ctx context.Context, limit int, start s
 // RangeInstallers returns installer script resources within the range [start, end).
 func (a *ServerWithRoles) RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
 	if err := a.authorizeAction(types.KindInstaller, types.VerbRead, types.VerbList); err != nil {
-		return iterstream.Fail[types.Installer](trace.Wrap(err))
+		return stream.Fail[types.Installer](trace.Wrap(err))
 	}
 	return a.authServer.RangeInstallers(ctx, start, end)
 }
@@ -6423,7 +6423,7 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 // GetServerInfos returns a stream of ServerInfos.
 func (a *ServerWithRoles) GetServerInfos(ctx context.Context) iter.Seq2[types.ServerInfo, error] {
 	if err := a.authorizeAction(types.KindServerInfo, types.VerbList, types.VerbRead); err != nil {
-		return iterstream.Fail[types.ServerInfo](err)
+		return stream.Fail[types.ServerInfo](err)
 	}
 
 	return a.authServer.GetServerInfos(ctx)
@@ -6896,7 +6896,7 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 		}
 	}
 
-	out, err := iterstream.Collect(a.authServer.RangeSnowflakeSessions(ctx, "", ""))
+	out, err := stream.Collect(a.authServer.RangeSnowflakeSessions(ctx, "", ""))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -7527,7 +7527,7 @@ func (a *ServerWithRoles) SearchUnstructuredEvents(ctx context.Context, req even
 // performance over ordering and filtering, and is intended for bulk export of events.
 func (a *ServerWithRoles) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) iter.Seq2[*auditlogpb.ExportEventUnstructured, error] {
 	if err := a.authorizeAction(types.KindEvent, types.VerbList); err != nil {
-		return iterstream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
 	}
 
 	return a.alog.ExportUnstructuredEvents(ctx, req)
@@ -7537,7 +7537,7 @@ func (a *ServerWithRoles) ExportUnstructuredEvents(ctx context.Context, req *aud
 // list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 func (a *ServerWithRoles) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) iter.Seq2[*auditlogpb.EventExportChunk, error] {
 	if err := a.authorizeAction(types.KindEvent, types.VerbList); err != nil {
-		return iterstream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err))
+		return stream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err))
 	}
 
 	return a.alog.GetEventExportChunks(ctx, req)
@@ -8036,8 +8036,8 @@ func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (resu
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := iterstream.Collect(
-		iterstream.FilterMap(
+	out, err := stream.Collect(
+		stream.FilterMap(
 			a.authServer.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 				ScopeFilter: a.scopedContext.CheckerContext.ResolveScopeFilter(nil),
 				WithSecrets: true,
@@ -8074,7 +8074,7 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 	}
 
 	return generic.CollectPageAndCursor(
-		iterstream.FilterMap(
+		stream.FilterMap(
 			a.authServer.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 				PageToken:   start,
 				ScopeFilter: a.scopedContext.CheckerContext.ResolveScopeFilter(nil),
@@ -8275,7 +8275,7 @@ func (a *ServerWithRoles) ListDatabases(ctx context.Context, limit int, startKey
 	}
 
 	return generic.CollectPageAndCursor(
-		iterstream.FilterMap(
+		stream.FilterMap(
 			a.authServer.RangeDatabases(ctx, startKey, ""),
 			func(db types.Database) (types.Database, bool) {
 				if a.checkAccessToDatabase(db) == nil {
@@ -8408,11 +8408,13 @@ func (a *ServerWithRoles) ListWindowsDesktops(ctx context.Context, req types.Lis
 	})
 
 	limit := cmp.Or(req.Limit, apidefaults.DefaultChunkSize)
-	for desktopStream.Next() {
-		desktop := desktopStream.Item()
+	for desktop, err := range desktopStream {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if len(resp.Desktops) == limit {
 			resp.NextKey = desktop.GetHostID() + "/" + desktop.GetName()
-			desktopStream.Done()
 			break
 		}
 

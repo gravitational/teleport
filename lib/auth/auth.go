@@ -7079,9 +7079,9 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 	return nil
 }
 
-func (a *Server) streamWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) stream.Stream[types.WindowsDesktop] {
+func (a *Server) streamWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) iterstream.Stream[types.WindowsDesktop] {
 	var done bool
-	return stream.PageFunc(func() ([]types.WindowsDesktop, error) {
+	return iterstream.PageFunc(func() ([]types.WindowsDesktop, error) {
 		if done {
 			return nil, io.EOF
 		}
@@ -7124,21 +7124,24 @@ func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	desktops := stream.FilterMap(
+	desktops := iterstream.FilterMap(
 		a.streamWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{Limit: 50}),
 		func(d types.WindowsDesktop) (struct{}, bool) {
 			return struct{}{}, d.NonAD()
 		},
 	)
 	count := 0
-	for desktops.Next() {
+	for _, err := range desktops {
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
 		count++
 		if count > OSSDesktopsLimit {
-			desktops.Done()
 			return true, nil
 		}
 	}
-	return false, trace.Wrap(desktops.Done())
+	return false, nil
 }
 
 func (a *Server) syncDynamicLabelsAlert(ctx context.Context) {
