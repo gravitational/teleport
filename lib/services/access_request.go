@@ -2607,8 +2607,9 @@ func fewestLogins(roles []types.Role) []types.Role {
 	fewest := roles[0]
 	fewestCount := countAllowedLogins(fewest)
 	for _, role := range roles[1:] {
-		if countAllowedLogins(role) < fewestCount {
-			fewest = role
+		count := countAllowedLogins(role)
+		if count < fewestCount {
+			fewest, fewestCount = role, count
 		}
 	}
 	return []types.Role{fewest}
