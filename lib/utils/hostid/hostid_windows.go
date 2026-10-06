@@ -16,15 +16,39 @@
 
 package hostid
 
-import "github.com/gravitational/trace"
+import (
+	"os"
+
+	"github.com/gravitational/trace"
+)
 
 // WriteFile writes host UUID into a file
 func WriteFile(dataDir string, id string) error {
-	return trace.NotImplemented("host id writing is not supported on windows")
-}
+	f, err := os.CreateTemp(dataDir, FileName+".tmp")
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	tmpName := f.Name()
+	defer func() {
+		if err != nil {
+			_ = f.Close()
+			_ = os.Remove(tmpName)
+		}
+	}()
 
-// ReadOrCreateFile looks for a hostid file in the data dir. If present,
-// returns the UUID from it, otherwise generates one
-func ReadOrCreateFile(dataDir string) (string, error) {
-	return "", trace.NotImplemented("host id writing is not supported on windows")
+	if _, err = f.Write([]byte(id)); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	// Flush the contents before the move, so that a crash can't leave filename
+	// pointing at a file whose data never reached the disk.
+	if err = f.Sync(); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	if err = f.Close(); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	// there's no way to do atomic rename in Windows, we do best effort here
+	err = os.Rename(tmpName, GetPath(dataDir))
+	return trace.ConvertSystemError(err)
 }
