@@ -42,13 +42,13 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // sshUser is the user to log in as on GCP VMs.
