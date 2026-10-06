@@ -1,5 +1,11 @@
 # Changelog
 
+## 18.11.3 (10/02/26)
+
+This is a private security release. The changelog will be publicly announced in a later version.
+
+More information about private releases is available here: https://github.com/gravitational/teleport/blob/master/SECURITY.md#private-releases.
+
 ## 18.11.2 (09/23/26)
 
 * Fixed `tsh mcp login` failing for MCP servers that publish OAuth metadata for their whole origin, and added `--redirect-uri` for pre-registered OAuth clients.
