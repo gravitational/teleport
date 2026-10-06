@@ -498,9 +498,20 @@ type certAuthorityParser struct {
 }
 
 func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error) {
+	// This parser matches `/authorities/**`, which includes the inactive range
+	// at /authorities/deactivated/<type>/<domain>. Deactivating a CA is implemented
+	// as a put of the full CA value there, and - if not filtered out - it's captured
+	// by the OpPut branch below.
+	// Inactive CAs are not part of any consumer's view of the world, so drop
+	// their events entirely rather than relying on the key's component count to
+	// exclude them.
+	components := event.Item.Key.Components()
+	if len(components) > 1 && components[1] == deactivatedPrefix {
+		return nil, nil
+	}
+
 	switch event.Type {
 	case types.OpDelete:
-		components := event.Item.Key.Components()
 		if len(components) != 3 {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
