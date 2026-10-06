@@ -536,7 +536,7 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 		var keysSeen map[string]struct{}
 		for _, trait := range traitAssn.GetTraits() {
-			if err := validateTrait(trait); err != nil {
+			if err := validateAssignedTrait(trait); err != nil {
 				return trace.BadParameter("scoped role assignment %q has trait assignment %d with %v", assignment.GetMetadata().GetName(), i, err)
 			}
 
@@ -569,7 +569,8 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 	return nil
 }
 
-func validateTrait(trait *traitv1.Trait) error {
+// validateAssignedTrait validates individual traits assigned within a [*scopedaccessv1.TraitAssignment]
+func validateAssignedTrait(trait *traitv1.Trait) error {
 	key := trait.GetKey()
 	if len(key) == 0 {
 		return trace.BadParameter("empty key")
@@ -882,92 +883,8 @@ func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
 
 // validateRoleTemplates validates all [scopedaccessv1.ScopedRoleSpec] fields that support templates.
 func validateRoleTemplates(spec *scopedaccessv1.ScopedRoleSpec) error {
-	// validate traits in SSH config
-	if err := validateSliceWithTemplates(spec.GetSsh().GetLogins()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := validateSliceWithTemplates(spec.GetSsh().GetHostSudoers()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := validateSliceWithTemplates(spec.GetSsh().GetHostUserCreation().GetGroups()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// validate traits in kube config
-	if err := validateSliceWithTemplates(spec.GetKube().GetGroups()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := validateSliceWithTemplates(spec.GetKube().GetUsers()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, resource := range spec.GetKube().GetResources() {
-		if err := validateTemplate(resource.GetKind()); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := validateTemplate(resource.GetNamespace()); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := validateTemplate(resource.GetName()); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := validateTemplate(resource.GetApiGroup()); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := validateSliceWithTemplates(resource.GetVerbs()); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	// validate labels
-	for _, labeled := range [](interface{ GetLabels() []*labelv1.Label }){
-		spec.GetSsh(),
-		spec.GetKube(),
-		spec.GetApp(),
-		spec.GetWorkloadIdentity(),
-	} {
-		for _, label := range labeled.GetLabels() {
-			if err := validateTemplate(label.GetName()); err != nil {
-				return trace.Wrap(err)
-			}
-
-			if err := validateSliceWithTemplates(label.GetValues()); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	// validate label expressions
-	if err := validateTemplate(spec.GetSsh().GetLabelExpression()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := validateTemplate(spec.GetKube().GetLabelExpression()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := validateTemplate(spec.GetApp().GetLabelExpression()); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// validateSliceWithTemplates is a helper for validating a slice of potentially templated values.
-func validateSliceWithTemplates(values []string) error {
-	for _, value := range values {
-		if err := validateTemplate(value); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
+	_, err := filterInvalidTemplatesFromRole(spec, true)
+	return trace.Wrap(err)
 }
 
 // validateTemplate validates a potentially templated value. If the value is not a template, no error is returned.
@@ -1019,4 +936,190 @@ func validateTemplateTrait(namespace, key string) error {
 		return trace.BadParameter("unrecognized trait namespace %q", namespace)
 	}
 	return nil
+}
+
+// filterInvalidTemplatesFromRole filters invalid templates from all template-able fields in the
+// given [*scopedaccessv1.ScopedRoleSpec]. It returns a bool representing whether or not all invalid
+// fields were safely filtered along with any validation errors encountered as an aggregate error. If
+// failFast is enabled, then the first validation error encountered is returned before attempting to
+// validate the rest of the spec. If all fields were NOT safely filtered, the modified
+// [*scopedaccessv1.ScopedRoleSpec] is not safe for use.
+func filterInvalidTemplatesFromRole(spec *scopedaccessv1.ScopedRoleSpec, failFast bool) (*scopedaccessv1.ScopedRoleSpec, error) {
+	var outErrs []error
+	handleErrs := func(errs ...error) error {
+		if len(errs) > 0 && failFast {
+			return errs[0]
+		}
+		outErrs = append(outErrs, errs...)
+		return nil
+	}
+
+	// filter invalid ssh templates
+	if err := handleErrs(filterInvalidTemplates(spec.GetSsh().GetLogins, spec.GetSsh().SetLogins)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := handleErrs(filterInvalidTemplates(spec.GetSsh().GetHostSudoers, spec.GetSsh().SetHostSudoers)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := handleErrs(filterInvalidTemplates(spec.GetSsh().GetHostUserCreation().GetGroups, spec.GetSsh().GetHostUserCreation().SetGroups)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// filter invalid kube templates
+	if err := handleErrs(filterInvalidTemplates(spec.GetKube().GetGroups, spec.GetKube().SetGroups)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := handleErrs(filterInvalidTemplates(spec.GetKube().GetUsers, spec.GetKube().SetUsers)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var validResources []*scopedaccessv1.KubeResource
+	for _, res := range spec.GetKube().GetResources() {
+		// kind and api_group do not support templates, so we don't validate them here
+		//
+		// Rather than leave behind a malformed resource with invalid scalar
+		// configs, we skip it entirely if any of them fail validation
+		if err := validateTemplate(res.GetNamespace()); err != nil {
+			if err := handleErrs(err); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+
+		if err := validateTemplate(res.GetName()); err != nil {
+			if err := handleErrs(err); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+
+		// verbs get filtered rather than causing the entire resource to be dropped
+		if err := handleErrs(filterInvalidTemplates(res.GetVerbs, res.SetVerbs)...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		validResources = append(validResources, res)
+	}
+	if kube := spec.GetKube(); kube != nil {
+		if len(validResources) == 0 {
+			// No valid resources means the entire kube block is invalid and will not
+			// grant access. We explicitly set the entire block to nil so that invalid traits
+			// in the kube block do not prevent granting access for SSH, apps, etc.
+			spec.SetKube(nil)
+			outErrs = append(outErrs, trace.Errorf("scoped_role.spec.kube block without valid resources is dropped"))
+		} else {
+			kube.SetResources(validResources)
+		}
+	}
+
+	// filter invalid label templates
+	// NOTE: Dropping an invalid label key could result in increased access. An invalid
+	// label key, identified by filterInvalidTemplatesFromLabels returning 'false', instead
+	// drops the entire block the label lives in (e.g. spec.ssh, spec.kube, spec.app). Invalid
+	// values for a key are filtered.
+	if ok, errs := filterInvalidTemplatesFromLabels(spec.GetSsh().GetLabels()); len(errs) > 0 {
+		if err := handleErrs(errs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			spec.SetSsh(nil)
+		}
+	}
+
+	if ok, errs := filterInvalidTemplatesFromLabels(spec.GetKube().GetLabels()); len(errs) > 0 {
+		if err := handleErrs(errs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			spec.SetKube(nil)
+		}
+	}
+
+	if ok, errs := filterInvalidTemplatesFromLabels(spec.GetApp().GetLabels()); len(errs) > 0 {
+		if err := handleErrs(errs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			spec.SetApp(nil)
+		}
+	}
+
+	if ok, errs := filterInvalidTemplatesFromLabels(spec.GetWorkloadIdentity().GetLabels()); len(errs) > 0 {
+		if err := handleErrs(errs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			spec.SetWorkloadIdentity(nil)
+		}
+	}
+
+	// filter blocks with invalid label expressions
+	// NOTE: Dropping an invalid label expression, similar to label keys, could result in increased
+	// access. Instead of dropping the expression, we drop the entire block the expression lives in
+	// (e.g. spec.ssh, spec.kube, spec.app).
+	if err := validateTemplate(spec.GetSsh().GetLabelExpression()); err != nil {
+		if err := handleErrs(err); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		spec.SetSsh(nil)
+	}
+
+	if err := validateTemplate(spec.GetKube().GetLabelExpression()); err != nil {
+		if err := handleErrs(err); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		spec.SetKube(nil)
+	}
+
+	if err := validateTemplate(spec.GetApp().GetLabelExpression()); err != nil {
+		if err := handleErrs(err); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		spec.SetApp(nil)
+	}
+
+	return spec, trace.NewAggregate(outErrs...)
+}
+
+func filterInvalidTemplatesFromLabels(labels []*labelv1.Label) (bool, []error) {
+	var outErrs []error
+	for _, label := range labels {
+		if err := validateTemplate(label.GetName()); err != nil {
+			return false, []error{trace.Wrap(err)}
+		}
+
+		if errs := filterInvalidTemplates(label.GetValues, label.SetValues); len(errs) > 0 {
+			outErrs = append(errs, errs...)
+		}
+	}
+
+	return true, outErrs
+}
+
+// filterInvalidTemplates filters invalid templates from the list returned by "get()". The "set()"
+// callback is called with the filtered list before returning the list of errors encountered during
+// filtering.
+func filterInvalidTemplates(get func() []string, set func(values []string)) []error {
+	values := get()
+	if len(values) == 0 {
+		return nil
+	}
+
+	var (
+		out  []string
+		errs []error
+	)
+	for _, value := range values {
+		if err := validateTemplate(value); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		out = append(out, value)
+	}
+
+	set(out)
+	return errs
 }
