@@ -707,8 +707,8 @@ identity credential and write this to a configured destination.
 The output generates the following artifacts:
 
 - `svid.pem`: the X509 SVID.
-- `svid.key`: the private key associated with the X509 SVID.
-- `bundle.pem`: the X509 bundle that contains the trust domain CAs.
+- `svid_key.pem`: the private key associated with the X509 SVID.
+- `svid_bundle.pem`: the X509 bundle that contains the trust domain CAs.
 
 See [Workload Identity introduction](../../machine-workload-identity/workload-identity/introduction.mdx)
 for more information on Workload Identity functionality.
@@ -838,9 +838,10 @@ The `spiffe-svid` output is used to generate a SPIFFE X509 SVID and write this
 to a configured destination.
 
 The output generates the following artifacts:
+
 - `svid.pem`: the X509 SVID.
-- `svid.key`: the private key associated with the X509 SVID.
-- `bundle.pem`: the X509 bundle that contains the trust domain CAs.
+- `svid_key.pem`: the private key associated with the X509 SVID.
+- `svid_bundle.pem`: the X509 bundle that contains the trust domain CAs.
 
 
 An artifact will also be generated for each entry within the `jwts` list. This
