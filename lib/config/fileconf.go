@@ -1223,6 +1223,9 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 	if roles.Include(types.RoleBot) {
 		return nil, trace.BadParameter("role %q is not allowed in static token configuration", types.RoleBot)
 	}
+	if roles.Include(types.RoleSSHHost) {
+		return nil, trace.BadParameter("role %q is not allowed in static token configuration", types.RoleSSHHost)
+	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
 	if err != nil {

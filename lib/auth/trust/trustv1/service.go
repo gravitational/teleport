@@ -21,6 +21,7 @@ package trustv1
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -518,20 +519,23 @@ func (s *Service) GenerateHostCert(
 		return nil, trace.Wrap(err)
 	}
 
-	// The system role for the host cert is provided by the client, but we don't actually have
-	// a reason to allow non-Node host certs to be generated. In fact, allowing a bot/admin to
-	// generate other types of host certs only introduces risks for some systems, so we restrict
-	// this host cert generation to the Node role.
-	//
-	// If we have a need to allow other system roles from the client, we should continue to deny
-	// non-Node system roles by default and only allow other roles via an inclusive predicate,
-	// or some other similar means.
-	requestedRole := types.SystemRole(req.GetRole())
-	if requestedRole != types.RoleNode {
-		return nil, trace.AccessDenied("host cert creation is limited to the Node system role")
+	// v19 server hardcodes the system role to RoleSSHHost, but v19 clients still
+	// send RoleNode to maintain interoperability with v18 servers. Treat RoleNode
+	// as RoleSSHHost. If a client sends a different role, reject it explicitly.
+	if role := req.GetRole(); role != "" && !slices.Contains([]types.SystemRole{types.RoleNode, types.RoleSSHHost}, types.SystemRole(role)) { //nolint:staticcheck // SA1019. Reading deprecated field for backwards compatibility.
+		return nil, trace.AccessDenied("unexpected role %q in host cert request; host cert creation is limited to the SSHHost system role", role)
 	}
 
-	authorizedPrincipals := keygen.HostCertPrincipals(req.GetHostId(), req.GetNodeName(), req.GetClusterName(), []types.SystemRole{requestedRole}, req.GetPrincipals()...)
+	// Always assign the minimal SSHHost role for directly generated host certs.
+	// Allowing a bot/admin to generate other types of host certs only introduces
+	// risk for those systems.
+	//
+	// If we have a need to allow other system roles from the client, we should
+	// continue to deny non-SSHHost system roles by default and only allow other
+	// roles via an inclusive predicate, or some other similar means.
+	hostRole := types.RoleSSHHost
+
+	authorizedPrincipals := keygen.HostCertPrincipals(req.GetHostId(), req.GetNodeName(), req.GetClusterName(), []types.SystemRole{hostRole}, req.GetPrincipals()...)
 	ruleCtx := &services.Context{
 		User: authCtx.User,
 		HostCert: &services.HostCertContext{
@@ -539,8 +543,10 @@ func (s *Service) GenerateHostCert(
 			NodeName:    req.GetNodeName(),
 			Principals:  authorizedPrincipals,
 			ClusterName: req.GetClusterName(),
-			Role:        requestedRole,
-			TTL:         req.GetTtl().AsDuration(),
+			// Exclude Role from the ruleCtx - SSHHost is allowed implicitly for any
+			// role with host cert generation privileges as it is the lowest permission
+			// host cert role possible.
+			TTL: req.GetTtl().AsDuration(),
 		},
 	}
 	if err = authCtx.CheckAccessToRule(
@@ -565,7 +571,7 @@ func (s *Service) GenerateHostCert(
 		req.GetNodeName(),
 		req.GetPrincipals(),
 		req.GetClusterName(),
-		types.SystemRole(req.GetRole()),
+		hostRole,
 		req.GetTtl().AsDuration(),
 	)
 	if err != nil {

@@ -322,6 +322,10 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 	}
 	p.Spec.Roles = roles
 
+	if roles.Include(RoleSSHHost) {
+		return trace.BadParameter("the %q role cannot be assigned to a provisioning token", RoleSSHHost)
+	}
+
 	if roles.Include(RoleBot) && p.Spec.BotName == "" {
 		return trace.BadParameter("token with role %q must set bot_name", RoleBot)
 	}
