@@ -26,8 +26,10 @@ import (
 	"google.golang.org/grpc/peer"
 
 	publicdevicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/grpcproxy/clientaddr"
+	"github.com/gravitational/teleport/lib/limiter"
 	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
 )
 
@@ -36,11 +38,22 @@ type AuthClient interface {
 	PublicDevicesClient() publicdevicepb.DeviceTrustServiceClient
 }
 
+// RateLimiter is the subset of [limiter.RateLimiter] the service uses.
+type RateLimiter interface {
+	RegisterRequest(token string) error
+}
+
 // ServiceConfig is the configuration for [New].
 type ServiceConfig struct {
 	AuthClient AuthClient
 	Log        *slog.Logger
+	// Limiter rate limits requests by client IP. If nil, a limiter with the rates
+	// of the other unauthenticated Teleport endpoints is used, see [New].
+	Limiter RateLimiter
 }
+
+// errRateLimited is returned to a client whose IP is over its rate limit.
+var errRateLimited = &trace.LimitExceededError{Message: "rate limit exceeded"}
 
 // New creates a new [Service].
 func New(cfg ServiceConfig) (*Service, error) {
@@ -50,10 +63,31 @@ func New(cfg ServiceConfig) (*Service, error) {
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
 	}
+	if cfg.Limiter == nil {
+		// Same rates as the other unauthenticated endpoints: the limiter lib/web
+		// puts on challenge generation and createAuthenticateChallengeLimiter in
+		// the Auth Service.
+		//
+		// The service needs a limiter of its own because the one
+		// initPublicGRPCServer in lib/service runs on every RPC has no request
+		// rates by default, only a connection limit.
+		l, err := limiter.NewRateLimiter(limiter.Config{
+			Rates: []limiter.Rate{{
+				Period:  defaults.LimiterPeriod,
+				Average: defaults.LimiterAverage,
+				Burst:   defaults.LimiterBurst,
+			}},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.Limiter = l
+	}
 
 	return &Service{
 		authClient: cfg.AuthClient,
 		log:        cfg.Log,
+		limiter:    cfg.Limiter,
 	}, nil
 }
 
@@ -63,6 +97,7 @@ type Service struct {
 	publicdevicepb.UnimplementedDeviceTrustServiceServer
 	authClient AuthClient
 	log        *slog.Logger
+	limiter    RateLimiter
 }
 
 // errCreatePairedDeviceEnrollTokenProxyTimeout ends a call that outlived
@@ -76,10 +111,14 @@ var errCreatePairedDeviceEnrollTokenProxyTimeout = &trace.LimitExceededError{
 // CreatePairedDeviceEnrollToken forwards the request to the same RPC in the
 // Auth Service.
 func (s *Service) CreatePairedDeviceEnrollToken(ctx context.Context, req *publicdevicepb.CreatePairedDeviceEnrollTokenRequest) (*publicdevicepb.CreatePairedDeviceEnrollTokenResponse, error) {
-	ctx, err := clientAddrContext(ctx)
+	addr, err := peerTCPAddr(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := s.rateLimitByClientIP(addr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx = clientaddr.WithOutgoingContext(ctx, addr)
 
 	ctx, cancel := context.WithTimeoutCause(ctx,
 		devicetrust.PublicCreatePairedDeviceEnrollTokenProxyTimeout,
@@ -117,13 +156,16 @@ var errEnrollDeviceProxyTimeout = &trace.LimitExceededError{
 // EnrollDevice forwards the enrollment ceremony stream to the same RPC in the
 // Auth Service.
 func (s *Service) EnrollDevice(stream publicdevicepb.DeviceTrustService_EnrollDeviceServer) error {
-	err := grpcutils.ProxyBidiStream(s.log, stream,
+	addr, err := peerTCPAddr(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.rateLimitByClientIP(addr); err != nil {
+		return trace.Wrap(err)
+	}
+	err = grpcutils.ProxyBidiStream(s.log, stream,
 		func(ctx context.Context) (publicdevicepb.DeviceTrustService_EnrollDeviceClient, error) {
-			ctx, err := clientAddrContext(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
+			ctx = clientaddr.WithOutgoingContext(ctx, addr)
 			server, err := s.authClient.PublicDevicesClient().EnrollDevice(ctx)
 			return server, trace.Wrap(err)
 		},
@@ -151,12 +193,16 @@ var errAuthenticateDeviceProxyTimeout = &trace.LimitExceededError{
 // AuthenticateDevice forwards the authentication ceremony stream to the same
 // RPC in the Auth Service.
 func (s *Service) AuthenticateDevice(stream publicdevicepb.DeviceTrustService_AuthenticateDeviceServer) error {
-	err := grpcutils.ProxyBidiStream(s.log, stream,
+	addr, err := peerTCPAddr(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.rateLimitByClientIP(addr); err != nil {
+		return trace.Wrap(err)
+	}
+	err = grpcutils.ProxyBidiStream(s.log, stream,
 		func(ctx context.Context) (publicdevicepb.DeviceTrustService_AuthenticateDeviceClient, error) {
-			ctx, err := clientAddrContext(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+			ctx = clientaddr.WithOutgoingContext(ctx, addr)
 			server, err := s.authClient.PublicDevicesClient().AuthenticateDevice(ctx)
 			return server, trace.Wrap(err)
 		},
@@ -166,9 +212,16 @@ func (s *Service) AuthenticateDevice(stream publicdevicepb.DeviceTrustService_Au
 	return trace.Wrap(err)
 }
 
-// clientAddrContext returns ctx with the address of the calling client set as
-// the forwarded client address for the Auth Service. See [clientaddr.Header].
-func clientAddrContext(ctx context.Context) (context.Context, error) {
+func (s *Service) rateLimitByClientIP(addr *net.TCPAddr) error {
+	if err := s.limiter.RegisterRequest(addr.IP.String()); err != nil {
+		return trace.Wrap(errRateLimited)
+	}
+	return nil
+}
+
+// peerTCPAddr returns the address of the calling client, which the RPCs forward
+// to the Auth Service as the client address. See [clientaddr.Header].
+func peerTCPAddr(ctx context.Context) (*net.TCPAddr, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok || p.Addr == nil {
 		return nil, trace.Errorf("client address unavailable")
@@ -177,5 +230,5 @@ func clientAddrContext(ctx context.Context) (context.Context, error) {
 	if !ok {
 		return nil, trace.Errorf("client address %v (%T) is not a TCP address", p.Addr, p.Addr)
 	}
-	return clientaddr.WithOutgoingContext(ctx, tcpAddr), nil
+	return tcpAddr, nil
 }
