@@ -178,3 +178,11 @@ func WithOnSetCert(callback func(tls.Certificate)) LocalProxyConfigOpt {
 		return nil
 	}
 }
+
+// WithInsecureSkipVerify is a LocalProxyConfigOpt that sets InsecureSkipVerify.
+func WithInsecureSkipVerify(insecure bool) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
+		config.InsecureSkipVerify = insecure
+		return nil
+	}
+}

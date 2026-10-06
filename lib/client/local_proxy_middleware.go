@@ -378,40 +378,13 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 		return cert, nil
 	}
 
-	certKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	cert, err := generateLocalHostCert(r.ca, host)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	certAuthority, err := tlsca.FromTLSCertificate(r.ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	subject := certAuthority.Cert.Subject
-	subject.CommonName = host
-
-	certPem, err := certAuthority.GenerateCertificate(tlsca.CertificateRequest{
-		PublicKey: certKey.Public(),
-		Subject:   subject,
-		NotAfter:  certAuthority.Cert.NotAfter,
-		DNSNames:  []string{host},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cert, err := keys.TLSCertificateForSigner(certKey, certPem)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := utils.InitCertLeaf(&cert); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	r.certsByHost[host] = &cert
-	return &cert, nil
+	r.certsByHost[host] = cert
+	return cert, nil
 }
 
 // ensureValidCA checks if the CA is valid. If it is no longer valid, generate a new
@@ -433,10 +406,6 @@ func (r *LocalCertGenerator) ensureValidCA(ctx context.Context) error {
 
 	caTLSCert, err := generateSelfSignedCAFromCert(remoteTLSCert, r.caPath)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := utils.InitCertLeaf(&caTLSCert); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -482,6 +451,10 @@ func generateSelfSignedCAFromCert(cert tls.Certificate, caPath string) (tls.Cert
 		return tls.Certificate{}, trace.BadParameter("private key type %T does not implement crypto.Signer", cert.PrivateKey)
 	}
 
+	return generateSelfSignedLocalCA(signer, time.Until(certExpiry), caPath)
+}
+
+func generateSelfSignedLocalCA(signer crypto.Signer, ttl time.Duration, caPath string) (tls.Certificate, error) {
 	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
 		Entity: pkix.Name{
 			CommonName:   "localhost",
@@ -490,7 +463,7 @@ func generateSelfSignedCAFromCert(cert tls.Certificate, caPath string) (tls.Cert
 		Signer:      signer,
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
-		TTL:         time.Until(certExpiry),
+		TTL:         ttl,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -509,7 +482,47 @@ func generateSelfSignedCAFromCert(cert tls.Certificate, caPath string) (tls.Cert
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
+	if err := utils.InitCertLeaf(&caCert); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
 	return caCert, trace.Wrap(err)
+}
+
+func generateLocalHostCert(ca tls.Certificate, host string) (*tls.Certificate, error) {
+	certKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certAuthority, err := tlsca.FromTLSCertificate(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	subject := certAuthority.Cert.Subject
+	subject.CommonName = host
+
+	certPEM, err := certAuthority.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: certKey.Public(),
+		Subject:   subject,
+		NotAfter:  certAuthority.Cert.NotAfter,
+		DNSNames:  []string{host},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := keys.TLSCertificateForSigner(certKey, certPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := utils.InitCertLeaf(&cert); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &cert, nil
 }
 
 // getTLSCertExpireTime returns the certificate NotAfter time.
@@ -519,4 +532,57 @@ func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
 		return time.Time{}, trace.Wrap(err)
 	}
 	return x509cert.NotAfter, nil
+}
+
+// EphemeralLocalCertGenerator uses a self-signed CA with an in-memory-only
+// signing key to issue certificates.
+type EphemeralLocalCertGenerator struct {
+	caCert tls.Certificate
+
+	// certsByHost is a cache of certs for hosts generated with the local CA.
+	// The key is the host's servername SNI.
+	certsByHost map[string]*tls.Certificate
+
+	// synchronize access to caCert and certsByHost
+	mu sync.Mutex
+}
+
+// NewEphemeralLocalCertGenerator creates an EphemeralLocalCertGenerator with
+// a randomly generated in-memory signing key and self-signed CA certificate.
+func NewEphemeralLocalCertGenerator(caPath string) (*EphemeralLocalCertGenerator, error) {
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := generateSelfSignedLocalCA(signer, defaults.CATTL, caPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &EphemeralLocalCertGenerator{
+		caCert:      cert,
+		certsByHost: make(map[string]*tls.Certificate),
+	}, nil
+}
+
+// GetCertificate generates a TLS certificate for the host specified in the
+// client request, or returns a previously generated certificate for that host.
+func (r *EphemeralLocalCertGenerator) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	host := clientHello.ServerName
+
+	if cert, found := r.certsByHost[host]; found {
+		return cert, nil
+	}
+
+	cert, err := generateLocalHostCert(r.caCert, host)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r.certsByHost[host] = cert
+	return cert, nil
 }

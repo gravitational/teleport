@@ -20,6 +20,8 @@ package alpnproxy
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	"encoding/xml"
 	"log/slog"
 	"net/http"
@@ -38,17 +40,33 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
+// AWSRequestRoute contains the per-application settings used to process a
+// request received by the local AWS proxy.
+type AWSRequestRoute struct {
+	// Credentials provides credentials for local proxy request
+	// signature verification.
+	Credentials aws.CredentialsProvider
+
+	// GetClientCertificate returns the application client certificate to attach
+	// when forwarding requests for this route. If nil, no certificate is added.
+	GetClientCertificate func(context.Context) (tls.Certificate, error)
+}
+
 // AWSAccessMiddleware verifies the requests to AWS proxy are properly signed.
 type AWSAccessMiddleware struct {
 	DefaultLocalProxyHTTPMiddleware
 
-	// AWSCredentialsProvider provides credentials for local proxy request
-	// signature verification.
-	AWSCredentialsProvider aws.CredentialsProvider
+	// ResolveAWSRoute returns the route associated with an AWS access key ID.
+	ResolveAWSRoute func(context.Context, string) (*AWSRequestRoute, error)
 
 	Log *slog.Logger
 
-	assumedRoles utils.SyncMap[string, *sts.AssumeRoleOutput]
+	assumedRoles utils.SyncMap[string, assumedRoleSession]
+}
+
+type assumedRoleSession struct {
+	role  *sts.AssumeRoleOutput
+	route *AWSRequestRoute
 }
 
 var _ LocalProxyHTTPMiddleware = &AWSAccessMiddleware{}
@@ -58,11 +76,29 @@ func (m *AWSAccessMiddleware) CheckAndSetDefaults() error {
 		m.Log = slog.With(teleport.ComponentKey, "aws_access")
 	}
 
-	if m.AWSCredentialsProvider == nil {
-		return trace.BadParameter("missing AWS credentials")
+	if m.ResolveAWSRoute == nil {
+		return trace.BadParameter("missing AWS route resolver")
 	}
 
 	return nil
+}
+
+type awsRequestRouteContextKey struct{}
+
+func setAWSRouteOnRequestContext(req *http.Request, route *AWSRequestRoute) {
+	ctx := context.WithValue(
+		req.Context(),
+		awsRequestRouteContextKey{},
+		route,
+	)
+	*req = *req.WithContext(ctx)
+}
+
+func getAWSRequestRouteFromRequestContext(req *http.Request) (*AWSRequestRoute, bool) {
+	route, ok := req.Context().
+		Value(awsRequestRouteContextKey{}).(*AWSRequestRoute)
+
+	return route, ok
 }
 
 // HandleRequest handles a request from the AWS client.
@@ -128,16 +164,26 @@ func (m *AWSAccessMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Re
 	// Host is a valid AWS endpoint.
 	if awsapiutils.IsAWSOwnedEndpoint(req.Host) {
 		if assumedRole, found := m.assumedRoles.Load(sigV4.KeyID); found {
+			setAWSRouteOnRequestContext(req, assumedRole.route)
 			return m.handleRequestByAssumedRole(rw, req, assumedRole)
 		}
 	}
 
-	// Handle requests signed with the default local proxy credentials.
-	return m.handleCommonRequest(rw, req)
+	// Handle requests signed with the default local proxy credentials for the appropriate app.
+	return m.handleCommonRequest(rw, req, sigV4.KeyID)
 }
 
-func (m *AWSAccessMiddleware) handleCommonRequest(rw http.ResponseWriter, req *http.Request) bool {
-	if err := awsutils.VerifyAWSSignature(req, m.AWSCredentialsProvider); err != nil {
+func (m *AWSAccessMiddleware) handleCommonRequest(rw http.ResponseWriter, req *http.Request, awsAccessKeyID string) bool {
+	awsRoute, err := m.ResolveAWSRoute(req.Context(), awsAccessKeyID)
+	if err != nil {
+		m.Log.ErrorContext(req.Context(), "Unable to resolve AWS route", "error", err)
+		rw.WriteHeader(http.StatusForbidden)
+		return true
+	}
+
+	setAWSRouteOnRequestContext(req, awsRoute)
+
+	if err := awsutils.VerifyAWSSignature(req, awsRoute.Credentials); err != nil {
 		m.Log.ErrorContext(req.Context(), "AWS signature verification failed", "error", err)
 		rw.WriteHeader(http.StatusForbidden)
 		return true
@@ -145,11 +191,11 @@ func (m *AWSAccessMiddleware) handleCommonRequest(rw http.ResponseWriter, req *h
 	return false
 }
 
-func (m *AWSAccessMiddleware) handleRequestByAssumedRole(rw http.ResponseWriter, req *http.Request, assumedRole *sts.AssumeRoleOutput) bool {
+func (m *AWSAccessMiddleware) handleRequestByAssumedRole(rw http.ResponseWriter, req *http.Request, assumedRole assumedRoleSession) bool {
 	credentials := credentials.NewStaticCredentialsProvider(
-		aws.ToString(assumedRole.Credentials.AccessKeyId),
-		aws.ToString(assumedRole.Credentials.SecretAccessKey),
-		aws.ToString(assumedRole.Credentials.SessionToken),
+		aws.ToString(assumedRole.role.Credentials.AccessKeyId),
+		aws.ToString(assumedRole.role.Credentials.SecretAccessKey),
+		aws.ToString(assumedRole.role.Credentials.SessionToken),
 	)
 
 	if err := awsutils.VerifyAWSSignature(req, credentials); err != nil {
@@ -158,10 +204,10 @@ func (m *AWSAccessMiddleware) handleRequestByAssumedRole(rw http.ResponseWriter,
 		return true
 	}
 
-	m.Log.DebugContext(req.Context(), "Rewriting headers for AWS request by assumed role", "assumed_role", aws.ToString(assumedRole.AssumedRoleUser.Arn))
+	m.Log.DebugContext(req.Context(), "Rewriting headers for AWS request by assumed role", "assumed_role", aws.ToString(assumedRole.role.AssumedRoleUser.Arn))
 
 	// Add a custom header for marking the special request.
-	req.Header.Add(appcommon.TeleportAWSAssumedRole, aws.ToString(assumedRole.AssumedRoleUser.Arn))
+	req.Header.Add(appcommon.TeleportAWSAssumedRole, aws.ToString(assumedRole.role.AssumedRoleUser.Arn))
 
 	// Rename the original authorization header to ensure older app agents
 	// (that don't support the requests by assumed roles) will fail.
@@ -213,9 +259,36 @@ func (m *AWSAccessMiddleware) handleSTSResponse(response *http.Response) error {
 		return nil
 	}
 
-	m.assumedRoles.Store(aws.ToString(assumedRole.Credentials.AccessKeyId), assumedRole)
+	// Find the route to associate with this assumed role session
+	awsRoute, found := getAWSRequestRouteFromRequestContext(response.Request)
+	if !found {
+		return trace.Errorf("no AWS route found on request")
+	}
+
+	m.assumedRoles.Store(aws.ToString(assumedRole.Credentials.AccessKeyId), assumedRoleSession{role: assumedRole, route: awsRoute})
 	m.Log.DebugContext(response.Request.Context(), "Saved credentials for assumed role", "assumed_role", aws.ToString(assumedRole.AssumedRoleUser.Arn))
 	return nil
+}
+
+// GetClientCerts returns the certificate for the AWS route selected for req.
+func (m *AWSAccessMiddleware) GetClientCerts(req *http.Request) ([]tls.Certificate, bool, error) {
+	awsRoute, found := getAWSRequestRouteFromRequestContext(req)
+	if !found {
+		return nil, false, trace.Errorf("no AWS route found on request")
+	}
+
+	// The aws route has no specific GetClientCertificate, so we let the proxy proceed
+	// with its default behavior
+	if awsRoute.GetClientCertificate == nil {
+		return nil, false, nil
+	}
+
+	cert, err := awsRoute.GetClientCertificate(req.Context())
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+
+	return []tls.Certificate{cert}, true, nil
 }
 
 func unmarshalAssumeRoleResponse(body []byte) (*sts.AssumeRoleOutput, error) {

@@ -744,23 +744,20 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	awsApp, err := pickAWSApp(cf)
+	session, err := newAWSProxySession(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	err = awsApp.StartLocalProxies(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	defer func() {
-		if err := awsApp.Close(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to close AWS app", "error", err)
+		if err := session.Close(); err != nil {
+			logger.ErrorContext(cf.Context, "Failed to close AWS proxy session", "error", err)
 		}
 	}()
 
-	if err := printProxyAWSTemplate(cf, awsApp); err != nil {
+	if err := session.Start(cf.Context); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := printProxyAWSTemplate(cf, session); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -768,26 +765,31 @@ func onProxyCommandAWS(cf *CLIConf) error {
 	return nil
 }
 
-type awsAppInfo interface {
-	GetAppName() string
+type awsProxySessionInfo interface {
 	GetEnvVars() (map[string]string, error)
 	GetForwardProxyAddr() string
+	GetApps() []awsProxyApp
 }
 
-func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
+func printProxyAWSTemplate(cf *CLIConf, awsApp awsProxySessionInfo) error {
 	envVars, err := awsApp.GetEnvVars()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	templateData := map[string]interface{}{
+	apps := awsApp.GetApps()
+	if len(apps) == 0 {
+		return trace.BadParameter("aws proxy session has no associated apps")
+	}
+
+	templateData := map[string]any{
 		"envVars":    envVars,
 		"format":     cf.Format,
 		"randomPort": cf.LocalProxyPort == "",
-		"appName":    awsApp.GetAppName(),
 		"region":     getEnvOrDefault(awsRegionEnvVar, "<region>"),
 		"keystore":   getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
 		"workgroup":  getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
+		"apps":       apps,
 	}
 
 	if proxyAddr := awsApp.GetForwardProxyAddr(); proxyAddr != "" {
@@ -809,7 +811,11 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 	case cf.AWSEndpointURLMode:
 		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	default:
-		templates = append(templates, awsHTTPSProxyTemplate)
+		if len(apps) > 1 {
+			templates = append(templates, awsMultiplexedHTTPSProxyEnvVarTemplate)
+		} else {
+			templates = append(templates, awsHTTPSProxyTemplate)
+		}
 	}
 
 	combined := template.New("").Funcs(cloudTemplateFuncs)
@@ -826,6 +832,11 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
 	if cf.AWSEndpointURLMode {
 		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
+	}
+	// Multiplexed sessions currently support only environment-variable output
+	// formats.
+	if len(cf.AppSQNs) > 1 && (cf.Format == awsProxyFormatAthenaODBC || cf.Format == awsProxyFormatAthenaJDBC) {
+		return trace.BadParameter("--format=%s is not supported when proxying multiple AWS applications; use an environment-variable format instead", cf.Format)
 	}
 	return nil
 }
@@ -1124,6 +1135,31 @@ Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
 {{end}}
 `
 
+// awsMultiplexedHTTPSProxyEnvVarTemplate is the configuration guidance printed
+// for multiplexed AWS proxy sessions.
+const awsMultiplexedHTTPSProxyEnvVarTemplate = `
+{{- template "header" . -}}
+Wrote AWS profiles for:
+{{ range .apps }}
+- {{ .Name }} (AWS role: {{ .Role }}): AWS_PROFILE={{ .Profile }}
+{{- end}}
+
+Use the following AWS configuration and HTTPS proxy:
+  {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
+  {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
+  {{ envVarCommand .format "https_proxy" .envVars.https_proxy}}
+  {{ envVarCommand .format "AWS_SHARED_CREDENTIALS_FILE" .envVars.AWS_SHARED_CREDENTIALS_FILE}}
+
+Use the following snippet to clear out any existing credentials in your environment
+that would override the generated credentials above:
+  {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
+  {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
+  {{ envVarCommand .format "AWS_SESSION_TOKEN" .envVars.AWS_SESSION_TOKEN}}
+  {{ envVarCommand .format "AWS_ROLE_ARN" .envVars.AWS_ROLE_ARN}}
+  {{ envVarCommand .format "AWS_ROLE_SESSION_NAME" .envVars.AWS_ROLE_SESSION_NAME}}
+  {{ envVarCommand .format "AWS_WEB_IDENTITY_TOKEN_FILE" .envVars.AWS_WEB_IDENTITY_TOKEN_FILE}}
+`
+
 // awsProxyJDBCHeaderFooterTemplate contains common header and footer for AWS
 // proxy in JDBC formats.
 const awsProxyJDBCHeaderFooterTemplate = `
@@ -1133,7 +1169,7 @@ First, add the following certificate to your keystore:
 {{.envVars.AWS_CA_BUNDLE}}
 
 For example, to import the certificate using "keytool":
-keytool -noprompt -importcert -alias teleport-{{.appName}} -file {{.envVars.AWS_CA_BUNDLE}} -keystore {{.keystore}}
+keytool -noprompt -importcert -alias teleport-{{ (index .apps 0).Name }} -file {{.envVars.AWS_CA_BUNDLE}} -keystore {{.keystore}}
 
 {{end}}
 {{define "jdbc-footer" }}
@@ -1153,6 +1189,7 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
   {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
   {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
+  {{ envVarCommand .format "https_proxy" .envVars.https_proxy}}
 `
 
 // awsProxyAthenaODBCTemplate is the message that gets printed to a user when an

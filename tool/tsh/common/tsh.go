@@ -281,6 +281,11 @@ type CLIConf struct {
 	DatabaseCommand string
 	// AppSQN specifies proxied application name and scope.
 	AppSQN scopes.QualifiedName
+	// AppSQNs specifies a list of proxied applications with name/scope for each one
+	AppSQNs []scopes.QualifiedName
+	// AWSProfileMappings maps AWS applications to the profile names written to
+	// the AWS proxy configuration file.
+	AWSProfileMappings map[scopes.QualifiedName]string
 	// AppHTTPSTunnel enables a special mode to tunnel https for HTTP apps.
 	// Mainly used for debugging purpose so the flag should be hidden.
 	AppHTTPSTunnel bool
@@ -1083,9 +1088,16 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// AWS.
 	// Use Interspersed(false) to forward all flags to AWS CLI.
+	var awsAppNames []string
+	var awsProfileMappings []string
+	configureAWSAppSelectionPreAction := func(*kingpin.ParseContext) error {
+		return configureAWSAppSelection(&cf, awsAppNames, awsProfileMappings)
+	}
 	aws := app.Command("aws", "Access AWS API.").Interspersed(false)
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI.").StringsVar(&cf.AWSCommandArgs)
-	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").SetValue(&cf.AppSQN)
+	aws.Flag("app", "Optional Name of the AWS application to use. Can be specified multiple times.").StringsVar(&awsAppNames)
+	aws.Flag("profile", "Map an AWS app to a different AWS profile name when proxying multiple apps. Specify as <app>=<profile> and repeat for each desired mapping. By default, each app uses its own name as the profile name.").StringsVar(&awsProfileMappings)
+	aws.PreAction(configureAWSAppSelectionPreAction)
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials.").StringVar(&cf.Exec)
@@ -1194,7 +1206,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyMCP.Flag("browser", browserHelp).StringVar(&cf.Browser)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
-	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").SetValue(&cf.AppSQN)
+	proxyAWS.Flag("app", "Optional Name of the AWS application to use. Can be specified multiple times.").StringsVar(&awsAppNames)
+	proxyAWS.Flag("profile", "AWS profile name mapping in the form <app>=<profile>. Can be specified multiple times.").StringsVar(&awsProfileMappings)
+	proxyAWS.PreAction(configureAWSAppSelectionPreAction)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
@@ -1560,7 +1574,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// SCAN subcommands.
 	scan := newScanCommand(app)
 	// scopes subcommands.
-	scopes := newScopesCommand(app)
+	scopesCommand := newScopesCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host.").Short('p').Int32Var(&cf.NodePort)
@@ -1942,8 +1956,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = kube.join.run(&cf)
 	case scan.keys.FullCommand():
 		err = scan.keys.run(&cf)
-	case scopes.ls.FullCommand():
-		err = scopes.ls.run(&cf)
+	case scopesCommand.ls.FullCommand():
+		err = scopesCommand.ls.run(&cf)
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf, wrapInitClientWithUpdateCheck(makeClient, args))
 	case proxyDB.FullCommand():

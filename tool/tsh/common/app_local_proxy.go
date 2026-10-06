@@ -225,25 +225,7 @@ func (a *localProxyApp) startLocalForwardProxy(ctx context.Context, port int, fo
 		return trace.Wrap(err)
 	}
 
-	a.localForwardProxy, err = alpnproxy.NewForwardProxy(alpnproxy.ForwardProxyConfig{
-		Listener:     listener,
-		CloseContext: ctx,
-		Handlers: []alpnproxy.ConnectRequestHandler{
-			// Forward matched requests to ALPN proxy.
-			alpnproxy.NewForwardToHostHandler(alpnproxy.ForwardToHostHandlerConfig{
-				MatchFunc: forwardMatcher,
-				Host:      a.localALPNProxy.GetAddr(),
-			}),
-
-			// Forward unmatched requests to user's system proxy, if configured.
-			alpnproxy.NewForwardToSystemProxyHandler(alpnproxy.ForwardToSystemProxyHandlerConfig{
-				InsecureSystemProxy: a.insecure,
-			}),
-
-			// Forward unmatched requests to their original hosts.
-			alpnproxy.NewForwardToOriginalHostHandler(),
-		},
-	})
+	a.localForwardProxy, err = newForwardProxy(ctx, listener, a.insecure, a.localALPNProxy.GetAddr(), forwardMatcher)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
 			return trace.NewAggregate(err, cerr)

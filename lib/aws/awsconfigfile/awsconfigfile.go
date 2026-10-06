@@ -30,6 +30,9 @@ import (
 const (
 	ownershipComment    = "Do not edit. Section managed by Teleport."
 	ssoOwnershipComment = "Do not edit. Section managed by Teleport (AWS Identity Center integration)."
+
+	awsAccessKeyIDKey     = "aws_access_key_id"
+	awsSecretAccessKeyKey = "aws_secret_access_key"
 )
 
 // AWSConfigFilePath returns the path to the AWS configuration file.
@@ -69,6 +72,65 @@ type SSOProfile struct {
 	RoleName string
 	// Account is the AWS account name or alias.
 	Account string
+}
+
+// AWSProfileCredentials represents a set of credentials for an AWS profile.
+type AWSProfileCredentials struct {
+	// Name is the profile name.
+	Name string
+	// AccessKeyID is the AWS access key ID.
+	AccessKeyID string
+	// SecretAccessKey is the AWS secret access key.
+	SecretAccessKey string
+}
+
+// WriteSharedCredentials writes credentials to an AWS shared credentials file
+// for each specified profile.
+func WriteSharedCredentials(credentialsFilePath string, profiles []AWSProfileCredentials) error {
+	for _, profile := range profiles {
+		if err := validateProfileName(profile.Name); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	iniFile, err := ini.LoadSources(ini.LoadOptions{
+		AllowNestedValues: true,
+		Loose:             true,
+	}, credentialsFilePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, s := range profiles {
+		// AWS shared credentials file sections use profile names directly, no "profile " prefix
+		sectionName := s.Name
+
+		section, err := getOrCreateManagedSection(iniFile, sectionName, ownershipComment)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		section.Comment = ownershipComment
+		if _, err := section.NewKey(awsAccessKeyIDKey, s.AccessKeyID); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey(awsSecretAccessKeyKey, s.SecretAccessKey); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(writeINIFile(iniFile, credentialsFilePath))
+}
+
+// validateProfileName verifies that name can be safely used as an INI section
+// name in an AWS shared credentials file.
+func validateProfileName(name string) error {
+	if name == "" {
+		return trace.BadParameter("AWS profile name must not be empty")
+	}
+	if strings.ContainsAny(name, "\r\n") {
+		return trace.BadParameter("AWS profile name must not contain a newline")
+	}
+	return nil
 }
 
 // WriteSSOConfig writes multiple SSO profiles and sessions to the AWS configuration file in a single pass,
