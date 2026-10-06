@@ -1,4 +1,4 @@
-.version: &version "17.7.29"
+.version: &version "17.7.30"
 
 name: teleport-kube-agent
 apiVersion: v2

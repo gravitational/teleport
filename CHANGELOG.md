@@ -1,5 +1,11 @@
 # Changelog
 
+## 17.7.30 (10/02/26)
+
+This is a private security release. The changelog will be publicly announced in a later version.
+
+More information about private releases is available here: https://github.com/gravitational/teleport/blob/master/SECURITY.md#private-releases.
+
 ## 17.7.29 (09/08/26)
 
 * Fixed issue with macOS binaries crashing due to invalid signing certificate.
