@@ -20,6 +20,8 @@ package common
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -65,15 +67,59 @@ func newKubeClusterGroup(connector clusterConnector, clusters kubeconfig.LocalPr
 }
 
 // ForEach runs fn for every cluster in the group concurrently, bounded by the group's concurrency.
+// A failure does not cancel the siblings: the returned error aggregates every one, naming its cluster.
 func (g *kubeClusterGroup) ForEach(ctx context.Context, fn func(ctx context.Context, cluster kubeconfig.LocalProxyCluster) error) error {
-	eg, egCtx := errgroup.WithContext(ctx)
+	var eg errgroup.Group
 	eg.SetLimit(g.concurrency)
-	for _, cluster := range g.clusters {
+
+	// Indexed by cluster so the aggregate reads in cluster order.
+	errs := make([]error, len(g.clusters))
+	for i, cluster := range g.clusters {
 		eg.Go(func() error {
-			return trace.Wrap(fn(egCtx, cluster))
+			if ctx.Err() != nil {
+				return nil
+			}
+			if err := fn(ctx, cluster); err != nil {
+				errs[i] = fmt.Errorf("%s: %w", localProxyClusterKey(cluster), err)
+			}
+			return nil
 		})
 	}
-	return trace.Wrap(eg.Wait())
+	// No callback above returns an error, so Wait only waits for the group.
+	_ = eg.Wait()
+
+	// A cancellation outranks whatever was collected.
+	if ctx.Err() != nil {
+		return trace.Wrap(ctx.Err())
+	}
+	return trace.Wrap(g.report(errs))
+}
+
+// report turns the per-cluster failures, indexed by cluster with a nil for every cluster that succeeded, into one error.
+// A lone failure is returned as it is, so the common case reads as one line.
+// Several are listed one per line under a count, as the caller prints them:
+//
+//	ERROR: root/kube-1: kubernetes cluster "kube-1" not found
+//
+//	ERROR: 2 of 5 Kubernetes clusters failed:
+//	root/kube-1: kubernetes cluster "kube-1" not found
+//	root/kube-2: kubernetes cluster "kube-2" not found
+func (g *kubeClusterGroup) report(errs []error) error {
+	failures := make([]error, 0, len(errs))
+	for _, err := range errs {
+		if err != nil {
+			failures = append(failures, err)
+		}
+	}
+	switch len(failures) {
+	case 0:
+		return nil
+	case 1:
+		return failures[0]
+	default:
+		return fmt.Errorf("%d of %d Kubernetes clusters failed:\n%w",
+			len(failures), len(g.clusters), errors.Join(failures...))
+	}
 }
 
 // AuthClient returns the group's shared auth client for the Teleport cluster, connecting it on first use.
