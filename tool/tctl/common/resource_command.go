@@ -1501,7 +1501,8 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *auth
 	}
 
 	connectorName := conn.GetName()
-	foundConn, err := client.GetSAMLConnector(ctx, connectorName, true)
+	foundConn, err := client.GetSAMLConnectorWithValidationOptions(ctx, connectorName, true,
+		types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -3675,11 +3676,13 @@ func getSAMLConnectors(ctx context.Context, client *authclient.Client, name stri
 		// TODO(okraport): DELETE IN v21.0.0, remove GetSAMLConnectors
 		connectors, err := clientutils.CollectWithFallback(ctx,
 			func(ctx context.Context, limit int, start string) ([]types.SAMLConnector, string, error) {
-				return client.ListSAMLConnectorsWithOptions(ctx, limit, start, withSecrets)
+				return client.ListSAMLConnectorsWithOptions(ctx, limit, start, withSecrets,
+					types.SAMLConnectorValidationFollowURLs(false))
 			},
 			func(ctx context.Context) ([]types.SAMLConnector, error) {
 				//nolint:staticcheck // support older backends during migration
-				return client.GetSAMLConnectors(ctx, withSecrets)
+				return client.GetSAMLConnectorsWithValidationOptions(ctx, withSecrets,
+					types.SAMLConnectorValidationFollowURLs(false))
 			},
 		)
 		if err != nil {
@@ -3687,7 +3690,8 @@ func getSAMLConnectors(ctx context.Context, client *authclient.Client, name stri
 		}
 		return connectors, nil
 	}
-	connector, err := client.GetSAMLConnector(ctx, name, withSecrets)
+	connector, err := client.GetSAMLConnectorWithValidationOptions(ctx, name, withSecrets,
+		types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

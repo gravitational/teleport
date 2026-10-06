@@ -25,6 +25,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -67,7 +68,8 @@ func (cmd *SAMLCommand) TryRun(ctx context.Context, selectedCommand string, clie
 
 // export executes 'tctl saml export <connector_name>'
 func (cmd *SAMLCommand) export(ctx context.Context, c *authclient.Client) error {
-	sc, err := c.GetSAMLConnector(ctx, cmd.connectorName, false)
+	sc, err := c.GetSAMLConnectorWithValidationOptions(ctx, cmd.connectorName, false,
+		types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		return trace.Wrap(err)
 	}
