@@ -4121,6 +4121,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		BotInternal:              req.BotInternal,
 		DelegationSessionID:      req.DelegationSessionID,
 		BeamID:                   req.BeamID,
+		Delegation:               req.User.GetDelegation(),
 		JoinToken:                req.JoinToken,
 		AllowedResourceIDs:       allowedResourceIDs, //nolint:staticcheck // populated for compatibility with older certificates.
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,

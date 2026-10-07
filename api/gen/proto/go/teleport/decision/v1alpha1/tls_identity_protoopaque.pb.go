@@ -23,6 +23,7 @@
 package decisionpb
 
 import (
+	v12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	types "github.com/gravitational/teleport/api/types"
@@ -85,6 +86,7 @@ type TLSIdentity struct {
 	xxx_hidden_DelegationSessionId      string                     `protobuf:"bytes,39,opt,name=delegation_session_id,json=delegationSessionId,proto3"`
 	xxx_hidden_BeamId                   string                     `protobuf:"bytes,40,opt,name=beam_id,json=beamId,proto3"`
 	xxx_hidden_BotScope                 string                     `protobuf:"bytes,41,opt,name=bot_scope,json=botScope,proto3"`
+	xxx_hidden_Delegation               *v12.Delegation            `protobuf:"bytes,42,opt,name=delegation,proto3"`
 	unknownFields                       protoimpl.UnknownFields
 	sizeCache                           protoimpl.SizeCache
 }
@@ -407,6 +409,13 @@ func (x *TLSIdentity) GetBotScope() string {
 	return ""
 }
 
+func (x *TLSIdentity) GetDelegation() *v12.Delegation {
+	if x != nil {
+		return x.xxx_hidden_Delegation
+	}
+	return nil
+}
+
 func (x *TLSIdentity) SetUsername(v string) {
 	x.xxx_hidden_Username = v
 }
@@ -571,6 +580,10 @@ func (x *TLSIdentity) SetBotScope(v string) {
 	x.xxx_hidden_BotScope = v
 }
 
+func (x *TLSIdentity) SetDelegation(v *v12.Delegation) {
+	x.xxx_hidden_Delegation = v
+}
+
 func (x *TLSIdentity) HasExpires() bool {
 	if x == nil {
 		return false
@@ -613,6 +626,13 @@ func (x *TLSIdentity) HasScopePin() bool {
 	return x.xxx_hidden_ScopePin != nil
 }
 
+func (x *TLSIdentity) HasDelegation() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Delegation != nil
+}
+
 func (x *TLSIdentity) ClearExpires() {
 	x.xxx_hidden_Expires = nil
 }
@@ -635,6 +655,10 @@ func (x *TLSIdentity) ClearDeviceExtensions() {
 
 func (x *TLSIdentity) ClearScopePin() {
 	x.xxx_hidden_ScopePin = nil
+}
+
+func (x *TLSIdentity) ClearDelegation() {
+	x.xxx_hidden_Delegation = nil
 }
 
 type TLSIdentity_builder struct {
@@ -753,6 +777,8 @@ type TLSIdentity_builder struct {
 	// BotScope is the scope of the Machine ID bot this identity was issued to,
 	// if any. Empty for unscoped bots and non-bot identities.
 	BotScope string
+	// Delegation contains the delegation chain of this TLS identity.
+	Delegation *v12.Delegation
 }
 
 func (b0 TLSIdentity_builder) Build() *TLSIdentity {
@@ -800,6 +826,7 @@ func (b0 TLSIdentity_builder) Build() *TLSIdentity {
 	x.xxx_hidden_DelegationSessionId = b.DelegationSessionId
 	x.xxx_hidden_BeamId = b.BeamId
 	x.xxx_hidden_BotScope = b.BotScope
+	x.xxx_hidden_Delegation = b.Delegation
 	return m0
 }
 
@@ -1337,7 +1364,7 @@ var File_teleport_decision_v1alpha1_tls_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xcd\x0e\n" +
+	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/delegation/v1/delegation.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x91\x0f\n" +
 	"\vTLSIdentity\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\"\n" +
 	"\fimpersonator\x18\x02 \x01(\tR\fimpersonator\x12\x16\n" +
@@ -1386,7 +1413,10 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\x1ballowed_resource_access_ids\x18& \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\x122\n" +
 	"\x15delegation_session_id\x18' \x01(\tR\x13delegationSessionId\x12\x17\n" +
 	"\abeam_id\x18( \x01(\tR\x06beamId\x12\x1b\n" +
-	"\tbot_scope\x18) \x01(\tR\bbotScope\"\xfb\x02\n" +
+	"\tbot_scope\x18) \x01(\tR\bbotScope\x12B\n" +
+	"\n" +
+	"delegation\x18* \x01(\v2\".teleport.delegation.v1.DelegationR\n" +
+	"delegation\"\xfb\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x1d\n" +
 	"\n" +
@@ -1432,22 +1462,24 @@ var file_teleport_decision_v1alpha1_tls_identity_proto_goTypes = []any{
 	(*v1.Trait)(nil),               // 6: teleport.trait.v1.Trait
 	(*v11.Pin)(nil),                // 7: teleport.scopes.v1.Pin
 	(*types.ResourceAccessID)(nil), // 8: types.ResourceAccessID
+	(*v12.Delegation)(nil),         // 9: teleport.delegation.v1.Delegation
 }
 var file_teleport_decision_v1alpha1_tls_identity_proto_depIdxs = []int32{
-	5, // 0: teleport.decision.v1alpha1.TLSIdentity.expires:type_name -> google.protobuf.Timestamp
-	6, // 1: teleport.decision.v1alpha1.TLSIdentity.traits:type_name -> teleport.trait.v1.Trait
-	1, // 2: teleport.decision.v1alpha1.TLSIdentity.route_to_app:type_name -> teleport.decision.v1alpha1.RouteToApp
-	2, // 3: teleport.decision.v1alpha1.TLSIdentity.route_to_database:type_name -> teleport.decision.v1alpha1.RouteToDatabase
-	5, // 4: teleport.decision.v1alpha1.TLSIdentity.previous_identity_expires:type_name -> google.protobuf.Timestamp
-	3, // 5: teleport.decision.v1alpha1.TLSIdentity.allowed_resource_ids:type_name -> teleport.decision.v1alpha1.ResourceId
-	4, // 6: teleport.decision.v1alpha1.TLSIdentity.device_extensions:type_name -> teleport.decision.v1alpha1.DeviceExtensions
-	7, // 7: teleport.decision.v1alpha1.TLSIdentity.scope_pin:type_name -> teleport.scopes.v1.Pin
-	8, // 8: teleport.decision.v1alpha1.TLSIdentity.allowed_resource_access_ids:type_name -> types.ResourceAccessID
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	5,  // 0: teleport.decision.v1alpha1.TLSIdentity.expires:type_name -> google.protobuf.Timestamp
+	6,  // 1: teleport.decision.v1alpha1.TLSIdentity.traits:type_name -> teleport.trait.v1.Trait
+	1,  // 2: teleport.decision.v1alpha1.TLSIdentity.route_to_app:type_name -> teleport.decision.v1alpha1.RouteToApp
+	2,  // 3: teleport.decision.v1alpha1.TLSIdentity.route_to_database:type_name -> teleport.decision.v1alpha1.RouteToDatabase
+	5,  // 4: teleport.decision.v1alpha1.TLSIdentity.previous_identity_expires:type_name -> google.protobuf.Timestamp
+	3,  // 5: teleport.decision.v1alpha1.TLSIdentity.allowed_resource_ids:type_name -> teleport.decision.v1alpha1.ResourceId
+	4,  // 6: teleport.decision.v1alpha1.TLSIdentity.device_extensions:type_name -> teleport.decision.v1alpha1.DeviceExtensions
+	7,  // 7: teleport.decision.v1alpha1.TLSIdentity.scope_pin:type_name -> teleport.scopes.v1.Pin
+	8,  // 8: teleport.decision.v1alpha1.TLSIdentity.allowed_resource_access_ids:type_name -> types.ResourceAccessID
+	9,  // 9: teleport.decision.v1alpha1.TLSIdentity.delegation:type_name -> teleport.delegation.v1.Delegation
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_teleport_decision_v1alpha1_tls_identity_proto_init() }
