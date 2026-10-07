@@ -209,6 +209,10 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		start := time.Now()
+		// The ticker's first tick comes a full interval after start, which a short MinimumWindow
+		// can elapse before entirely. Fire one request immediately so even the shortest run has a
+		// measurement in flight from the start.
+		wg.Go(func() { work(ctx, benchMeasure{ResponseStart: start}, resultC, workload) })
 		for {
 			select {
 			case <-ticker.C:
