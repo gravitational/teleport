@@ -3,6 +3,7 @@
 package userloginstate
 
 import (
+	types "github.com/gravitational/teleport/api/types"
 	header "github.com/gravitational/teleport/api/types/header"
 	"time"
 )
@@ -51,7 +52,8 @@ func deriveTeleportEqual_(this, that *Spec) bool {
 			deriveTeleportEqual_3(this.AccessListTraits, that.AccessListTraits) &&
 			this.UserType == that.UserType &&
 			deriveTeleportEqual_4(this.GitHubIdentity, that.GitHubIdentity) &&
-			deriveTeleportEqual_5(this.SAMLIdentities, that.SAMLIdentities)
+			deriveTeleportEqual_5(this.SAMLIdentities, that.SAMLIdentities) &&
+			deriveTeleportEqual_6(this.Delegation, that.Delegation)
 }
 
 // deriveDeepCopy recursively copies the contents of src into dst.
@@ -165,6 +167,12 @@ func deriveDeepCopy_(dst, src *Spec) {
 		}
 		deriveDeepCopy_4(dst.SAMLIdentities, src.SAMLIdentities)
 	}
+	if src.Delegation == nil {
+		dst.Delegation = nil
+	} else {
+		dst.Delegation = new(types.Delegation)
+		deriveDeepCopy_5(dst.Delegation, src.Delegation)
+	}
 }
 
 // deriveTeleportEqual_1 returns whether this and that are equal.
@@ -173,7 +181,7 @@ func deriveTeleportEqual_1(this, that *header.Metadata) bool {
 		this != nil && that != nil &&
 			this.Name == that.Name &&
 			this.Description == that.Description &&
-			deriveTeleportEqual_6(this.Labels, that.Labels) &&
+			deriveTeleportEqual_7(this.Labels, that.Labels) &&
 			this.Expires.Equal(that.Expires)
 }
 
@@ -240,19 +248,26 @@ func deriveTeleportEqual_5(this, that []ExternalIdentity) bool {
 	return true
 }
 
+// deriveTeleportEqual_6 returns whether this and that are equal.
+func deriveTeleportEqual_6(this, that *types.Delegation) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual_8(this.Chain, that.Chain)
+}
+
 // deriveDeepCopy_1 recursively copies the contents of src into dst.
 func deriveDeepCopy_1(dst, src *header.Metadata) {
 	dst.Name = src.Name
 	dst.Description = src.Description
 	if src.Labels != nil {
 		dst.Labels = make(map[string]string, len(src.Labels))
-		deriveDeepCopy_5(dst.Labels, src.Labels)
+		deriveDeepCopy_6(dst.Labels, src.Labels)
 	} else {
 		dst.Labels = nil
 	}
 	func() {
 		field := new(time.Time)
-		deriveDeepCopy_6(field, &src.Expires)
+		deriveDeepCopy_7(field, &src.Expires)
 		dst.Expires = *field
 	}()
 	dst.Revision = src.Revision
@@ -327,8 +342,50 @@ func deriveDeepCopy_4(dst, src []ExternalIdentity) {
 	}
 }
 
-// deriveTeleportEqual_6 returns whether this and that are equal.
-func deriveTeleportEqual_6(this, that map[string]string) bool {
+// deriveDeepCopy_5 recursively copies the contents of src into dst.
+func deriveDeepCopy_5(dst, src *types.Delegation) {
+	if src.Chain == nil {
+		dst.Chain = nil
+	} else {
+		if dst.Chain != nil {
+			if len(src.Chain) > len(dst.Chain) {
+				if cap(dst.Chain) >= len(src.Chain) {
+					dst.Chain = (dst.Chain)[:len(src.Chain)]
+				} else {
+					dst.Chain = make([]*types.DelegationChainLink, len(src.Chain))
+				}
+			} else if len(src.Chain) < len(dst.Chain) {
+				dst.Chain = (dst.Chain)[:len(src.Chain)]
+			}
+		} else {
+			dst.Chain = make([]*types.DelegationChainLink, len(src.Chain))
+		}
+		deriveDeepCopy_8(dst.Chain, src.Chain)
+	}
+	dst.XXX_NoUnkeyedLiteral = src.XXX_NoUnkeyedLiteral
+	if src.XXX_unrecognized == nil {
+		dst.XXX_unrecognized = nil
+	} else {
+		if dst.XXX_unrecognized != nil {
+			if len(src.XXX_unrecognized) > len(dst.XXX_unrecognized) {
+				if cap(dst.XXX_unrecognized) >= len(src.XXX_unrecognized) {
+					dst.XXX_unrecognized = (dst.XXX_unrecognized)[:len(src.XXX_unrecognized)]
+				} else {
+					dst.XXX_unrecognized = make([]byte, len(src.XXX_unrecognized))
+				}
+			} else if len(src.XXX_unrecognized) < len(dst.XXX_unrecognized) {
+				dst.XXX_unrecognized = (dst.XXX_unrecognized)[:len(src.XXX_unrecognized)]
+			}
+		} else {
+			dst.XXX_unrecognized = make([]byte, len(src.XXX_unrecognized))
+		}
+		copy(dst.XXX_unrecognized, src.XXX_unrecognized)
+	}
+	dst.XXX_sizecache = src.XXX_sizecache
+}
+
+// deriveTeleportEqual_7 returns whether this and that are equal.
+func deriveTeleportEqual_7(this, that map[string]string) bool {
 	if this == nil || that == nil {
 		return this == nil && that == nil
 	}
@@ -347,14 +404,193 @@ func deriveTeleportEqual_6(this, that map[string]string) bool {
 	return true
 }
 
-// deriveDeepCopy_5 recursively copies the contents of src into dst.
-func deriveDeepCopy_5(dst, src map[string]string) {
+// deriveTeleportEqual_8 returns whether this and that are equal.
+func deriveTeleportEqual_8(this, that []*types.DelegationChainLink) bool {
+	if this == nil || that == nil {
+		return this == nil && that == nil
+	}
+	if len(this) != len(that) {
+		return false
+	}
+	for i := 0; i < len(this); i++ {
+		if !(deriveTeleportEqual_9(this[i], that[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+// deriveDeepCopy_6 recursively copies the contents of src into dst.
+func deriveDeepCopy_6(dst, src map[string]string) {
 	for src_key, src_value := range src {
 		dst[src_key] = src_value
 	}
 }
 
-// deriveDeepCopy_6 recursively copies the contents of src into dst.
-func deriveDeepCopy_6(dst, src *time.Time) {
+// deriveDeepCopy_7 recursively copies the contents of src into dst.
+func deriveDeepCopy_7(dst, src *time.Time) {
 	*dst = *src
+}
+
+// deriveDeepCopy_8 recursively copies the contents of src into dst.
+func deriveDeepCopy_8(dst, src []*types.DelegationChainLink) {
+	for src_i, src_value := range src {
+		if src_value == nil {
+			dst[src_i] = nil
+		} else {
+			dst[src_i] = new(types.DelegationChainLink)
+			deriveDeepCopy_9(dst[src_i], src_value)
+		}
+	}
+}
+
+// deriveTeleportEqual_9 returns whether this and that are equal.
+func deriveTeleportEqual_9(this, that *types.DelegationChainLink) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual_10(this.User, that.User) &&
+			deriveTeleportEqual_11(this.Bot, that.Bot)
+}
+
+// deriveDeepCopy_9 recursively copies the contents of src into dst.
+func deriveDeepCopy_9(dst, src *types.DelegationChainLink) {
+	if src.User == nil {
+		dst.User = nil
+	} else {
+		dst.User = new(types.UserDelegator)
+		deriveDeepCopy_10(dst.User, src.User)
+	}
+	if src.Bot == nil {
+		dst.Bot = nil
+	} else {
+		dst.Bot = new(types.BotDelegator)
+		deriveDeepCopy_11(dst.Bot, src.Bot)
+	}
+	dst.XXX_NoUnkeyedLiteral = src.XXX_NoUnkeyedLiteral
+	if src.XXX_unrecognized == nil {
+		dst.XXX_unrecognized = nil
+	} else {
+		if dst.XXX_unrecognized != nil {
+			if len(src.XXX_unrecognized) > len(dst.XXX_unrecognized) {
+				if cap(dst.XXX_unrecognized) >= len(src.XXX_unrecognized) {
+					dst.XXX_unrecognized = (dst.XXX_unrecognized)[:len(src.XXX_unrecognized)]
+				} else {
+					dst.XXX_unrecognized = make([]byte, len(src.XXX_unrecognized))
+				}
+			} else if len(src.XXX_unrecognized) < len(dst.XXX_unrecognized) {
+				dst.XXX_unrecognized = (dst.XXX_unrecognized)[:len(src.XXX_unrecognized)]
+			}
+		} else {
+			dst.XXX_unrecognized = make([]byte, len(src.XXX_unrecognized))
+		}
+		copy(dst.XXX_unrecognized, src.XXX_unrecognized)
+	}
+	dst.XXX_sizecache = src.XXX_sizecache
+}
+
+// deriveTeleportEqual_10 returns whether this and that are equal.
+func deriveTeleportEqual_10(this, that *types.UserDelegator) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Name == that.Name
+}
+
+// deriveTeleportEqual_11 returns whether this and that are equal.
+func deriveTeleportEqual_11(this, that *types.BotDelegator) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Name == that.Name &&
+			this.Scope == that.Scope &&
+			deriveTeleportEqual_12(this.Beam, that.Beam)
+}
+
+// deriveDeepCopy_10 recursively copies the contents of src into dst.
+func deriveDeepCopy_10(dst, src *types.UserDelegator) {
+	dst.Name = src.Name
+	dst.XXX_NoUnkeyedLiteral = src.XXX_NoUnkeyedLiteral
+	if src.XXX_unrecognized == nil {
+		dst.XXX_unrecognized = nil
+	} else {
+		if dst.XXX_unrecognized != nil {
+			if len(src.XXX_unrecognized) > len(dst.XXX_unrecognized) {
+				if cap(dst.XXX_unrecognized) >= len(src.XXX_unrecognized) {
+					dst.XXX_unrecognized = (dst.XXX_unrecognized)[:len(src.XXX_unrecognized)]
+				} else {
+					dst.XXX_unrecognized = make([]byte, len(src.XXX_unrecognized))
+				}
+			} else if len(src.XXX_unrecognized) < len(dst.XXX_unrecognized) {
+				dst.XXX_unrecognized = (dst.XXX_unrecognized)[:len(src.XXX_unrecognized)]
+			}
+		} else {
+			dst.XXX_unrecognized = make([]byte, len(src.XXX_unrecognized))
+		}
+		copy(dst.XXX_unrecognized, src.XXX_unrecognized)
+	}
+	dst.XXX_sizecache = src.XXX_sizecache
+}
+
+// deriveDeepCopy_11 recursively copies the contents of src into dst.
+func deriveDeepCopy_11(dst, src *types.BotDelegator) {
+	dst.Name = src.Name
+	dst.Scope = src.Scope
+	if src.Beam == nil {
+		dst.Beam = nil
+	} else {
+		dst.Beam = new(types.BeamInfo)
+		deriveDeepCopy_12(dst.Beam, src.Beam)
+	}
+	dst.XXX_NoUnkeyedLiteral = src.XXX_NoUnkeyedLiteral
+	if src.XXX_unrecognized == nil {
+		dst.XXX_unrecognized = nil
+	} else {
+		if dst.XXX_unrecognized != nil {
+			if len(src.XXX_unrecognized) > len(dst.XXX_unrecognized) {
+				if cap(dst.XXX_unrecognized) >= len(src.XXX_unrecognized) {
+					dst.XXX_unrecognized = (dst.XXX_unrecognized)[:len(src.XXX_unrecognized)]
+				} else {
+					dst.XXX_unrecognized = make([]byte, len(src.XXX_unrecognized))
+				}
+			} else if len(src.XXX_unrecognized) < len(dst.XXX_unrecognized) {
+				dst.XXX_unrecognized = (dst.XXX_unrecognized)[:len(src.XXX_unrecognized)]
+			}
+		} else {
+			dst.XXX_unrecognized = make([]byte, len(src.XXX_unrecognized))
+		}
+		copy(dst.XXX_unrecognized, src.XXX_unrecognized)
+	}
+	dst.XXX_sizecache = src.XXX_sizecache
+}
+
+// deriveTeleportEqual_12 returns whether this and that are equal.
+func deriveTeleportEqual_12(this, that *types.BeamInfo) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Id == that.Id &&
+			this.Alias == that.Alias
+}
+
+// deriveDeepCopy_12 recursively copies the contents of src into dst.
+func deriveDeepCopy_12(dst, src *types.BeamInfo) {
+	dst.Id = src.Id
+	dst.Alias = src.Alias
+	dst.XXX_NoUnkeyedLiteral = src.XXX_NoUnkeyedLiteral
+	if src.XXX_unrecognized == nil {
+		dst.XXX_unrecognized = nil
+	} else {
+		if dst.XXX_unrecognized != nil {
+			if len(src.XXX_unrecognized) > len(dst.XXX_unrecognized) {
+				if cap(dst.XXX_unrecognized) >= len(src.XXX_unrecognized) {
+					dst.XXX_unrecognized = (dst.XXX_unrecognized)[:len(src.XXX_unrecognized)]
+				} else {
+					dst.XXX_unrecognized = make([]byte, len(src.XXX_unrecognized))
+				}
+			} else if len(src.XXX_unrecognized) < len(dst.XXX_unrecognized) {
+				dst.XXX_unrecognized = (dst.XXX_unrecognized)[:len(src.XXX_unrecognized)]
+			}
+		} else {
+			dst.XXX_unrecognized = make([]byte, len(src.XXX_unrecognized))
+		}
+		copy(dst.XXX_unrecognized, src.XXX_unrecognized)
+	}
+	dst.XXX_sizecache = src.XXX_sizecache
 }

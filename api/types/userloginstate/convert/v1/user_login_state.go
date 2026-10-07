@@ -42,6 +42,7 @@ func FromProto(msg *userloginstatev1.UserLoginState) (*userloginstate.UserLoginS
 		UserType:         types.UserType(msg.GetSpec().GetUserType()),
 		GitHubIdentity:   externalIdentityFromProto(msg.GetSpec().GetGitHubIdentity()),
 		SAMLIdentities:   externalIdentitiesFromProto(msg.GetSpec().GetSamlIdentities()),
+		Delegation:       types.DelegationToLegacy(msg.GetSpec().GetDelegation()),
 	})
 
 	return uls, trace.Wrap(err)
@@ -61,6 +62,7 @@ func ToProto(uls *userloginstate.UserLoginState) *userloginstatev1.UserLoginStat
 			UserType:         string(uls.Spec.UserType),
 			GitHubIdentity:   externalIdentityToProto(uls.Spec.GitHubIdentity),
 			SamlIdentities:   externalIdentitiesToProto(uls.Spec.SAMLIdentities),
+			Delegation:       types.DelegationFromLegacy(uls.Spec.Delegation),
 		},
 	}
 }

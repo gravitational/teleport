@@ -23,6 +23,7 @@
 package userloginstatev1
 
 import (
+	v12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -146,6 +147,7 @@ type Spec struct {
 	xxx_hidden_SamlIdentities   *[]*ExternalIdentity   `protobuf:"bytes,7,rep,name=saml_identities,json=samlIdentities,proto3"`
 	xxx_hidden_AccessListRoles  []string               `protobuf:"bytes,8,rep,name=access_list_roles,json=accessListRoles,proto3"`
 	xxx_hidden_AccessListTraits *[]*v11.Trait          `protobuf:"bytes,9,rep,name=access_list_traits,json=accessListTraits,proto3"`
+	xxx_hidden_Delegation       *v12.Delegation        `protobuf:"bytes,10,opt,name=delegation,proto3"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -246,6 +248,13 @@ func (x *Spec) GetAccessListTraits() []*v11.Trait {
 	return nil
 }
 
+func (x *Spec) GetDelegation() *v12.Delegation {
+	if x != nil {
+		return x.xxx_hidden_Delegation
+	}
+	return nil
+}
+
 func (x *Spec) SetRoles(v []string) {
 	x.xxx_hidden_Roles = v
 }
@@ -282,6 +291,10 @@ func (x *Spec) SetAccessListTraits(v []*v11.Trait) {
 	x.xxx_hidden_AccessListTraits = &v
 }
 
+func (x *Spec) SetDelegation(v *v12.Delegation) {
+	x.xxx_hidden_Delegation = v
+}
+
 func (x *Spec) HasGitHubIdentity() bool {
 	if x == nil {
 		return false
@@ -289,8 +302,19 @@ func (x *Spec) HasGitHubIdentity() bool {
 	return x.xxx_hidden_GitHubIdentity != nil
 }
 
+func (x *Spec) HasDelegation() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Delegation != nil
+}
+
 func (x *Spec) ClearGitHubIdentity() {
 	x.xxx_hidden_GitHubIdentity = nil
+}
+
+func (x *Spec) ClearDelegation() {
+	x.xxx_hidden_Delegation = nil
 }
 
 type Spec_builder struct {
@@ -342,6 +366,11 @@ type Spec_builder struct {
 	// access_list_traits are traits granted to this user by the Access Lists membership/ownership.
 	// Basically, [access_list_traits] = [traits] - [original_traits].
 	AccessListTraits []*v11.Trait
+	// delegation represents the relationship between the user and the identity
+	// who delegated their access to the them. This field is not ephemeral, but
+	// is stored on the user login state to avoid needing to read the user record
+	// separately when generating certificates.
+	Delegation *v12.Delegation
 }
 
 func (b0 Spec_builder) Build() *Spec {
@@ -357,6 +386,7 @@ func (b0 Spec_builder) Build() *Spec {
 	x.xxx_hidden_SamlIdentities = &b.SamlIdentities
 	x.xxx_hidden_AccessListRoles = b.AccessListRoles
 	x.xxx_hidden_AccessListTraits = &b.AccessListTraits
+	x.xxx_hidden_Delegation = b.Delegation
 	return m0
 }
 
@@ -486,10 +516,10 @@ var File_teleport_userloginstate_v1_userloginstate_proto protoreflect.FileDescri
 
 const file_teleport_userloginstate_v1_userloginstate_proto_rawDesc = "" +
 	"\n" +
-	"/teleport/userloginstate/v1/userloginstate.proto\x12\x1ateleport.userloginstate.v1\x1a'teleport/header/v1/resourceheader.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x82\x01\n" +
+	"/teleport/userloginstate/v1/userloginstate.proto\x12\x1ateleport.userloginstate.v1\x1a'teleport/delegation/v1/delegation.proto\x1a'teleport/header/v1/resourceheader.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x82\x01\n" +
 	"\x0eUserLoginState\x12:\n" +
 	"\x06header\x18\x01 \x01(\v2\".teleport.header.v1.ResourceHeaderR\x06header\x124\n" +
-	"\x04spec\x18\x02 \x01(\v2 .teleport.userloginstate.v1.SpecR\x04spec\"\xf8\x03\n" +
+	"\x04spec\x18\x02 \x01(\v2 .teleport.userloginstate.v1.SpecR\x04spec\"\xbc\x04\n" +
 	"\x04Spec\x12\x14\n" +
 	"\x05roles\x18\x01 \x03(\tR\x05roles\x120\n" +
 	"\x06traits\x18\x02 \x03(\v2\x18.teleport.trait.v1.TraitR\x06traits\x12\x1b\n" +
@@ -499,7 +529,11 @@ const file_teleport_userloginstate_v1_userloginstate_proto_rawDesc = "" +
 	"\x10git_hub_identity\x18\x06 \x01(\v2,.teleport.userloginstate.v1.ExternalIdentityR\x0egitHubIdentity\x12U\n" +
 	"\x0fsaml_identities\x18\a \x03(\v2,.teleport.userloginstate.v1.ExternalIdentityR\x0esamlIdentities\x12*\n" +
 	"\x11access_list_roles\x18\b \x03(\tR\x0faccessListRoles\x12F\n" +
-	"\x12access_list_traits\x18\t \x03(\v2\x18.teleport.trait.v1.TraitR\x10accessListTraits\"\xd0\x01\n" +
+	"\x12access_list_traits\x18\t \x03(\v2\x18.teleport.trait.v1.TraitR\x10accessListTraits\x12B\n" +
+	"\n" +
+	"delegation\x18\n" +
+	" \x01(\v2\".teleport.delegation.v1.DelegationR\n" +
+	"delegation\"\xd0\x01\n" +
 	"\x10ExternalIdentity\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
@@ -514,6 +548,7 @@ var file_teleport_userloginstate_v1_userloginstate_proto_goTypes = []any{
 	(*ExternalIdentity)(nil),  // 2: teleport.userloginstate.v1.ExternalIdentity
 	(*v1.ResourceHeader)(nil), // 3: teleport.header.v1.ResourceHeader
 	(*v11.Trait)(nil),         // 4: teleport.trait.v1.Trait
+	(*v12.Delegation)(nil),    // 5: teleport.delegation.v1.Delegation
 }
 var file_teleport_userloginstate_v1_userloginstate_proto_depIdxs = []int32{
 	3, // 0: teleport.userloginstate.v1.UserLoginState.header:type_name -> teleport.header.v1.ResourceHeader
@@ -523,12 +558,13 @@ var file_teleport_userloginstate_v1_userloginstate_proto_depIdxs = []int32{
 	2, // 4: teleport.userloginstate.v1.Spec.git_hub_identity:type_name -> teleport.userloginstate.v1.ExternalIdentity
 	2, // 5: teleport.userloginstate.v1.Spec.saml_identities:type_name -> teleport.userloginstate.v1.ExternalIdentity
 	4, // 6: teleport.userloginstate.v1.Spec.access_list_traits:type_name -> teleport.trait.v1.Trait
-	4, // 7: teleport.userloginstate.v1.ExternalIdentity.granted_traits:type_name -> teleport.trait.v1.Trait
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	5, // 7: teleport.userloginstate.v1.Spec.delegation:type_name -> teleport.delegation.v1.Delegation
+	4, // 8: teleport.userloginstate.v1.ExternalIdentity.granted_traits:type_name -> teleport.trait.v1.Trait
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_userloginstate_v1_userloginstate_proto_init() }

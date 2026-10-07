@@ -195,6 +195,7 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 			UserType:       user.GetUserType(),
 			GitHubIdentity: githubIdentity,
 			SAMLIdentities: samlIdentities,
+			Delegation:     types.DelegationToLegacy(user.GetDelegation()),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
