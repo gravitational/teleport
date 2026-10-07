@@ -21,6 +21,7 @@ package gitserverv1
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -106,6 +107,9 @@ func (s *Service) CreateGitServer(ctx context.Context, req *pb.CreateGitServerRe
 	if _, err := s.authorize(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := s.checkIntegration(ctx, req.GetServer()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	server, err := s.cfg.Backend.CreateGitServer(ctx, req.GetServer())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -165,6 +169,9 @@ func (s *Service) UpdateGitServer(ctx context.Context, req *pb.UpdateGitServerRe
 	if _, err := s.authorize(ctx, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := s.checkIntegration(ctx, req.GetServer()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	server, err := s.cfg.Backend.UpdateGitServer(ctx, req.GetServer())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -174,6 +181,9 @@ func (s *Service) UpdateGitServer(ctx context.Context, req *pb.UpdateGitServerRe
 
 func (s *Service) UpsertGitServer(ctx context.Context, req *pb.UpsertGitServerRequest) (*types.ServerV2, error) {
 	if _, err := s.authorize(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.checkIntegration(ctx, req.GetServer()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	server, err := s.cfg.Backend.UpsertGitServer(ctx, req.GetServer())
@@ -210,4 +220,34 @@ func (s *Service) checkAccess(authCtx *authz.Context, server types.Server) error
 	// at the connection time.
 	state := services.AccessState{MFAVerified: true}
 	return trace.Wrap(authCtx.Checker.CheckAccess(server, state))
+}
+
+// checkIntegration is a best-effort alignment between the integration and Git server.
+func (s *Service) checkIntegration(ctx context.Context, server *types.ServerV2) error {
+	if server == nil {
+		return trace.BadParameter("missing git server")
+	}
+	switch {
+	case server.GetGitHub() != nil:
+		serverSpec := server.GetGitHub()
+		ig, err := s.cfg.Backend.GetIntegration(ctx, serverSpec.Integration)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		igSpec := ig.GetGitHubIntegrationSpec()
+		if igSpec == nil {
+			return trace.BadParameter("integration %q missing GitHub spec", ig.GetName())
+		}
+		if serverSpec.Organization != igSpec.Organization {
+			return trace.BadParameter("organization %q of git server does not match organization %q of integration %q",
+				serverSpec.Organization, igSpec.Organization, ig.GetName())
+		}
+		// Exact match (including order) is intentional to keep it simple, as
+		// the list is expected to be copied from the integration.
+		if !slices.Equal(serverSpec.AllowProtocols, igSpec.AllowProtocols) {
+			return trace.BadParameter("allow_protocols %v of git server does not match allow_protocols %v of integration %q",
+				serverSpec.AllowProtocols, igSpec.AllowProtocols, ig.GetName())
+		}
+	}
+	return nil
 }

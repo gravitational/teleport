@@ -686,7 +686,9 @@ func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (authcli
 func getGitHubServer(ctx context.Context, gitHubOrg string, cluster cluster) (types.Server, error) {
 	servers, err := cluster.GetGitServers(ctx, func(s readonly.Server) bool {
 		github := s.GetGitHub()
-		return github != nil && github.Organization == gitHubOrg
+		return github != nil &&
+			github.Organization == gitHubOrg &&
+			types.IsGitProtocolAllowed(github.AllowProtocols, types.GitProtocolSSH)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

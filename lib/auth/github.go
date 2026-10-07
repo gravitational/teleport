@@ -305,14 +305,6 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 		addOrg(mapping.Organization)
 	}
 
-	if client == nil {
-		var err error
-		client, err = defaults.HTTPClient()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	for org := range orgs {
 		usesSSO, err := orgCache.Get(ctx, org, func(ctx context.Context) (bool, error) {
 			return orgUsesExternalSSO(ctx, conn.GetEndpointURL(), org, client)
@@ -335,6 +327,14 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 // orgUsesExternalSSO returns true if the Github organization org
 // uses external SSO.
 func orgUsesExternalSSO(ctx context.Context, endpointURL, org string, client httpRequester) (bool, error) {
+	if client == nil {
+		var err error
+		client, err = defaults.HTTPClient()
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+	}
+
 	// A Github organization will have a "sso" page reachable if it
 	// supports external SSO. There doesn't seem to be any way to get this
 	// information from the Github REST API without being an owner of the
@@ -545,6 +545,9 @@ func (a *Server) githubConnectorFromIntegration(ctx context.Context, request typ
 	if request.Integration == "" {
 		// For backward compatibility where an old auth node created the request
 		// with ConnectorSpec instead of Integration.
+		// Such requests only come from older versions that supported the SSH
+		// protocol only, where Teleport Enterprise is required when the
+		// integration is created, so the license check is skipped here.
 		// TODO(greedy52) DELETE IN v20
 		if request.ConnectorSpec != nil {
 			return services.NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
@@ -554,6 +557,15 @@ func (a *Server) githubConnectorFromIntegration(ctx context.Context, request typ
 
 	ig, ref, err := credentials.GetIntegrationWithCredRef(ctx, request.Integration, a.Cache)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spec := ig.GetGitHubIntegrationSpec()
+	if spec == nil {
+		return nil, trace.BadParameter("integration %q is not a GitHub integration", request.Integration)
+	}
+	// This is checked when the integration is created or updated, but check
+	// again in case the organization enabled external SSO afterwards.
+	if err := a.checkGitHubIntegrationLicense(ctx, spec); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cred, err := credentials.GetByPurpose(ctx, ref, credentials.PurposeGitHubOAuth, a.Cache)
@@ -566,8 +578,8 @@ func (a *Server) githubConnectorFromIntegration(ctx context.Context, request typ
 	}
 
 	redirectURL := fmt.Sprintf("https://%s/v1/webapi/github/callback", a.getProxyPublicAddr(ctx))
-	if github := ig.GetGitHubIntegrationSpec(); github != nil && github.OAuthCallbackURL != "" {
-		redirectURL = github.OAuthCallbackURL
+	if spec.OAuthCallbackURL != "" {
+		redirectURL = spec.OAuthCallbackURL
 	}
 
 	connectorID := cmp.Or(request.ConnectorID, request.Integration)
@@ -581,7 +593,7 @@ func (a *Server) githubConnectorFromIntegration(ctx context.Context, request typ
 		// require team-to-roles mapping. Put some placeholders for now to make
 		// param-checks happy.
 		TeamsToRoles: []types.TeamRolesMapping{{
-			Organization: ig.GetGitHubIntegrationSpec().Organization,
+			Organization: spec.Organization,
 			Team:         connectorID,
 			Roles:        []string{connectorID},
 		}},
@@ -1428,4 +1440,35 @@ See https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/g
 	if err != nil {
 		a.logger.WarnContext(ctx, "Failed to upsert GitHub callback migration notification", "error", err)
 	}
+}
+
+func checkGitHubIntegrationLicense(ctx context.Context, spec *types.GitHubIntegrationSpecV1, buildType string, orgCache *utils.FnCache, client httpRequester) error {
+	if buildType == modules.BuildEnterprise {
+		return nil
+	}
+	if spec == nil {
+		return trace.BadParameter("missing GitHub integration spec")
+	}
+	if types.IsGitProtocolAllowed(spec.AllowProtocols, types.GitProtocolSSH) {
+		return trace.AccessDenied("GitHub integration with SSH protocol requires a Teleport Enterprise license")
+	}
+
+	usesSSO, err := orgCache.Get(ctx, spec.Organization, func(ctx context.Context) (bool, error) {
+		return orgUsesExternalSSO(ctx, types.GithubURL, spec.Organization, client)
+	})
+	switch {
+	case err != nil:
+		return trace.Wrap(err)
+	case usesSSO:
+		return trace.AccessDenied(
+			"GitHub organization %s uses external SSO, please purchase a Teleport Enterprise license if you want to use this organization",
+			spec.Organization,
+		)
+	default:
+		return nil
+	}
+}
+
+func (a *Server) checkGitHubIntegrationLicense(ctx context.Context, spec *types.GitHubIntegrationSpecV1) error {
+	return checkGitHubIntegrationLicense(ctx, spec, a.modules.BuildType(), a.githubOrgSSOCache, nil)
 }

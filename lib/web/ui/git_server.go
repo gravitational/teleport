@@ -49,8 +49,9 @@ type GitServer struct {
 
 // GitHubServerMetadata contains metadata for GitHub proxy severs.
 type GitHubServerMetadata struct {
-	Integration  string `json:"integration"`
-	Organization string `json:"organization"`
+	Integration    string   `json:"integration"`
+	Organization   string   `json:"organization"`
+	AllowProtocols []string `json:"allowProtocols,omitempty"`
 }
 
 // MakeGitServer creates a git server object for the web ui
@@ -71,8 +72,9 @@ func MakeGitServer(clusterName string, server types.Server, requiresRequest bool
 	if server.GetSubKind() == types.SubKindGitHub {
 		if github := server.GetGitHub(); github != nil {
 			uiServer.GitHub = &GitHubServerMetadata{
-				Integration:  github.Integration,
-				Organization: github.Organization,
+				Integration:    github.Integration,
+				Organization:   github.Organization,
+				AllowProtocols: github.AllowProtocols,
 			}
 		}
 	}

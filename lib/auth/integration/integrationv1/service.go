@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awscommon"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -110,12 +109,14 @@ type ServiceConfig struct {
 	Logger          *slog.Logger
 	Clock           clockwork.Clock
 	Emitter         apievents.Emitter
-	Modules         modules.Modules
 	// NotifyGitHubCallbackMigration is called after integration changes to
 	// update the GitHub OAuth callback migration notification.
 	NotifyGitHubCallbackMigration func()
 	// ProxyPublicAddrGetter gets the public proxy address for validation.
 	ProxyPublicAddrGetter func(context.Context) string
+	// CheckGitHubIntegrationLicense returns an error if the GitHub integration
+	// requires a Teleport Enterprise license.
+	CheckGitHubIntegrationLicense func(ctx context.Context, spec *types.GitHubIntegrationSpecV1) error
 
 	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
 	// This is used to allow mocking in tests, because the real implementation does
@@ -147,9 +148,6 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("emitter is required")
 	}
 
-	if s.Modules == nil {
-		return trace.BadParameter("modules is required")
-	}
 	if s.Logger == nil {
 		s.Logger = slog.With(teleport.ComponentKey, "integrations.service")
 	}
@@ -163,6 +161,9 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if s.ProxyPublicAddrGetter == nil {
 		return trace.BadParameter("ProxyPublicAddrGetter is required")
+	}
+	if s.CheckGitHubIntegrationLicense == nil {
+		return trace.BadParameter("CheckGitHubIntegrationLicense is required")
 	}
 
 	return nil
@@ -178,11 +179,11 @@ type Service struct {
 	logger          *slog.Logger
 	clock           clockwork.Clock
 	emitter         apievents.Emitter
-	modules         modules.Modules
 
 	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 	notifyGitHubCallbackMigration   func()
 	proxyPublicAddrGetter           func(context.Context) string
+	checkGitHubIntegrationLicense   func(ctx context.Context, spec *types.GitHubIntegrationSpecV1) error
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -199,10 +200,10 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		backend:                         cfg.Backend,
 		clock:                           cfg.Clock,
 		emitter:                         cfg.Emitter,
-		modules:                         cfg.Modules,
 		awsRolesAnywhereCreateSessionFn: cfg.awsRolesAnywhereCreateSessionFn,
 		notifyGitHubCallbackMigration:   cfg.NotifyGitHubCallbackMigration,
 		proxyPublicAddrGetter:           cfg.ProxyPublicAddrGetter,
+		checkGitHubIntegrationLicense:   cfg.CheckGitHubIntegrationLicense,
 	}, nil
 }
 
@@ -281,14 +282,17 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 
 	switch req.GetIntegration().GetSubKind() {
 	case types.IntegrationSubKindGitHub:
-		if s.modules.BuildType() != modules.BuildEnterprise {
-			return nil, trace.AccessDenied("GitHub integration requires a Teleport Enterprise license")
-		}
 		spec := req.GetIntegration().GetGitHubIntegrationSpec()
 		if spec == nil {
 			return nil, trace.BadParameter("missing GitHub integration spec")
 		}
+		if err := s.checkGitHubIntegrationLicense(ctx, spec); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if err := s.validateGitHubOAuthCallbackURL(ctx, spec.OAuthCallbackURL); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := validateGitHubAllowProtocols(spec.AllowProtocols); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if err := s.createGitHubCredentials(ctx, req.GetIntegration()); err != nil {
@@ -359,12 +363,18 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		if spec == nil {
 			return nil, trace.BadParameter("missing GitHub integration spec")
 		}
+		if err := s.checkGitHubIntegrationLicense(ctx, spec); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		// Allow empty oauth_callback_url for backwards compatibility or
 		// temporary rollback.
 		if spec.OAuthCallbackURL != "" {
 			if err := s.validateGitHubOAuthCallbackURL(ctx, spec.OAuthCallbackURL); err != nil {
 				return nil, trace.Wrap(err)
 			}
+		}
+		if err := validateGitHubAllowProtocols(spec.AllowProtocols); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -426,6 +436,16 @@ func (s *Service) validateGitHubOAuthCallbackURL(ctx context.Context, callbackUR
 
 	if !slices.Contains(allowed, callbackURL) {
 		return trace.BadParameter("oauth_callback_url %q does not match expected %q", callbackURL, allowed[len(allowed)-1])
+	}
+	return nil
+}
+
+func validateGitHubAllowProtocols(protocols []string) error {
+	for _, protocol := range protocols {
+		if protocol != types.GitProtocolSSH && protocol != types.GitProtocolHTTPS {
+			return trace.BadParameter("unsupported protocol %q in allow_protocols, must be %q or %q",
+				protocol, types.GitProtocolSSH, types.GitProtocolHTTPS)
+		}
 	}
 	return nil
 }

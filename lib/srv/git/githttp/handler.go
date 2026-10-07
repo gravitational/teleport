@@ -26,7 +26,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"slices"
 	"sync"
 	"time"
 
@@ -355,7 +354,7 @@ func (h *Handler) authorize(ctx context.Context, gitServerName string) (*authz.C
 
 func gitServerSupportsHTTPS(server types.Server) bool {
 	if gh := server.GetGitHub(); gh != nil {
-		return slices.Contains(gh.AllowProtocols, types.GitProtocolHTTPS)
+		return types.IsGitProtocolAllowed(gh.AllowProtocols, types.GitProtocolHTTPS)
 	}
 	return false
 }

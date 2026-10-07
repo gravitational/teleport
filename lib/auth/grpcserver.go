@@ -6709,10 +6709,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		KeyStoreManager:               cfg.AuthServer.GetKeyStore(),
 		Clock:                         cfg.AuthServer.clock,
 		Emitter:                       cfg.Emitter,
-		Modules:                       cfg.AuthServer.modules,
 		Logger:                        cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.service"),
 		NotifyGitHubCallbackMigration: cfg.AuthServer.notifyGitHubCallbackMigration,
 		ProxyPublicAddrGetter:         cfg.AuthServer.getProxyPublicAddr,
+		CheckGitHubIntegrationLicense: cfg.AuthServer.checkGitHubIntegrationLicense,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

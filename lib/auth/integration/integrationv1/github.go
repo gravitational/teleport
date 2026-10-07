@@ -92,6 +92,9 @@ func (s *Service) getGitHubSigner(ctx context.Context, integration string) (ssh.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if spec := ig.GetGitHubIntegrationSpec(); spec == nil || !types.IsGitProtocolAllowed(spec.AllowProtocols, types.GitProtocolSSH) {
+		return nil, trace.AccessDenied("integration %q does not allow SSH protocol", integration)
+	}
 	caKeySet, err := credentials.GetGitHubCertAuthorities(ctx, ig, s.cache)
 	if err != nil {
 		return nil, trace.Wrap(err)
