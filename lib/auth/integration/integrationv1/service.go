@@ -117,6 +117,8 @@ type ServiceConfig struct {
 	// CheckGitHubIntegrationLicense returns an error if the GitHub integration
 	// requires a Teleport Enterprise license.
 	CheckGitHubIntegrationLicense func(ctx context.Context, spec *types.GitHubIntegrationSpecV1) error
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
+	FIPS bool
 
 	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
 	// This is used to allow mocking in tests, because the real implementation does
@@ -184,6 +186,7 @@ type Service struct {
 	notifyGitHubCallbackMigration   func()
 	proxyPublicAddrGetter           func(context.Context) string
 	checkGitHubIntegrationLicense   func(ctx context.Context, spec *types.GitHubIntegrationSpecV1) error
+	fips                            bool
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -204,6 +207,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		notifyGitHubCallbackMigration:   cfg.NotifyGitHubCallbackMigration,
 		proxyPublicAddrGetter:           cfg.ProxyPublicAddrGetter,
 		checkGitHubIntegrationLicense:   cfg.CheckGitHubIntegrationLicense,
+		fips:                            cfg.FIPS,
 	}, nil
 }
 
@@ -292,7 +296,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if err := s.validateGitHubOAuthCallbackURL(ctx, spec.OAuthCallbackURL); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := validateGitHubAllowProtocols(spec.AllowProtocols); err != nil {
+		if err := validateGitHubAllowProtocols(spec.AllowProtocols, s.fips); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if err := s.createGitHubCredentials(ctx, req.GetIntegration()); err != nil {
@@ -373,7 +377,7 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 				return nil, trace.Wrap(err)
 			}
 		}
-		if err := validateGitHubAllowProtocols(spec.AllowProtocols); err != nil {
+		if err := validateGitHubAllowProtocols(spec.AllowProtocols, s.fips); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -440,7 +444,11 @@ func (s *Service) validateGitHubOAuthCallbackURL(ctx context.Context, callbackUR
 	return nil
 }
 
-func validateGitHubAllowProtocols(protocols []string) error {
+func validateGitHubAllowProtocols(protocols []string, fips bool) error {
+	// Credentials for HTTPS are encrypted with age, which is not FIPS approved.
+	if fips && types.IsGitProtocolAllowed(protocols, types.GitProtocolHTTPS) {
+		return trace.BadParameter("GitHub integration with HTTPS protocol is not supported in FIPS mode")
+	}
 	for _, protocol := range protocols {
 		if protocol != types.GitProtocolSSH && protocol != types.GitProtocolHTTPS {
 			return trace.BadParameter("unsupported protocol %q in allow_protocols, must be %q or %q",

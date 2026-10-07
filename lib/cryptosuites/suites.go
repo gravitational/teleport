@@ -138,6 +138,10 @@ const (
 	// AppClientCATLS represents the TLS key used for the app_client CA.
 	AppClientCATLS
 
+	// UserCredentialKeyWrapping is a key used for wrapping user external
+	// credential decryption keys.
+	UserCredentialKeyWrapping
+
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
@@ -217,15 +221,17 @@ var (
 		// never restricted algorithm support.
 		ProxyToDatabaseAgent: RSA2048,
 		ProxyKubeClient:      RSA2048,
-		// EC2InstanceConnect has always used Ed25519 by default.
-		EC2InstanceConnect:   Ed25519,
+		EC2InstanceConnect:   Ed25519, // EC2InstanceConnect has always used Ed25519 by default.
 		GitClient:            Ed25519,
 		AWSRACATLS:           ECDSAP256,
 		BoundKeypairJoining:  Ed25519,
 		BoundKeypairCAJWT:    ECDSAP256,
-		RecordingKeyWrapping: RSA4096,
 		WindowsCARDP:         RSA2048, // same as UserCATLS
 		AppClientCATLS:       ECDSAP256,
+
+		// Encryption keys.
+		RecordingKeyWrapping:      RSA4096,
+		UserCredentialKeyWrapping: RSA4096,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -260,9 +266,12 @@ var (
 		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     Ed25519,
 		BoundKeypairCAJWT:       Ed25519,
-		RecordingKeyWrapping:    RSA4096,
 		WindowsCARDP:            ECDSAP256, // same as UserCATLS
 		AppClientCATLS:          ECDSAP256,
+
+		// Encryption keys.
+		RecordingKeyWrapping:      RSA4096,
+		UserCredentialKeyWrapping: RSA4096,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -298,9 +307,12 @@ var (
 		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     ECDSAP256,
 		BoundKeypairCAJWT:       ECDSAP256,
-		RecordingKeyWrapping:    RSA4096,
 		WindowsCARDP:            ECDSAP256, // same as UserCATLS
 		AppClientCATLS:          ECDSAP256,
+
+		// Encryption keys.
+		RecordingKeyWrapping:      RSA4096,
+		UserCredentialKeyWrapping: RSA4096,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -338,9 +350,12 @@ var (
 		AWSRACATLS:              ECDSAP256,
 		BoundKeypairJoining:     Ed25519,
 		BoundKeypairCAJWT:       ECDSAP256,
-		RecordingKeyWrapping:    RSA4096,
 		WindowsCARDP:            ECDSAP256, // same as UserCATLS
 		AppClientCATLS:          ECDSAP256,
+
+		// Encryption keys.
+		RecordingKeyWrapping:      RSA4096,
+		UserCredentialKeyWrapping: RSA4096,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{

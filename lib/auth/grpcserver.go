@@ -6713,6 +6713,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		NotifyGitHubCallbackMigration: cfg.AuthServer.notifyGitHubCallbackMigration,
 		ProxyPublicAddrGetter:         cfg.AuthServer.getProxyPublicAddr,
 		CheckGitHubIntegrationLicense: cfg.AuthServer.checkGitHubIntegrationLicense,
+		FIPS:                          cfg.AuthServer.fips,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
