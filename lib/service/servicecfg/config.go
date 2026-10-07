@@ -28,6 +28,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -1072,6 +1074,8 @@ func validateAuthOrProxyServices(cfg *Config) error {
 }
 
 func verifyEnabledService(cfg *Config) error {
+	windowsEnabled := cfg.WindowsDesktop.Enabled
+
 	enabled := []bool{
 		cfg.Auth.Enabled,
 		cfg.SSH.Enabled,
@@ -1080,7 +1084,6 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Kube.Enabled,
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
-		cfg.WindowsDesktop.Enabled,
 		cfg.LinuxDesktop.Enabled,
 		cfg.Discovery.Enabled,
 		cfg.Okta.Enabled,
@@ -1088,10 +1091,18 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.OpenSSH.Enabled,
 	}
 
-	for _, item := range enabled {
-		if item {
-			return nil
+	otherEnabled := slices.Contains(enabled, true)
+
+	if runtime.GOOS == "windows" {
+		if !windowsEnabled {
+			return trace.BadParameter("config: enable windows_desktop_service")
+		} else if otherEnabled {
+			return trace.BadParameter("config: on Windows only windows_desktop_service can be enabled")
 		}
+	}
+
+	if windowsEnabled || otherEnabled {
+		return nil
 	}
 
 	return trace.BadParameter(
