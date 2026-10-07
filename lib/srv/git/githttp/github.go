@@ -19,6 +19,7 @@
 package githttp
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -37,6 +38,7 @@ import (
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	gitcommon "github.com/gravitational/teleport/lib/srv/git/common"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func (h *Handler) handleGitHub(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, gitServer types.Server) error {
@@ -52,6 +54,12 @@ func (h *Handler) handleGitHub(ctx context.Context, logger *slog.Logger, w http.
 
 // handleGitHubGit handles Git smart HTTP requests to github.com.
 func (h *Handler) handleGitHubGit(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, gitServer types.Server) (err error) {
+	session, err := h.getOrCreateSessionChunk(identity, gitServer)
+	if err != nil {
+		return trace.Wrap(err, "failed to initialize session recording")
+	}
+	session.recordEvent(makeHTTPRequestEvent(r))
+
 	// Emit git.command to be consistent with git SSH proxy. Discovery requests
 	// or unknown requests are skipped for git.command. Detailed actions from
 	// push (git-receive-pack) requests are captured from request body.
@@ -90,10 +98,31 @@ func (h *Handler) handleGitHubGit(ctx context.Context, logger *slog.Logger, w ht
 
 // handleGitHubAPI handles REST and GraphQL requests to api.github.com.
 func (h *Handler) handleGitHubAPI(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, gitServer types.Server) error {
+	session, err := h.getOrCreateSessionChunk(identity, gitServer)
+	if err != nil {
+		return trace.Wrap(err, "failed to initialize session recording")
+	}
+	event := makeHTTPRequestEvent(r)
+
+	// Capture the GraphQL query.
+	//
+	// https://docs.github.com/en/graphql/guides/forming-calls-with-graphql
+	if r.Method == http.MethodPost && r.URL.Path == "/graphql" && r.Body != nil {
+		body, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		if event.GraphqlQuery, err = graphQLQueryForAudit(body); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	session.recordEvent(event)
+
 	// Note that there is no easy and reliable way to ensure organization by
 	// checking the request. Therefore, we solely rely on the token being scoped
 	// to the organization's GitHub App installation.
-	_, err := h.forwardToGitHub(ctx, logger, w, r, func(out *http.Request, accessToken string) {
+	_, err = h.forwardToGitHub(ctx, logger, w, r, func(out *http.Request, accessToken string) {
 		// REST API uses Bearer token:
 		// https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api
 		out.Header.Set("Authorization", "Bearer "+accessToken)
@@ -131,7 +160,6 @@ func (h *Handler) forwardToGitHub(ctx context.Context, logger *slog.Logger, w ht
 		"path", r.URL.Path,
 	)
 
-	// TODO(greedy52) add session recording.
 	var statusCode int
 	var upstreamErr error
 	fwd, err := reverseproxy.New(

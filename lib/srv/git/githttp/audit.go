@@ -24,6 +24,8 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/gravitational/trace"
+	jsoniter "github.com/json-iterator/go"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -58,6 +60,24 @@ func makeSessionMetadata(identity *tlsca.Identity) apievents.SessionMetadata {
 		SessionID:        identity.RouteToGit.SessionID,
 		WithMFA:          identity.MFAVerified,
 		PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
+	}
+}
+
+func makeHTTPRequestEvent(r *http.Request) *apievents.GitHTTPRequest {
+	return &apievents.GitHTTPRequest{
+		Metadata: apievents.Metadata{
+			Type: events.GitHTTPRequestEvent,
+			Code: events.GitHTTPRequestCode,
+		},
+		Status: apievents.Status{
+			// Currently success here indicates the request was accepted.
+			//
+			// TODO(greedy52) set the status from the upstream response once the
+			// response is recorded.
+			Success: true,
+		},
+		Method: r.Method,
+		Url:    r.URL.String(),
 	}
 }
 
@@ -110,6 +130,37 @@ func (h *Handler) completeGitCommandEvent(event *apievents.GitCommand, cmdRecord
 	}
 	event.Actions = actions
 }
+
+// graphQLQueryForAudit returns the query of a GitHub GraphQL request body for
+// audit.
+//
+// The query is decoded the same way GitHub does, as verified against
+// api.github.com:
+//   - Field names are case-sensitive, e.g. "QUERY" is ignored.
+//   - For duplicate "query" fields, the last one is used.
+//
+// TODO(greedy52) migrate to encoding/json/v2 once it's out of experimentation.
+func graphQLQueryForAudit(body []byte) (string, error) {
+	var payload struct {
+		Query string `json:"query"`
+	}
+	if err := caseSensitiveJSON.Unmarshal(body, &payload); err != nil {
+		return "", trace.BadParameter("invalid GraphQL request: %v", err)
+	}
+	if payload.Query == "" {
+		return "", trace.BadParameter("invalid GraphQL request: missing query")
+	}
+	return payload.Query, nil
+}
+
+// caseSensitiveJSON is based on jsoniter.ConfigCompatibleWithStandardLibrary
+// with CaseSensitive enabled.
+var caseSensitiveJSON = jsoniter.Config{
+	EscapeHTML:             true,
+	SortMapKeys:            true,
+	ValidateJsonRawMessage: true,
+	CaseSensitive:          true,
+}.Froze()
 
 // smartHTTPRequestDetails holds parsed details of a Git smart HTTP request.
 //

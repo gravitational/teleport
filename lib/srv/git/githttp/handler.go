@@ -27,6 +27,8 @@ import (
 	"net"
 	"net/http"
 	"slices"
+	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -34,12 +36,15 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 // ConnMonitor monitors authorized connections and terminates them when
@@ -53,6 +58,12 @@ type GitServerGetter interface {
 	GetGitServer(ctx context.Context, name string) (types.Server, error)
 }
 
+// AccessPoint is the cache interface needed by the git HTTP handler.
+type AccessPoint interface {
+	services.AuthPreferenceGetter
+	GetSessionRecordingConfig(context.Context) (types.SessionRecordingConfig, error)
+}
+
 // HandlerConfig is the configuration for the git HTTP handler.
 type HandlerConfig struct {
 	// Clock is used to control time.
@@ -62,7 +73,7 @@ type HandlerConfig struct {
 	// Authorizer authorizes requests.
 	Authorizer authz.Authorizer
 	// AccessPoint is the auth cache.
-	AccessPoint services.AuthPreferenceGetter
+	AccessPoint AccessPoint
 	// ConnectionMonitor monitors connections and terminates any if
 	// session controls prevent them.
 	ConnectionMonitor ConnMonitor
@@ -77,6 +88,10 @@ type HandlerConfig struct {
 	// Transport is the HTTP transport for upstream requests. If nil,
 	// http.DefaultTransport is used.
 	Transport http.RoundTripper
+	// AuthClient is used for streaming session recordings to the auth server.
+	AuthClient events.Streamer
+	// DataDir is the data directory for temporary session recording storage.
+	DataDir string
 	// Logger is the logger.
 	Logger *slog.Logger
 }
@@ -99,6 +114,12 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	}
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing ClusterName")
+	}
+	if c.AuthClient == nil {
+		return trace.BadParameter("missing AuthClient")
+	}
+	if c.DataDir == "" {
+		return trace.BadParameter("missing DataDir")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -125,7 +146,19 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 type Handler struct {
 	cfg            HandlerConfig
 	authMiddleware *authz.Middleware
+	sessionChunks  *utils.FnCache
 	closeContext   context.Context
+	closeCancel    context.CancelFunc
+	// closeWG tracks background work that Close waits for, like closing
+	// expired session chunks.
+	closeWG sync.WaitGroup
+	// sessionChunkLimiter limits the rate of new session chunks per user to
+	// limit memory usage.
+	sessionChunkLimiter *limiter.RateLimiter
+
+	// newSessionRecorderFn creates a session recorder. Defaults to
+	// newSessionRecorder.
+	newSessionRecorderFn func(ctx context.Context, chunkID string) (events.SessionPreparerRecorder, error)
 }
 
 // NewHandler creates a new Git HTTP handler.
@@ -134,14 +167,74 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Handler{
+	// Each live session chunk holds a session recorder with several hundred KiB
+	// of buffers for several minutes. With 20 new chunks per minute and a burst
+	// of 40, a single user holds at most ~160 live chunks.
+	sessionChunkLimiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{{
+			Period:  defaults.LimiterPeriod,
+			Average: defaults.LimiterAverage,
+			Burst:   defaults.LimiterBurst,
+		}},
+		Clock: cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	closeContext, closeCancel := context.WithCancel(ctx)
+	h := &Handler{
 		cfg: cfg,
 		authMiddleware: &authz.Middleware{
 			ClusterName:   cfg.ClusterName,
 			AcceptedUsage: []string{teleport.UsageGitOnly},
 		},
-		closeContext: ctx,
-	}, nil
+		closeContext:        closeContext,
+		closeCancel:         closeCancel,
+		sessionChunkLimiter: sessionChunkLimiter,
+	}
+	h.newSessionRecorderFn = h.newSessionRecorder
+
+	sessionChunks, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   5 * time.Minute,
+		Clock: cfg.Clock,
+		OnExpiry: func(ctx context.Context, _ any, val any) {
+			if chunk, ok := val.(*sessionChunk); ok {
+				h.closeWG.Go(func() {
+					if err := chunk.close(); err != nil {
+						cfg.Logger.WarnContext(ctx, "Failed to close session recorder on expiry", "error", err)
+					}
+				})
+			}
+		},
+		Context:     closeContext,
+		ReloadOnErr: true,
+	})
+	if err != nil {
+		closeCancel()
+		return nil, trace.Wrap(err)
+	}
+	h.sessionChunks = sessionChunks
+
+	// FnCache only removes expired entries when accessed, so remove them
+	// periodically to close session chunks of idle sessions.
+	h.closeWG.Go(func() {
+		cleanup := interval.New(interval.Config{
+			Duration: time.Minute,
+			Jitter:   retryutils.SeventhJitter,
+			Clock:    cfg.Clock,
+		})
+		defer cleanup.Stop()
+		for {
+			select {
+			case <-cleanup.Next():
+				sessionChunks.RemoveExpired()
+			case <-closeContext.Done():
+				return
+			}
+		}
+	})
+	return h, nil
 }
 
 // ServeHTTP handles incoming Git HTTPS requests.
@@ -265,6 +358,14 @@ func gitServerSupportsHTTPS(server types.Server) bool {
 		return slices.Contains(gh.AllowProtocols, types.GitProtocolHTTPS)
 	}
 	return false
+}
+
+// Close flushes and closes all cached session chunks.
+func (h *Handler) Close() error {
+	h.closeCancel()
+	h.sessionChunks.Shutdown(context.WithoutCancel(h.closeContext))
+	h.closeWG.Wait()
+	return nil
 }
 
 // emitAuthFailureEvent emits an auth attempt failure event.

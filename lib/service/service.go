@@ -5943,6 +5943,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterName:       cn.GetClusterName(),
 			HostID:            conn.HostUUID(),
 			Transport:         cfg.Testing.GitHTTPTransport,
+			AuthClient:        conn.Client,
+			DataDir:           cfg.DataDir,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6046,6 +6048,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		process.RegisterCriticalFunc("proxy.web", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting web proxy service.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.WebAddr.Addr)
+			defer gitHTTPHandler.Close()
 			defer webHandler.Close()
 			process.BroadcastEvent(Event{Name: ProxyWebServerReady, Payload: webHandler})
 			if err := webServer.Serve(listeners.web); err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {
