@@ -451,45 +451,23 @@ func onStart(ctx context.Context, botConfig *config.BotConfig) error {
 	botConfig.ReloadCh = reloadCh
 	go handleSignals(ctx, log, cancel, reloadCh)
 
-	telemetrySentCh := make(chan struct{})
-	go func() {
-		defer close(telemetrySentCh)
+	if telemetryEnabled(os.Getenv) {
+		telemetrySentCh := make(chan struct{})
+		go func() {
+			defer close(telemetrySentCh)
 
-		if err := sendTelemetry(
-			ctx, telemetryClient(os.Getenv), os.Getenv, log, botConfig,
-		); err != nil {
-			log.ErrorContext(
-				ctx, "Failed to send anonymous telemetry.", "error", err,
-			)
-		}
-	}()
-	// Ensures telemetry finishes sending before function exits.
-	defer func() {
-		select {
-		case <-telemetrySentCh:
-			return
-		case <-ctx.Done():
-		default:
-		}
-
-		waitTime := 10 * time.Second
-		log.InfoContext(
-			ctx,
-			"Waiting for anonymous telemetry to finish sending before exiting. Press CTRL-C to cancel",
-			"wait_time",
-			waitTime,
-		)
-		ctx, cancel := context.WithTimeout(ctx, waitTime)
-		defer cancel()
-		select {
-		case <-ctx.Done():
-			log.WarnContext(
-				ctx,
-				"Anonymous telemetry transmission canceled due to signal or timeout",
-			)
-		case <-telemetrySentCh:
-		}
-	}()
+			if err := sendTelemetry(
+				ctx, telemetryClient(os.Getenv), os.Getenv, log, botConfig,
+			); err != nil {
+				log.ErrorContext(
+					ctx, "Failed to send anonymous telemetry.", "error", err,
+				)
+			}
+		}()
+		defer waitForTelemetry(ctx, log, telemetrySentCh)
+	} else {
+		log.InfoContext(ctx, "Anonymous telemetry is not enabled. Find out more about anonymous telemetry at https://goteleport.com/docs/reference/machine-workload-identity/machine-id/telemetry/")
+	}
 
 	b := tbot.New(botConfig, log)
 	return trace.Wrap(b.Run(ctx))
