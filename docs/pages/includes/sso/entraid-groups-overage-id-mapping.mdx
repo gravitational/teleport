@@ -1,0 +1,9 @@
+<Admonition type="warning" title="Role mapping must use group IDs">
+  When groups overage applies, Teleport retrieves the user's groups from the Microsoft Graph API.
+  The groups values retrieved are always group IDs, even if the Entra ID group source attribute is configured to emit group names.
+  A `{{ fieldMapping }}` entry whose `value` is a group name will not match for a user in more than {{ limit }} groups,
+  and no role will be mapped for the user in Teleport.
+
+  Configure the Entra ID group source attribute to emit group IDs
+  and set each `{{ fieldMapping }}` `value` to the group's object ID.
+</Admonition>
