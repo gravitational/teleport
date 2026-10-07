@@ -48,7 +48,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -6805,21 +6804,37 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 
 func (process *TeleportProcess) readOrInitPeerStatelessResetKey() (*quic.StatelessResetKey, error) {
 	resetKeyPath := filepath.Join(process.Config.DataDir, "peer_stateless_reset_key")
-	k := new(quic.StatelessResetKey)
-	stored, err := os.ReadFile(resetKeyPath)
-	if err == nil && len(stored) == len(k) {
-		copy(k[:], stored)
+	k, err := readPeerStatelessResetKey(resetKeyPath)
+	if err == nil {
 		return k, nil
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		process.logger.WarnContext(process.ExitContext(), "Stateless reset key file unreadable or invalid.", "error", err)
 	}
+	k = new(quic.StatelessResetKey)
 	if _, err := rand.Read(k[:]); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	if err := renameio.WriteFile(resetKeyPath, k[:], 0o600); err != nil {
+	if err := writeFile(resetKeyPath, k[:]); err != nil {
+		kk, err2 := readPeerStatelessResetKey(resetKeyPath)
+		if err2 == nil {
+			return kk, nil
+		}
 		process.logger.WarnContext(process.ExitContext(), "Failed to persist stateless reset key.", "error", err)
 	}
+	return k, nil
+}
+
+func readPeerStatelessResetKey(resetKeyPath string) (*quic.StatelessResetKey, error) {
+	k := new(quic.StatelessResetKey)
+	stored, err := os.ReadFile(resetKeyPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(stored) != len(k) {
+		return nil, trace.CompareFailed("invalid stored length, expected %d, got %d", len(k), len(stored))
+	}
+	copy(k[:], stored)
 	return k, nil
 }
 

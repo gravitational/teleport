@@ -24,10 +24,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/hostid"
@@ -125,21 +123,12 @@ func writeReconfigureOutput(input, output string, overwrite bool, data []byte) e
 	}
 
 	if overwrite {
-		// Temp file + atomic rename, forcing owner-only permissions:
-		// renameio.WriteFile would keep an existing file's broader mode.
-		pending, err := renameio.NewPendingFile(output, renameio.WithPermissions(teleport.FileMaskOwnerOnly))
-		if err != nil {
-			return trace.ConvertSystemError(err)
-		}
-		defer pending.Cleanup()
-		if _, err := pending.Write(data); err != nil {
-			return trace.ConvertSystemError(err)
-		}
-		return trace.ConvertSystemError(pending.CloseAtomicallyReplace())
+		return overwriteFile(output, data)
 	}
 
-	// O_EXCL atomically rejects anything already at the path, symlinks included.
-	f, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_EXCL, teleport.FileMaskOwnerOnly)
+	// The file is created exclusively (anything already at the path, symlinks
+	// included, is rejected) and with owner-only permissions in a single call.
+	f, err := createExclusiveFile(output)
 	if err != nil {
 		if os.IsExist(err) {
 			return trace.AlreadyExists("output file %q already exists; use --overwrite to replace it", output)
