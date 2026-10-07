@@ -24,7 +24,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -279,84 +278,50 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 		return trace.Wrap(err)
 	}
 
-	var redirectURI string
+	servers, err := session.tr.c.appServers.forChecks(r.Context())
+	if err != nil {
+		// Resolution errors can carry internal details such as backend addresses, so they are logged rather than
+		// written to the client. Any of them leaves no app server to forward to, so the client is answered as when no
+		// app server can be reached.
+		h.logger.WarnContext(r.Context(), "Failed to resolve application servers", "error", err)
+		h.handleForwardError(w, r, trace.ConnectionProblem(err, "failed to resolve application servers"))
+		return nil
+	}
 
-	session.tr.mu.Lock()
-	for _, appServer := range session.tr.c.servers {
+	var redirectURI string
+	for _, appServer := range servers {
 		// If encounter an app server that is to be redirected to, stop iterating.
 		if redirectInsteadOfForward(appServer) {
 			redirectURI = appServer.GetApp().GetURI()
 			break
 		}
 	}
-	session.tr.mu.Unlock()
 
 	if redirectURI != "" {
 		http.Redirect(w, r, redirectURI, http.StatusFound)
 		return nil
 	}
 
-	if r.Body != nil {
-		// We replace the request body with a NopCloser so that the request body can
-		// be closed multiple times. This is needed because Go's HTTP RoundTripper
-		// will close the request body once called, even if the request
-		// fails. This is a problem because fwd can retry the request if no app servers
-		// are available. This retry process happens in `handleForwardError`.
-		// If the request body is closed, the retry will fail.
-		// Because the request body is closed after the first request, we need to
-		// replace the request body with a NopCloser so that the closed body can be
-		// used again and finally closed when the request handling finishes.
-		// Teleport only retries requests if DialContext returns a trace.ConnectionProblem.
-		// Because of this,  we can safely assume that the request body is never read
-		// under those conditions so the retry attempt will start reading from the beginning
-		// of the request body.
-		originalBody := r.Body
-		defer originalBody.Close()
-		r.Body = io.NopCloser(originalBody)
-	}
 	session.fwd.ServeHTTP(w, r)
 	return nil
 }
 
-// handleForwardError when the forwarder has an error during the `ServeHTTP` it
-// will call this function. This handler will then renew the session in order
-// to get "fresh" app servers, and then will forwad the request to the newly
-// created session.
+// handleForwardError answers a request that could not be forwarded, whether the forwarder failed or handleHttp could
+// not resolve the app servers. A connection problem means the app servers could not be resolved or reached right now.
+// The caller is then sent to the launcher, as when authentication fails, to keep the experience of launching an app
+// consistent. Clients that cannot follow the launcher redirect, such as those using a client certificate, get an
+// internal error instead. No response includes the error text, because resolution errors can carry internal details.
 func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, err error) {
-	// if it is not an agent connection problem, return without creating a new
-	// session.
 	if !trace.IsConnectionProblem(err) {
 		reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
 		return
 	}
 
-	// If renewing the session fails, we should do the same for when the
-	// request authentication fails (defined in the "withAuth" middle). This is
-	// done to have a consistent UX to when launching an application.
-	session, err := h.renewSession(req)
-	if err != nil {
-		if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
-			return
-		}
-
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
+	if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
 		return
 	}
-	// NOTE: This handler is called by the forwarder when it encounters an error
-	// during the `ServeHTTP` call. This means that the request forwarding was not successful.
-	// Since the request was not forwarded, and above we ignore all errors that are not
-	// connection problems, we can safely assume that the request body was not read.
-	// This happens because the connection problem is returned by the DialContext
-	// function, which is the HTTP transport requires before reading the request body.
-	// Although the request body is not read, the request body is closed by the
-	// HTTP Transport but we replace the request body in (*Handler).handleForward
-	// with a NopCloser so that the request body can be closed multiple times without
-	// impacting the request forwarding.
-	// If in the future we decide to retry requests that fail for other reasons,
-	// we need to support body rewinding with `req.GetBody` together with a
-	// `io.TeeReader` to read the request body and then rewind it.
-	session.fwd.ServeHTTP(w, req)
+	w.WriteHeader(http.StatusInternalServerError)
+	w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 }
 
 // authenticate will check if request carries a session cookie matching a
@@ -372,29 +337,6 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	session, err := h.getSession(ctx, ws)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get session", "error", err)
-		return nil, trace.AccessDenied("invalid session")
-	}
-
-	return session, nil
-}
-
-// renewSession based on the request removes the session from cache (if present)
-// and generates a new one using the `getSession` flow (same as in
-// `authenticate`).
-func (h *Handler) renewSession(r *http.Request) (*session, error) {
-	ws, err := h.getAppSession(r)
-	if err != nil {
-		return nil, trace.AccessDenied("invalid session")
-	}
-
-	// Remove the session from the cache, this will force a new session to be
-	// generated and cached.
-	h.cache.Remove(ws.GetName())
-
-	// Fetches a new session using the same flow as `authenticate`.
-	session, err := h.getSession(r.Context(), ws)
-	if err != nil {
-		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -611,8 +553,8 @@ func (h *Handler) checkForDualCredentialMismatch(outerIdentity *tlsca.Identity, 
 func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session, error) {
 	// Put the session in the cache so the next request can use it.
 	ttl := ws.Expiry().Sub(h.c.Clock.Now())
-	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*session, error) {
-		sess, err := h.newSession(ctx, ws)
+	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(context.Context) (*session, error) {
+		sess, err := h.newSession(ws)
 		return sess, trace.Wrap(err)
 	})
 	return sess, trace.Wrap(err)

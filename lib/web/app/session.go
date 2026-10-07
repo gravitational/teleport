@@ -19,9 +19,6 @@
 package app
 
 import (
-	"context"
-	"math/rand/v2"
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -54,61 +51,21 @@ func getIdentityFromWebSession(ws types.WebSession) (*tlsca.Identity, error) {
 }
 
 // newSession creates a new session.
-func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
+func (h *Handler) newSession(ws types.WebSession) (*session, error) {
 	// Extract the identity of the user.
 	identity, err := getIdentityFromWebSession(ws)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Query the cluster this application is running in to find the public
-	// address and cluster name pair which will be encoded into the certificate.
-	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, identity.RouteToApp.ClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Build a list of candidate app servers by name/addr.
-	servers, err := MatchUnshuffled(
-		ctx,
-		clusterClient,
-		MatchAppServerForRoute(
-			identity.RouteToApp.Name,
-			identity.RouteToApp.PublicAddr,
-		),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(servers) == 0 {
-		return nil, trace.NotFound("failed to match applications")
-	}
-
-	// Match healthy servers. Having a list of only healthy
-	// servers helps the transport fail before the request is forwarded to a
-	// server (in cases where there are no healthy servers). This process might
-	// take an additional time to execute, but since it is cached, only a few
-	// requests need to perform it.
-	servers = slices.DeleteFunc(servers, func(appServer types.AppServer) bool {
-		return !isAppServerDialable(ctx, clusterClient, appServer)
-	})
-	if len(servers) == 0 {
-		return nil, trace.NotFound("all app servers unheatlhy")
-	}
-
-	rand.Shuffle(len(servers), func(i, j int) {
-		servers[i], servers[j] = servers[j], servers[i]
-	})
-
-	// Create a rewriting transport that will be used to forward requests.
+	appServers := newAppServerResolver(h.c.ClusterGetter, identity.RouteToApp, ws.GetName(), h.cache)
 	transport, err := newTransport(&transportConfig{
 		log:                   h.logger,
 		clock:                 h.c.Clock,
-		clusterGetter:         h.c.ClusterGetter,
 		accessPoint:           h.c.AccessPoint,
 		cipherSuites:          h.c.CipherSuites,
 		identity:              identity,
-		servers:               servers,
+		appServers:            appServers,
 		ws:                    ws,
 		clusterName:           h.clusterName,
 		integrationAppHandler: h.c.IntegrationAppHandler,

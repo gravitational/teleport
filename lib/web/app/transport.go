@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -55,15 +54,15 @@ type ServerHandler interface {
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
-	clusterGetter reversetunnelclient.ClusterGetter
-	accessPoint   authclient.ReadProxyAccessPoint
-	cipherSuites  []uint16
-	identity      *tlsca.Identity
-	servers       []types.AppServer
-	ws            types.WebSession
-	clusterName   string
-	log           *slog.Logger
-	clock         clockwork.Clock
+	accessPoint  authclient.ReadProxyAccessPoint
+	cipherSuites []uint16
+	identity     *tlsca.Identity
+	// appServers resolves the app servers that serve the route.
+	appServers  *appServerResolver
+	ws          types.WebSession
+	clusterName string
+	log         *slog.Logger
+	clock       clockwork.Clock
 
 	// integrationAppHandler is used to handle App proxy requests for Apps that are configured to use an Integration.
 	// Instead of proxying the connection to an AppService, the app is immediately proxied from the Proxy.
@@ -72,8 +71,8 @@ type transportConfig struct {
 
 // Check validates configuration.
 func (c *transportConfig) Check() error {
-	if c.clusterGetter == nil {
-		return trace.BadParameter("proxy client missing")
+	if c.appServers == nil {
+		return trace.BadParameter("app server resolver missing")
 	}
 	if c.accessPoint == nil {
 		return trace.BadParameter("access point missing")
@@ -83,9 +82,6 @@ func (c *transportConfig) Check() error {
 	}
 	if c.identity == nil {
 		return trace.BadParameter("identity missing")
-	}
-	if len(c.servers) == 0 {
-		return trace.BadParameter("servers missing")
 	}
 	if c.ws == nil {
 		return trace.BadParameter("web session missing")
@@ -121,9 +117,6 @@ type transport struct {
 
 	// clientTLSConfig is the TLS config used for mutual authentication.
 	clientTLSConfig *tls.Config
-
-	// mu protects access to servers in the transportConfig
-	mu sync.Mutex
 }
 
 // newTransport creates a new transport.
@@ -255,7 +248,11 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	// an Azure app, parse the JWT cookie using the client's public key and
 	// resign it with the web session private key.
 	if HasClientCert(r) && t.c.identity.RouteToApp.AzureIdentity != "" {
-		for _, server := range t.c.servers {
+		servers, err := t.c.appServers.forChecks(r.Context())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, server := range servers {
 			if !server.GetApp().IsAzureCloud() {
 				continue
 			}
@@ -344,25 +341,16 @@ func parseBearerToken(r *http.Request) (string, error) {
 
 // DialContext dials and connect to the application service over the reverse
 // tunnel subsystem.
+//
+// Running out of candidates is reported as a connection problem, which handleForwardError relies on to tell "no app
+// server could be reached" apart from other errors.
 func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn, err error) {
-	t.mu.Lock()
-	if len(t.c.servers) == 0 {
-		defer t.mu.Unlock()
-		return nil, trace.ConnectionProblem(nil, "no application servers remaining to connect")
-	}
-	servers := make([]types.AppServer, len(t.c.servers))
-	copy(servers, t.c.servers)
-	t.mu.Unlock()
-
-	clusterClient, err := t.c.clusterGetter.Cluster(ctx, t.c.identity.RouteToApp.ClusterName)
+	clusterClient, servers, err := t.c.appServers.resolve(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var i int
-	for ; i < len(servers); i++ {
-		appServer := servers[i]
-
+	for _, appServer := range servers {
 		appIntegration := appServer.GetApp().GetIntegration()
 		if appIntegration != "" {
 			if !appServer.GetApp().SupportsIntegration() {

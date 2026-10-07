@@ -81,7 +81,7 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
 	if p.stateToken == "" && !HasSessionCookie(r) && !p.requiresAppRedirect {
 		// Reaching this block means the application was accessed through the CLI (eg: tsh app login)
-		// and there was a forwarding error and we could not renew the app web session.
+		// and either authentication failed or no app server could be reached to forward the request.
 		// Since we can't redirect the user to the app launcher from the CLI,
 		// we just return an error instead.
 		return trace.BadParameter("redirecting to launcher when using client certificate, is not allowed")
