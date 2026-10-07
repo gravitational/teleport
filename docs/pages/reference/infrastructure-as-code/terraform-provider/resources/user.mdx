@@ -139,5 +139,42 @@ Optional:
 
 Optional:
 
+- `delegation` (Attributes) Delegation describes the relationship between this user and the identity who delegated their access to them. (see [below for nested schema](#nested-schema-for-statusdelegation))
 - `mfa_weakest_device` (Number) mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a "best effort" property, in that it can be UNSPECIFIED.
 - `password_state` (Number) password_state reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!
+
+### Nested Schema for `status.delegation`
+
+Optional:
+
+- `chain` (Attributes List) Chain of delegation. The first element contains the original delegator, with each successive element containing the identity to which the previous one sub-delegated. The last element is the current identity. (see [below for nested schema](#nested-schema-for-statusdelegationchain))
+
+### Nested Schema for `status.delegation.chain`
+
+Optional:
+
+- `bot` (Attributes) Details of the bot that delegated its access. (see [below for nested schema](#nested-schema-for-statusdelegationchainbot))
+- `user` (Attributes) Details of the human user who delegated their access. (see [below for nested schema](#nested-schema-for-statusdelegationchainuser))
+
+### Nested Schema for `status.delegation.chain.bot`
+
+Optional:
+
+- `beam` (Attributes) Beam details associated to this bot. (see [below for nested schema](#nested-schema-for-statusdelegationchainbotbeam))
+- `name` (String) Name of the bot.
+- `scope` (String) Scope of the bot, if it is a scoped bot.
+
+### Nested Schema for `status.delegation.chain.bot.beam`
+
+Optional:
+
+- `alias` (String) Alias is the human-friendly name given to the Beam. Over time, it will be recycled and used by different beams.
+- `id` (String) ID is the globally unique UUID of the Beam.
+
+
+
+### Nested Schema for `status.delegation.chain.user`
+
+Optional:
+
+- `name` (String) Teleport username of the user.

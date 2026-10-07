@@ -9715,6 +9715,64 @@ func GenSchemaUserV2Resource(ctx context.Context) (github_com_hashicorp_terrafor
 		},
 		"status": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+				"delegation": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"chain": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+						Computed:    true,
+						Description: "Chain of delegation. The first element contains the original delegator, with each successive element containing the identity to which the previous one sub-delegated. The last element is the current identity.",
+						NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+							"bot": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+								Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+									"beam": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+										Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+											"alias": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+												Computed:      true,
+												Description:   "Alias is the human-friendly name given to the Beam. Over time, it will be recycled and used by different beams.",
+												Optional:      true,
+												PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+											},
+											"id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+												Computed:      true,
+												Description:   "ID is the globally unique UUID of the Beam.",
+												Optional:      true,
+												PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+											},
+										},
+										Description: "Beam details associated to this bot.",
+										Optional:    true,
+									},
+									"name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+										Computed:      true,
+										Description:   "Name of the bot.",
+										Optional:      true,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+									},
+									"scope": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+										Computed:      true,
+										Description:   "Scope of the bot, if it is a scoped bot.",
+										Optional:      true,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+									},
+								},
+								Description: "Details of the bot that delegated its access.",
+								Optional:    true,
+							},
+							"user": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+								Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "Teleport username of the user.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								}},
+								Description: "Details of the human user who delegated their access.",
+								Optional:    true,
+							},
+						}},
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+					}},
+					Description: "Delegation describes the relationship between this user and the identity who delegated their access to them.",
+					Optional:    true,
+				},
 				"mfa_weakest_device": github_com_hashicorp_terraform_plugin_framework_resource_schema.Int64Attribute{
 					Computed:      true,
 					Description:   "mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED.",
@@ -9900,6 +9958,58 @@ func GenSchemaUserV2DataSource(ctx context.Context) (github_com_hashicorp_terraf
 		},
 		"status": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+				"delegation": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"chain": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+						Computed:    true,
+						Description: "Chain of delegation. The first element contains the original delegator, with each successive element containing the identity to which the previous one sub-delegated. The last element is the current identity.",
+						NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+							"bot": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+								Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+									"beam": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+										Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+											"alias": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+												Computed:    true,
+												Description: "Alias is the human-friendly name given to the Beam. Over time, it will be recycled and used by different beams.",
+												Optional:    true,
+											},
+											"id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+												Computed:    true,
+												Description: "ID is the globally unique UUID of the Beam.",
+												Optional:    true,
+											},
+										},
+										Description: "Beam details associated to this bot.",
+										Optional:    true,
+									},
+									"name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+										Computed:    true,
+										Description: "Name of the bot.",
+										Optional:    true,
+									},
+									"scope": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+										Computed:    true,
+										Description: "Scope of the bot, if it is a scoped bot.",
+										Optional:    true,
+									},
+								},
+								Description: "Details of the bot that delegated its access.",
+								Optional:    true,
+							},
+							"user": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+								Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "Teleport username of the user.",
+									Optional:    true,
+								}},
+								Description: "Details of the human user who delegated their access.",
+								Optional:    true,
+							},
+						}},
+						Optional: true,
+					}},
+					Description: "Delegation describes the relationship between this user and the identity who delegated their access to them.",
+					Optional:    true,
+				},
 				"mfa_weakest_device": github_com_hashicorp_terraform_plugin_framework_datasource_schema.Int64Attribute{
 					Computed:    true,
 					Description: "mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED.",
@@ -45787,6 +45897,192 @@ func CopyUserV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attributes()["delegation"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UserV2.Status.Delegation"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Delegation = nil
+								if !v.IsNull() && !v.IsUnknown() {
+									tf := v
+									obj.Delegation = &github_com_gravitational_teleport_api_types.Delegation{}
+									obj := obj.Delegation
+									{
+										a, ok := tf.Attributes()["chain"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"UserV2.Status.Delegation.chain"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation.chain", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Chain = make([]*github_com_gravitational_teleport_api_types.DelegationChainLink, len(v.Elements()))
+												if !v.IsNull() && !v.IsUnknown() {
+													for k, a := range v.Elements() {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation.chain", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_types.DelegationChainLink
+															if !v.IsNull() && !v.IsUnknown() {
+																tf := v
+																t = &github_com_gravitational_teleport_api_types.DelegationChainLink{}
+																obj := t
+																{
+																	a, ok := tf.Attributes()["user"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"UserV2.Status.Delegation.chain.user"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation.chain.user", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+																		} else {
+																			obj.User = nil
+																			if !v.IsNull() && !v.IsUnknown() {
+																				tf := v
+																				obj.User = &github_com_gravitational_teleport_api_types.UserDelegator{}
+																				obj := obj.User
+																				{
+																					a, ok := tf.Attributes()["name"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"UserV2.Status.Delegation.chain.user.name"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation.chain.user.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.IsNull() && !v.IsUnknown() {
+																								t = (v.ValueString())
+																							}
+																							obj.Name = t
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["bot"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"UserV2.Status.Delegation.chain.bot"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation.chain.bot", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+																		} else {
+																			obj.Bot = nil
+																			if !v.IsNull() && !v.IsUnknown() {
+																				tf := v
+																				obj.Bot = &github_com_gravitational_teleport_api_types.BotDelegator{}
+																				obj := obj.Bot
+																				{
+																					a, ok := tf.Attributes()["name"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"UserV2.Status.Delegation.chain.bot.name"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation.chain.bot.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.IsNull() && !v.IsUnknown() {
+																								t = (v.ValueString())
+																							}
+																							obj.Name = t
+																						}
+																					}
+																				}
+																				{
+																					a, ok := tf.Attributes()["scope"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"UserV2.Status.Delegation.chain.bot.scope"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation.chain.bot.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.IsNull() && !v.IsUnknown() {
+																								t = (v.ValueString())
+																							}
+																							obj.Scope = t
+																						}
+																					}
+																				}
+																				{
+																					a, ok := tf.Attributes()["beam"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"UserV2.Status.Delegation.chain.bot.beam"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation.chain.bot.beam", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+																						} else {
+																							obj.Beam = nil
+																							if !v.IsNull() && !v.IsUnknown() {
+																								tf := v
+																								obj.Beam = &github_com_gravitational_teleport_api_types.BeamInfo{}
+																								obj := obj.Beam
+																								{
+																									a, ok := tf.Attributes()["id"]
+																									if !ok {
+																										diags.Append(attrReadMissingDiag{"UserV2.Status.Delegation.chain.bot.beam.id"})
+																									} else {
+																										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																										if !ok {
+																											diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation.chain.bot.beam.id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																										} else {
+																											var t string
+																											if !v.IsNull() && !v.IsUnknown() {
+																												t = (v.ValueString())
+																											}
+																											obj.Id = t
+																										}
+																									}
+																								}
+																								{
+																									a, ok := tf.Attributes()["alias"]
+																									if !ok {
+																										diags.Append(attrReadMissingDiag{"UserV2.Status.Delegation.chain.bot.beam.alias"})
+																									} else {
+																										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																										if !ok {
+																											diags.Append(attrReadConversionFailureDiag{"UserV2.Status.Delegation.chain.bot.beam.alias", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																										} else {
+																											var t string
+																											if !v.IsNull() && !v.IsUnknown() {
+																												t = (v.ValueString())
+																											}
+																											obj.Alias = t
+																										}
+																									}
+																								}
+																							}
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+															obj.Chain[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -46387,6 +46683,241 @@ func CopyUserV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 									v = github_com_hashicorp_terraform_plugin_framework_types.Int64Value(int64(obj.MfaWeakestDevice))
 								}
 								attrs["mfa_weakest_device"] = v
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["delegation"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"UserV2.Status.Delegation"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"UserV2.Status.Delegation", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+									} else {
+										existing := attrs["delegation"]
+										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+											if preserveUnknown && existing != nil && existing.IsUnknown() {
+												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+											} else {
+												if obj.Delegation == nil {
+													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+												} else {
+													obj := obj.Delegation
+													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+													if ok && v.Attributes() != nil {
+														attrs = v.Attributes()
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["chain"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"UserV2.Status.Delegation.chain"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"UserV2.Status.Delegation.chain", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["chain"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																} else {
+																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Chain))
+																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																	if ok && c.Elements() != nil {
+																		oldElems = c.Elements()
+																	}
+																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Chain))
+																	copy(elems, oldElems)
+																	for k, a := range obj.Chain {
+																		attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																		existing := elems[k]
+																		v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																			if preserveUnknown && existing != nil && existing.IsUnknown() {
+																				return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																			} else {
+																				if a == nil {
+																					return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																				} else {
+																					obj := a
+																					attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																					v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if ok && v.Attributes() != nil {
+																						attrs = v.Attributes()
+																					}
+																					{
+																						attrType, ok := attrType.AttributeTypes()["user"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"UserV2.Status.Delegation.chain.user"})
+																						} else {
+																							attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"UserV2.Status.Delegation.chain.user", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																							} else {
+																								existing := attrs["user"]
+																								v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																									if preserveUnknown && existing != nil && existing.IsUnknown() {
+																										return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																									} else {
+																										if obj.User == nil {
+																											return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																										} else {
+																											obj := obj.User
+																											attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																											v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																											if ok && v.Attributes() != nil {
+																												attrs = v.Attributes()
+																											}
+																											{
+																												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																												existing := attrs["name"]
+																												if preserveUnknown && existing != nil && existing.IsUnknown() {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																												} else {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
+																												}
+																												attrs["name"] = v
+																											}
+																											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																											diags.Append(resultDiags...)
+																											return result
+																										}
+																									}
+																								}()
+																								attrs["user"] = v
+																							}
+																						}
+																					}
+																					{
+																						attrType, ok := attrType.AttributeTypes()["bot"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"UserV2.Status.Delegation.chain.bot"})
+																						} else {
+																							attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"UserV2.Status.Delegation.chain.bot", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																							} else {
+																								existing := attrs["bot"]
+																								v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																									if preserveUnknown && existing != nil && existing.IsUnknown() {
+																										return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																									} else {
+																										if obj.Bot == nil {
+																											return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																										} else {
+																											obj := obj.Bot
+																											attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																											v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																											if ok && v.Attributes() != nil {
+																												attrs = v.Attributes()
+																											}
+																											{
+																												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																												existing := attrs["name"]
+																												if preserveUnknown && existing != nil && existing.IsUnknown() {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																												} else {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Name))
+																												}
+																												attrs["name"] = v
+																											}
+																											{
+																												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																												existing := attrs["scope"]
+																												if preserveUnknown && existing != nil && existing.IsUnknown() {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																												} else {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Scope))
+																												}
+																												attrs["scope"] = v
+																											}
+																											{
+																												attrType, ok := attrType.AttributeTypes()["beam"]
+																												if !ok {
+																													diags.Append(attrWriteMissingDiag{"UserV2.Status.Delegation.chain.bot.beam"})
+																												} else {
+																													attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																													if !ok {
+																														diags.Append(attrWriteConversionFailureDiag{"UserV2.Status.Delegation.chain.bot.beam", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																													} else {
+																														existing := attrs["beam"]
+																														v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																															if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																															} else {
+																																if obj.Beam == nil {
+																																	return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																																} else {
+																																	obj := obj.Beam
+																																	attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																																	v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																																	if ok && v.Attributes() != nil {
+																																		attrs = v.Attributes()
+																																	}
+																																	{
+																																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																																		existing := attrs["id"]
+																																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																																		} else {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Id))
+																																		}
+																																		attrs["id"] = v
+																																	}
+																																	{
+																																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																																		existing := attrs["alias"]
+																																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																																		} else {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Alias))
+																																		}
+																																		attrs["alias"] = v
+																																	}
+																																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																																	diags.Append(resultDiags...)
+																																	return result
+																																}
+																															}
+																														}()
+																														attrs["beam"] = v
+																													}
+																												}
+																											}
+																											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																											diags.Append(resultDiags...)
+																											return result
+																										}
+																									}
+																								}()
+																								attrs["bot"] = v
+																							}
+																						}
+																					}
+																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																					diags.Append(resultDiags...)
+																					return result
+																				}
+																			}
+																		}()
+																		elems[k] = v
+																	}
+																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																	diags.Append(resultDiags...)
+																	v = result
+																}
+																attrs["chain"] = v
+															}
+														}
+													}
+													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+													diags.Append(resultDiags...)
+													return result
+												}
+											}
+										}()
+										attrs["delegation"] = v
+									}
+								}
 							}
 							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 							diags.Append(resultDiags...)

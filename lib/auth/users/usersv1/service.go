@@ -53,7 +53,9 @@ type Cache interface {
 
 // Backend is the subset of the backend resources that the Service modifies.
 type Backend interface {
-	// GetUser returns a user by name.
+	// GetUser returns a user by name. It is used over Cache.GetUser in the update
+	// path to ensure we correctly carry over immutable fields from the existing
+	// version (e.g. Status.Delegation).
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 	// CreateUser creates user, only if the user entry does not exist
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
@@ -300,6 +302,9 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		})
 	}
 
+	// Delegation is server-controlled.
+	reqUser.SetDelegation(nil)
+
 	created, err := s.backend.CreateUser(ctx, reqUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -372,18 +377,24 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
+	// Try to read the existing user from the cache.
 	prevUser, err := s.cache.GetUser(ctx, req.GetUser().GetName(), false)
-	var omitEditorEvent bool
-	if err != nil {
-		// don't return error here since this call is for event emitting purposes only
-		s.logger.WarnContext(ctx, "Failed getting previous user during update", "error", err)
-		omitEditorEvent = true
+	if err != nil || prevUser.GetRevision() != req.GetUser().GetRevision() {
+		// If reading from the cache fails (or the cached value is stale) fall
+		// back to the backend, because it's important that we do not drop the
+		// user's delegation chain.
+		prevUser, err = s.backend.GetUser(ctx, req.GetUser().GetName(), false)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Failed getting previous user during update", "error", err)
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	if prevUser != nil {
-		// Preserve the users' created by information.
-		req.GetUser().SetCreatedBy(prevUser.GetCreatedBy())
-	}
+	// Preserve the users' created by information.
+	req.GetUser().SetCreatedBy(prevUser.GetCreatedBy())
+
+	// Delegation is server-controlled and immutable.
+	req.GetUser().SetDelegation(prevUser.GetDelegation())
 
 	if err = okta.CheckAccess(authCtx, prevUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -416,9 +427,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		s.logger.WarnContext(ctx, "Failed to emit user update event", "error", err)
 	}
 
-	if !omitEditorEvent {
-		usagereporter.EmitEditorChangeEvent(ctx, updated.GetName(), prevUser.GetRoles(), updated.GetRoles(), s.reporter.AnonymizeAndSubmit)
-	}
+	usagereporter.EmitEditorChangeEvent(ctx, updated.GetName(), prevUser.GetRoles(), updated.GetRoles(), s.reporter.AnonymizeAndSubmit)
 
 	v2, ok := updated.(*types.UserV2)
 	if !ok {
@@ -462,12 +471,29 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		})
 	}
 
-	prevUser, err := s.cache.GetUser(ctx, req.GetUser().GetName(), false)
-	var omitEditorEvent bool
-	if err != nil {
-		// don't return error here since this call is for event emitting purposes only
+	// Read directly from the backend rather than the cache, so that we don't
+	// drop the user's delegation chain or, less likely, copy it from an old
+	// user record with the same name, if the cache is stale.
+	//
+	// Note: in UpdateUser we try the cache first and fall back to the backend
+	// on-failure, because the conditional update/revision mismatch will prevent
+	// us resurrecting old state. We cannot safely do that here because we are
+	// performing an unconditional upsert.
+	prevUser, err := s.backend.GetUser(ctx, req.GetUser().GetName(), false)
+	switch {
+	case trace.IsNotFound(err):
+		// User truly doesn't exist in the backend. Proceed with creation.
+	case err != nil:
 		s.logger.WarnContext(ctx, "Failed getting previous user during update", "error", err)
-		omitEditorEvent = true
+		return nil, trace.Wrap(err)
+	}
+
+	if prevUser == nil {
+		// This is a new user. Do not allow the client to provide a delegation chain.
+		req.GetUser().SetDelegation(nil)
+	} else {
+		// This is an existing user. Carry over the delegation chain.
+		req.GetUser().SetDelegation(prevUser.GetDelegation())
 	}
 
 	verb := types.VerbUpdate
@@ -510,7 +536,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		s.logger.WarnContext(ctx, "Failed to emit user upsert event", "error", err)
 	}
 
-	if !omitEditorEvent {
+	if prevUser != nil {
 		usagereporter.EmitEditorChangeEvent(ctx, upserted.GetName(), prevUser.GetRoles(), upserted.GetRoles(), s.reporter.AnonymizeAndSubmit)
 	}
 
