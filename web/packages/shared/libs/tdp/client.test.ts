@@ -37,6 +37,7 @@ const mockSharedDirectoryAccess: SharedDirectoryAccess = {
   truncate: jest.fn(),
   create: jest.fn(),
   delete: jest.fn(),
+  serialized: jest.fn(),
 };
 
 // Disable WASM in tests.
