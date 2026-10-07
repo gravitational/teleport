@@ -14,6 +14,7 @@ RUN yum install -y \
       git \
       jq \
       openssh-clients \
+      sudo \
       tar \
       wget \
       which && \
@@ -41,6 +42,7 @@ RUN npm install -g yarn@1.22.22 && \
     aws --version && \
     curl --version && \
     git --version && \
+    sudo --version && \
     ssh -V && \
     bash --version && \
     command -v sh && \
