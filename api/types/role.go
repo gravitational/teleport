@@ -1677,6 +1677,15 @@ func (i ImpersonateConditions) IsEmpty() bool {
 	return len(i.Users) == 0 || len(i.Roles) == 0
 }
 
+// IsFullyEmpty returns true if the entire struct is empty, unlike [IsEmpty]
+// which returns true if either [Users] or [Roles] is empty (i.e. the struct is
+// "effectively" empty).
+func (i ImpersonateConditions) IsFullyEmpty() bool {
+	return len(i.Users) == 0 &&
+		len(i.Roles) == 0 &&
+		i.Where == ""
+}
+
 // CheckAndSetDefaults checks and sets default values
 func (i ImpersonateConditions) CheckAndSetDefaults() error {
 	if len(i.Users) != 0 && len(i.Roles) == 0 {
@@ -2335,6 +2344,25 @@ func (a AccessRequestConditions) IsEmpty() bool {
 		len(a.Thresholds) == 0
 }
 
+// IsFullyEmpty returns true if the entire struct is empty, unlike [IsEmpty]
+// which returns true if the struct is "effectively" empty.
+func (a AccessRequestConditions) IsFullyEmpty() bool {
+	return len(a.Annotations) == 0 &&
+		len(a.ClaimsToRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.SearchAsRoles) == 0 &&
+		len(a.SuggestedReviewers) == 0 &&
+		len(a.Thresholds) == 0 &&
+		a.MaxDuration == 0 &&
+		(a.Reason == nil || a.Reason.IsEmpty()) &&
+		len(a.KubernetesResources) == 0
+}
+
+// IsEmpty will return true if the reason is empty.
+func (a AccessRequestConditionsReason) IsEmpty() bool {
+	return a.Mode == "" && a.Prompt == ""
+}
+
 // IsEmpty will return true if the condition is empty.
 func (a AccessReviewConditions) IsEmpty() bool {
 	return len(a.ClaimsToRoles) == 0 &&
@@ -2941,4 +2969,67 @@ func ToLabels(m map[string][]string) Labels {
 		out[k] = v
 	}
 	return out
+}
+
+// IsEmpty checks whether any conditions have been set.
+func (r RoleConditions) IsEmpty() bool {
+	// Treat the default set of namespaces as equivalent to empty.
+	namespacesEmpty := len(r.Namespaces) == 0 ||
+		(len(r.Namespaces) == 1 && r.Namespaces[0] == defaults.Namespace)
+
+	return len(r.Logins) == 0 &&
+		namespacesEmpty &&
+		len(r.NodeLabels) == 0 &&
+		len(r.Rules) == 0 &&
+		len(r.KubeGroups) == 0 &&
+		(r.Request == nil || r.Request.IsFullyEmpty()) &&
+		len(r.KubeUsers) == 0 &&
+		len(r.AppLabels) == 0 &&
+		len(r.ClusterLabels) == 0 &&
+		len(r.KubernetesLabels) == 0 &&
+		len(r.DatabaseLabels) == 0 &&
+		len(r.DatabaseNames) == 0 &&
+		len(r.DatabaseUsers) == 0 &&
+		(r.Impersonate == nil || r.Impersonate.IsFullyEmpty()) &&
+		(r.ReviewRequests == nil || r.ReviewRequests.IsEmpty()) &&
+		len(r.AWSRoleARNs) == 0 &&
+		len(r.WindowsDesktopLogins) == 0 &&
+		len(r.WindowsDesktopLabels) == 0 &&
+		len(r.RequireSessionJoin) == 0 &&
+		len(r.JoinSessions) == 0 &&
+		len(r.HostGroups) == 0 &&
+		len(r.HostSudoers) == 0 &&
+		len(r.AzureIdentities) == 0 &&
+		len(r.KubernetesResources) == 0 &&
+		len(r.GCPServiceAccounts) == 0 &&
+		len(r.DatabaseServiceLabels) == 0 &&
+		len(r.GroupLabels) == 0 &&
+		len(r.DesktopGroups) == 0 &&
+		len(r.DatabaseRoles) == 0 &&
+		r.NodeLabelsExpression == "" &&
+		r.AppLabelsExpression == "" &&
+		r.ClusterLabelsExpression == "" &&
+		r.KubernetesLabelsExpression == "" &&
+		r.DatabaseLabelsExpression == "" &&
+		r.DatabaseServiceLabelsExpression == "" &&
+		r.WindowsDesktopLabelsExpression == "" &&
+		r.GroupLabelsExpression == "" &&
+		len(r.DatabasePermissions) == 0 &&
+		len(r.SPIFFE) == 0 &&
+		len(r.AccountAssignments) == 0 &&
+		len(r.GitHubPermissions) == 0 &&
+		len(r.WorkloadIdentityLabels) == 0 &&
+		r.WorkloadIdentityLabelsExpression == "" &&
+		(r.MCP == nil || r.MCP.IsEmpty()) &&
+		len(r.LinuxDesktopLogins) == 0 &&
+		len(r.LinuxDesktopLabels) == 0 &&
+		r.LinuxDesktopLabelsExpression == "" &&
+		len(r.BeamLabels) == 0 &&
+		r.BeamLabelsExpression == "" &&
+		len(r.AppResources) == 0 &&
+		len(r.AppResourcesExpressions) == 0
+}
+
+func (mcp MCPPermissions) IsEmpty() bool {
+	return len(mcp.Tools) == 0
 }
