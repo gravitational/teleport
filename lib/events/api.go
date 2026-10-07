@@ -457,9 +457,9 @@ const (
 	// allow_code.
 	AppSessionRequestAllowedEvent = "app.session.request.allowed"
 
-	// AppAccessEvent is emitted when a Teleport service authorizes access to an application. Emitters should
-	// deduplicate it per app session because it is meant as an activity signal, not a record of every request or
-	// connection.
+	// AppAccessEvent is emitted when a Teleport service authorizes access to an application. Emit it through
+	// lib/srv/app/common.AccessRecorder, which deduplicates it per app session, because it is meant as an activity
+	// signal rather than a record of every request or connection.
 	AppAccessEvent = "app.access"
 
 	// BeamDestroyedEvent is emitted when a garbage-collected beam has been

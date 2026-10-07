@@ -204,6 +204,9 @@ type ConnectionsHandler struct {
 	// sessions have been removed from the cache and closed.
 	cacheCloseWg sync.WaitGroup
 
+	// accessRecorder emits app.access events for authorized access.
+	accessRecorder *common.AccessRecorder
+
 	connAuthMu sync.Mutex
 	// connAuth is used to map an initial failure of authorization to a connection.
 	// This will force the HTTP server to serve an error and close the connection.
@@ -311,6 +314,11 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		resolveApp: func(context.Context, string, string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
+	}
+
+	c.accessRecorder, err = common.NewAccessRecorder(closeContext, cfg.Clock, cfg.HostID, cfg.Emitter)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
@@ -478,6 +486,15 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 	return nil
 }
 
+// recordAccess emits app.access for authorized access to app. Failing to record access does not deny it.
+func (c *ConnectionsHandler) recordAccess(ctx context.Context, identity *tlsca.Identity, app types.Application) {
+	// Logged at debug because a failed emission is returned to every later access to the session until the
+	// deduplication period ends, and the audit emitter already reports its own failures.
+	if err := c.accessRecorder.RecordAccess(ctx, identity, app); err != nil && ctx.Err() == nil {
+		c.log.DebugContext(ctx, "Failed to emit app access audit event", "app", app.GetName(), "error", err)
+	}
+}
+
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
@@ -532,6 +549,9 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 	if _, err := c.authorizeApp(ctx, authCtx, app); err != nil {
 		return trace.Wrap(err)
 	}
+	// Access is recorded before the app_resources rules below, which authorize individual request paths rather than
+	// access to the application.
+	c.recordAccess(ctx, &identity, app)
 
 	switch {
 	case app.IsAWSConsole():
@@ -803,8 +823,9 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 		}
 	}
 
-	// Add user certificate into the context after the monitor connection
-	// initialization to ensure value is present on the context.
+	// Add user certificate and client source address into the context after the monitor connection
+	// initialization to ensure the values are present on the context.
+	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
 	userCert := leafCertFromConn(tlsConn)
 	ctx = authz.ContextWithUserCertificate(ctx, userCert)
 
@@ -866,6 +887,9 @@ func (c *ConnectionsHandler) handleHTTPApp(ctx context.Context, conn net.Conn) e
 
 // handleTCPApp handles connection for a TCP application.
 func (c *ConnectionsHandler) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsca.Identity, app types.Application) error {
+	// Access is recorded before the TCP server's target checks, which authorize the dial target rather than access to
+	// the application.
+	c.recordAccess(ctx, identity, app)
 	err := c.tcpServer.handleConnection(ctx, conn, identity, app)
 	if err != nil {
 		return trace.Wrap(err)

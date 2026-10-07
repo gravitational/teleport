@@ -152,8 +152,9 @@ read [Exporting Teleport Audit Events](../../../zero-trust-access/export-audit-e
 | scp | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
 | resize | Terminal has been resized. |
 | user.login | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` . |
-| app.session.start | A user accessed an application |
+| app.session.start | An application session has started |
 | app.session.chunk | A record of activity during an app session |
+| app.access | A user was authorized to access an application at least once through the instance in `server_id`. Recorded about once an hour per app session. |
 | join_token.create | A new join token has been created. Adds the following fields: `{"roles": ["Node", "Db"], "join_method": "token"}` |
 | mcp.session.start | An MCP server session has started. |
 | mcp.session.end | An MCP server session has ended. |
