@@ -47,6 +47,10 @@ When a user signs in to Teleport with `tsh login`, they can configure the TTL of
 the `user` Teleport creates. Teleport enforces a limit of 30 hours (the default
 is 12 hours).
 
+If the user signs in again with a shorter TTL, Teleport keeps the expiry of the
+temporary `user` resource. Teleport still limits that expiry to the shortest
+`max_session_ttl` of the user's roles.
+
 In the Teleport audit log, you will see an event of type `user.create` with
 information about the temporary user.
 

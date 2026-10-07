@@ -332,6 +332,13 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 		return nil, trace.AccessDenied("invalid session")
 	}
 
+	// The app session can outlive its user resource. On a cache miss, GetUser
+	// asks auth, so NotFound means that auth has no such user.
+	if _, err := h.c.AccessPoint.GetUser(ctx, ws.GetUser(), false); trace.IsNotFound(err) {
+		h.logger.DebugContext(ctx, "User of application session no longer exists", "user", ws.GetUser())
+		return nil, trace.AccessDenied("invalid session")
+	}
+
 	// Fetch a cached session or create one if this is the first request this
 	// process has seen.
 	session, err := h.getSession(ctx, ws)
