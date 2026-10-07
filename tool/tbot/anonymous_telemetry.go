@@ -74,7 +74,7 @@ func telemetryClient(envGetter envGetter) prehogv1ac.TbotReportingServiceClient 
 
 // sendTelemetry sends the anonymous on start Telemetry event.
 // It is imperative that this code does not send any user or teleport instance
-// identifiable information.
+// identifiable information. Callers must check telemetryEnabled first.
 func sendTelemetry(
 	ctx context.Context,
 	client prehogv1ac.TbotReportingServiceClient,
@@ -83,10 +83,6 @@ func sendTelemetry(
 	cfg *config.BotConfig,
 ) error {
 	start := time.Now()
-	if !telemetryEnabled(envGetter) {
-		log.InfoContext(ctx, "Anonymous telemetry is not enabled. Find out more about anonymous telemetry at https://goteleport.com/docs/reference/machine-workload-identity/machine-id/telemetry/")
-		return nil
-	}
 	log.InfoContext(ctx, "Anonymous telemetry is enabled. Find out more about anonymous telemetry at https://goteleport.com/docs/reference/machine-workload-identity/machine-id/telemetry/")
 
 	data := &prehogv1a.TbotStartEvent{
@@ -131,4 +127,34 @@ func sendTelemetry(
 	)
 
 	return nil
+}
+
+// waitForTelemetry blocks until sentCh is closed, ctx is canceled, or 10
+// seconds pass, so that tbot doesn't exit before telemetry is sent.
+func waitForTelemetry(ctx context.Context, log *slog.Logger, sentCh <-chan struct{}) {
+	select {
+	case <-sentCh:
+		return
+	case <-ctx.Done():
+		return
+	default:
+	}
+
+	waitTime := 10 * time.Second
+	log.InfoContext(
+		ctx,
+		"Waiting for anonymous telemetry to finish sending before exiting. Press CTRL-C to cancel",
+		"wait_time",
+		waitTime,
+	)
+	ctx, cancel := context.WithTimeout(ctx, waitTime)
+	defer cancel()
+	select {
+	case <-ctx.Done():
+		log.WarnContext(
+			ctx,
+			"Anonymous telemetry transmission canceled due to signal or timeout",
+		)
+	case <-sentCh:
+	}
 }
