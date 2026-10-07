@@ -30,6 +30,7 @@ fi
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 modules=(
     "teleport/agent/aws"
+    "teleport/agent/azure"
 )
 
 for module in "${modules[@]}"; do
