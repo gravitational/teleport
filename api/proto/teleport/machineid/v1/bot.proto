@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.machineid.v1;
 
 import "google/protobuf/duration.proto";
+import "teleport/delegation/v1/delegation.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
@@ -85,4 +86,8 @@ message BotStatus {
   string user_name = 1;
   // The name of the role associated with the bot.
   string role_name = 3;
+
+  // Delegation describes the relationship between this bot and the identity who
+  // delegated their access to it.
+  teleport.delegation.v1.Delegation delegation = 4;
 }

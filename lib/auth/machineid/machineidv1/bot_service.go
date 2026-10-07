@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
@@ -363,6 +364,13 @@ func (bs *BotService) CreateBot(
 	if err := setKindAndVersion(req.GetBot()); err != nil {
 		return nil, trace.Wrap(err, "setting kind and version")
 	}
+
+	// Delegation is a server-controlled field on status. Discard any user-
+	// provided value.
+	if status := req.GetBot().GetStatus(); status != nil {
+		status.ClearDelegation()
+	}
+
 	authCtx, err := bs.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -388,7 +396,6 @@ func (bs *BotService) CreateBot(
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	var bot *pb.Bot
 	if req.GetBot().GetScope() != "" {
 		bot, err = bs.createScopedBot(ctx, authCtx, req.GetBot())
@@ -553,10 +560,10 @@ func UpsertBot(
 			return nil, trace.Wrap(err, "converting unscoped bot to resources")
 		}
 	}
-	// Preserve the legacy generation label if the existing user carries one.
-	// TODO(noah): DELETE IN v20 alongside the creation-time label write
-	// (see botToUserAndRole) - https://github.com/gravitational/teleport/issues/64484
 	if existingUser != nil {
+		// Preserve the legacy generation label if the existing user carries one.
+		// TODO(noah): DELETE IN v20 alongside the creation-time label write
+		// (see botToUserAndRole) - https://github.com/gravitational/teleport/issues/64484
 		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 		if existingGeneration, ok := existingUser.GetLabel(types.BotGenerationLabel); ok {
 			meta := user.GetMetadata()
@@ -564,6 +571,9 @@ func UpsertBot(
 			meta.Labels[types.BotGenerationLabel] = existingGeneration
 			user.SetMetadata(meta)
 		}
+
+		// Preserve the existing bot's delegation.
+		user.SetDelegation(existingUser.GetDelegation())
 	}
 
 	user, err = backend.UpsertUser(ctx, user)
@@ -595,6 +605,12 @@ func UpsertBot(
 func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (*pb.Bot, error) {
 	if err := setKindAndVersion(req.GetBot()); err != nil {
 		return nil, trace.Wrap(err, "setting kind and version")
+	}
+
+	// Delegation is a server-controlled field on status. Discard any user-
+	// provided value.
+	if status := req.GetBot().GetStatus(); status != nil {
+		status.ClearDelegation()
 	}
 
 	authCtx, err := bs.scopedAuthorizer.AuthorizeScoped(ctx)
@@ -674,6 +690,12 @@ func (bs *BotService) UpdateBot(
 ) (*pb.Bot, error) {
 	if err := setKindAndVersion(req.GetBot()); err != nil {
 		return nil, trace.Wrap(err, "setting kind and version")
+	}
+
+	// Delegation is a server-controlled field on status. Discard any user-
+	// provided value.
+	if status := req.GetBot().GetStatus(); status != nil {
+		status.ClearDelegation()
 	}
 
 	scopedAuthCtx, err := bs.scopedAuthorizer.AuthorizeScoped(ctx)
@@ -855,12 +877,15 @@ func (bs *BotService) deleteBotRole(ctx context.Context, botName string) error {
 
 // dummyBotWithName returns a dummy bot with the given name. This is used
 // for evaluating RBAC for the Delete RPC
-func dummyBotWithName(name string) *pb.Bot {
+func dummyBotWithName(name string, delegation *delegationv1.Delegation) *pb.Bot {
 	return pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
 		Metadata: headerv1.Metadata_builder{
 			Name: name,
+		}.Build(),
+		Status: pb.BotStatus_builder{
+			Delegation: delegation,
 		}.Build(),
 	}.Build()
 }
@@ -903,7 +928,7 @@ func (bs *BotService) DeleteBot(
 	}
 	scope := user.GetMetadata().Labels[types.BotScopeLabel]
 
-	ruleCtx.Resource153 = dummyBotWithName(req.GetBotName())
+	ruleCtx.Resource153 = dummyBotWithName(req.GetBotName(), user.GetDelegation())
 	if err := authCtx.CheckerContext.Decision(ctx, scope, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, scopedaccess.Delete)
 	}); err != nil {
@@ -1055,8 +1080,9 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 			Description: user.GetMetadata().Description,
 		}.Build(),
 		Status: pb.BotStatus_builder{
-			UserName: user.GetName(),
-			RoleName: role.GetName(),
+			UserName:   user.GetName(),
+			RoleName:   role.GetName(),
+			Delegation: user.GetDelegation(),
 		}.Build(),
 		Spec: pb.BotSpec_builder{
 			Roles:         role.GetImpersonateConditions(types.Allow).Roles,
@@ -1217,6 +1243,7 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 		User: types.UserRef{Name: createdBy},
 		Time: now,
 	})
+	user.SetDelegation(bot.GetStatus().GetDelegation())
 
 	return user, role, nil
 }
