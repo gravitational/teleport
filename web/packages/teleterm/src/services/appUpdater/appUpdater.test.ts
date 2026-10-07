@@ -19,6 +19,7 @@
 import { createHash } from 'node:crypto';
 
 import { MacUpdater } from 'electron-updater';
+import { DownloadExecutorResult } from 'electron-updater/out/AppUpdater';
 
 import {
   ConfigSource,
@@ -90,14 +91,14 @@ class MockedMacUpdater extends MacUpdater {
     );
   }
 
-  protected override async doDownloadUpdate(): Promise<string[]> {
+  protected override async doDownloadUpdate(): Promise<DownloadExecutorResult> {
     // Simulate download.
     await wait(10);
     this.dispatchUpdateDownloaded({
       ...this.updateInfoAndProvider.info,
       downloadedFile: 'some-update',
     });
-    return ['some-update'];
+    return { updateFile: 'some-update' };
   }
 
   override quitAndInstall() {}

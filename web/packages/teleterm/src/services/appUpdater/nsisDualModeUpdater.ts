@@ -21,7 +21,10 @@ import path from 'node:path';
 
 import { shell } from 'electron';
 import { NsisUpdater } from 'electron-updater';
-import { DownloadUpdateOptions } from 'electron-updater/out/AppUpdater';
+import {
+  DownloadExecutorResult,
+  DownloadUpdateOptions,
+} from 'electron-updater/out/AppUpdater';
 import { InstallOptions } from 'electron-updater/out/BaseUpdater';
 
 import { ensureError, getErrorMessage } from 'shared/utils/error';
@@ -55,7 +58,7 @@ export class NsisDualModeUpdater extends NsisUpdater {
 
   protected override doDownloadUpdate(
     downloadUpdateOptions: DownloadUpdateOptions
-  ): Promise<Array<string>> {
+  ): Promise<DownloadExecutorResult> {
     this.updateVersion =
       downloadUpdateOptions.updateInfoAndProvider.info.version;
     return super.doDownloadUpdate(downloadUpdateOptions);
