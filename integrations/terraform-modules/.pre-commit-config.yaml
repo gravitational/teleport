@@ -3,13 +3,34 @@ default_install_hook_types:
 default_stages:
   - "pre-push"
   - "manual"
+# Terraform checks apply only to these modules. The version hook also handles
+# changes to the repository's release version.
+files: '^(integrations/terraform-modules/|api/version\.go$)'
 repos:
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.103.0
     hooks:
       - id: terraform_fmt
-      - id: terraform_docs
-        args:
-          - '--args=--config=integrations/terraform-modules/.terraform-docs.yml'
+  - repo: local
+    hooks:
+      - id: terraform_update_version
+        name: Update Terraform module versions and docs
+        entry: make -C integrations/terraform-modules update-version
+        language: system
+        files: '^(integrations/terraform-modules/|api/version\.go$)'
+        pass_filenames: false
+        require_serial: true
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.103.0
+    hooks:
       - id: terraform_tflint
       - id: terraform_validate
+  - repo: local
+    hooks:
+      - id: terraform_test
+        name: Test Terraform modules
+        entry: make -C integrations/terraform-modules test
+        language: system
+        files: ^integrations/terraform-modules/
+        pass_filenames: false
+        require_serial: true

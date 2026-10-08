@@ -13,5 +13,6 @@ resource "aws_ecs_cluster" "teleport_agent" {
     )
     : var.ecs_cluster_name
   )
-  tags = var.apply_aws_tags
+  region = var.region
+  tags   = var.apply_aws_tags
 }

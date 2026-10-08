@@ -6,7 +6,7 @@ resource "aws_iam_role" "ecs_execution" {
   count = var.create ? 1 : 0
 
   assume_role_policy = one(data.aws_iam_policy_document.ecs_execution_trust[*].json)
-  description        = "Execution role used by the Teleport ECS agent task."
+  description        = "Execution role used by the Teleport ECS task."
   name = format("%v-%v-exec-%v",
     one(aws_ecs_cluster.teleport_agent[*].name),
     one(data.aws_region.this[*].region),

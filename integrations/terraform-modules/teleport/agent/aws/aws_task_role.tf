@@ -25,7 +25,7 @@ resource "aws_iam_role" "ecs_task" {
   count = var.create ? 1 : 0
 
   assume_role_policy = one(data.aws_iam_policy_document.ecs_task_trust[*].json)
-  description        = "Task role used by the Teleport ECS agent task."
+  description        = "Task role used by the Teleport ECS task."
   name               = local.ecs_task_role_name
   tags               = var.apply_aws_tags
 }

@@ -53,7 +53,10 @@ The Database Service must be able to reach:
 
 - Terraform `1.5.7` or later.
 - An AWS account containing at least one RDS or Aurora database.
-- A VPC and at least one subnet in which to deploy the Database Service.
+- A VPC and at least one subnet with internet egress in which to deploy the
+  Database Service. Public subnets must have a default route through an AWS
+  internet gateway; private subnets must have a default route through an AWS
+  NAT gateway.
 - AWS credentials for the AWS Terraform provider.
 - Teleport credentials for the Teleport Terraform provider. For a local Terraform run,
   follow the [Teleport Terraform provider local
@@ -192,20 +195,17 @@ module "teleport_db_agent" {
   teleport_proxy_public_addr = "<Var name="example.teleport.sh:443" />"
   database_service = {
     allow_database_modification       = true
+    database_security_group_ids       = [
+      "<Var name="sg-0123456789abcdef0" />",
+    ]
     default_iam_policy_database_types = ["rds"]
     enabled                           = true
   }
   vpc_id                     = "<Var name="vpc-0123456789abcdef0" />"
-  ecs_service_subnets = [
+  private_subnet_ids = [
     "<Var name="subnet-0123456789abcdef0" />",
     "<Var name="subnet-abcdef01234567890" />",
   ]
-}
-
-resource "aws_vpc_security_group_ingress_rule" "teleport_db_agent" {
-  security_group_id            = "<Var name="sg-0123456789abcdef0" />"
-  referenced_security_group_id = module.teleport_db_agent.security_group_id
-  ip_protocol                  = "-1"
 }
 ```
 
@@ -235,20 +235,17 @@ module "teleport_db_agent" {
   teleport_proxy_public_addr = "<Var name="teleport.example.com:443" />"
   database_service = {
     allow_database_modification       = true
+    database_security_group_ids       = [
+      "<Var name="sg-0123456789abcdef0" />",
+    ]
     default_iam_policy_database_types = ["rds"]
     enabled                           = true
   }
   vpc_id                     = "<Var name="vpc-0123456789abcdef0" />"
-  ecs_service_subnets = [
+  private_subnet_ids = [
     "<Var name="subnet-0123456789abcdef0" />",
     "<Var name="subnet-abcdef01234567890" />",
   ]
-}
-
-resource "aws_vpc_security_group_ingress_rule" "teleport_db_agent" {
-  security_group_id            = "<Var name="sg-0123456789abcdef0" />"
-  referenced_security_group_id = module.teleport_db_agent.security_group_id
-  ip_protocol                  = "-1"
 }
 ```
 
@@ -257,9 +254,11 @@ resource "aws_vpc_security_group_ingress_rule" "teleport_db_agent" {
 </Tabs>
 
 Replace the VPC, subnet, security group, and region values with
-values for your AWS environment. If the databases use different security
-groups, create one `aws_vpc_security_group_ingress_rule` resource for
-each security group.
+values for your AWS environment. Include each database security group ID in
+`database_service.database_security_group_ids`. Use `private_subnet_ids` for
+subnets with a default route through an AWS NAT gateway, or replace it with
+`public_subnet_ids` for subnets with a default route through an AWS internet
+gateway.
 
 The discovery module's `aws_matchers` input controls which databases are
 registered with Teleport. The example discovers all RDS and Aurora databases in

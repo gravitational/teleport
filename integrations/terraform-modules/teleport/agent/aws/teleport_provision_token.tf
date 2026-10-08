@@ -3,7 +3,7 @@ resource "teleport_provision_token" "agent_aws_iam" {
 
   metadata = {
     name        = local.teleport_provision_token_name
-    description = "Allow the Teleport database agent to join the cluster using AWS IAM credentials."
+    description = "Allow the Teleport instance to join the cluster using AWS IAM credentials."
   }
   spec = {
     allow = [{

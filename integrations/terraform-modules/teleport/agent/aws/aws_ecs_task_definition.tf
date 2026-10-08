@@ -81,6 +81,7 @@ resource "aws_ecs_task_definition" "teleport_agent" {
   )
   memory                   = var.ecs_task_memory
   network_mode             = "awsvpc"
+  region                   = var.region
   requires_compatibilities = ["FARGATE"]
   tags                     = var.apply_aws_tags
   task_role_arn            = one(aws_iam_role.ecs_task[*].arn)
