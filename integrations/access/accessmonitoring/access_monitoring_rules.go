@@ -189,7 +189,7 @@ func (amrh *RuleHandler) recipients(ctx context.Context, req types.AccessRequest
 		return nil, trace.Wrap(err)
 	}
 
-	matchingRules := accessmonitoring.EvaluateRules(ctx, log, env, amrh.getAccessMonitoringRules())
+	matchingRules, _ := accessmonitoring.EvaluateRules(ctx, log, env, amrh.getAccessMonitoringRules())
 	for _, rule := range matchingRules {
 		for _, recipient := range rule.GetSpec().GetNotification().GetRecipients() {
 			recipientSet.Add(recipient)

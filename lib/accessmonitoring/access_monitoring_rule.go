@@ -22,26 +22,34 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/trace"
+
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
-// EvaluateRules evalutes the rules againast the request environment and
-// returns the list of rules that match the conditions.
+// EvaluateRules evaluates the rules against the request environment and returns
+// the rules whose schedule and condition match. A rule that cannot be evaluated
+// is dropped and logged.
 func EvaluateRules(
 	ctx context.Context,
 	log *slog.Logger,
 	env AccessRequestExpressionEnv,
 	rules []*accessmonitoringrulesv1.AccessMonitoringRule,
-) []*accessmonitoringrulesv1.AccessMonitoringRule {
+) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	var matchingRules []*accessmonitoringrulesv1.AccessMonitoringRule
+	var denyErr error
 	for _, rule := range rules {
-		log = log.With("rule", rule.GetMetadata().GetName())
+		log := log.With("rule", rule.GetMetadata().GetName())
 
 		// Check if creation time is within rule schedules.
 		schedule := rule.GetSpec().GetSchedules()
 		isInSchedules, err := InSchedules(schedule, env.CreationTime)
 		if err != nil {
-			log.WarnContext(ctx, "Failed to evaluate access monitoring rule schedules", "error", err)
+			log.WarnContext(ctx, "Dropping rule with a schedule that failed evaluation", "error", err)
+			if isDenyRule(rule) && denyErr == nil {
+				denyErr = trace.Wrap(err, "evaluating schedules for access monitoring rule %q", rule.GetMetadata().GetName())
+			}
 			continue
 		}
 		if len(schedule) != 0 && !isInSchedules {
@@ -52,12 +60,19 @@ func EvaluateRules(
 		// Check if environment matches rule conditions.
 		conditionMatch, err := EvaluateCondition(rule.GetSpec().GetCondition(), env)
 		if err != nil {
-			log.WarnContext(ctx, "Failed to evaluate access monitoring rule condition", "error", err)
+			log.WarnContext(ctx, "Dropping rule with a condition that failed evaluation", "error", err)
+			if isDenyRule(rule) && denyErr == nil {
+				denyErr = trace.Wrap(err, "evaluating condition for access monitoring rule %q", rule.GetMetadata().GetName())
+			}
 			continue
 		}
 		if conditionMatch {
 			matchingRules = append(matchingRules, rule)
 		}
 	}
-	return matchingRules
+	return matchingRules, denyErr
+}
+
+func isDenyRule(rule *accessmonitoringrulesv1.AccessMonitoringRule) bool {
+	return rule.GetSpec().GetAutomaticReview().GetDecision() == types.RequestState_DENIED.String()
 }
