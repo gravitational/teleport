@@ -158,6 +158,9 @@ message BeamStatus {
 
   // Region is the Cloud region where the Beam was created.
   string region = 13;
+
+  // Delegation determines how the beam owner's privleges are delegated to the beam.
+  DelegationSpec delegation = 14;
 }
 
 // ComputeStatus represents the current state of the beam's compute resources.
@@ -172,4 +175,31 @@ enum ComputeStatus {
   // COMPUTE_STATUS_PROVISION_COMPLETE means provisioning of the beam's compute
   // resources has completed.
   COMPUTE_STATUS_PROVISION_COMPLETE = 2;
+}
+
+// DelegationType determines how the beam owner's privileges will be delegated
+// to the beam.
+enum DelegationMode {
+  // DELEGATION_MODE_UNSPECIFIED is the enum zero-value. It is equivilent to
+  // DELEGATION_MODE_OWNER_STANDING_ROLES for backward-compatability reasons.
+  DELEGATION_MODE_UNSPECIFIED = 0;
+
+  // DELEGATION_MODE_OWNER_STANDING_ROLES means all of the beam owner's standing
+  // roles will be delegated to the beam.
+  DELEGATION_MODE_OWNER_STANDING_ROLES = 1;
+
+  // DELEGATION_MODE_SELECTED_ROLES means only the selected roles will be
+  // delegated to the beam.
+  DELEGATION_MODE_SELECTED_ROLES = 2;
+}
+
+// DelegationSpec determines how the beam owner's privileges will be delegated
+// to the beam.
+message DelegationSpec {
+  // Mode of delegation.
+  DelegationMode mode = 1;
+
+  // Roles (unscoped) that will be delegated to the beam. Only applicable when
+  // mode is DELEGATION_MODE_SELECTED_ROLES.
+  repeated string roles = 2;
 }

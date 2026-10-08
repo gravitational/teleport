@@ -188,6 +188,58 @@ func (x ComputeStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
+// DelegationType determines how the beam owner's privileges will be delegated
+// to the beam.
+type DelegationMode int32
+
+const (
+	// DELEGATION_MODE_UNSPECIFIED is the enum zero-value. It is equivilent to
+	// DELEGATION_MODE_OWNER_STANDING_ROLES for backward-compatability reasons.
+	DelegationMode_DELEGATION_MODE_UNSPECIFIED DelegationMode = 0
+	// DELEGATION_MODE_OWNER_STANDING_ROLES means all of the beam owner's standing
+	// roles will be delegated to the beam.
+	DelegationMode_DELEGATION_MODE_OWNER_STANDING_ROLES DelegationMode = 1
+	// DELEGATION_MODE_SELECTED_ROLES means only the selected roles will be
+	// delegated to the beam.
+	DelegationMode_DELEGATION_MODE_SELECTED_ROLES DelegationMode = 2
+)
+
+// Enum value maps for DelegationMode.
+var (
+	DelegationMode_name = map[int32]string{
+		0: "DELEGATION_MODE_UNSPECIFIED",
+		1: "DELEGATION_MODE_OWNER_STANDING_ROLES",
+		2: "DELEGATION_MODE_SELECTED_ROLES",
+	}
+	DelegationMode_value = map[string]int32{
+		"DELEGATION_MODE_UNSPECIFIED":          0,
+		"DELEGATION_MODE_OWNER_STANDING_ROLES": 1,
+		"DELEGATION_MODE_SELECTED_ROLES":       2,
+	}
+)
+
+func (x DelegationMode) Enum() *DelegationMode {
+	p := new(DelegationMode)
+	*p = x
+	return p
+}
+
+func (x DelegationMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DelegationMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_beams_v1_beam_proto_enumTypes[3].Descriptor()
+}
+
+func (DelegationMode) Type() protoreflect.EnumType {
+	return &file_teleport_beams_v1_beam_proto_enumTypes[3]
+}
+
+func (x DelegationMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 // Beam is an ephemeral AI-optimized compute environment.
 type Beam struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -646,7 +698,9 @@ type BeamStatus struct {
 	// ComputeStatus represents the current state of the beam's compute resources.
 	ComputeStatus ComputeStatus `protobuf:"varint,12,opt,name=compute_status,json=computeStatus,proto3,enum=teleport.beams.v1.ComputeStatus" json:"compute_status,omitempty"`
 	// Region is the Cloud region where the Beam was created.
-	Region        string `protobuf:"bytes,13,opt,name=region,proto3" json:"region,omitempty"`
+	Region string `protobuf:"bytes,13,opt,name=region,proto3" json:"region,omitempty"`
+	// Delegation determines how the beam owner's privleges are delegated to the beam.
+	Delegation    *DelegationSpec `protobuf:"bytes,14,opt,name=delegation,proto3" json:"delegation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -767,6 +821,13 @@ func (x *BeamStatus) GetRegion() string {
 	return ""
 }
 
+func (x *BeamStatus) GetDelegation() *DelegationSpec {
+	if x != nil {
+		return x.Delegation
+	}
+	return nil
+}
+
 func (x *BeamStatus) SetUser(v string) {
 	x.User = v
 }
@@ -819,6 +880,21 @@ func (x *BeamStatus) SetRegion(v string) {
 	x.Region = v
 }
 
+func (x *BeamStatus) SetDelegation(v *DelegationSpec) {
+	x.Delegation = v
+}
+
+func (x *BeamStatus) HasDelegation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Delegation != nil
+}
+
+func (x *BeamStatus) ClearDelegation() {
+	x.Delegation = nil
+}
+
 type BeamStatus_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -855,6 +931,8 @@ type BeamStatus_builder struct {
 	ComputeStatus ComputeStatus
 	// Region is the Cloud region where the Beam was created.
 	Region string
+	// Delegation determines how the beam owner's privleges are delegated to the beam.
+	Delegation *DelegationSpec
 }
 
 func (b0 BeamStatus_builder) Build() *BeamStatus {
@@ -874,6 +952,86 @@ func (b0 BeamStatus_builder) Build() *BeamStatus {
 	x.WorkloadIdentityName = b.WorkloadIdentityName
 	x.ComputeStatus = b.ComputeStatus
 	x.Region = b.Region
+	x.Delegation = b.Delegation
+	return m0
+}
+
+// DelegationSpec determines how the beam owner's privileges will be delegated
+// to the beam.
+type DelegationSpec struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Mode of delegation.
+	Mode DelegationMode `protobuf:"varint,1,opt,name=mode,proto3,enum=teleport.beams.v1.DelegationMode" json:"mode,omitempty"`
+	// Roles (unscoped) that will be delegated to the beam. Only applicable when
+	// mode is DELEGATION_MODE_SELECTED_ROLES.
+	Roles         []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DelegationSpec) Reset() {
+	*x = DelegationSpec{}
+	mi := &file_teleport_beams_v1_beam_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DelegationSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DelegationSpec) ProtoMessage() {}
+
+func (x *DelegationSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *DelegationSpec) GetMode() DelegationMode {
+	if x != nil {
+		return x.Mode
+	}
+	return DelegationMode_DELEGATION_MODE_UNSPECIFIED
+}
+
+func (x *DelegationSpec) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *DelegationSpec) SetMode(v DelegationMode) {
+	x.Mode = v
+}
+
+func (x *DelegationSpec) SetRoles(v []string) {
+	x.Roles = v
+}
+
+type DelegationSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Mode of delegation.
+	Mode DelegationMode
+	// Roles (unscoped) that will be delegated to the beam. Only applicable when
+	// mode is DELEGATION_MODE_SELECTED_ROLES.
+	Roles []string
+}
+
+func (b0 DelegationSpec_builder) Build() *DelegationSpec {
+	m0 := &DelegationSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Mode = b.Mode
+	x.Roles = b.Roles
 	return m0
 }
 
@@ -897,7 +1055,7 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\x10requested_region\x18\x05 \x01(\tR\x0frequestedRegion\"Z\n" +
 	"\vPublishSpec\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x127\n" +
-	"\bprotocol\x18\x02 \x01(\x0e2\x1b.teleport.beams.v1.ProtocolR\bprotocol\"\xd9\x03\n" +
+	"\bprotocol\x18\x02 \x01(\x0e2\x1b.teleport.beams.v1.ProtocolR\bprotocol\"\x9c\x04\n" +
 	"\n" +
 	"BeamStatus\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x14\n" +
@@ -914,7 +1072,13 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	" \x01(\tR\x13delegationSessionId\x124\n" +
 	"\x16workload_identity_name\x18\v \x01(\tR\x14workloadIdentityName\x12G\n" +
 	"\x0ecompute_status\x18\f \x01(\x0e2 .teleport.beams.v1.ComputeStatusR\rcomputeStatus\x12\x16\n" +
-	"\x06region\x18\r \x01(\tR\x06region*c\n" +
+	"\x06region\x18\r \x01(\tR\x06region\x12A\n" +
+	"\n" +
+	"delegation\x18\x0e \x01(\v2!.teleport.beams.v1.DelegationSpecR\n" +
+	"delegation\"]\n" +
+	"\x0eDelegationSpec\x125\n" +
+	"\x04mode\x18\x01 \x01(\x0e2!.teleport.beams.v1.DelegationModeR\x04mode\x12\x14\n" +
+	"\x05roles\x18\x02 \x03(\tR\x05roles*c\n" +
 	"\n" +
 	"EgressMode\x12\x1b\n" +
 	"\x17EGRESS_MODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
@@ -927,35 +1091,43 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\rComputeStatus\x12\x1e\n" +
 	"\x1aCOMPUTE_STATUS_UNSPECIFIED\x10\x00\x12$\n" +
 	" COMPUTE_STATUS_PROVISION_PENDING\x10\x01\x12%\n" +
-	"!COMPUTE_STATUS_PROVISION_COMPLETE\x10\x02BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
+	"!COMPUTE_STATUS_PROVISION_COMPLETE\x10\x02*\x7f\n" +
+	"\x0eDelegationMode\x12\x1f\n" +
+	"\x1bDELEGATION_MODE_UNSPECIFIED\x10\x00\x12(\n" +
+	"$DELEGATION_MODE_OWNER_STANDING_ROLES\x10\x01\x12\"\n" +
+	"\x1eDELEGATION_MODE_SELECTED_ROLES\x10\x02BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
-var file_teleport_beams_v1_beam_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_teleport_beams_v1_beam_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_beams_v1_beam_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_teleport_beams_v1_beam_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_beams_v1_beam_proto_goTypes = []any{
 	(EgressMode)(0),               // 0: teleport.beams.v1.EgressMode
 	(Protocol)(0),                 // 1: teleport.beams.v1.Protocol
 	(ComputeStatus)(0),            // 2: teleport.beams.v1.ComputeStatus
-	(*Beam)(nil),                  // 3: teleport.beams.v1.Beam
-	(*BeamSpec)(nil),              // 4: teleport.beams.v1.BeamSpec
-	(*PublishSpec)(nil),           // 5: teleport.beams.v1.PublishSpec
-	(*BeamStatus)(nil),            // 6: teleport.beams.v1.BeamStatus
-	(*v1.Metadata)(nil),           // 7: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
+	(DelegationMode)(0),           // 3: teleport.beams.v1.DelegationMode
+	(*Beam)(nil),                  // 4: teleport.beams.v1.Beam
+	(*BeamSpec)(nil),              // 5: teleport.beams.v1.BeamSpec
+	(*PublishSpec)(nil),           // 6: teleport.beams.v1.PublishSpec
+	(*BeamStatus)(nil),            // 7: teleport.beams.v1.BeamStatus
+	(*DelegationSpec)(nil),        // 8: teleport.beams.v1.DelegationSpec
+	(*v1.Metadata)(nil),           // 9: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
 }
 var file_teleport_beams_v1_beam_proto_depIdxs = []int32{
-	7, // 0: teleport.beams.v1.Beam.metadata:type_name -> teleport.header.v1.Metadata
-	4, // 1: teleport.beams.v1.Beam.spec:type_name -> teleport.beams.v1.BeamSpec
-	6, // 2: teleport.beams.v1.Beam.status:type_name -> teleport.beams.v1.BeamStatus
-	0, // 3: teleport.beams.v1.BeamSpec.egress:type_name -> teleport.beams.v1.EgressMode
-	5, // 4: teleport.beams.v1.BeamSpec.publish:type_name -> teleport.beams.v1.PublishSpec
-	8, // 5: teleport.beams.v1.BeamSpec.expires:type_name -> google.protobuf.Timestamp
-	1, // 6: teleport.beams.v1.PublishSpec.protocol:type_name -> teleport.beams.v1.Protocol
-	2, // 7: teleport.beams.v1.BeamStatus.compute_status:type_name -> teleport.beams.v1.ComputeStatus
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	9,  // 0: teleport.beams.v1.Beam.metadata:type_name -> teleport.header.v1.Metadata
+	5,  // 1: teleport.beams.v1.Beam.spec:type_name -> teleport.beams.v1.BeamSpec
+	7,  // 2: teleport.beams.v1.Beam.status:type_name -> teleport.beams.v1.BeamStatus
+	0,  // 3: teleport.beams.v1.BeamSpec.egress:type_name -> teleport.beams.v1.EgressMode
+	6,  // 4: teleport.beams.v1.BeamSpec.publish:type_name -> teleport.beams.v1.PublishSpec
+	10, // 5: teleport.beams.v1.BeamSpec.expires:type_name -> google.protobuf.Timestamp
+	1,  // 6: teleport.beams.v1.PublishSpec.protocol:type_name -> teleport.beams.v1.Protocol
+	2,  // 7: teleport.beams.v1.BeamStatus.compute_status:type_name -> teleport.beams.v1.ComputeStatus
+	8,  // 8: teleport.beams.v1.BeamStatus.delegation:type_name -> teleport.beams.v1.DelegationSpec
+	3,  // 9: teleport.beams.v1.DelegationSpec.mode:type_name -> teleport.beams.v1.DelegationMode
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_beam_proto_init() }
@@ -968,8 +1140,8 @@ func file_teleport_beams_v1_beam_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_proto_rawDesc), len(file_teleport_beams_v1_beam_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   4,
+			NumEnums:      4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

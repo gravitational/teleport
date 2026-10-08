@@ -145,6 +145,19 @@ func ValidateBeam(b *beamsv1.Beam) error {
 		}
 	}
 
+	delegation := b.GetStatus().GetDelegation()
+	switch delegation.GetMode() {
+	case beamsv1.DelegationMode_DELEGATION_MODE_UNSPECIFIED, beamsv1.DelegationMode_DELEGATION_MODE_OWNER_STANDING_ROLES:
+		if len(delegation.GetRoles()) != 0 {
+			return trace.BadParameter("status.delegation.roles: not supported in mode %s", delegation.GetMode())
+		}
+	case beamsv1.DelegationMode_DELEGATION_MODE_SELECTED_ROLES:
+		// TODO(boxofrad): Support selected roles in a subsequent PR.
+		fallthrough
+	default:
+		return trace.BadParameter("status.delegation.mode: unsupported mode %s", delegation.GetMode())
+	}
+
 	if err := ValidateBeamAlias(b.GetStatus().GetAlias()); err != nil {
 		return trace.Wrap(err)
 	}

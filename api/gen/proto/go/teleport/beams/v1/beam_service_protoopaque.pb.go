@@ -146,6 +146,7 @@ type CreateBeamRequest struct {
 	xxx_hidden_AllowedDomains []string               `protobuf:"bytes,2,rep,name=allowed_domains,json=allowedDomains,proto3"`
 	xxx_hidden_ProxyRegion    string                 `protobuf:"bytes,3,opt,name=proxy_region,json=proxyRegion,proto3"`
 	xxx_hidden_OverrideRegion string                 `protobuf:"bytes,4,opt,name=override_region,json=overrideRegion,proto3"`
+	xxx_hidden_Delegation     *DelegationSpec        `protobuf:"bytes,5,opt,name=delegation,proto3"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
@@ -203,6 +204,13 @@ func (x *CreateBeamRequest) GetOverrideRegion() string {
 	return ""
 }
 
+func (x *CreateBeamRequest) GetDelegation() *DelegationSpec {
+	if x != nil {
+		return x.xxx_hidden_Delegation
+	}
+	return nil
+}
+
 func (x *CreateBeamRequest) SetEgress(v EgressMode) {
 	x.xxx_hidden_Egress = v
 }
@@ -219,6 +227,21 @@ func (x *CreateBeamRequest) SetOverrideRegion(v string) {
 	x.xxx_hidden_OverrideRegion = v
 }
 
+func (x *CreateBeamRequest) SetDelegation(v *DelegationSpec) {
+	x.xxx_hidden_Delegation = v
+}
+
+func (x *CreateBeamRequest) HasDelegation() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Delegation != nil
+}
+
+func (x *CreateBeamRequest) ClearDelegation() {
+	x.xxx_hidden_Delegation = nil
+}
+
 type CreateBeamRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -232,6 +255,9 @@ type CreateBeamRequest_builder struct {
 	// OverrideRegion is the user-requested Beam routing region.
 	// This field may override ProxyRegion.
 	OverrideRegion string
+	// Delegation determines how the beam owner's privileges will be delegated to
+	// the beam.
+	Delegation *DelegationSpec
 }
 
 func (b0 CreateBeamRequest_builder) Build() *CreateBeamRequest {
@@ -242,6 +268,7 @@ func (b0 CreateBeamRequest_builder) Build() *CreateBeamRequest {
 	x.xxx_hidden_AllowedDomains = b.AllowedDomains
 	x.xxx_hidden_ProxyRegion = b.ProxyRegion
 	x.xxx_hidden_OverrideRegion = b.OverrideRegion
+	x.xxx_hidden_Delegation = b.Delegation
 	return m0
 }
 
@@ -1028,12 +1055,15 @@ var File_teleport_beams_v1_beam_service_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\n" +
-	"$teleport/beams/v1/beam_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\"\xbf\x01\n" +
+	"$teleport/beams/v1/beam_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\"\x82\x02\n" +
 	"\x11CreateBeamRequest\x125\n" +
 	"\x06egress\x18\x01 \x01(\x0e2\x1d.teleport.beams.v1.EgressModeR\x06egress\x12'\n" +
 	"\x0fallowed_domains\x18\x02 \x03(\tR\x0eallowedDomains\x12!\n" +
 	"\fproxy_region\x18\x03 \x01(\tR\vproxyRegion\x12'\n" +
-	"\x0foverride_region\x18\x04 \x01(\tR\x0eoverrideRegion\"A\n" +
+	"\x0foverride_region\x18\x04 \x01(\tR\x0eoverrideRegion\x12A\n" +
+	"\n" +
+	"delegation\x18\x05 \x01(\v2!.teleport.beams.v1.DelegationSpecR\n" +
+	"delegation\"A\n" +
 	"\x12CreateBeamResponse\x12+\n" +
 	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"@\n" +
 	"\x11UpdateBeamRequest\x12+\n" +
@@ -1098,34 +1128,36 @@ var file_teleport_beams_v1_beam_service_proto_goTypes = []any{
 	(*ListBeamsResponse)(nil),        // 10: teleport.beams.v1.ListBeamsResponse
 	(*ListBeamsRequest_Filters)(nil), // 11: teleport.beams.v1.ListBeamsRequest.Filters
 	(EgressMode)(0),                  // 12: teleport.beams.v1.EgressMode
-	(*Beam)(nil),                     // 13: teleport.beams.v1.Beam
-	(*emptypb.Empty)(nil),            // 14: google.protobuf.Empty
+	(*DelegationSpec)(nil),           // 13: teleport.beams.v1.DelegationSpec
+	(*Beam)(nil),                     // 14: teleport.beams.v1.Beam
+	(*emptypb.Empty)(nil),            // 15: google.protobuf.Empty
 }
 var file_teleport_beams_v1_beam_service_proto_depIdxs = []int32{
 	12, // 0: teleport.beams.v1.CreateBeamRequest.egress:type_name -> teleport.beams.v1.EgressMode
-	13, // 1: teleport.beams.v1.CreateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	13, // 2: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
-	13, // 3: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	13, // 4: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	11, // 5: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
-	0,  // 6: teleport.beams.v1.ListBeamsRequest.sort_field:type_name -> teleport.beams.v1.BeamSortField
-	1,  // 7: teleport.beams.v1.ListBeamsRequest.sort_order:type_name -> teleport.beams.v1.BeamSortOrder
-	13, // 8: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
-	2,  // 9: teleport.beams.v1.BeamService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
-	4,  // 10: teleport.beams.v1.BeamService.UpdateBeam:input_type -> teleport.beams.v1.UpdateBeamRequest
-	6,  // 11: teleport.beams.v1.BeamService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
-	7,  // 12: teleport.beams.v1.BeamService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
-	9,  // 13: teleport.beams.v1.BeamService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
-	3,  // 14: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
-	5,  // 15: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
-	14, // 16: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
-	8,  // 17: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
-	10, // 18: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
-	14, // [14:19] is the sub-list for method output_type
-	9,  // [9:14] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	13, // 1: teleport.beams.v1.CreateBeamRequest.delegation:type_name -> teleport.beams.v1.DelegationSpec
+	14, // 2: teleport.beams.v1.CreateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	14, // 3: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
+	14, // 4: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	14, // 5: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	11, // 6: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
+	0,  // 7: teleport.beams.v1.ListBeamsRequest.sort_field:type_name -> teleport.beams.v1.BeamSortField
+	1,  // 8: teleport.beams.v1.ListBeamsRequest.sort_order:type_name -> teleport.beams.v1.BeamSortOrder
+	14, // 9: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
+	2,  // 10: teleport.beams.v1.BeamService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
+	4,  // 11: teleport.beams.v1.BeamService.UpdateBeam:input_type -> teleport.beams.v1.UpdateBeamRequest
+	6,  // 12: teleport.beams.v1.BeamService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
+	7,  // 13: teleport.beams.v1.BeamService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
+	9,  // 14: teleport.beams.v1.BeamService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
+	3,  // 15: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
+	5,  // 16: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
+	15, // 17: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
+	8,  // 18: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
+	10, // 19: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
+	15, // [15:20] is the sub-list for method output_type
+	10, // [10:15] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_beam_service_proto_init() }
