@@ -1,0 +1,26 @@
+### Inspect AWS database availability
+
+Run `tctl discovery databases` to check automatically discovered AWS databases
+for missing Database Service heartbeats, RDS IAM authentication issues, and
+unhealthy connections. To show only databases reported as `Offline`, run:
+
+```code
+$ tctl discovery databases --failures-only
+```
+
+Use the `Details` column to identify the next troubleshooting step:
+
+- **No Database Service is proxying this database**: Check that a Database
+  Service is running and that its `db_service.resources` labels match the
+  registered database.
+- **IAM Auth disabled**: Enable IAM database authentication for the RDS instance
+  or Aurora cluster.
+- **The Database Service connection to this database is unhealthy**: Check
+  network connectivity from the Database Service to the database, including VPC
+  routes and security group rules.
+
+A database can have more than one issue. An `Online` status does not verify
+database user provisioning, user permissions, or successful authentication.
+
+See [`tctl discovery databases`](../../reference/cli/tctl.mdx#tctl-discovery-databases)
+for the output fields and full flag reference.
