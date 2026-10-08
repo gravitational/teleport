@@ -68,7 +68,7 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Fetch Teleport binaries
-      uses: teleport-actions/setup@v1
+      uses: teleport-actions/setup@v2
       with:
         version: auto
         proxy: \${{ env.TELEPORT_PROXY_ADDR }}
