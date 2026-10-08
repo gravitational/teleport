@@ -27,6 +27,9 @@ import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { useTeleport } from 'teleport';
 import {
   Dropdown,
+  DropdownArrow,
+  DropdownButton,
+  DropdownContainer,
   DropdownDivider,
   DropdownItem,
   DropdownItemButton,
@@ -44,29 +47,6 @@ import { DeviceTrustStatus } from 'teleport/TopBar/DeviceTrustStatus';
 import { useUser } from 'teleport/User/UserContext';
 
 const USER_MENU_DROPDOWN_ID = 'tb-user-menu';
-
-const Container = styled.div`
-  position: relative;
-  align-self: center;
-  padding-left: ${props => props.theme.space[3]}px;
-  padding-right: ${props => props.theme.space[3]}px;
-  &:hover,
-  &:focus-within {
-    background: ${props => props.theme.colors.spotBackground[0]};
-  }
-  height: 100%;
-`;
-
-const UserInfo = styled.div`
-  height: 100%;
-  display: flex;
-  align-items: center;
-  border-radius: 5px;
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  outline: none;
-`;
 
 const Username = styled(Text)`
   color: ${props =>
@@ -100,21 +80,9 @@ const StyledAvatar = styled.div`
   min-width: 24px;
 `;
 
-const Arrow = styled.div<{ open?: boolean }>`
-  line-height: 0;
-  padding-left: ${p => p.theme.space[3]}px;
+const Arrow = styled(DropdownArrow)`
   color: ${p =>
     cfg.customTheme === 'csco' ? '#f7f7f7' : p.theme.colors.text.main};
-
-  svg {
-    transform: ${p => (p.open ? 'rotate(-180deg)' : 'none')};
-    transition: 0.1s linear transform;
-  }
-
-  display: none;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
-    display: inline-flex;
-  }
 `;
 
 export function UserMenuNav({
@@ -179,21 +147,10 @@ export function UserMenuNav({
   }
 
   return (
-    <Container ref={outsideClickRef}>
-      <UserInfo
+    <DropdownContainer ref={outsideClickRef}>
+      <DropdownButton
+        as="button"
         onClick={() => setOpen(!open)}
-        onKeyUp={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            setOpen(!open);
-            return;
-          }
-          if (e.key === 'Tab' && open) {
-            // move to first focusable item in dropdown
-            dropdownRef.current
-              ?.querySelector<HTMLElement>('a, div[role="button"]')
-              ?.focus();
-          }
-        }}
         onBlur={e =>
           focusOutsideTarget(e, dropdownRef.current) && setOpen(false)
         }
@@ -214,7 +171,7 @@ export function UserMenuNav({
         <Arrow open={open}>
           <ChevronDown size="medium" />
         </Arrow>
-      </UserInfo>
+      </DropdownButton>
 
       <Dropdown
         open={open}
@@ -271,6 +228,6 @@ export function UserMenuNav({
           </DropdownItemButton>
         </DropdownItem>
       </Dropdown>
-    </Container>
+    </DropdownContainer>
   );
 }

@@ -26,6 +26,41 @@ export interface OpenProps {
 export const STARTING_TRANSITION_DELAY = 80;
 export const INCREMENT_TRANSITION_DELAY = 20;
 
+/**
+ * A dropdown container. Expected to contain a {@link DropdownButton} and a
+ * {@link Dropdown}.
+ */
+export const DropdownContainer = styled.div`
+  position: relative;
+  align-self: center;
+  padding-left: ${props => props.theme.space[3]}px;
+  padding-right: ${props => props.theme.space[3]}px;
+  &:hover,
+  &:focus-within {
+    background: ${props => props.theme.colors.spotBackground[0]};
+  }
+  height: 100%;
+`;
+
+/**
+ * A button that opens and closes the dropdown. Expected to be inside a {@link
+ * DropdownContainer}.
+ */
+export const DropdownButton = styled.div`
+  height: 100%;
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  outline: none;
+`;
+
+/**
+ * Body of the dropdown. Expected to be inside a {@link DropdownContainer} and
+ * contain {@link DropdownItem}s
+ */
 export const Dropdown = styled.div<OpenProps>`
   position: absolute;
   display: flex;
@@ -52,6 +87,10 @@ export const Dropdown = styled.div<OpenProps>`
   }
 `;
 
+/**
+ * A single item of the dropdown menu. Experted to be contained in a {@link Dropdown}
+ * and to contain either a {@link DropdownItemLink} or {@link DropdownItemButton}.
+ */
 export const DropdownItem = styled.div<{
   open?: boolean;
   $transitionDelay: number;
@@ -79,7 +118,7 @@ export const DropdownItem = styled.div<{
   }
 `;
 
-const commonDropdownItemStyles = css`
+export const commonDropdownItemStyles = css`
   align-items: center;
   display: flex;
   padding: ${p => p.theme.space[1] * 3}px;
@@ -111,4 +150,19 @@ export const DropdownDivider = styled.div`
   background: ${props => props.theme.colors.spotBackground[1]};
   margin: ${props => props.theme.space[1]}px;
   margin-top: 0;
+`;
+
+export const DropdownArrow = styled.div<{ open?: boolean }>`
+  line-height: 0;
+  padding-left: ${p => p.theme.space[3]}px;
+
+  svg {
+    transform: ${p => (p.open ? 'rotate(-180deg)' : 'none')};
+    transition: 0.1s linear transform;
+  }
+
+  display: none;
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
+    display: inline-flex;
+  }
 `;
