@@ -181,7 +181,7 @@ func (s *Service) authorizeWrite(ctx context.Context, verbs ...scopedaccess.Verb
 	const resourceScope = scopes.Root
 
 	ruleCtx := authCtx.RuleContext()
-	if err := authCtx.CheckerContext.Decision(ctx, resourceScope, func(checker *services.ScopedAccessChecker) error {
+	if _, err := authCtx.CheckerContext.Decision(ctx, resourceScope, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, types.KindVnetConfig, verbs...)
 	}); err != nil {
 		return trace.Wrap(err)

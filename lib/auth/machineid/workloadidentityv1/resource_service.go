@@ -144,7 +144,7 @@ func (s *ResourceService) GetWorkloadIdentity(
 	}
 
 	ruleCtx.Resource153 = resource
-	if err := authCtx.CheckerContext.Decision(
+	if _, err := authCtx.CheckerContext.Decision(
 		ctx, resource.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Read)
 		},
@@ -231,7 +231,7 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 	items = stream.FilterMap(items, func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
 		ruleCtx := authCtx.RuleContext()
 		ruleCtx.Resource153 = wi
-		if err := authCtx.CheckerContext.Decision(ctx, wi.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if _, err := authCtx.CheckerContext.Decision(ctx, wi.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx,
 				types.KindWorkloadIdentity,
@@ -270,7 +270,7 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 	}
 
 	ruleCtx := authCtx.RuleContext()
-	if err := authCtx.CheckerContext.Decision(
+	if _, err := authCtx.CheckerContext.Decision(
 		ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Delete)
 		},
@@ -323,7 +323,7 @@ func (s *ResourceService) CreateWorkloadIdentity(
 
 	ruleCtx := authCtx.RuleContext()
 	ruleCtx.Resource153 = req.GetWorkloadIdentity()
-	if err := authCtx.CheckerContext.Decision(
+	if _, err := authCtx.CheckerContext.Decision(
 		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Create)
 		},
@@ -392,7 +392,7 @@ func (s *ResourceService) UpdateWorkloadIdentity(
 
 	ruleCtx := authCtx.RuleContext()
 	ruleCtx.Resource153 = req.GetWorkloadIdentity()
-	if err := authCtx.CheckerContext.Decision(
+	if _, err := authCtx.CheckerContext.Decision(
 		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Update)
 		},
@@ -461,7 +461,7 @@ func (s *ResourceService) UpsertWorkloadIdentity(
 
 	ruleCtx := authCtx.RuleContext()
 	ruleCtx.Resource153 = req.GetWorkloadIdentity()
-	if err := authCtx.CheckerContext.Decision(
+	if _, err := authCtx.CheckerContext.Decision(
 		ctx, req.GetWorkloadIdentity().GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, scopedaccess.Create, scopedaccess.Update)
 		},

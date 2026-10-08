@@ -355,33 +355,33 @@ func (c *ScopedAccessCheckerContext) CheckMaybeHasAccessToRules(ctx RuleContext,
 // Unscoped contexts resolve to exactly one checker, an error returned in this case is unmodified in order to
 // surface special unscoped requirements like trusted device or session MFA that only an unscoped checker can produce
 // right now.
-func (c *ScopedAccessCheckerContext) Decision(ctx context.Context, scope string, fn func(*ScopedAccessChecker) error) error {
+func (c *ScopedAccessCheckerContext) Decision(ctx context.Context, scope string, fn func(*ScopedAccessChecker) error) (*ScopedAccessChecker, error) {
 	return c.decision(c.CheckersForResourceScope(ctx, scope), fn)
 }
 
-func (c *ScopedAccessCheckerContext) decision(checkers stream.Stream[*ScopedAccessChecker], fn func(*ScopedAccessChecker) error) error {
+func (c *ScopedAccessCheckerContext) decision(checkers stream.Stream[*ScopedAccessChecker], fn func(*ScopedAccessChecker) error) (*ScopedAccessChecker, error) {
 	for checker, err := range checkers {
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		err = fn(checker)
 		switch {
 		case err == nil:
-			return nil
+			return checker, nil
 		case !c.isScoped():
 			// This surfaces requirements like trusted device and session MFA
 			// that only the unscoped checker can produce right now.
 			// Rather than masking them into an explicit deny,
 			// return errors here that unscoped checkers return.
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		case IsAccessExplicitlyDenied(err):
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		default:
 			// implicit deny, continue to the next check
 			continue
 		}
 	}
-	return trace.AccessDenied("access denied (decision)")
+	return nil, trace.AccessDenied("access denied (decision)")
 }
 
 // AccessStateFromSSHIdentity builds an AccessState from an SSH identity, abstracting over scoped and
@@ -475,12 +475,13 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedRead(
 		return trace.Wrap(err, "invalid unpinned read authorization")
 	}
 
-	return c.decision(
+	_, err := c.decision(
 		c.riskyUnpinnedCheckersForResourceScope(ctx, authz.resourceScope),
 		func(checker *ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(ruleCtx, authz.kind, authz.verbs...)
 		},
 	)
+	return trace.Wrap(err)
 }
 
 // RiskyAuthorizeUnpinnedReadWithScope extends [RiskyAuthorizeUnpinnedRead].
@@ -515,12 +516,13 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedEmitEvent(
 		}
 	}
 
-	return c.decision(
+	_, err := c.decision(
 		c.riskyUnpinnedCheckersForResourceScope(ctx, apiscopes.Root),
 		func(checker *ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, scopedaccess.Create)
 		},
 	)
+	return trace.Wrap(err)
 }
 
 // RiskyAuthorizeUnpinnedWriteEvent authorizes a write-only access check that bypasses
@@ -536,12 +538,13 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedWriteEvent(
 		}
 	}
 
-	return c.decision(
+	_, err := c.decision(
 		c.riskyUnpinnedCheckersForResourceScope(ctx, apiscopes.Root),
 		func(checker *ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, scopedaccess.Create, scopedaccess.Update)
 		},
 	)
+	return trace.Wrap(err)
 }
 
 // UnpinnedReadAuthorization is a special authorization to complete an unscoped
