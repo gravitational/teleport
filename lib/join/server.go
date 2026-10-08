@@ -525,6 +525,11 @@ func (s *Server) makeResult(
 	rawClaims any,
 	attrs *workloadidentityv1pb.JoinAttrs,
 ) (messages.Response, error) {
+	// Implementation note: bound keypair tokens do not use `makeResult()` and
+	// additional checks added here (or in `makeHostResult()` /
+	// `makeBotResult()`) should be duplicated in `handleBoundKeypairJoin()` if
+	// necessary.
+
 	switch types.SystemRole(clientInit.SystemRole) {
 	case types.RoleInstance:
 		return s.makeHostResult(ctx, diag, authCtx, clientParams.HostParams, token, rawClaims)
@@ -559,6 +564,23 @@ func (s *Server) makeHostResult(
 	diag.Set(func(i *diagnostic.Info) {
 		i.HostID = certsParams.HostID
 	})
+
+	// Scoped tokens have usage limits, so once we've verified that host certs
+	// could be generated we need to attempt to consume the token. Any error
+	// should be considered a join failure. This is not safe to use on
+	// `bound_keypair` tokens, or other join methods that set their own `status`
+	// fields, as scoped token status is a oneof.
+	if scopedToken, ok := joining.GetScopedToken(token); ok {
+		if hostParams == nil {
+			return nil, trace.BadParameter("HostParams is required for a scoped token join")
+		}
+		publicKey := hostParams.PublicKeys.PublicTLSKey
+
+		if _, err := s.cfg.ScopedTokenService.UseScopedToken(ctx, scopedToken, publicKey); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return &messages.HostResult{
 		Certificates:    *certificates,
 		HostID:          certsParams.HostID,
