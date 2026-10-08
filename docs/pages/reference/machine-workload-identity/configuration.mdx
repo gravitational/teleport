@@ -1282,15 +1282,35 @@ type: application-tunnel
 # - TCP: `tcp://<address>:<port>`
 # - Unix socket: `unix:///<path>`
 listen: tcp://127.0.0.1:8084
+
 # dial_timeout is the maximum duration for establishing a new upstream
 # connection, including CA retrieval, DNS resolution, connection setup, and
 # TLS handshake. Does not limit the subsequent exchange after the connection
 # is established.
 # The default is 30 seconds if omitted or zero.
 dial_timeout: "30s"
+
+# idle_timeout closes an accepted client connection if no application data is
+# successfully read from or written to it for the duration. The timer starts
+# when the connection is accepted and resets after successful reads or
+# writes. Progress in establishing the upstream connection, TCP keepalive
+# probes and Teleport internal keepalives do not reset it.
+#
+# Set this longer than the longest expected period without application traffic.
+# A value that is too short can terminate valid long-running operations, 
+# such as while a remote application is computing a response without sending 
+# data.
+# 
+# Most deployments should leave this disabled. 
+# Enable it only when a suitable timeout cannot be configured at another layer.
+#
+# The default is no timeout if omitted or zero.
+idle_timeout: "0s"
+
 # app_name is the name of the application, as configured in Teleport, that
 # the service should open a tunnel to.
 app_name: my-application
+
 # name optionally overrides the name of the service used in logs and the `/readyz`
 # endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
 # symbols.
