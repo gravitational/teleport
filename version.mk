@@ -22,7 +22,7 @@ setver: validate-semver helm-version mac-app-version
 .PHONY:helm-version
 helm-version:
 	for CHART in teleport-cluster tbot teleport-kube-agent teleport-cluster/charts/teleport-operator event-handler access/discord access/email access/jira access/mattermost access/msteams access/pagerduty access/slack access/datadog; do \
-		sed -i'.bak' -e "s_^\\.version:\ .*_.version: \\&version \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
+		sed -i'.bak' -e "s_^version:.*_version: \\&version \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
 		rm -f examples/chart/$${CHART}/Chart.yaml.bak; \
 	done
 

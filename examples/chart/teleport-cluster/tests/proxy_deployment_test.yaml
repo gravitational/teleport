@@ -2,6 +2,10 @@ suite: Proxy Deployment
 templates:
   - proxy/deployment.yaml
   - proxy/config.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: sets Deployment annotations when specified
     template: proxy/deployment.yaml
@@ -9,10 +13,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment
+          path: metadata.annotations["kubernetes.io/deployment"]
           value: test-annotation
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment-different
+          path: metadata.annotations["kubernetes.io/deployment-different"]
           value: 3
 
   - it: sets Pod annotations when specified
@@ -21,10 +25,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          path: spec.template.metadata.annotations["kubernetes.io/pod"]
           value: test-annotation
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          path: spec.template.metadata.annotations["kubernetes.io/pod-different"]
           value: 4
 
   - it: should not have more than one replica if no certificate is passed
@@ -898,9 +902,8 @@ tests:
         minReadySeconds: 60
         replicaCount: 1
     asserts:
-      - equal:
+      - notExists:
           path: spec.minReadySeconds
-          value: null
 
   - it: should set nodeSelector when set in values
     template: proxy/deployment.yaml
@@ -1101,7 +1104,7 @@ tests:
       clusterName: helm-lint
       disableTopologySpreadConstraints: true
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.topologySpreadConstraints
 
   - it: removes topology spread constraints when running on antique kubernetes
@@ -1112,7 +1115,7 @@ tests:
       majorVersion: 1
       minorVersion: 17
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.topologySpreadConstraints
 
   - it: uses custom topology spread constraints when set
