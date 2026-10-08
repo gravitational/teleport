@@ -128,7 +128,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.Router.UseRawPath = true
 
 	// Passwords and sessions
-	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.extendWebSession))
+	srv.POST("/:version/users/:user/web/sessions", srv.WithScopedAuth(srv.extendWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.getWebSession))
@@ -437,7 +437,7 @@ func (s *APIServer) getWebSession(auth *ServerWithRoles, w http.ResponseWriter, 
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-func (s *APIServer) extendWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) extendWebSession(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	// nb(strideynet): Historically this handler/endpoint provided both
 	// Create and Extend WebSession functionality, and was known as
 	// CreateWebSession. The web session creation functionality was unused for

@@ -3150,19 +3150,6 @@ type renewSessionRequest struct {
 //   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	// TODO(bl-nero): Fix session renewal for scoped sessions. This endpoint
-	// doesn't work for scoped sessions, but currently, the web UI doesn't even
-	// call it in such scenario.
-	identity, err := ctx.GetIdentity()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if identity.ScopePin != nil {
-		// Reject scoped sessions explicitly to prevent removing a scope pin from an existing session without reauthentication.
-		return nil, trace.BadParameter("Scoped sessions are not supported yet")
-	}
-
 	req := renewSessionRequest{}
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

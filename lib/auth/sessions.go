@@ -33,6 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -138,6 +139,26 @@ type newWebSessionOpts struct {
 	// Only present on renewals, the original extensions are applied by
 	// [Server.AugmentWebSessionCertificates].
 	deviceExtensions *tlsca.DeviceExtensions
+	// scopePin is an optional scope pin to be carried over to the new web
+	// session. If present, it needs to match [NewWebSessionRequest.Scope]. This
+	// field should be populated in cases when the new session should not only be
+	// pinned to a specific scope, but also retain all privilege assignments
+	// present in an existing scope pin.
+	scopePin *scopesv1.Pin
+}
+
+func (o *newWebSessionOpts) getScopePin() *scopesv1.Pin {
+	if o == nil {
+		return nil
+	}
+	return o.scopePin
+}
+
+func (o *newWebSessionOpts) getDeviceExtensions() *tlsca.DeviceExtensions {
+	if o == nil {
+		return nil
+	}
+	return o.deviceExtensions
 }
 
 // newWebSession creates and returns a new web session for the specified request
@@ -153,6 +174,10 @@ func (a *Server) newWebSession(
 		if err := a.scopesFeatures.AssertEnabled(); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+	}
+
+	if opts.getScopePin() != nil && opts.getScopePin().GetScope() != req.Scope {
+		return nil, nil, trace.BadParameter("scope does not match scope pin")
 	}
 
 	userState, err := a.GetUserOrLoginState(ctx, req.User)
@@ -172,9 +197,19 @@ func (a *Server) newWebSession(
 	var checkerCtx *services.ScopedAccessCheckerContext
 	var unscopedChecker services.AccessChecker
 	if req.Scope != "" {
-		checkerCtx, err = a.AccessCheckerForScope(ctx, req.Scope, userState, req.RequestedResourceAccessIDs)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
+		if opts.getScopePin() != nil {
+			accessInfo := services.ScopePinnedAccessInfoFromUserState(userState, opts.getScopePin())
+			checkerCtx, err = services.NewScopedAccessCheckerContext(
+				ctx, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache,
+			)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+		} else {
+			checkerCtx, err = a.AccessCheckerForScope(ctx, req.Scope, userState, req.RequestedResourceAccessIDs)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
 		}
 	} else {
 		unscopedChecker, err = services.NewAccessChecker(&services.AccessInfo{
@@ -257,9 +292,9 @@ func (a *Server) newWebSession(
 		ActiveRequests: req.AccessRequests,
 	}
 	var hasDeviceExtensions bool
-	if opts != nil && opts.deviceExtensions != nil {
+	if opts.getDeviceExtensions() != nil {
 		// Apply extensions to request.
-		certReq.DeviceExtensions = *opts.deviceExtensions
+		certReq.DeviceExtensions = *opts.getDeviceExtensions()
 		hasDeviceExtensions = true
 	}
 
