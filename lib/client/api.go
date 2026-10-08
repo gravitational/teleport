@@ -4159,8 +4159,25 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// TODO(greedy52) support hardware key for encryption.
+		//
+		// Currently the encryption key is always a software key. This is ok for
+		// now since the user credentials are double-encrypted - even if the
+		// private key is stolen, user-decrypted blob still needs to be passed
+		// to Teleport backend for Auth to decrypt.
+		//
+		// Hardware key is obviously better in security and may be eligible to
+		// keep the credentials longer in the backend storage.
+		encryptionPriv, err := cryptosuites.GenerateUserEncryptionKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// Use a single hardware key for both protocols.
-		return NewKeyRing(priv, priv), nil
+		keyRing = NewKeyRing(priv, priv)
+		keyRing.EncryptionPrivateKey = encryptionPriv
+		return keyRing, nil
 	}
 
 	var sshKey, tlsKey crypto.Signer
@@ -4191,7 +4208,13 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewKeyRing(sshPriv, tlsPriv), nil
+	encryptionPriv, err := cryptosuites.GenerateUserEncryptionKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyRing = NewKeyRing(sshPriv, tlsPriv)
+	keyRing.EncryptionPrivateKey = encryptionPriv
+	return keyRing, nil
 }
 
 // new SSHLogin generates a new SSHLogin using the given login KeyRing.
@@ -4199,6 +4222,12 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 	if err != nil {
 		return SSHLogin{}, trace.Wrap(err)
+	}
+	var encryptionPub []byte
+	if keyRing.EncryptionPrivateKey != nil {
+		if encryptionPub, err = x509.MarshalPKIXPublicKey(&keyRing.EncryptionPrivateKey.PublicKey); err != nil {
+			return SSHLogin{}, trace.Wrap(err, "marshaling encryption public key")
+		}
 	}
 	return SSHLogin{
 		ProxyAddr:               tc.WebProxyAddr,
@@ -4214,6 +4243,7 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 		RouteToCluster:          tc.SiteName,
 		KubernetesCluster:       tc.KubernetesCluster,
 		ExtraHeaders:            tc.ExtraProxyHeaders,
+		EncryptionPublicKey:     encryptionPub,
 	}, nil
 }
 

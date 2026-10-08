@@ -66,6 +66,10 @@ func validateUserExternalCredentials(resource *pb.UserExternalCredentials) error
 	if len(resource.GetSpec().GetEncryptionPublicKey()) == 0 {
 		return trace.BadParameter("missing encryption_public_key")
 	}
+	// A DER-encoded P-256 key is 91 bytes.
+	if len(resource.GetSpec().GetEncryptionPublicKey()) > 1024 {
+		return trace.BadParameter("encryption_public_key is too large")
+	}
 	if resource.GetMetadata().GetExpires() == nil {
 		return trace.BadParameter("expiry is required")
 	}

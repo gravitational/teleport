@@ -2967,6 +2967,9 @@ message AuthenticateSSHUserRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 6;
   // An attestation statement associated with the TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 7;
+  // EncryptionPublicKey is the DER-encoded user-session-owned encryption
+  // public key.
+  bytes encryption_public_key = 8;
 }
 
 // AuthenticateSSHUserResponse is the response for the AuthenticateSSHUser

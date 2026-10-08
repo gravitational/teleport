@@ -193,6 +193,8 @@ type Request struct {
 	Login string
 	// TargetScope is the scope of the target resource.
 	TargetScope string
+	// EncryptionKeyID identifies the user's session encryption key.
+	EncryptionKeyID string
 }
 
 // Check verifies the cert request is valid.

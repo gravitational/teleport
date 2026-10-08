@@ -2686,6 +2686,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		KubernetesCluster:       req.KubernetesCluster,
 		ClientLoginIP:           remoteAddr,
 		Scope:                   req.Scope,
+		EncryptionPublicKey:     req.EncryptionPublicKey,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to create GitHub auth request", "error", err)
@@ -5225,6 +5226,7 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 		KubernetesCluster:       req.KubernetesCluster,
 		SSHAttestationStatement: req.SSHAttestationStatement,
 		TLSAttestationStatement: req.TLSAttestationStatement,
+		EncryptionPublicKey:     req.EncryptionPublicKey,
 	}
 
 	// A headless login blocks until the user approves it. The proxy web server

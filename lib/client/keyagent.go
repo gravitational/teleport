@@ -589,6 +589,11 @@ func (a *LocalKeyAgent) addKeyRing(keyRing *KeyRing) error {
 			return trace.Wrap(err)
 		}
 	} else {
+		// Only logins generate encryption keys. Other key rings, e.g. with
+		// reissued certificates, keep the stored one.
+		if keyRing.EncryptionPrivateKey == nil {
+			keyRing.EncryptionPrivateKey = storedKeyRing.EncryptionPrivateKey
+		}
 		if !keyRing.EqualPrivateKey(storedKeyRing) {
 			a.log.DebugContext(context.Background(), "Deleting obsolete stored keyring", "keyring_index", storedKeyRing.KeyRingIndex)
 			if err := a.clientStore.DeleteKeyRing(storedKeyRing.KeyRingIndex); err != nil {

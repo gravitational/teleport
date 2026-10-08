@@ -125,6 +125,7 @@ const (
 //    │   ├── foo-access-graph.crt     --> TLS client certificate for Access Graph (direct proxy communication)
 //    │   ├── foo                      --> SSH Private Key for user "foo"
 //    │   ├── foo.pub                  --> SSH Public Key
+//    │   ├── foo-encryption.key       --> User-session-owned encryption key
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
 //    │   ├── kube_credentials.lock    --> Kube credential lockfile, used to prevent excessive relogin attempts
 //    │   ├── proxy_ssh_retryer.lock   --> Proxy SSH retryer lockfile, used to synchronize relogin in 'tsh proxy ssh'
@@ -575,4 +576,12 @@ func VNetSSHConfigPath(baseDir string) string {
 // TrimKeyPathSuffix returns the given path with any key suffix/extension trimmed off.
 func TrimKeyPathSuffix(path string) string {
 	return strings.TrimSuffix(path, fileExtTLSKey)
+}
+
+// UserEncryptionKeyPath returns the path to the user's session encryption
+// private key for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-encryption.key
+func UserEncryptionKeyPath(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+"-encryption.key")
 }

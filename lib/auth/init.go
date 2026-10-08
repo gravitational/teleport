@@ -486,6 +486,9 @@ type InitConfig struct {
 
 	// EnrollPairing manages mobile device enrollment pairings.
 	EnrollPairing services.EnrollPairing
+
+	// UserExternalCredentials manages user session encryption keys.
+	UserExternalCredentials services.UserExternalCredentials
 }
 
 // Init instantiates and configures an instance of AuthServer

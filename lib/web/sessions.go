@@ -1069,6 +1069,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 		KubernetesCluster:       c.KubernetesCluster,
 		SSHAttestationStatement: c.UserPublicKeys.SSHAttestationStatement,
 		TLSAttestationStatement: c.UserPublicKeys.TLSAttestationStatement,
+		EncryptionPublicKey:     c.UserPublicKeys.EncryptionPublicKey,
 	})
 }
 

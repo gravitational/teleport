@@ -606,6 +606,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	if cfg.ScopedAccess == nil {
 		cfg.ScopedAccess = local.NewScopedAccessService(cfg.Backend)
 	}
+	if cfg.UserExternalCredentials == nil {
+		cfg.UserExternalCredentials, err = local.NewUserExternalCredentialsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating UserExternalCredentials service")
+		}
+	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -805,6 +811,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		insecureMode:                 cfg.InsecureMode,
 		remoteClusterRefreshLimit:    cmp.Or(cfg.RemoteClusterRefreshLimit, defaultRemoteClusterRefreshLimit),
 		remoteClusterRefreshBuckets:  cmp.Or(cfg.RemoteClusterRefreshBuckets, defaultRemoteClusterRefreshBuckets),
+		userExternalCredentials:      cfg.UserExternalCredentials,
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -1366,6 +1373,9 @@ type Server struct {
 
 	// scopedAccessBackend is the backend service for scoped access control resources.
 	scopedAccessBackend services.ScopedAccess
+
+	// userExternalCredentials manages user session encryption keys.
+	userExternalCredentials services.UserExternalCredentials
 
 	// ReadOnlyCache is a specialized cache that provides read-only shared references
 	// in certain performance-critical paths where deserialization/cloning may be too
@@ -3036,6 +3046,7 @@ type GenerateUserTestCertsRequest struct {
 	Scope                    string
 	BotInternal              bool
 	DisallowReissue          bool
+	EncryptionPublicKey      []byte
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -3083,6 +3094,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		Usage:                            req.Usage,
 		BotInternal:                      req.BotInternal,
 		DisallowReissue:                  req.DisallowReissue,
+		EncryptionKeyID:                  services.MakeUserEncryptionKeyID(req.EncryptionPublicKey),
 	}
 
 	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
@@ -4139,7 +4151,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 			Name:      req.GitServerName,
 			SessionID: req.GitSessionID,
 		},
-		GitHubUserID: githubUserID,
+		GitHubUserID:    githubUserID,
+		EncryptionKeyID: req.EncryptionKeyID,
 	}
 
 	var signedTLSCert []byte

@@ -6148,6 +6148,9 @@ message OIDCAuthRequest {
   // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
   // authentication and some differences in locking behavior.
   string scope = 26;
+  // EncryptionPublicKey is the DER-encoded user-session-owned encryption
+  // public key.
+  bytes encryption_public_key = 27 [(gogoproto.jsontag) = "encryption_public_key,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -6392,6 +6395,9 @@ message SAMLAuthRequest {
   // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
   // authentication and some differences in locking behavior.
   string scope = 26;
+  // EncryptionPublicKey is the DER-encoded user-session-owned encryption
+  // public key.
+  bytes encryption_public_key = 27 [(gogoproto.jsontag) = "encryption_public_key,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -6544,6 +6550,9 @@ message GithubAuthRequest {
   // Integration is the name of the GitHub integration used for the
   // authenticated user flow.
   string integration = 25 [(gogoproto.jsontag) = "integration,omitempty"];
+  // EncryptionPublicKey is the DER-encoded user-session-owned encryption
+  // public key.
+  bytes encryption_public_key = 26 [(gogoproto.jsontag) = "encryption_public_key,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.

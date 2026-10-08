@@ -805,6 +805,7 @@ func (a *Server) makeGithubAuthResponse(
 			KubernetesCluster:       req.KubernetesCluster,
 			LoginIP:                 req.ClientLoginIP,
 			Scope:                   req.Scope,
+			EncryptionPublicKey:     req.EncryptionPublicKey,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")

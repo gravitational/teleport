@@ -4329,10 +4329,14 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		return nil, trace.AccessDenied("access denied")
 	}
 
+	// The encryption key belongs to the caller's session, so only certificates
+	// of the caller carry it.
+	var encryptionKeyID string
 	// For users renewing certificates limit the TTL to the duration of the session, to prevent
 	// users renewing certificates forever.
 	if req.Username == a.scopedContext.User.GetName() {
 		identity := a.scopedContext.Identity.GetIdentity()
+		encryptionKeyID = identity.EncryptionKeyID
 		sessionExpires := identity.Expires
 		if sessionExpires.IsZero() {
 			a.authServer.logger.WarnContext(ctx, "Denied cert issuance for identity with no expiry",
@@ -4673,6 +4677,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		BeamID:              attributionIdentity.BeamID,
 		GitServerName:       req.RouteToGit.Name,
 		GitSessionID:        gitSessionID,
+		EncryptionKeyID:     encryptionKeyID,
 	}
 
 	if user.GetName() != a.scopedContext.User.GetName() {

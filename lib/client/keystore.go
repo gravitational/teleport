@@ -21,6 +21,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	iofs "io/fs"
@@ -137,6 +138,10 @@ func (fs *FSKeyStore) userSSHKeyPath(idx KeyRingIndex) string {
 // userTLSKeyPath returns the TLS private key path for the given KeyRingIndex.
 func (fs *FSKeyStore) userTLSKeyPath(idx KeyRingIndex) string {
 	return keypaths.UserTLSKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+func (fs *FSKeyStore) encryptionKeyPath(idx KeyRingIndex) string {
+	return keypaths.UserEncryptionKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
 // tlsCertPath returns the TLS certificate path given KeyRingIndex.
@@ -312,6 +317,16 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		keyPath := fs.gitKeyPath(keyRing.KeyRingIndex, gitServer)
 		certPath := fs.gitCertPath(keyRing.KeyRingIndex, gitServer)
 		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if keyRing.EncryptionPrivateKey != nil {
+		encKeyPEM, err := keys.MarshalPrivateKey(keyRing.EncryptionPrivateKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := fs.writeBytes(encKeyPEM, fs.encryptionKeyPath(keyRing.KeyRingIndex)); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -523,6 +538,10 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 		deleteErrs = append(deleteErrs, trace.ConvertSystemError(utils.RemoveSecure(fn)))
 	}
 
+	if err := utils.RemoveSecure(fs.encryptionKeyPath(idx)); err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		deleteErrs = append(deleteErrs, trace.Wrap(err, "failed to remove encryption key file"))
+	}
+
 	// Access Graph cert may not exist — it's only persisted when minted.
 	if err := utils.RemoveSecure(fs.accessGraphTLSCertPath(idx)); err != nil && !errors.Is(err, iofs.ErrNotExist) {
 		deleteErrs = append(deleteErrs, trace.Wrap(err, "failed to remove Access Graph TLS cert file"))
@@ -697,6 +716,16 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 	// readAccessGraphTLSCert returns nil bytes when the file isn't present,
 	// so this is a no-op for keyrings without an Access Graph cert.
 	keyRing.AccessGraphTLSCert = accessGraphTLSCert
+
+	if parsed, err := keys.LoadPrivateKey(fs.encryptionKeyPath(idx)); err == nil {
+		ecKey, ok := parsed.Signer.(*ecdsa.PrivateKey)
+		if !ok {
+			return nil, trace.BadParameter("encryption key is not an ECDSA key")
+		}
+		keyRing.EncryptionPrivateKey = ecKey
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err, "loading encryption key")
+	}
 
 	for _, o := range opts {
 		if err := fs.updateKeyRingWithCerts(o, hwks, keyRing); err != nil && !trace.IsNotFound(err) {
@@ -1064,6 +1093,7 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ hardwarekey.Service, opts 
 	retKeyRing.KeyRingIndex = idx
 	retKeyRing.TLSCert = keyRing.TLSCert
 	retKeyRing.AccessGraphTLSCert = keyRing.AccessGraphTLSCert
+	retKeyRing.EncryptionPrivateKey = keyRing.EncryptionPrivateKey
 	for _, o := range opts {
 		switch o.(type) {
 		case WithSSHCerts:

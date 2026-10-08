@@ -856,6 +856,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		RouteToCluster:                   req.RouteToCluster,
 		KubernetesCluster:                req.KubernetesCluster,
 		LoginIP:                          clientIP,
+		EncryptionKeyID:                  services.MakeUserEncryptionKeyID(req.EncryptionPublicKey),
 		SSHPublicKeyAttestationStatement: req.SSHAttestationStatement,
 		TLSPublicKeyAttestationStatement: req.TLSAttestationStatement,
 	}
@@ -880,6 +881,12 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 	certs, err := a.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(req.EncryptionPublicKey) > 0 {
+		if err := a.registerUserSessionEncryptionKey(ctx, user.GetName(), req.EncryptionPublicKey, certs.TLS); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	var userAgent, proxyGroupID string

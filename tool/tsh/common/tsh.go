@@ -5779,6 +5779,9 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 			}
 			first = false
 		}
+		if p.EncryptionKeyID != "" {
+			fmt.Fprintf(w, "  Encryption key ID:  %s\n", p.EncryptionKeyID)
+		}
 	}
 
 	fmt.Fprintf(w, "\n")
@@ -5935,6 +5938,7 @@ type profileInfo struct {
 	CriticalOptions          map[string]string        `json:"critical_options,omitempty"`
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
+	EncryptionKeyID          string                   `json:"encryption_key_id,omitempty"`
 	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
 }
 
@@ -5989,6 +5993,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		CriticalOptions:          p.CriticalOptions,
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 		GitHubIdentity:           p.GitHubIdentity,
+		EncryptionKeyID:          p.EncryptionKeyID,
 		DelegationSessionID:      p.DelegationSessionID,
 	}
 

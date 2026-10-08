@@ -269,6 +269,8 @@ type Identity struct {
 	RouteToGit RouteToGit
 	// GitHubUserID is the GitHub numeric user ID from the OAuth flow.
 	GitHubUserID string
+	// EncryptionKeyID identifies the user's session encryption key.
+	EncryptionKeyID string
 }
 
 // RouteToApp holds routing information for applications.
@@ -460,6 +462,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		BotScopeOfOrigin:         id.BotScope,
 		BotInternal:              id.BotInternal,
 		JoinToken:                id.JoinToken,
+		EncryptionKeyID:          id.EncryptionKeyID,
 	}
 }
 
@@ -728,6 +731,9 @@ var (
 	GitServerNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 36}
 	// GitSessionIDASN1ExtensionOID encodes the git session ID for audit correlation.
 	GitSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 37}
+	// EncryptionKeyIDASN1ExtensionOID is an extension OID that contains the
+	// session encryption key ID for double-encrypted credential storage.
+	EncryptionKeyIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 39}
 
 	// DelegationASN1ExtensionOID is an extension OID that contains the
 	// delegation chain of the identity this certificate represents.
@@ -1346,6 +1352,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.EncryptionKeyID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  EncryptionKeyIDASN1ExtensionOID,
+				Value: id.EncryptionKeyID,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -1715,6 +1729,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(GitSessionIDASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.RouteToGit.SessionID = val
+			}
+		case attr.Type.Equal(EncryptionKeyIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.EncryptionKeyID = val
 			}
 		}
 	}

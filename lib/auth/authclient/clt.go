@@ -1873,6 +1873,9 @@ type AuthenticateSSHRequest struct {
 	// TLSAttestationStatement is an attestation statement associated with the
 	// given TLS public key.
 	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+	// EncryptionPublicKey is the DER-encoded user-session-owned encryption
+	// public key.
+	EncryptionPublicKey []byte `json:"encryption_public_key,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -1901,6 +1904,7 @@ func (a *AuthenticateSSHRequest) ToProto() *proto.AuthenticateSSHUserRequest {
 		KubernetesCluster:       a.KubernetesCluster,
 		SshAttestationStatement: a.SSHAttestationStatement.ToProto(),
 		TlsAttestationStatement: a.TLSAttestationStatement.ToProto(),
+		EncryptionPublicKey:     a.EncryptionPublicKey,
 	}
 }
 
@@ -1923,6 +1927,7 @@ func AuthenticateSSHRequestFromProto(req *proto.AuthenticateSSHUserRequest) (Aut
 		KubernetesCluster:       req.KubernetesCluster,
 		SSHAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
 		TLSAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
+		EncryptionPublicKey:     req.EncryptionPublicKey,
 	}, nil
 }
 

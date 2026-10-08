@@ -27,13 +27,16 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -792,6 +795,7 @@ type SessionCertsRequest struct {
 	KubernetesCluster       string
 	LoginIP                 string
 	Scope                   string
+	EncryptionPublicKey     []byte
 }
 
 // CreateSessionCerts returns new user certs. The user must already be
@@ -818,10 +822,18 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		RouteToCluster:                   req.RouteToCluster,
 		KubernetesCluster:                req.KubernetesCluster,
 		LoginIP:                          req.LoginIP,
+		EncryptionKeyID:                  services.MakeUserEncryptionKeyID(req.EncryptionPublicKey),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	if len(req.EncryptionPublicKey) > 0 {
+		if err := a.registerUserSessionEncryptionKey(ctx, req.UserState.GetName(), req.EncryptionPublicKey, certs.TLS); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
 	return certs.SSH, certs.TLS, nil
 }
 
@@ -866,4 +878,39 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 
 func (a *Server) UpdateAppSession(ctx context.Context, session types.WebSession) error {
 	return trace.Wrap(a.Services.IdentityInternal.UpdateAppSession(ctx, session))
+}
+
+func (a *Server) registerUserSessionEncryptionKey(ctx context.Context, username string, encPubKey []byte, tlsCertPEM []byte) error {
+	keyID := services.MakeUserEncryptionKeyID(encPubKey)
+
+	tlsCert, err := tlsca.ParseCertificatePEM(tlsCertPEM)
+	if err != nil {
+		return trace.Wrap(err, "parsing TLS cert for encryption key expiry")
+	}
+
+	resource := usercredpb.UserExternalCredentials_builder{
+		Kind:    types.KindUserExternalCredentials,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Expires: timestamppb.New(tlsCert.NotAfter),
+		}.Build(),
+		Spec: usercredpb.UserExternalCredentialsSpec_builder{
+			EncryptionKeyId: usercredpb.EncryptionKeyID_builder{
+				User:  username,
+				KeyId: keyID,
+			}.Build(),
+			EncryptionPublicKey: encPubKey,
+		}.Build(),
+	}.Build()
+
+	if _, err := a.userExternalCredentials.Create(ctx, resource); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.logger.DebugContext(ctx, "Registered session encryption key",
+		"user", username,
+		"key_id", keyID,
+		"expiry", tlsCert.NotAfter,
+	)
+	return nil
 }
