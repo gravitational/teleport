@@ -1,27 +1,21 @@
 ## Teleport Agent Services Deployment on AWS ECS
 
-This module deploys one or more Teleport services to AWS as an ECS task.
+This module deploys a Teleport Database Service to AWS as an ECS task. It can
+generate the configuration, IAM permissions, and Teleport IAM join token for
+the Database Service.
 It is not intended to deploy a Teleport cluster or its Auth Service and Proxy
 Service control plane. This module does not provision the persistent backend and
 audit event storage, load balancing, DNS, or TLS certificates required to
 operate a self-hosted Teleport cluster.
-
-Any of the following services may be registered with an existing Teleport
-cluster using this module:
-- Teleport Application Service
-- Teleport Database Service
-- Teleport Discovery Service
-- Teleport Jamf Service
-- Teleport Kubernetes Service
 
 ## Prerequisites
 - An existing Teleport cluster with Auth Service and Proxy Service
 - A reachable Teleport Proxy Service endpoint
 <!-- lint ignore absolute-docs-links -->
 - A supported join method and credentials that the agent can use to join the
-  cluster. The example creates an IAM join token using the Teleport Terraform
-  provider. See the [Join Methods and Token Reference](https://goteleport.com/docs/reference/deployment/join-methods/)
-  for supported join methods and creating tokens.
+  cluster. Database Service deployments create an IAM join token by default.
+  See the [Join Methods and Token Reference](https://goteleport.com/docs/reference/deployment/join-methods/)
+  for other supported join methods and creating tokens.
 <!-- lint ignore absolute-docs-links -->
 - [Configure Teleport Terraform Provider](https://goteleport.com/docs/configuration/terraform-provider/)
 - [Configure AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
@@ -45,6 +39,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | aws | >= 6.0 |
 | http | >= 3.0 |
 | random | >= 3.0 |
+| teleport | >= 18.8.0 |
 
 ## Providers
 
@@ -53,6 +48,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | aws | >= 6.0 |
 | http | >= 3.0 |
 | random | >= 3.0 |
+| teleport | >= 18.8.0 |
 
 ## Modules
 
@@ -73,7 +69,9 @@ No modules.
 | [aws_security_group.teleport_agent](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_vpc_security_group_egress_rule.allow_all_outbound_from_teleport_agent](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [random_string.name_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
+| teleport_provision_token.agent_aws_iam | resource |
 | [aws_caller_identity.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_iam_policy_document.database_task_inline_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.ecs_execution](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.ecs_execution_trust](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.ecs_task_inline_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
@@ -91,6 +89,7 @@ No modules.
 | assign\_public\_ip | Whether to assign public IP addresses to Teleport ECS tasks. If this is set to true, then var.ecs\_service\_subnets must be public subnets (route to an internet gateway). Otherwise, var.ecs\_service\_subnets must be private subnets (route to a NAT gateway). | `bool` | `false` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
 | create\_security\_group | Whether to create a security group for the Teleport ECS tasks. | `bool` | `true` | no |
+| database\_service | Teleport Database Service configuration. Set enabled to true to run the Teleport Database Service. Set allow\_database\_modification to true to add RDS permissions that allow the service to modify database configuration. Set default\_iam\_policy\_database\_types to the database types for which default IAM policy statements should be added to the ECS task role's inline policy. Supported default IAM policy database types are `rds` and `rdsproxy`. Statements in the default IAM policy can be overridden by a statement with a matching SID in var.ecs\_task\_role\_inline\_policy. When resources is null, a default resource matcher is used that matches databases in the same account, region, and VPC. | ```object({ allow_database_modification = optional(bool, false) default_iam_policy_database_types = optional(list(string), []) enabled = optional(bool, false) resources = optional(list(object({ labels = map(list(string)) aws = optional(object({ assume_role_arn = optional(string, "") external_id = optional(string, "") })) })), null) })``` | `{}` | no |
 | ecs\_cluster\_name | Name of the ECS cluster. | `string` | `"teleport"` | no |
 | ecs\_cluster\_use\_name\_prefix | Determines whether `var.ecs_cluster_name` is used as a prefix of the ECS cluster name. | `bool` | `true` | no |
 | ecs\_execution\_role\_inline\_policy | Optional JSON policy document to merge into the inline policy attached to the ECS execution IAM role. | `string` | `null` | no |
@@ -111,11 +110,15 @@ No modules.
 | ecs\_task\_role\_inline\_policy | Optional JSON policy document to merge into the inline policy attached to the ECS task IAM role. | `string` | `null` | no |
 | ecs\_task\_role\_self\_assumption\_allowed | Whether the ECS task IAM role can assume itself. | `bool` | `true` | no |
 | environment\_vars | Environment variables to set on the Teleport ECS container. | `map(string)` | `{}` | no |
+| join\_params | Override the Teleport join parameters. When null and var.database\_service.enabled is true, the module creates an IAM join token automatically. Set this to use a pre-existing token or a different join method. | ```object({ token_name = string method = string })``` | `null` | no |
+| log\_level | Teleport log level. Only used when var.database\_service.enabled is true. | `string` | `"INFO"` | no |
 | managed\_updates\_enabled | Whether to resolve the Teleport version from the configured Managed Updates endpoint when applying this module. | `bool` | `true` | no |
 | managed\_updates\_group | Update group to query through the v2 Managed Updates endpoint. | `string` | `"default"` | no |
 | security\_group\_ids | Additional security group IDs to attach to the Teleport ECS tasks. | `list(string)` | `[]` | no |
-| teleport\_config | Teleport configuration. Write the configuration using native Terraform syntax. Warning: sensitive data, such as static join tokens, is visible to anyone who can read the task definition. | `any` | n/a | yes |
 | teleport\_container\_image | Container image used for Teleport ECS tasks. | `string` | `"public.ecr.aws/gravitational/teleport-ent-distroless"` | no |
+| teleport\_provision\_token\_name | Name for the Teleport provision token resource. | `string` | `"iam-agent"` | no |
+| teleport\_provision\_token\_use\_name\_prefix | Determines whether the name of the Teleport provision token is used as a prefix. | `bool` | `true` | no |
+| teleport\_proxy\_public\_addr | Teleport cluster proxy public address `host:port`. Required when var.database\_service.enabled is true. | `string` | `null` | no |
 | teleport\_version\_override | teleport\_version\_override is intended for development and MUST NOT be used to control the Teleport version in a typical deployment. This module is designed to run a specific Teleport version. You will face compatibility issues trying to run a different Teleport version with it. If you want to run Teleport version `X.Y.Z`, you should adjust the module version to `X.Y.Z` instead. | `string` | `null` | no |
 | vpc\_id | VPC ID where Teleport will be deployed. | `string` | n/a | yes |
 
@@ -136,4 +139,5 @@ No modules.
 | ecs\_task\_role\_name | The name of the task IAM role for the Teleport ECS task. |
 | security\_group\_id | Security group ID created for the Teleport ECS service. |
 | teleport\_provision\_token\_allow\_aws\_arn | A value that can be used with a Teleport IAM join token to allow the ECS cluster to join the Teleport cluster using its IAM credentials. |
+| teleport\_provision\_token\_name | Name of the Teleport provision token that allows the agent to join the cluster using AWS IAM credentials. |
 <!-- END_TF_DOCS -->
