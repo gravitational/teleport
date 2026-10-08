@@ -26,6 +26,7 @@ package auth
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -71,4 +72,20 @@ func (a *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 	usagereporter.EmitEditorChangeEvent(new.GetName(), existing.GetRoles(), new.GetRoles(), a.AnonymizeAndSubmit)
 
 	return nil
+}
+
+// SSOUserExpiry returns the expiry of an SSO user that logs in again at now.
+// The result is existingExpiry, but at least now plus ttl and at most now
+// plus maxTTL. maxTTL must be at least ttl or zero. If maxTTL is zero, the
+// result is now plus ttl.
+func SSOUserExpiry(existingExpiry, now time.Time, ttl, maxTTL time.Duration) time.Time {
+	sessionExpiry := now.Add(ttl)
+	maxExpiry := now.Add(max(ttl, maxTTL))
+	if maxExpiry.Before(existingExpiry) {
+		return maxExpiry
+	}
+	if sessionExpiry.After(existingExpiry) {
+		return sessionExpiry
+	}
+	return existingExpiry
 }

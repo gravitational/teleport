@@ -5650,6 +5650,15 @@ func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*Sessi
 		clearSessionCookies((w))
 		return nil, trace.AccessDenied("need auth")
 	}
+
+	// The web session can outlive its user resource. On a cache miss, GetUser
+	// asks auth, so NotFound means that auth has no such user.
+	if _, err := h.cfg.AccessPoint.GetUser(r.Context(), sctx.GetUser(), false); trace.IsNotFound(err) {
+		h.logger.DebugContext(r.Context(), "User of web session no longer exists", "user", sctx.GetUser())
+		clearSessionCookies(w)
+		return nil, trace.AccessDenied("need auth")
+	}
+
 	return sctx, nil
 }
 

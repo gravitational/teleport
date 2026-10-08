@@ -971,6 +971,9 @@ type CreateUserParams struct {
 
 	// SessionTTL is how long this session will last.
 	SessionTTL time.Duration
+
+	// MaxSessionTTL is the longest session the user's roles allow.
+	MaxSessionTTL time.Duration
 }
 
 func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContext, connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*CreateUserParams, error) {
@@ -1017,8 +1020,8 @@ func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContex
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.SessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+	p.MaxSessionTTL = roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
+	p.SessionTTL = utils.MinTTL(p.MaxSessionTTL, request.CertTTL)
 
 	return &p, nil
 }
@@ -1031,7 +1034,8 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 		"dry_run", dryRun,
 	)
 
-	expires := a.GetClock().Now().UTC().Add(p.SessionTTL)
+	now := a.GetClock().Now().UTC()
+	expires := now.Add(p.SessionTTL)
 
 	user := &types.UserV2{
 		Kind:    types.KindUser,
@@ -1077,6 +1081,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 				existingUser.GetName())
 		}
 
+		user.SetExpiry(SSOUserExpiry(existingUser.Expiry(), now, p.SessionTTL, p.MaxSessionTTL))
 		user.SetRevision(existingUser.GetRevision())
 		if _, err := a.UpdateUser(ctx, user); err != nil {
 			return nil, trace.Wrap(err)

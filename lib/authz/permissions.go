@@ -1571,6 +1571,10 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 func resolveLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint) (types.User, *services.AccessInfo, error) {
 	// User has to be fetched to check if it's a blocked username
 	user, err := accessPoint.GetUser(ctx, u.Username, false)
+	if trace.IsNotFound(err) {
+		// Report a deleted user as access denied so that HTTP callers return 403.
+		return nil, nil, trace.AccessDenied("user %q no longer exists", u.Username)
+	}
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
