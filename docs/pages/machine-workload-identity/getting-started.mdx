@@ -336,7 +336,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
     - name: Fetch Teleport binaries
-      uses: teleport-actions/setup@v1
+      uses: teleport-actions/setup@v2
       with:
         proxy: example.teleport.sh:443
         version: auto
@@ -424,7 +424,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
     - name: Fetch Teleport binaries
-      uses: teleport-actions/setup@v1
+      uses: teleport-actions/setup@v2
       with:
         proxy: example.teleport.sh:443
         version: auto
