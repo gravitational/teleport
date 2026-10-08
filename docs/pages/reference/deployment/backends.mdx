@@ -78,11 +78,6 @@ balancer to forward the ports you specified for `listen_addr`,
 Configure your load balancer to use Layer 4 (TCP) load balancing, round-robin
 load balancing, and a 300 second idle timeout.
 
-<Admonition type="tip" title="NOTE">
-If you terminate TLS with your own certificate for `web_listen_addr` at your
-load balancer you'll need to run Teleport with `--insecure-no-tls`
-</Admonition>
-
 If your load balancer supports HTTP health checks, configure it to hit the
 `/readyz` [diagnostics endpoint](../../zero-trust-access/management/diagnostics/monitoring.mdx) on
 machines running Teleport. This endpoint must be enabled by using the
