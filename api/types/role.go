@@ -336,6 +336,13 @@ type Role interface {
 	// SetMCPPermissions sets the allow or deny MCP permissions.
 	SetMCPPermissions(RoleConditionType, *MCPPermissions)
 
+	// GetDelegationConditions returns the allow or deny delegation conditions.
+	GetDelegationConditions(RoleConditionType) *DelegationConditions
+	// SetDelegationConditions sets the allow or deny delegation conditions.
+	SetDelegationConditions(RoleConditionType, *DelegationConditions)
+	// GetDelegationRoles returns the allow or deny delegation roles.
+	GetDelegationRoles(RoleConditionType) []string
+
 	// Clone creats a copy of the role.
 	Clone() Role
 }
@@ -2589,6 +2596,31 @@ func (r *RoleV6) SetMCPPermissions(rct RoleConditionType, perms *MCPPermissions)
 	}
 }
 
+// GetDelegationConditions returns the allow or deny delegation conditions.
+func (r *RoleV6) GetDelegationConditions(rct RoleConditionType) *DelegationConditions {
+	if rct == Allow {
+		return r.Spec.Allow.Delegation
+	}
+	return r.Spec.Deny.Delegation
+}
+
+// SetDelegationConditions sets the allow or deny delegation conditions.
+func (r *RoleV6) SetDelegationConditions(rct RoleConditionType, cond *DelegationConditions) {
+	if rct == Allow {
+		r.Spec.Allow.Delegation = cond
+	} else {
+		r.Spec.Deny.Delegation = cond
+	}
+}
+
+// GetDelegationRoles returns the allow or deny delegation "drop to roles".
+func (r *RoleV6) GetDelegationRoles(rct RoleConditionType) []string {
+	if cond := r.GetDelegationConditions(rct); cond != nil {
+		return cond.Roles
+	}
+	return nil
+}
+
 func (r *RoleV6) Clone() Role {
 	return utils.CloneProtoMsg(r)
 }
@@ -3027,9 +3059,14 @@ func (r RoleConditions) IsEmpty() bool {
 		len(r.BeamLabels) == 0 &&
 		r.BeamLabelsExpression == "" &&
 		len(r.AppResources) == 0 &&
-		len(r.AppResourcesExpressions) == 0
+		len(r.AppResourcesExpressions) == 0 &&
+		(r.Delegation == nil || r.Delegation.IsEmpty())
 }
 
 func (mcp MCPPermissions) IsEmpty() bool {
 	return len(mcp.Tools) == 0
+}
+
+func (d DelegationConditions) IsEmpty() bool {
+	return len(d.Roles) == 0
 }

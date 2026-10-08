@@ -6370,6 +6370,17 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 						},
+						"delegation": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"roles": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+								Computed:      true,
+								Description:   "Roles is a list of roles that users are permitted to delegate to another identity (e.g. bot or beam), if they are held by the delegator.  It's important to note that allowing a user to delegate a subset of their roles is, in effect, permitting them to \"drop\" their other roles and any permission-limiting effects they might have. To mitigate this, we do not allow users to drop roles containing any deny conditions, but it's worth considering options with more subtle effects (e.g. `options.client_idle_timeout`).",
+								ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+							}},
+							Description: "Delegation specifies how users are allowed to delegate their privileges to other identities (e.g. Beams or AI Agents).",
+							Optional:    true,
+						},
 						"desktop_groups": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 							Computed:      true,
 							Description:   "DesktopGroups is a list of groups for created desktop users to be added to",
@@ -7084,6 +7095,17 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 							ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+						},
+						"delegation": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"roles": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+								Computed:      true,
+								Description:   "Roles is a list of roles that users are permitted to delegate to another identity (e.g. bot or beam), if they are held by the delegator.  It's important to note that allowing a user to delegate a subset of their roles is, in effect, permitting them to \"drop\" their other roles and any permission-limiting effects they might have. To mitigate this, we do not allow users to drop roles containing any deny conditions, but it's worth considering options with more subtle effects (e.g. `options.client_idle_timeout`).",
+								ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+							}},
+							Description: "Delegation specifies how users are allowed to delegate their privileges to other identities (e.g. Beams or AI Agents).",
+							Optional:    true,
 						},
 						"desktop_groups": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 							Computed:      true,
@@ -8183,6 +8205,16 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 							ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							Optional:    true,
 						},
+						"delegation": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"roles": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+								Computed:    true,
+								Description: "Roles is a list of roles that users are permitted to delegate to another identity (e.g. bot or beam), if they are held by the delegator.  It's important to note that allowing a user to delegate a subset of their roles is, in effect, permitting them to \"drop\" their other roles and any permission-limiting effects they might have. To mitigate this, we do not allow users to drop roles containing any deny conditions, but it's worth considering options with more subtle effects (e.g. `options.client_idle_timeout`).",
+								ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Optional:    true,
+							}},
+							Description: "Delegation specifies how users are allowed to delegate their privileges to other identities (e.g. Beams or AI Agents).",
+							Optional:    true,
+						},
 						"desktop_groups": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 							Computed:    true,
 							Description: "DesktopGroups is a list of groups for created desktop users to be added to",
@@ -8792,6 +8824,16 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 							Computed:    true,
 							Description: "DatabaseUsers is a list of databases users this role is allowed to connect as.",
 							ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Optional:    true,
+						},
+						"delegation": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"roles": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+								Computed:    true,
+								Description: "Roles is a list of roles that users are permitted to delegate to another identity (e.g. bot or beam), if they are held by the delegator.  It's important to note that allowing a user to delegate a subset of their roles is, in effect, permitting them to \"drop\" their other roles and any permission-limiting effects they might have. To mitigate this, we do not allow users to drop roles containing any deny conditions, but it's worth considering options with more subtle effects (e.g. `options.client_idle_timeout`).",
+								ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Optional:    true,
+							}},
+							Description: "Delegation specifies how users are allowed to delegate their privileges to other identities (e.g. Beams or AI Agents).",
 							Optional:    true,
 						},
 						"desktop_groups": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
@@ -36241,6 +36283,51 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attributes()["delegation"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.Delegation"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.Delegation", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Delegation = nil
+												if !v.IsNull() && !v.IsUnknown() {
+													tf := v
+													obj.Delegation = &github_com_gravitational_teleport_api_types.DelegationConditions{}
+													obj := obj.Delegation
+													{
+														a, ok := tf.Attributes()["roles"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.Delegation.Roles"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.Delegation.Roles", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.Roles = make([]string, len(v.Elements()))
+																if !v.IsNull() && !v.IsUnknown() {
+																	for k, a := range v.Elements() {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.Delegation.Roles", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.Roles[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -38478,6 +38565,51 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																t = (v.ValueString())
 															}
 															obj.AppResourcesExpressions[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attributes()["delegation"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.Delegation"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.Delegation", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Delegation = nil
+												if !v.IsNull() && !v.IsUnknown() {
+													tf := v
+													obj.Delegation = &github_com_gravitational_teleport_api_types.DelegationConditions{}
+													obj := obj.Delegation
+													{
+														a, ok := tf.Attributes()["roles"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.Delegation.Roles"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.Delegation.Roles", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.Roles = make([]string, len(v.Elements()))
+																if !v.IsNull() && !v.IsUnknown() {
+																	for k, a := range v.Elements() {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.Delegation.Roles", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.Roles[k] = t
+																		}
+																	}
+																}
+															}
 														}
 													}
 												}
@@ -42447,6 +42579,78 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 															}
 														}
 													}
+													{
+														attrType, ok := attrType.AttributeTypes()["delegation"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.Delegation"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.Delegation", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																existing := attrs["delegation"]
+																v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																	if preserveUnknown && existing != nil && existing.IsUnknown() {
+																		return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																	} else {
+																		if obj.Delegation == nil {
+																			return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																		} else {
+																			obj := obj.Delegation
+																			attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																			v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																			if ok && v.Attributes() != nil {
+																				attrs = v.Attributes()
+																			}
+																			{
+																				attrType, ok := attrType.AttributeTypes()["roles"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.Delegation.Roles"})
+																				} else {
+																					attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.Delegation.Roles", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["roles"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																						} else {
+																							oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+																							c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																							if ok && c.Elements() != nil {
+																								oldElems = c.Elements()
+																							}
+																							elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+																							copy(elems, oldElems)
+																							for k, a := range obj.Roles {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := elems[k]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																								} else {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																								}
+																								elems[k] = v
+																							}
+																							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																							diags.Append(resultDiags...)
+																							v = result
+																						}
+																						attrs["roles"] = v
+																					}
+																				}
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																			diags.Append(resultDiags...)
+																			return result
+																		}
+																	}
+																}()
+																attrs["delegation"] = v
+															}
+														}
+													}
 													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 													diags.Append(resultDiags...)
 													return result
@@ -45285,6 +45489,78 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																	v = result
 																}
 																attrs["app_resources_expressions"] = v
+															}
+														}
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["delegation"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.Delegation"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.Delegation", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																existing := attrs["delegation"]
+																v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																	if preserveUnknown && existing != nil && existing.IsUnknown() {
+																		return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																	} else {
+																		if obj.Delegation == nil {
+																			return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																		} else {
+																			obj := obj.Delegation
+																			attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																			v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																			if ok && v.Attributes() != nil {
+																				attrs = v.Attributes()
+																			}
+																			{
+																				attrType, ok := attrType.AttributeTypes()["roles"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.Delegation.Roles"})
+																				} else {
+																					attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.Delegation.Roles", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["roles"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																						} else {
+																							oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+																							c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																							if ok && c.Elements() != nil {
+																								oldElems = c.Elements()
+																							}
+																							elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+																							copy(elems, oldElems)
+																							for k, a := range obj.Roles {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := elems[k]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																								} else {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																								}
+																								elems[k] = v
+																							}
+																							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																							diags.Append(resultDiags...)
+																							v = result
+																						}
+																						attrs["roles"] = v
+																					}
+																				}
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																			diags.Append(resultDiags...)
+																			return result
+																		}
+																	}
+																}()
+																attrs["delegation"] = v
 															}
 														}
 													}
