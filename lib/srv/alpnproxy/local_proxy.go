@@ -85,6 +85,9 @@ type LocalProxyConfig struct {
 	Clock clockwork.Clock
 	// Log is the Logger.
 	Log *slog.Logger
+	// DialTimeout is used when dialing the remote ALPN proxy service.
+	// The default is 30 seconds.
+	DialTimeout time.Duration
 	// CheckCertNeeded determines if the local proxy will check if it should
 	// load cert for dialing upstream. Defaults to false, in which case
 	// the local proxy will always use whatever cert it has to dial upstream.
@@ -145,6 +148,11 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 
 	// Update the list with Ping protocols.
 	cfg.Protocols = common.WithPingProtocols(cfg.Protocols)
+
+	if cfg.DialTimeout < 0 {
+		return trace.BadParameter("invalid dial timeout")
+	}
+
 	return nil
 }
 
@@ -303,6 +311,7 @@ func (l *LocalProxy) Close() error {
 
 func (l *LocalProxy) getALPNDialerConfig(serverName string, certs ...tls.Certificate) client.ALPNDialerConfig {
 	return client.ALPNDialerConfig{
+		DialTimeout:             l.cfg.DialTimeout,
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
 		TLSConfig: &tls.Config{
 			NextProtos:         common.ProtocolsToString(l.cfg.Protocols),
