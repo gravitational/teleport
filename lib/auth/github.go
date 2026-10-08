@@ -582,6 +582,12 @@ func (a *Server) githubConnectorFromIntegration(ctx context.Context, request typ
 		redirectURL = spec.OAuthCallbackURL
 	}
 
+	// Without a client redirect, the flow is started from the web UI and
+	// requires the authenticated callback to display the result.
+	if request.ClientRedirectURL == "" && !strings.HasSuffix(redirectURL, types.IntegrationGitHubOAuthCallbackPath) {
+		return nil, trace.BadParameter("integration %q uses the legacy OAuth callback URL, contact your Teleport administrator to migrate it", request.Integration)
+	}
+
 	connectorID := cmp.Or(request.ConnectorID, request.Integration)
 	return services.NewGithubConnector(connectorID, types.GithubConnectorSpecV3{
 		ClientID:       clientID,

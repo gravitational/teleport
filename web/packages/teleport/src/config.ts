@@ -221,6 +221,8 @@ const ossRoutes = {
 
   /** samlIdpSso is an exact path of the service provider initiated SAML SSO endpoint. */
   samlIdpSso: '/enterprise/saml-idp/sso',
+
+  gitServerAuthorize: '/web/gitservers/:name/authorize',
 };
 
 export type Cfg = typeof cfg;
@@ -366,6 +368,8 @@ const cfg = {
     gitServer: {
       createOrOverwrite: '/v1/webapi/sites/:clusterId/gitservers',
       delete: '/v1/webapi/sites/:clusterId/gitservers/:name',
+      authorize: '/v1/webapi/sites/:clusterId/gitservers/:name/authorize',
+      get: '/v1/webapi/sites/:clusterId/gitservers/:name',
     },
 
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
@@ -1348,7 +1352,7 @@ const cfg = {
 
   getGitServerUrl(
     params: { clusterId: string; name?: string },
-    action: 'createOrOverwrite' | 'delete'
+    action: 'createOrOverwrite' | 'delete' | 'authorize' | 'get'
   ) {
     if (action === 'createOrOverwrite') {
       return generatePath(cfg.api.gitServer.createOrOverwrite, {
@@ -1357,6 +1361,12 @@ const cfg = {
     }
     if (action === 'delete') {
       return generatePath(cfg.api.gitServer.delete, params);
+    }
+    if (action === 'authorize') {
+      return generatePath(cfg.api.gitServer.authorize, params);
+    }
+    if (action === 'get') {
+      return generatePath(cfg.api.gitServer.get, params);
     }
   },
 

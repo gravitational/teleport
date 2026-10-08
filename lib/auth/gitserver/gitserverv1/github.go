@@ -33,9 +33,6 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 	if !in.HasRequest() {
 		return nil, trace.BadParameter("missing github auth request")
 	}
-	if err := types.ValidateGitHubOrganizationName(in.GetOrganization()); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if in.GetRequest().SSOTestFlow {
 		return nil, trace.BadParameter("sso test flow is not supported when creating GitHub auth request for authenticated user")
 	}
@@ -43,19 +40,21 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 		return nil, trace.BadParameter("CreateWebSession is not supported when creating GitHub auth request for authenticated user")
 	}
 
-	authCtx, gitServer, err := s.authAndFindServerByOrg(ctx, in.GetOrganization())
+	authCtx, gitServer, err := s.authAndFindServer(ctx, in.GetRequest().ConnectorID, in.GetOrganization())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	s.cfg.Log.DebugContext(ctx, "Creating GitHub auth request for authenticated user.",
 		"user", authCtx.User.GetName(),
+		"git_server", gitServer.GetName(),
 		"org", gitServer.GetGitHub().Organization,
 		"integration", gitServer.GetGitHub().Integration,
 	)
 
-	// ConnectorID is not meaningful for the integration flow.
-	in.GetRequest().ConnectorID = gitServer.GetGitHub().Integration
+	// ConnectorID is the git server name for the authenticated user flow, so
+	// the callback knows which git server the user authorized.
+	in.GetRequest().ConnectorID = gitServer.GetName()
 	in.GetRequest().Integration = gitServer.GetGitHub().Integration
 	in.GetRequest().AuthenticatedUser = authCtx.User.GetName()
 	in.GetRequest().CertTTL = authCtx.Identity.GetIdentity().Expires.Sub(s.cfg.clock.Now())
@@ -67,7 +66,41 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 	return request, trace.Wrap(err)
 }
 
+// authAndFindServer finds the git server by name when provided, otherwise by
+// GitHub organization.
+func (s *Service) authAndFindServer(ctx context.Context, name, org string) (*authz.Context, types.Server, error) {
+	if name == "" {
+		return s.authAndFindServerByOrg(ctx, org)
+	}
+
+	authCtx, err := s.authorize(ctx, types.VerbRead)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	server, err := s.cfg.Backend.GetGitServer(ctx, name)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if err := s.checkAccess(authCtx, server); err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, nil, trace.NotFound("git server %q not found", name)
+		}
+		return nil, nil, trace.Wrap(err)
+	}
+	spec := server.GetGitHub()
+	if spec == nil {
+		return nil, nil, trace.BadParameter("git server %q is not a GitHub server", name)
+	}
+	if org != "" && spec.Organization != org {
+		return nil, nil, trace.BadParameter("git server %q is not for organization %q", name, org)
+	}
+	return authCtx, server, nil
+}
+
 func (s *Service) authAndFindServerByOrg(ctx context.Context, org string) (*authz.Context, types.Server, error) {
+	if err := types.ValidateGitHubOrganizationName(org); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	authCtx, err := s.authorize(ctx, types.VerbRead, types.VerbList)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

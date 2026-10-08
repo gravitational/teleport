@@ -36,6 +36,7 @@ import { BrowserMfa } from './BrowserMFA/BrowserMFA';
 import cfg from './config';
 import { ConsoleWithContext as Console } from './Console';
 import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
+import { GitServerAuthorize } from './GitServers/GitServerAuthorize';
 import { HeadlessRequest } from './HeadlessRequest';
 import { GitHubIntegrationCallback } from './Integrations/GitHubIntegrationCallback';
 import { Login } from './Login';
@@ -240,6 +241,12 @@ export function getSharedPrivateRoutes() {
       title="GitHub Integration"
       path={cfg.routes.githubIntegrationCallback}
       element={<GitHubIntegrationCallback />}
+    />,
+    <Route
+      key="gitServerAuthorize"
+      title="GitHub Integration"
+      path={cfg.routes.gitServerAuthorize}
+      element={<GitServerAuthorize />}
     />,
   ];
 }

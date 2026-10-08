@@ -78,6 +78,12 @@ func (h *Handler) githubIntegrationCallback(w http.ResponseWriter, r *http.Reque
 		return h.githubIntegrationErrorRedirect(r.Context(), authRequest.ClientRedirectURL, err)
 	}
 
+	// The flow is started from the web UI when there is no client to redirect
+	// back to. The web UI shows the completion without a redirect.
+	if response.Req.ClientRedirectURL == "" {
+		return &githubIntegrationCallbackResponse{}, nil
+	}
+
 	redirectURL, err := ConstructSSHResponse(AuthParams{
 		ClientRedirectURL: response.Req.ClientRedirectURL,
 		Username:          response.Username,

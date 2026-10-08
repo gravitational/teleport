@@ -65,6 +65,39 @@ func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request
 	return created, trace.Wrap(err)
 }
 
+type gitServerAuthorizeResponse struct {
+	RedirectURL string `json:"redirectURL"`
+}
+
+// gitServerAuthorize starts the GitHub OAuth flow for the logged-in user to
+// authorize access to the git server.
+func (h *Handler) gitServerAuthorize(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("git server name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// ClientRedirectURL is left empty as the callback is handled by the web UI.
+	authRequest, err := clt.GitServerClient().CreateGitHubAuthRequest(
+		r.Context(),
+		&types.GithubAuthRequest{
+			ConnectorID: name,
+		},
+		"", /* organization is determined by the git server */
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &gitServerAuthorizeResponse{
+		RedirectURL: authRequest.RedirectURL,
+	}, nil
+}
+
 func (h *Handler) gitServerGet(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	name := p.ByName("name")
 	if name == "" {
