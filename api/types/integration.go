@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -41,6 +42,9 @@ const (
 
 	// IntegrationSubKindAWSRolesAnywhere is an integration with AWS that uses AWS IAM Roles Anywhere as trust and source of credentials.
 	IntegrationSubKindAWSRolesAnywhere = "aws-ra"
+
+	// IntegrationSubKindOAuthProxy is an integration that proxies a third-party API, authenticated with OAuth.
+	IntegrationSubKindOAuthProxy = "oauth-proxy"
 )
 
 // integrationSubKindValues is a list of supported integration subkind values.
@@ -49,6 +53,7 @@ var integrationSubKindValues = []string{
 	IntegrationSubKindAzureOIDC,
 	IntegrationSubKindAWSRolesAnywhere,
 	IntegrationSubKindGitHub,
+	IntegrationSubKindOAuthProxy,
 }
 
 const (
@@ -79,6 +84,20 @@ const (
 	// callback URL used by GitHub integration OAuth flows.
 	IntegrationGitHubOAuthCallbackPath = "/web/github/integration/callback"
 )
+
+// ReservedOAuthParams returns the list of authorization request parameters that must be set by Teleport,
+// and not be populated via extra params.
+func ReservedOAuthParams() []string {
+	return []string{
+		"client_id",
+		"redirect_uri",
+		"response_type",
+		"scope",
+		"state",
+		"code_challenge",
+		"code_challenge_method",
+	}
+}
 
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.
 type Integration interface {
@@ -115,6 +134,11 @@ type Integration interface {
 	// SetAWSRolesAnywhereIntegrationSpec sets the `aws-ra` spec fields.
 	SetAWSRolesAnywhereIntegrationSpec(*AWSRAIntegrationSpecV1)
 
+	// GetOAuthProxyIntegrationSpec returns the `oauth-proxy` spec fields.
+	GetOAuthProxyIntegrationSpec() *OAuthProxyIntegrationSpecV1
+	// SetOAuthProxyIntegrationSpec sets the `oauth-proxy` spec fields.
+	SetOAuthProxyIntegrationSpec(*OAuthProxyIntegrationSpecV1)
+
 	// SetCredentials updates credentials.
 	SetCredentials(creds PluginCredentials) error
 	// GetCredentials retrieves credentials.
@@ -129,6 +153,9 @@ type Integration interface {
 
 	// Clone returns a copy of the integration.
 	Clone() Integration
+
+	// IsOAuthProxy returns true when the integration is an OAuth Proxy.
+	IsOAuthProxy() bool
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -208,6 +235,27 @@ func NewIntegrationAWSRA(md Metadata, spec *AWSRAIntegrationSpecV1) (*Integratio
 		Spec: IntegrationSpecV1{
 			SubKindSpec: &IntegrationSpecV1_AWSRA{
 				AWSRA: spec,
+			},
+		},
+	}
+	if err := ig.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// NewIntegrationOAuthProxy returns a new `oauth-proxy` subkind Integration
+func NewIntegrationOAuthProxy(md Metadata, spec *OAuthProxyIntegrationSpecV1) (*IntegrationV1, error) {
+	ig := &IntegrationV1{
+		ResourceHeader: ResourceHeader{
+			Metadata: md,
+			Kind:     KindIntegration,
+			Version:  V1,
+			SubKind:  IntegrationSubKindOAuthProxy,
+		},
+		Spec: IntegrationSpecV1{
+			SubKindSpec: &IntegrationSpecV1_OAuthProxy{
+				OAuthProxy: spec,
 			},
 		},
 	}
@@ -298,6 +346,10 @@ func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 		if err := integrationSubKind.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *IntegrationSpecV1_OAuthProxy:
+		if err := integrationSubKind.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown integration subkind: %T", integrationSubKind)
 	}
@@ -338,7 +390,8 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 // a supported audience value.
 func (s *IntegrationSpecV1_AWSOIDC) ValidateAudience() error {
 	if !slices.Contains(integrationAWSOIDCAudienceValues, s.AWSOIDC.Audience) {
-		return trace.BadParameter("unsupported audience value %q, supported values are %q",
+		return trace.BadParameter(
+			"unsupported audience value %q, supported values are %q",
 			s.AWSOIDC.Audience,
 			integrationAWSOIDCAudienceValues,
 		)
@@ -392,6 +445,48 @@ func (s *IntegrationSpecV1_AWSRA) CheckAndSetDefaults() error {
 		}
 		if s.AWSRA.ProfileSyncConfig.RoleARN == "" {
 			return trace.BadParameter("profile_sync_config.role_arn is required when profile_sync_config is enabled")
+		}
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults validates the configuration for OAuth Proxy integration subkind.
+func (s *IntegrationSpecV1_OAuthProxy) CheckAndSetDefaults() error {
+	switch {
+	case s == nil || s.OAuthProxy == nil:
+		return trace.BadParameter("oauth_proxy is required for %q subkind", IntegrationSubKindOAuthProxy)
+	case s.OAuthProxy.IssuerUrl == "":
+		return trace.BadParameter("issuer_url is required")
+	case s.OAuthProxy.UpstreamUrl == "":
+		return trace.BadParameter("upstream_url is required")
+	}
+
+	for k, v := range map[string]string{
+		"issuer_url":             s.OAuthProxy.IssuerUrl,
+		"upstream_url":           s.OAuthProxy.UpstreamUrl,
+		"authorization_endpoint": s.OAuthProxy.AuthorizationEndpoint,
+		"introspection_endpoint": s.OAuthProxy.IntrospectionEndpoint,
+		"revocation_endpoint":    s.OAuthProxy.RevocationEndpoint,
+		"token_endpoint":         s.OAuthProxy.TokenEndpoint,
+	} {
+		if v == "" {
+			continue
+		}
+
+		u, err := url.Parse(v)
+		switch {
+		case err != nil:
+			return trace.Wrap(err)
+		case u.Scheme != "https" || u.Host == "":
+			return trace.BadParameter("%s must be a valid HTTPS URL", k)
+		}
+	}
+
+	for k := range s.OAuthProxy.ExtraParams {
+		reservedOAuthParams := ReservedOAuthParams()
+		if slices.Contains(reservedOAuthParams, strings.ToLower(k)) {
+			return trace.BadParameter("extra_params must not contain reserved parameter %q", k)
 		}
 	}
 
@@ -472,6 +567,18 @@ func (ig *IntegrationV1) SetAWSRolesAnywhereIntegrationSpec(awsRASpec *AWSRAInte
 	}
 }
 
+// GetOAuthProxyIntegrationSpec returns the `oauth-proxy` spec fields.
+func (ig *IntegrationV1) GetOAuthProxyIntegrationSpec() *OAuthProxyIntegrationSpecV1 {
+	return ig.Spec.GetOAuthProxy()
+}
+
+// SetOAuthProxyIntegrationSpec sets the `oauth-proxy` spec fields.
+func (ig *IntegrationV1) SetOAuthProxyIntegrationSpec(spec *OAuthProxyIntegrationSpecV1) {
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_OAuthProxy{
+		OAuthProxy: spec,
+	}
+}
+
 // Integrations is a list of Integration resources.
 type Integrations []Integration
 
@@ -525,6 +632,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 			AzureOIDC   json.RawMessage `json:"azure_oidc"`
 			GitHub      json.RawMessage `json:"github"`
 			AWSRA       json.RawMessage `json:"aws_ra"`
+			OAuthProxy  json.RawMessage `json:"oauth_proxy"`
 			Credentials json.RawMessage `json:"credentials"`
 		} `json:"spec"`
 		Status IntegrationStatusV1 `json:"status,omitempty"`
@@ -590,6 +698,17 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 
 		integration.Spec.SubKindSpec = subkindSpec
 
+	case IntegrationSubKindOAuthProxy:
+		subkindSpec := &IntegrationSpecV1_OAuthProxy{
+			OAuthProxy: &OAuthProxyIntegrationSpecV1{},
+		}
+
+		if err := json.Unmarshal(d.Spec.OAuthProxy, subkindSpec.OAuthProxy); err != nil {
+			return trace.Wrap(err)
+		}
+
+		integration.Spec.SubKindSpec = subkindSpec
+
 	default:
 		return trace.BadParameter("invalid subkind %q", integration.ResourceHeader.SubKind)
 	}
@@ -610,11 +729,12 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			AWSOIDC     AWSOIDCIntegrationSpecV1   `json:"aws_oidc,omitempty"`
-			AzureOIDC   AzureOIDCIntegrationSpecV1 `json:"azure_oidc,omitempty"`
-			GitHub      GitHubIntegrationSpecV1    `json:"github,omitempty"`
-			AWSRA       AWSRAIntegrationSpecV1     `json:"aws_ra,omitempty"`
-			Credentials json.RawMessage            `json:"credentials,omitempty"`
+			AWSOIDC     AWSOIDCIntegrationSpecV1    `json:"aws_oidc,omitempty"`
+			AzureOIDC   AzureOIDCIntegrationSpecV1  `json:"azure_oidc,omitempty"`
+			GitHub      GitHubIntegrationSpecV1     `json:"github,omitempty"`
+			AWSRA       AWSRAIntegrationSpecV1      `json:"aws_ra,omitempty"`
+			OAuthProxy  OAuthProxyIntegrationSpecV1 `json:"oauth_proxy,omitempty"`
+			Credentials json.RawMessage             `json:"credentials,omitempty"`
 		} `json:"spec"`
 		Status IntegrationStatusV1 `json:"status,omitempty"`
 	}{}
@@ -652,6 +772,11 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
 		}
 		d.Spec.AWSRA = *ig.GetAWSRolesAnywhereIntegrationSpec()
+	case IntegrationSubKindOAuthProxy:
+		if ig.GetOAuthProxyIntegrationSpec() == nil {
+			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
+		}
+		d.Spec.OAuthProxy = *ig.GetOAuthProxyIntegrationSpec()
 	default:
 		return nil, trace.BadParameter("invalid subkind %q, supported values are %q", ig.SubKind, integrationSubKindValues)
 	}
@@ -708,4 +833,9 @@ func (ig *IntegrationV1) WithoutCredentials() Integration {
 	clone := utils.CloneProtoMsg(ig)
 	clone.SetCredentials(nil)
 	return clone
+}
+
+// IsOAuthProxy returns true when the integration is an OAuth Proxy.
+func (ig *IntegrationV1) IsOAuthProxy() bool {
+	return ig != nil && ig.GetSubKind() == IntegrationSubKindOAuthProxy
 }

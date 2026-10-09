@@ -1,0 +1,59 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.integration.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1";
+
+// OAuthProxyService provides methods to manage OAuth Proxy authorization.
+service OAuthProxyService {
+  // StartOAuthProxyAuthorization starts an authorization process for an OAuth Proxy integration.
+  // It stores the pending request and returns the provider's authorization URL to open in a browser.
+  rpc StartOAuthProxyAuthorization(StartOAuthProxyAuthorizationRequest) returns (StartOAuthProxyAuthorizationResponse);
+
+  // CompleteOAuthProxyAuthorization completes an authorization process for an OAuth Proxy integration by exchanging an authorization code for credentials.
+  // It verifies that the caller is the same one that called StartOAuthProxyAuthorization.
+  rpc CompleteOAuthProxyAuthorization(CompleteOAuthProxyAuthorizationRequest) returns (CompleteOAuthProxyAuthorizationResponse);
+}
+
+// StartOAuthProxyAuthorizationRequest is a request to start an authorization process for an OAuth Proxy integration.
+// It contains the name of the OAuth Proxy integration to start the process for.
+message StartOAuthProxyAuthorizationRequest {
+  string name = 1;
+}
+
+// StartOAuthProxyAuthorizationResponse is a response to start an authorization process for an OAuth Proxy integration.
+// It contains the authorization URL needed to open in a browser to complete authorization, and the state.
+message StartOAuthProxyAuthorizationResponse {
+  string authorize_url = 1;
+  string state = 2;
+}
+
+// CompleteOAuthProxyAuthorizationRequest is a request to complete an authorization process for an OAuth Proxy integration.
+// It contains the name of the OAuth Proxy integration to complete authorization for, and the authorization code and state.
+message CompleteOAuthProxyAuthorizationRequest {
+  string name = 1;
+  string authorization_code = 2;
+  string state = 3;
+}
+
+// CompleteOAuthProxyAuthorizationResponse is a response to complete an authorization process for an OAuth Proxy integration.
+// It contains the expiry of the token that's been issued.
+message CompleteOAuthProxyAuthorizationResponse {
+  google.protobuf.Timestamp expires = 1;
+}

@@ -9367,6 +9367,8 @@ message IntegrationSpecV1 {
     GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
     // AWSRA contains the specific fields to handle the AWS Roles Anywhere Integration subkind.
     AWSRAIntegrationSpecV1 AWSRA = 5 [(gogoproto.jsontag) = "aws_ra,omitempty"];
+    // OAuthProxy contains the specific fields to handle the OAuthProxy integration subkind.
+    OAuthProxyIntegrationSpecV1 OAuthProxy = 6 [(gogoproto.jsontag) = "oauth_proxy,omitempty"];
   }
 
   // Credentials contains credentials for the integration.
@@ -9444,6 +9446,40 @@ message AWSRAIntegrationSpecV1 {
   // ProfileSyncConfig contains the configuration for the AWS Roles Anywhere Profile sync.
   // This is used to create AWS Roles Anywhere profiles as application servers.
   AWSRolesAnywhereProfileSyncConfig ProfileSyncConfig = 2 [(gogoproto.jsontag) = "profile_sync_config"];
+}
+
+// OAuthProxyIntegrationSpecV1 is used to initiate authorization against the provider's OAuth application.
+message OAuthProxyIntegrationSpecV1 {
+  // issuer_url is the provider's OAuth issuer URL.
+  // The OIDC discovery at this URL is used to resolve the authorization, token, revocation,
+  // and introspection endpoints, if they're not provided.
+  string issuer_url = 1 [(gogoproto.jsontag) = "issuer_url"];
+
+  // authorization_endpoint is redirected to authenticate and consent to requested scopes.
+  // If not provided, OIDC discovery is attempted using the issuer_url.
+  string authorization_endpoint = 2 [(gogoproto.jsontag) = "authorization_endpoint,omitempty"];
+
+  // token_endpoint is used to exchange authorization code and refresh tokens.
+  // If not provided, OIDC discovery is attempted using the issuer_url.
+  string token_endpoint = 3 [(gogoproto.jsontag) = "token_endpoint,omitempty"];
+
+  // revocation_endpoint is called to revoke an active token.
+  // If not provided, OIDC discovery is attempted using the issuer_url.
+  string revocation_endpoint = 4 [(gogoproto.jsontag) = "revocation_endpoint,omitempty"];
+
+  // introspection_endpoint is called to verify a token was issued by the requested app for the user.
+  // If not provided, OIDC discovery is attempted using the issuer_url.
+  string introspection_endpoint = 5 [(gogoproto.jsontag) = "introspection_endpoint,omitempty"];
+
+  // upstream_url is the base URL of the third-party API that requests are proxied to.
+  string upstream_url = 6 [(gogoproto.jsontag) = "upstream_url"];
+
+  // scopes is a list of OAuth scopes to request during authorization.
+  repeated string scopes = 7 [(gogoproto.jsontag) = "scopes,omitempty"];
+
+  // extra_params are added to the authorization request for providers requiring them.
+  // Reserved OAuth parameter are removed on creation.
+  map<string, string> extra_params = 8 [(gogoproto.jsontag) = "extra_params,omitempty"];
 }
 
 // AWSRolesAnywhereProfileSyncConfig contains the configuration for the AWS Roles Anywhere Profile sync.
