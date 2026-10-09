@@ -103,7 +103,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
     - name: Fetch Teleport binaries
-      uses: teleport-actions/setup@v1
+      uses: teleport-actions/setup@v2
       with:
         version: ${version}
     # server access example
