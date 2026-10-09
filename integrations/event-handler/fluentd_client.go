@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/net/http2"
 
 	tlib "github.com/gravitational/teleport/integrations/lib"
 )
@@ -74,11 +73,10 @@ func NewFluentdClient(c *FluentdConfig, log *slog.Logger) (*FluentdClient, error
 		},
 		MaxIdleConnsPerHost: c.FluentdMaxConnections,
 		IdleConnTimeout:     httpTimeout,
+		Protocols:           &http.Protocols{},
 	}
-
-	if err := http2.ConfigureTransport(transport); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	transport.Protocols.SetHTTP1(true)
+	transport.Protocols.SetHTTP2(true)
 
 	client := &http.Client{
 		Transport: transport,
