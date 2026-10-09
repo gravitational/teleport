@@ -439,9 +439,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.AccessLists, err = local.NewAccessListServiceV2(local.AccessListServiceConfig{
 			Backend: cfg.Backend,
 			// TODO(tross): replace modules.GetModules with cfg.Modules
-			Modules:                     modules.GetModules(),
-			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
-			ScopesFeatures:              cfg.ScopesFeatures,
+			Modules:                      modules.GetModules(),
+			RunWhileLockedRetryInterval:  cfg.RunWhileLockedRetryInterval,
+			RunWhileLockedReleaseTimeout: cfg.ReleaseCtxTimeout,
+			ScopesFeatures:               cfg.ScopesFeatures,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
