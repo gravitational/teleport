@@ -39,6 +39,7 @@ In this guide, you will:
 - `kubectl` and `helm` for AKS deployments.
 - (!docs/pages/includes/tctl.mdx!)
 
+ (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 ## Step 1/6. Create an Azure managed identity for Teleport Application Service
 
@@ -85,18 +86,29 @@ $ az role definition create --role-definition ./${USER_ASSIGNED_IDENTITY_NAME}-r
 $ az role assignment create --role "${USER_ASSIGNED_IDENTITY_NAME}-role" --scope "/subscriptions/${SUBSCRIPTION}" --assignee-object-id $(az identity show --name "${USER_ASSIGNED_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --query principalId --output tsv) --assignee-principal-type ServicePrincipal
 ```
 
+Azure can take up to a few minutes to propagate a newly created role
+definition. If `az role assignment create` reports that it cannot find the
+`${USER_ASSIGNED_IDENTITY_NAME}-role` role, wait a minute and run the command
+again.
+
 ## Step 2/6. Configure the AKS cluster for Workload ID
 
 To use Microsoft Entra Workload ID, you need to enable OIDC issuer and Workload
 ID in your AKS cluster.
 ```code
-$ az aks update -g "${RESOURCE_GROUP}" -n "{AKS_CLUSTER_NAME}" --enable-oidc-issuer --enable-workload-identity
+$ az aks update -g "${RESOURCE_GROUP}" -n "${AKS_CLUSTER_NAME}" --enable-oidc-issuer --enable-workload-identity
 ```
 
 Before using `kubectl`, make sure your local Kubernetes config is updated to
 access your AKS cluster:
 ```code
 $ az aks get-credentials -n "${AKS_CLUSTER_NAME}" -g "${RESOURCE_GROUP}"
+```
+
+Create the Kubernetes namespace that will host the Teleport Application
+Service, assigning <Var name="teleport-ns" /> to the namespace name:
+```code
+$ kubectl create namespace <Var name="teleport-ns" />
 ```
 
 Create a Kubernetes service account and annotate it with the client ID of
@@ -121,6 +133,10 @@ $ export AKS_OIDC_ISSUER="$(az aks show -n "${AKS_CLUSTER_NAME}" -g "${RESOURCE_
 $ az identity federated-credential create --name "federated-${USER_ASSIGNED_IDENTITY_NAME}" --identity-name "${USER_ASSIGNED_IDENTITY_NAME}" --resource-group "${RESOURCE_GROUP}" --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:<Var name="teleport-ns" />:<Var name="teleport-azure-cli-aks-service-account" /> --audience api://AzureADTokenExchange
 ```
 
+A federated credential takes a few seconds to propagate after Azure creates
+it. If a token request in a later step fails immediately after this command,
+wait a moment and retry.
+
 ## Step 3/6. Create an Azure managed identity for user access
 
 In this step, we will create an user-assigned managed identity that a Teleport
@@ -132,7 +148,8 @@ skip the creation of a new identity.
 
 ### Create an Azure managed identity
 
-Create the managed identity with `az`:
+Create the managed identity with `az`, assigning <Var name="teleport-reader" />
+to the name you want to give it:
 ```code
 $ az identity create --name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --location "${LOCATION}" --subscription "${SUBSCRIPTION}"
 ```
@@ -161,7 +178,15 @@ $ export AKS_OIDC_ISSUER="$(az aks show -n "${AKS_CLUSTER_NAME}" -g "${RESOURCE_
 $ az identity federated-credential create --name "federated-<Var name="teleport-reader" />" --identity-name "<Var name="teleport-reader" />" --resource-group "${RESOURCE_GROUP}" --issuer "${AKS_OIDC_ISSUER}" --subject system:serviceaccount:<Var name="teleport-ns" />:<Var name="teleport-azure-cli-aks-service-account" /> --audience api://AzureADTokenExchange
 ```
 
-## Step 4/6  Enable your user to access Azure CLIs
+As in Step 2, this federated credential takes a few seconds to propagate. Wait
+a moment before assuming the identity in Step 6.
+
+## Step 4/6. Enable your user to access Azure CLIs
+
+The following instructions refer to the managed identity for user access as
+`teleport-azure`. Substitute the identity name you chose in Step 3 (for
+example, `teleport-reader`) and the resource ID URI you copied there wherever
+the instructions mention `teleport-azure` or an identity URI.
 
 (!docs/pages/includes/application-access/azure-teleport-role.mdx!)
 
@@ -181,7 +206,7 @@ $ tctl tokens add --type=app --ttl=1h --format=text
 
 ### Start the Teleport Application Service
 
-Create a Helm values file called `values.yaml`, assigning <Var name="token" />
+Create a Helm values file called `azure_access_agent.values.yaml`, assigning <Var name="token" />
 to the value of the join token you retrieved above, 
 <Var name="example.teleport.sh:443" /> to the host **and port** of your Teleport
 Proxy Service (e.g., `teleport.example.com:443`):
@@ -246,4 +271,3 @@ teleport-azure-access-agent-0   1/1     Running   0          99s
   traits we illustrated in the Teleport roles within this guide, see
   the [Access Controls
   Reference](../../../reference/access-controls/roles.mdx).
-
