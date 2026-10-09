@@ -20,6 +20,7 @@ package apiserver
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -29,6 +30,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/trail"
+	apierrors "github.com/gravitational/teleport/lib/teleterm/api/errors"
 )
 
 // withUnaryErrorHandling is gRPC middleware that maps internal errors from unary
@@ -43,7 +45,7 @@ func withUnaryErrorHandling(log *slog.Logger) grpc.UnaryServerInterceptor {
 		resp, err := handler(ctx, req)
 		if err != nil {
 			log.ErrorContext(ctx, "Request failed", "error", err)
-			return resp, trail.ToGRPC(err)
+			return resp, mapError(err)
 		}
 
 		return resp, nil
@@ -62,11 +64,24 @@ func withStreamErrorHandling(log *slog.Logger) grpc.StreamServerInterceptor {
 		err := handler(srv, stream)
 		if err != nil {
 			log.ErrorContext(stream.Context(), "Stream request failed", "error", err)
-			return trail.ToGRPC(err)
+			return mapError(err)
 		}
 
 		return nil
 	}
+}
+
+// mapError translates [apierrors.UserMessageError] errors at the tshd API boundary,
+// after the original error has been logged.
+// The resulting error message is exactly UserMessageError.Message, even if
+// outer trace.Wrap calls have added context to the original error.
+func mapError(err error) error {
+	if override, ok := errors.AsType[*apierrors.UserMessageError](err); ok {
+		proto := status.Convert(trail.ToGRPC(override.Err)).Proto()
+		proto.Message = override.Message
+		return status.FromProto(proto).Err()
+	}
+	return trail.ToGRPC(err)
 }
 
 // withUnaryPanicRecovery is gRPC middleware that recovers from panics in unary handlers.

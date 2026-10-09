@@ -20,6 +20,7 @@ package clusters
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -38,8 +40,10 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
+	teletermapierrors "github.com/gravitational/teleport/lib/teleterm/api/errors"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Cluster describes user settings and access to various resources.
@@ -371,9 +375,9 @@ type LoggedInUser struct {
 	ValidUntil time.Time
 }
 
-// AddMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
-// metadata to the error, we're letting the Electron app know that the given error was caused by
-// expired certs and letting the user log in again should resolve the error upon another attempt.
+// AddMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. It sets
+// metadata to let the Electron app know that logging in again should resolve the error,
+// and supplies the message that the API middleware should return to the client.
 func AddMetadataToRetryableError(ctx context.Context, fn func() error) error {
 	err := fn()
 	if err == nil {
@@ -383,6 +387,18 @@ func AddMetadataToRetryableError(ctx context.Context, fn func() error) error {
 	if client.IsErrorResolvableWithRelogin(err) {
 		trailer := metadata.Pairs("is-resolvable-with-relogin", "1")
 		grpc.SetTrailer(ctx, trailer)
+		// Only replace messages for explicit credential errors.
+		// client.IsErrorResolvableWithRelogin also returns true for generic BadParameter
+		// and trust errors. We shouldn't overwrite those messages, as they may explain
+		// issues that relogin cannot resolve.
+		switch {
+		case errors.Is(err, apiclient.ErrClientCredentialsHaveExpired) ||
+			utils.IsCertExpiredError(err) ||
+			utils.IsTLSCertExpiredError(err):
+			err = &teletermapierrors.UserMessageError{Err: err, Message: "Your session has expired. Log in again to continue."}
+		case client.IsNoCredentialsError(err):
+			err = &teletermapierrors.UserMessageError{Err: err, Message: "Your session has ended. Log in again to continue."}
+		}
 	}
 
 	return trace.Wrap(err)

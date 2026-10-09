@@ -899,8 +899,7 @@ func IsErrorResolvableWithRelogin(err error) bool {
 		// TODO(gzdunek): These manual checks should be replaced with retryable
 		// errors returned explicitly, as described below by codingllama.
 		isClientCredentialsHaveExpired := errors.Is(err, client.ErrClientCredentialsHaveExpired)
-		isTLSExpiredCertificate := strings.Contains(err.Error(), "tls: expired certificate")
-		return isClientCredentialsHaveExpired || isTLSExpiredCertificate
+		return isClientCredentialsHaveExpired || utils.IsTLSCertExpiredError(err)
 	}
 
 	// TODO(codingllama): Retrying BadParameter is a terrible idea.
