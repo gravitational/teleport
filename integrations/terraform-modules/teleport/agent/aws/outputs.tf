@@ -18,6 +18,31 @@ output "ecs_service_arn" {
   value       = one(aws_ecs_service.teleport_agent[*].id)
 }
 
+output "ecs_service_subnet_ids" {
+  description = "Subnet IDs selected for the Teleport ECS service, up to the AWS limit of 16. Private subnets are preferred over public subnets."
+  value       = local.ecs_service_subnets
+}
+
+output "assign_public_ip" {
+  description = "Whether the Teleport ECS tasks are assigned public IP addresses."
+  value       = local.assign_public_ip
+}
+
+output "private_subnet_ids" {
+  description = "Private subnet IDs provided by the caller or discovered from default routes through AWS NAT gateways."
+  value       = local.private_subnet_ids
+}
+
+output "public_subnet_ids" {
+  description = "Public subnet IDs provided by the caller or discovered from default routes through AWS internet gateways."
+  value       = local.public_subnet_ids
+}
+
+output "intra_subnet_ids" {
+  description = "Subnet IDs discovered without a default route through an AWS NAT gateway or internet gateway. Empty when subnet classification is provided by the caller."
+  value       = local.intra_subnet_ids
+}
+
 output "ecs_task_definition_arn" {
   description = "ARN of the Teleport ECS task definition."
   value       = one(aws_ecs_task_definition.teleport_agent[*].arn)
@@ -34,8 +59,13 @@ output "ecs_task_cloudwatch_log_group_arn" {
 }
 
 output "security_group_id" {
-  description = "Security group ID created for the Teleport ECS service."
+  description = "Security group ID created for the Teleport ECS service. Null when create_security_group is false."
   value       = one(aws_security_group.teleport_agent[*].id)
+}
+
+output "database_security_group_id" {
+  description = "Shared security group ID to attach to databases to allow ingress from the Teleport Database Service. Null when create_security_group is false."
+  value       = one(aws_security_group.teleport_database_access[*].id)
 }
 
 output "ecs_execution_role_arn" {
@@ -66,6 +96,6 @@ EOF
 }
 
 output "teleport_provision_token_name" {
-  description = "Name of the Teleport provision token that allows the agent to join the cluster using AWS IAM credentials."
+  description = "Name of the Teleport provision token that allows the Teleport instance to join the cluster using AWS IAM credentials."
   value       = try(nonsensitive(teleport_provision_token.agent_aws_iam[0].metadata.name), null)
 }

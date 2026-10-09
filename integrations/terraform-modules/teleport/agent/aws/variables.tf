@@ -2,15 +2,6 @@
 # Required variables
 ################################################################################
 
-variable "ecs_service_subnets" {
-  description = <<EOF
-Subnet IDs where Teleport will be deployed.
-If var.assign_public_ip is true, then all of these subnets must be public subnets (route to an internet gateway).
-If var.assign_public_ip is false, then all of these subnets must be private subnets (route to a NAT gateway).
-EOF
-  type        = list(string)
-}
-
 variable "vpc_id" {
   description = "VPC ID where Teleport will be deployed."
   type        = string
@@ -26,16 +17,6 @@ variable "apply_aws_tags" {
   type        = map(string)
 }
 
-variable "assign_public_ip" {
-  default     = false
-  description = <<EOF
-Whether to assign public IP addresses to Teleport ECS tasks.
-If this is set to true, then var.ecs_service_subnets must be public subnets (route to an internet gateway).
-Otherwise, var.ecs_service_subnets must be private subnets (route to a NAT gateway).
-EOF
-  type        = bool
-}
-
 variable "create" {
   default     = true
   description = "Toggle creation of all resources."
@@ -44,7 +25,7 @@ variable "create" {
 
 variable "create_security_group" {
   default     = true
-  description = "Whether to create a security group for the Teleport ECS tasks."
+  description = "Whether to create the Teleport instance outbound security group and the shared database-access security group."
   type        = bool
 }
 
@@ -58,16 +39,21 @@ Set default_iam_policy_database_types to the database types for which default IA
 Supported default IAM policy database types are `rds` and `rdsproxy`.
 Statements in the default IAM policy can be overridden by a statement with a matching SID in var.ecs_task_role_inline_policy.
 When resources is null, a default resource matcher is used that matches databases in the same account, region, and VPC.
+Set database_security_group_ids to database security groups that should allow traffic from the Teleport Database Service.
+Setting database_security_group_ids requires create_security_group to be true.
+When ecs_task_role_self_assumption_allowed is true, each matcher's aws.assume_role_arn defaults to the ECS task role ARN, including custom matchers.
+Set aws.assume_role_arn to another role ARN to override this default, or to an empty string to disable role assumption for that matcher.
 EOF
   nullable    = false
   type = object({
     allow_database_modification       = optional(bool, false)
+    database_security_group_ids       = optional(list(string), [])
     default_iam_policy_database_types = optional(list(string), [])
     enabled                           = optional(bool, false)
     resources = optional(list(object({
       labels = map(list(string))
       aws = optional(object({
-        assume_role_arn = optional(string, "")
+        assume_role_arn = optional(string)
         external_id     = optional(string, "")
       }))
     })), null)
@@ -79,6 +65,11 @@ EOF
       : contains(["rds", "rdsproxy"], database_type)
     ])
     error_message = "Supported database types are: rds, rdsproxy."
+  }
+
+  validation {
+    condition     = length(var.database_service.database_security_group_ids) == length(distinct(var.database_service.database_security_group_ids))
+    error_message = "database_service.database_security_group_ids must not contain duplicate security group IDs."
   }
 }
 
@@ -126,8 +117,8 @@ variable "ecs_task_cloudwatch_log_group_name" {
 variable "ecs_task_cloudwatch_log_group_region" {
   default     = null
   description = <<EOF
-AWS region for the ECS task CloudWatch log group.
-Defaults to the AWS provider region.
+AWS Region for the ECS task CloudWatch log group.
+Defaults to var.region, then the AWS provider's configured Region.
 EOF
   nullable    = true
   type        = string
@@ -243,9 +234,43 @@ variable "managed_updates_group" {
   type        = string
 }
 
+variable "private_subnet_ids" {
+  default     = null
+  description = <<EOF
+Private subnet IDs where Teleport can be deployed.
+Private subnets must have a default route through an AWS NAT gateway.
+Set this or public_subnet_ids to bypass automatic subnet discovery, such as when the VPC is created in the same Terraform apply.
+When both variables are null, the module discovers and classifies all subnets in vpc_id from their effective route tables.
+EOF
+  type        = list(string)
+}
+
+variable "public_subnet_ids" {
+  default     = null
+  description = <<EOF
+Public subnet IDs where Teleport can be deployed.
+Public subnets must have a default route through an AWS internet gateway.
+Set this or private_subnet_ids to bypass automatic subnet discovery, such as when the VPC is created in the same Terraform apply.
+When both variables are null, the module discovers and classifies all subnets in vpc_id from their effective route tables.
+EOF
+  type        = list(string)
+}
+
+variable "region" {
+  default     = null
+  description = <<EOF
+AWS Region where regional resources are created.
+When null, the AWS provider's configured Region is used.
+EOF
+  type        = string
+}
+
 variable "security_group_ids" {
   default     = []
-  description = "Additional security group IDs to attach to the Teleport ECS tasks."
+  description = <<EOF
+Additional security group IDs to attach to the Teleport ECS tasks.
+These groups are not modified by the module.
+EOF
   type        = list(string)
 }
 

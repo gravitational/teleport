@@ -10,6 +10,34 @@ locals {
     : null
   )
   database_service_config_enabled = var.database_service.enabled
+  database_service_resources = (
+    var.database_service.resources != null
+    ? var.database_service.resources
+    : [{
+      labels = {
+        "account-id" = [one(data.aws_caller_identity.this[*].account_id)]
+        "region"     = [one(data.aws_region.this[*].region)]
+        "vpc-id"     = [var.vpc_id]
+      }
+      aws = null
+    }]
+  )
+  database_service_default_aws = {
+    for enabled in [var.ecs_task_role_self_assumption_allowed] : "assume_role_arn" => one(aws_iam_role.ecs_task[*].arn)
+    if enabled
+  }
+  database_service_resources_with_aws = [
+    for matcher in local.database_service_resources : {
+      labels = matcher.labels
+      aws = merge(
+        local.database_service_default_aws,
+        # Null inherits the default; an explicit empty ARN opts out.
+        matcher.aws == null ? {} : {
+          for key, value in matcher.aws : key => value if value != null
+        },
+      )
+    }
+  ]
   teleport_provision_token_name = (
     var.teleport_provision_token_use_name_prefix
     ? format("%v-%v",
@@ -51,25 +79,12 @@ locals {
     }
     db_service = {
       enabled = true
-      resources = (
-        var.database_service.resources != null
-        ? var.database_service.resources
-        : [merge(
-          {
-            labels = {
-              "account-id" = [one(data.aws_caller_identity.this[*].account_id)]
-              "region"     = [one(data.aws_region.this[*].region)]
-              "vpc-id"     = [var.vpc_id]
-            }
-          },
-          {
-            for enabled in [var.ecs_task_role_self_assumption_allowed] : "aws" => {
-              assume_role_arn = one(aws_iam_role.ecs_task[*].arn)
-            }
-            if enabled
-          },
-        )]
-      )
+      resources = [
+        for matcher in local.database_service_resources_with_aws : merge(
+          { labels = matcher.labels },
+          length(matcher.aws) > 0 ? { aws = matcher.aws } : {},
+        )
+      ]
     }
   }
 }

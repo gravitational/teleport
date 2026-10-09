@@ -139,6 +139,10 @@ title: Terraform Module ${module_name} Examples
 sidebar_label: examples
 description: Index of all the examples for the ${module_name} Terraform module.
 page_type: landing
+tags:
+ - infrastructure-as-code
+ - reference
+ - platform-wide
 ---
 
 {/*
@@ -171,6 +175,10 @@ title: ${example_title}
 sidebar_label: ${example_name}
 description: ${example_description}
 page_type: reference
+tags:
+ - infrastructure-as-code
+ - reference
+ - platform-wide
 ---
 
 {/*

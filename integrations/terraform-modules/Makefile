@@ -35,9 +35,8 @@ test:
 	done
 
 .PHONY: check
-check: clean
-	git ls-files -- . \
-	| xargs pre-commit run --hook-stage=manual --verbose --files
+check:
+	pre-commit run --hook-stage=manual --verbose --all-files
 
 .PHONY: require-pre-commit
 require-pre-commit:
@@ -68,6 +67,7 @@ release: build
 PLUGIN_TYPE := terraform-module
 # This list controls which modules are actually published.
 PUBLISHED_TF_MODULES := \
+	teleport/agent/aws \
 	teleport/discovery/aws \
 	teleport/discovery/azure \
 
@@ -98,12 +98,16 @@ clean: tfclean
 	rm -rf build/
 
 .PHONY: tfclean
-tfclean:
+tfclean: check-tfstate
 	find . \( \
 		-name '.terraform' \
 		-or -name '.terraform.lock.hcl' \
 		-or -name 'terraform.tfstate*' \
 	\) -exec rm -rf {} \+
+
+.PHONY: check-tfstate
+check-tfstate:
+	./gen/check-state.sh
 
 #
 # update-version updates Terraform source code that depends on the current release version.

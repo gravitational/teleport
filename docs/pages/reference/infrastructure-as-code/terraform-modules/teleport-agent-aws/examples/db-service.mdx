@@ -1,0 +1,198 @@
+---
+title: Teleport Database Service Example
+sidebar_label: db-service
+description: Deploy the Teleport Database Service to ECS.
+page_type: reference
+tags:
+ - infrastructure-as-code
+ - reference
+ - platform-wide
+---
+
+{/*
+    Auto-generated file.
+    Do not edit this directly in the docs/pages tree.
+    Instead, edit teleport/agent/aws/examples/db-service/README.md
+    Then, regenerate the docs with `make -C integrations/terraform-modules docs`.
+*/}
+
+This page lists the configuration fields in a usage example of the
+teleport-agent-aws Terraform module: db-service.
+## Deploy the Teleport Database Service
+
+This example uses a single AWS provider configuration to deploy a VPC and
+Teleport Database Service to AWS ECS in both `us-east-1` and `us-west-1`. It
+provisions NAT gateways for each VPC, passes their private subnet outputs to the
+corresponding agent module instance, and joins both Database Services to an
+example Teleport cluster using IAM join tokens.
+
+{/* BEGIN_TF_DOCS */}
+## Requirements
+
+| Name | Version |
+| ---- | ------- |
+| terraform | >= 1.5.7 |
+| aws | ~> 6.0 |
+| http | ~> 3.0 |
+| teleport | ~> 18.5 |
+
+## Providers
+
+| Name | Version |
+| ---- | ------- |
+| aws | ~> 6.0 |
+
+## Modules
+
+| Name | Source | Version |
+| ---- | ------ | ------- |
+| teleport\_database\_service | ../.. | n/a |
+| vpc | terraform-aws-modules/vpc/aws | 6.6.0 |
+
+## Resources
+
+| Name | Type |
+| ---- | ---- |
+| [aws_availability_zones.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+| ---- | ----------- | ---- | ------- | :------: |
+| teleport\_proxy\_addr | The address of the Teleport Proxy Service in host:port form. | `string` | n/a | yes |
+
+## Outputs
+
+| Name | Description |
+| ---- | ----------- |
+| teleport\_database\_services | n/a |
+{/* END_TF_DOCS */}
+
+## Source Code
+
+[View the db-service example source code for the teleport-agent-aws module on GitHub](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/agent/aws/examples/db-service).
+
+```hcl
+################################################################################
+# teleport/agent/aws/examples/db-service/data.tf
+################################################################################
+
+data "aws_availability_zones" "this" {
+  for_each = local.regions
+
+  region = each.key
+}
+
+################################################################################
+# teleport/agent/aws/examples/db-service/main.tf
+################################################################################
+
+locals {
+  namespace = "example"
+  regions   = toset(["us-east-1", "us-west-1"])
+}
+
+module "vpc" {
+  for_each = local.regions
+
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "6.6.0"
+
+  region = each.key
+  azs    = slice(data.aws_availability_zones.this[each.key].names, 0, 2)
+  cidr   = "10.0.0.0/16"
+  name   = "${local.namespace}-vpc"
+
+  public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
+  private_subnets = ["10.0.101.0/24", "10.0.102.0/24"]
+
+  enable_nat_gateway = true
+}
+
+module "teleport_database_service" {
+  for_each = local.regions
+
+  source  = "terraform.releases.teleport.dev/teleport/agent/aws"
+  version = "~> (=teleport.major_version=).0"
+
+  database_service = {
+    allow_database_modification       = true
+    default_iam_policy_database_types = ["rds"]
+    enabled                           = true
+  }
+
+  # Enable managed updates
+  managed_updates_enabled = true
+  managed_updates_group   = "default"
+
+  apply_aws_tags             = { "example" = "true" }
+  ecs_cluster_name           = "${local.namespace}-cluster"
+  ecs_service_name           = "${local.namespace}-svc"
+  ecs_task_desired_count     = 1
+  environment_vars           = { EXAMPLE_VAR = "EXAMPLE_VALUE" }
+  private_subnet_ids         = module.vpc[each.key].private_subnets
+  region                     = each.key
+  teleport_proxy_public_addr = var.teleport_proxy_addr
+  vpc_id                     = module.vpc[each.key].vpc_id
+}
+
+################################################################################
+# teleport/agent/aws/examples/db-service/outputs.tf
+################################################################################
+
+output "teleport_database_services" {
+  value = module.teleport_database_service
+}
+
+################################################################################
+# teleport/agent/aws/examples/db-service/providers.tf
+################################################################################
+
+provider "aws" {
+  region = "us-east-1"
+
+  default_tags {
+    tags = {
+      env = "example"
+    }
+  }
+}
+
+provider "teleport" {
+  addr         = var.teleport_proxy_addr
+  profile_name = replace(var.teleport_proxy_addr, "/:[0-9]+.*/", "")
+}
+
+################################################################################
+# teleport/agent/aws/examples/db-service/variables.tf
+################################################################################
+
+variable "teleport_proxy_addr" {
+  description = "The address of the Teleport Proxy Service in host:port form."
+  type        = string
+}
+
+################################################################################
+# teleport/agent/aws/examples/db-service/versions.tf
+################################################################################
+
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.0"
+    }
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> 18.5"
+    }
+  }
+}
+
+```

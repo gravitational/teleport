@@ -1,6 +1,10 @@
-## Deploy Teleport Database Service to ECS
+## Deploy the Teleport Database Service
 
-This example deploys the Teleport Database Service to AWS ECS and joins it to an example Teleport cluster using an IAM join token.
+This example uses a single AWS provider configuration to deploy a VPC and
+Teleport Database Service to AWS ECS in both `us-east-1` and `us-west-1`. It
+provisions NAT gateways for each VPC, passes their private subnet outputs to the
+corresponding agent module instance, and joins both Database Services to an
+example Teleport cluster using IAM join tokens.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -41,5 +45,5 @@ This example deploys the Teleport Database Service to AWS ECS and joins it to an
 
 | Name | Description |
 | ---- | ----------- |
-| teleport\_database\_service | n/a |
+| teleport\_database\_services | n/a |
 <!-- END_TF_DOCS -->
