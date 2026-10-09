@@ -7,6 +7,7 @@ tags:
  - infrastructure-as-code
  - how-to
  - zero-trust
+page_type: how-to
 ---
 
 You can use Spacelift with the Teleport Terraform provider to manage dynamic
@@ -27,7 +28,7 @@ long-lived shared secret.
 
 While following this guide, you will create a Teleport user and role with no
 privileges in order to show you how to use Spacelift to create dynamic
-resources. 
+resources.
 
 ## Prerequisites
 
@@ -37,13 +38,14 @@ resources.
 - A GitHub repository where you will store your Terraform configuration and a
   Spacelift stack linked to this repository.
 - A paid Spacelift account. This is required to use the `spacelift` join method.
-- Your Teleport user should have the privileges to create token resources.
+- Your Teleport user should have the privileges to create `bot` and `token`
+  resources.
 
-## Step 1/3. Create a role and Machine & Workload Identity bot
+## Step 1/3. Create a Machine & Workload Identity bot
 
 First, we'll create a Machine & Workload Identity Bot for our Spacelift job to
-act as. We'll grant it the `terraform-provider` role, which automatically grants
-access to every resource supported by the Teleport terraform provider.
+act as. We'll grant it the built-in `terraform-provider` role, which automatically
+grants access to every resource supported by the Teleport Terraform Provider.
 
 Create `bot.yaml`:
 
@@ -125,8 +127,8 @@ command:
 ```code
 $ tctl tokens ls
 Token       Type Labels Expiry Time (UTC)
------------ ---- ------ ----------------------------------------------
-example-bot Bot
+----------- ---- ------ -----------------
+example-bot Bot         never
 ```
 
 ## Step 3/3. Configure your Spacelift stack
@@ -141,7 +143,7 @@ terraform {
   required_providers {
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = ">= (=teleport.plugin.version=)"
+      version = "~> (=teleport.major_version=).0"
     }
   }
 }

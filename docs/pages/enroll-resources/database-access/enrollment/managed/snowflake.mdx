@@ -36,6 +36,8 @@ forwards the user's requests to Snowflake as Teleport-authenticated messages.
 - Snowflake account with `SECURITYADMIN` role or higher.
 
 - `snowsql` installed and added to your system's `PATH` environment variable.
+  `tsh db connect` launches `snowsql` specifically, so install it even if
+  you also use the newer Snowflake CLI (`snow`) for other Snowflake work.
 
 - A host where you will run the Teleport Database Service.
 
@@ -83,12 +85,13 @@ $ tctl auth sign --format=snowflake --out=server
 The command will create a `server.pub` file with Teleport's public key. Teleport will use the corresponding private key to
 generate a JWT (JSON Web Token) that will be used to authenticate to Snowflake.
 
-
 ## Step 4/5. Add the public key to your Snowflake user
 
 Use the public key you generated earlier to enable key pair authentication.
 
-Log in to your Snowflake instance and execute the SQL statement below:
+Log in to your Snowflake instance (for example, using a Snowsight worksheet)
+and execute the SQL statement below. Strip the PEM header and footer (the
+first and last line of `server.pub`) from `rsa_public_key` before running it:
 
 ```sql
 alter user alice set rsa_public_key='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv3dHYw4LJCcZzdbhb3hV...LwIDAQAB';
@@ -158,6 +161,8 @@ The Teleport Database Service provides CLI and programmatic access to Snowflake
 databases, but it does not provide direct access to the Snowsight web interface.
 To enable Snowsight access, you can configure it as a SAML application in
 Teleport, allowing Teleport to act as the Identity Provider (IdP) for Snowsight.
+This requires Teleport Enterprise with Identity Governance; it is not available
+on Teleport Community Edition.
 
 <Admonition type="note">
 When Teleport is configured as the IdP for Snowsight, it only handles SAML
@@ -168,7 +173,7 @@ Follow [Using Teleport as a SAML identity
 provider](../../../../identity-governance/idps/saml-guide.mdx) and [Configuring
 Snowflake to use federated
 authentication](https://docs.snowflake.com/en/user-guide/admin-security-fed-auth-security-integration)
-to setup Teleport as an IDP.
+to set up Teleport as an IdP.
 
 Here is an example of the security integration to be created in your Snowflake database:
 ```sql
@@ -189,7 +194,7 @@ the integration to obtain the Snowflake URLs that must be configured in
 Teleport.
 
 By default, Teleport passes your Teleport username as the Snowsight account
-name. For custom mappings, see [SAML Idp Attribute
+name. For custom mappings, see [SAML IdP Attribute
 Mapping](../../../../identity-governance/idps/saml-attribute-mapping.mdx).
 
 ## Next steps
