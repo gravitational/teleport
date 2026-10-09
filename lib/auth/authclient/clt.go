@@ -77,6 +77,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	accessgraphstatsv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/agentusage"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -642,6 +643,11 @@ func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
 
 func (c *Client) UserLoginStateClient() services.UserLoginStates {
 	return c.APIClient.UserLoginStateClient()
+}
+
+// ResourceStatsClient returns the authenticated read-only statistics relay.
+func (c *Client) ResourceStatsClient() accessgraphstatsv1.SessionRecordingServiceClient {
+	return accessgraphstatsv1.NewSessionRecordingServiceClient(c.APIClient.GetConnection())
 }
 
 func (c *Client) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
@@ -2132,6 +2138,7 @@ type ClientI interface {
 
 	// AccessGraphClient returns a client to the Access Graph gRPC service.
 	AccessGraphClient() accessgraphv1.AccessGraphServiceClient
+	ResourceStatsClient() accessgraphstatsv1.SessionRecordingServiceClient
 
 	AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.SecretsScannerServiceClient
 
