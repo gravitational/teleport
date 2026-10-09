@@ -21,6 +21,7 @@ package cli
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -36,6 +37,16 @@ type ApplicationProxyCommand struct {
 	*genericMutatorHandler
 
 	Listen string
+
+	HTTPDialTimeout                   time.Duration
+	HTTPIdleTimeout                   time.Duration
+	HTTPReadHeaderTimeout             time.Duration
+	HTTPReadTimeout                   time.Duration
+	httpReadTimeoutSetByUser          bool
+	httpWriteTimeoutSetByUser         bool
+	HTTPWriteTimeout                  time.Duration
+	HTTPUpstreamRequestTimeout        time.Duration
+	HTTPUpstreamResponseHeaderTimeout time.Duration
 }
 
 // NewApplicationProxyCommand initializes flags for an app proxy command and
@@ -49,6 +60,14 @@ func NewApplicationProxyCommand(parentCmd *kingpin.CmdClause, action MutatorActi
 
 	cmd.Flag("listen", "The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.").Required().StringVar(&c.Listen)
 
+	cmd.Flag("http-dial-timeout", "The maximum duration for establishing a new upstream connection.").DurationVar(&c.HTTPDialTimeout)
+	cmd.Flag("http-idle-timeout", "The maximum wait for the next incoming HTTP request on a keep-alive connection.").DurationVar(&c.HTTPIdleTimeout)
+	cmd.Flag("http-read-header-timeout", "The maximum time to read the incoming HTTP request headers.").DurationVar(&c.HTTPReadHeaderTimeout)
+	cmd.Flag("http-read-timeout", "The maximum time to read the entire incoming HTTP request, including headers and body.").IsSetByUser(&c.httpReadTimeoutSetByUser).DurationVar(&c.HTTPReadTimeout)
+	cmd.Flag("http-write-timeout", "The maximum time to write the response, measured from completion of incoming request header reading.").IsSetByUser(&c.httpWriteTimeoutSetByUser).DurationVar(&c.HTTPWriteTimeout)
+	cmd.Flag("http-upstream-request-timeout", "The maximum duration for the upstream HTTP exchange, including connection establishment, redirects, and reading the response body.").DurationVar(&c.HTTPUpstreamRequestTimeout)
+	cmd.Flag("http-upstream-response-header-timeout", "The maximum wait for upstream HTTP response headers after the request, including its body, has been fully written.").DurationVar(&c.HTTPUpstreamResponseHeaderTimeout)
+
 	return c
 }
 
@@ -57,8 +76,23 @@ func (c *ApplicationProxyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Log
 		return trace.Wrap(err)
 	}
 
+	proxyServiceHTTPConfig := application.ProxyServiceHTTPConfig{
+		DialTimeout:                   c.HTTPDialTimeout,
+		IdleTimeout:                   c.HTTPIdleTimeout,
+		ReadHeaderTimeout:             c.HTTPReadHeaderTimeout,
+		UpstreamRequestTimeout:        c.HTTPUpstreamRequestTimeout,
+		UpstreamResponseHeaderTimeout: c.HTTPUpstreamResponseHeaderTimeout,
+	}
+	if c.httpReadTimeoutSetByUser {
+		proxyServiceHTTPConfig.ReadTimeout = &c.HTTPReadTimeout
+	}
+	if c.httpWriteTimeoutSetByUser {
+		proxyServiceHTTPConfig.WriteTimeout = &c.HTTPWriteTimeout
+	}
+
 	cfg.Services = append(cfg.Services, &application.ProxyServiceConfig{
 		Listen: c.Listen,
+		HTTP:   proxyServiceHTTPConfig,
 	})
 
 	return nil

@@ -33,9 +33,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
@@ -159,10 +157,10 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	}
 
 	httpSrv := http.Server{
-		ReadTimeout:       apidefaults.DefaultIOTimeout,
-		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-		WriteTimeout:      apidefaults.DefaultIOTimeout,
-		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+		ReadTimeout:       *s.cfg.HTTP.ReadTimeout,
+		ReadHeaderTimeout: s.cfg.HTTP.ReadHeaderTimeout,
+		WriteTimeout:      *s.cfg.HTTP.WriteTimeout,
+		IdleTimeout:       s.cfg.HTTP.IdleTimeout,
 		BaseContext: func(net.Listener) context.Context {
 			// Use the main context which controls the service being stopped as
 			// the base context for all incoming requests.
@@ -374,16 +372,15 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 		return trace.Wrap(err, "fetching certificate")
 	}
 
-	// TODO(noah): We could cache the httpClient itself for each upstream, this
-	// would potentially allow performance improvements by caching connections.
 	transport := &http.Transport{
 		// The transport is discarded after this request, so a kept-alive
 		// connection would otherwise linger until the proxy closes it.
 		// This eliminates the need to defer a call to transport.CloseIdleConns()
 		DisableKeepAlives: true,
-		// The ALPN dialer's conn has already completed its TLS handshake, so
-		// it is wired in as DialTLSContext rather than DialContext.
+		// The ALPN dialer completes the TLS handshake, so it is wired in as
+		// DialTLSContext rather than DialContext.
 		DialTLSContext: apiclient.NewALPNDialer(apiclient.ALPNDialerConfig{
+			DialTimeout:             s.cfg.HTTP.DialTimeout,
 			ALPNConnUpgradeRequired: s.alpnUpgradeRequired,
 			TLSConfig: &tls.Config{
 				Certificates:       []tls.Certificate{*appCert},
@@ -394,8 +391,14 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 				return s.getBotIdentity().TLSCAPool, nil
 			},
 		}).DialContext,
+		ResponseHeaderTimeout: s.cfg.HTTP.UpstreamResponseHeaderTimeout,
 	}
+
+	// TODO(noah): We could cache the httpClient for each upstream, this
+	// would potentially allow performance improvements by caching connections.
+	// The transport settings would need to be reconsidered, i.e DisableKeepAlives.
 	httpClient := &http.Client{
+		Timeout:   s.cfg.HTTP.UpstreamRequestTimeout,
 		Transport: transport,
 	}
 

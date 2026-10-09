@@ -1282,6 +1282,12 @@ type: application-tunnel
 # - TCP: `tcp://<address>:<port>`
 # - Unix socket: `unix:///<path>`
 listen: tcp://127.0.0.1:8084
+# dial_timeout is the maximum duration for establishing a new upstream
+# connection, including CA retrieval, DNS resolution, connection setup, and
+# TLS handshake. Does not limit the subsequent exchange after the connection
+# is established.
+# The default is 30 seconds if omitted or zero.
+dial_timeout: "30s"
 # app_name is the name of the application, as configured in Teleport, that
 # the service should open a tunnel to.
 app_name: my-application
@@ -1555,6 +1561,61 @@ listen: tcp://127.0.0.1:8080
 # endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
 # symbols.
 name: my-service-name
+# http downstream and upstream settings
+http:
+  # dial_timeout is the maximum duration for establishing a new upstream
+  # connection, including CA retrieval, DNS resolution, connection setup, and
+  # TLS handshake. Does not limit the subsequent HTTP exchange.
+  # 
+  # The default is 30 seconds if omitted or zero.
+  dial_timeout: "30s"
+
+  # idle_timeout is the maximum wait for the next incoming HTTP request on a
+  # keep-alive connection. Does not affect upstream requests.
+  # 
+  # If zero, the value of read_timeout is used.
+  # If zero and read_timeout is zero, there is no timeout.
+  idle_timeout: "30s"
+  
+  # read_header_timeout is the maximum time to read the incoming HTTP request headers.
+  # If zero, no specific timeout is applied to reading the request headers and 
+  # the overall maximum time to read the entire incoming HTTP request is set by
+  # read_timeout.
+  # 
+  # If zero and read_timeout is zero, there is no timeout.
+  read_header_timeout: "30s"
+
+  # read_timeout is the maximum time to read the entire incoming HTTP request,
+  # including headers and body. Does not reset after each read.
+  # 
+  # Defaults to 30 seconds if omitted.
+  # Zero means no timeout.
+  read_timeout: "30s"
+
+  # write_timeout is the maximum time to write the response, measured from
+  # completion of incoming request header reading. Expiry alone does not cancel
+  # upstream requests.
+  # 
+  # Defaults to 30 seconds if omitted.
+  # Zero means no timeout.
+  write_timeout: "30s"
+
+  # upstream_request_timeout is the maximum duration for the upstream HTTP
+  # exchange, including connection establishment, redirects, and reading the
+  # response body. Does not include application certificate acquisition.
+  # Client-facing reads and writes remain subject to read_timeout and write_timeout.
+  # 
+  # Defaults to no limit if omitted.
+  # Zero means no timeout.
+  upstream_request_timeout: "0s"
+
+  # upstream_response_header_timeout is the maximum wait for upstream HTTP
+  # response headers after the request, including its body, has been fully
+  # written. Does not limit reading the response body.
+  # 
+  # Defaults to no limit if omitted.
+  # Zero means no timeout.
+  upstream_response_header_timeout: "0s"
 ```
 
 The `application-proxy` service will not start if `tbot` has been configured

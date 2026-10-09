@@ -111,6 +111,13 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--http-dial-timeout`|*no default*|The maximum duration for establishing a new upstream connection.|
+|`--http-idle-timeout`|*no default*|The maximum wait for the next incoming HTTP request on a keep-alive connection.|
+|`--http-read-header-timeout`|*no default*|The maximum time to read the incoming HTTP request headers.|
+|`--http-read-timeout`|*no default*|The maximum time to read the entire incoming HTTP request, including headers and body.|
+|`--http-upstream-request-timeout`|*no default*|The maximum duration for the upstream HTTP exchange, including connection establishment, redirects, and reading the response body.|
+|`--http-upstream-response-header-timeout`|*no default*|The maximum wait for upstream HTTP response headers after the request, including its body, has been fully written.|
+|`--http-write-timeout`|*no default*|The maximum time to write the response, measured from completion of incoming request header reading.|
 |`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
@@ -153,6 +160,7 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--dial-timeout`|*no default*|The maximum duration for establishing a new upstream connection.|
 |`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
@@ -970,6 +978,13 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--http-dial-timeout`|*no default*|The maximum duration for establishing a new upstream connection.|
+|`--http-idle-timeout`|*no default*|The maximum wait for the next incoming HTTP request on a keep-alive connection.|
+|`--http-read-header-timeout`|*no default*|The maximum time to read the incoming HTTP request headers.|
+|`--http-read-timeout`|*no default*|The maximum time to read the entire incoming HTTP request, including headers and body.|
+|`--http-upstream-request-timeout`|*no default*|The maximum duration for the upstream HTTP exchange, including connection establishment, redirects, and reading the response body.|
+|`--http-upstream-response-header-timeout`|*no default*|The maximum wait for upstream HTTP response headers after the request, including its body, has been fully written.|
+|`--http-write-timeout`|*no default*|The maximum time to write the response, measured from completion of incoming request header reading.|
 |`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
@@ -1011,6 +1026,7 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--dial-timeout`|*no default*|The maximum duration for establishing a new upstream connection.|
 |`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|

@@ -21,6 +21,7 @@ package cli
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -35,8 +36,9 @@ type ApplicationTunnelCommand struct {
 	*sharedStartArgs
 	*genericMutatorHandler
 
-	Listen  string
-	AppName string
+	Listen      string
+	AppName     string
+	DialTimeout time.Duration
 }
 
 // NewApplicationTunnelCommand initializes flags for an app tunnel command and
@@ -50,6 +52,7 @@ func NewApplicationTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAct
 
 	cmd.Flag("listen", "The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.").Required().StringVar(&c.Listen)
 	cmd.Flag("app", "The name of the app in Teleport").Required().StringVar(&c.AppName)
+	cmd.Flag("dial-timeout", "The maximum duration for establishing a new upstream connection.").DurationVar(&c.DialTimeout)
 
 	// Note: CLI will not support roles; all will be requested.
 
@@ -62,8 +65,9 @@ func (c *ApplicationTunnelCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Lo
 	}
 
 	cfg.Services = append(cfg.Services, &application.TunnelConfig{
-		Listen:  c.Listen,
-		AppName: c.AppName,
+		Listen:      c.Listen,
+		AppName:     c.AppName,
+		DialTimeout: c.DialTimeout,
 	})
 
 	return nil

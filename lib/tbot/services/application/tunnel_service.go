@@ -262,6 +262,7 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 		Cert:               *appCert,
 		InsecureSkipVerify: s.connCfg.Insecure,
 		Clock:              s.cfg.clock,
+		DialTimeout:        s.cfg.DialTimeout,
 	}
 	if apiclient.IsALPNConnUpgradeRequired(
 		ctx,

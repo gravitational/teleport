@@ -21,11 +21,13 @@ package application
 import (
 	"net"
 	"net/url"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.yaml.in/yaml/v3"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
@@ -37,13 +39,16 @@ const TunnelServiceType = "application-tunnel"
 type TunnelConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
+
 	// Listen is the address on which database tunnel should listen. Example:
 	// - "tcp://127.0.0.1:3306"
 	// - "tcp://0.0.0.0:3306
 	Listen string `yaml:"listen"`
+
 	// Roles is the list of roles to request for the tunnel.
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
+
 	// AppName should be the name of the application as registered in Teleport
 	// that you wish to tunnel to.
 	AppName string `yaml:"app_name"`
@@ -56,6 +61,14 @@ type TunnelConfig struct {
 	// generated credentials will be associated with, enabling the bot to act
 	// on a (human) user's behalf.
 	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
+
+	// DialTimeout is the maximum duration for establishing a new upstream
+	// connection, including CA retrieval, DNS resolution, connection setup, and
+	// TLS handshake. Does not limit the subsequent exchange after the connection
+	// is established.
+	//
+	// Defaults to Teleport’s default I/O timeout.
+	DialTimeout time.Duration `yaml:"dial_timeout,omitempty"`
 
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
@@ -107,6 +120,12 @@ func (t *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
 	}
 	if _, err := url.Parse(t.Listen); err != nil {
 		return trace.Wrap(err, "parsing listen")
+	}
+	if t.DialTimeout < 0 {
+		return trace.BadParameter("dial_timeout: cannot be negative")
+	}
+	if t.DialTimeout == 0 {
+		t.DialTimeout = apidefaults.DefaultIOTimeout
 	}
 	if t.clock == nil {
 		t.clock = clockwork.NewRealClock()
