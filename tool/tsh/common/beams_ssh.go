@@ -28,6 +28,7 @@ import (
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -54,20 +55,8 @@ func (c *beamsSSHCommand) run(cf *CLIConf) error {
 	tc.AllowHeadless = true
 
 	var beam *beamsv1.Beam
-	err = client.RetryWithRelogin(ctx, tc, func() error {
-		clusterClient, err := tc.ConnectToCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer clusterClient.Close()
-
-		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer rootClient.Close()
-
-		beam, err = getBeam(ctx, rootClient, c.name)
+	err = withRootCluster(ctx, tc, func(root authclient.ClientI, _ string) error {
+		beam, err = getBeam(ctx, root, c.name)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -77,15 +66,12 @@ func (c *beamsSSHCommand) run(cf *CLIConf) error {
 }
 
 func sshBeam(cf *CLIConf, tc *client.TeleportClient, beam *beamsv1.Beam, command []string) error {
-	// TODO(boxofrad): Right now, we expect the CreateBeam call to block until
-	// it's ready to accept SSH connections - which can lead to timeouts when
-	// we need to spin up more nodes. We should make this non-blocking and have
-	// the retry loop re-read the beam.
-	if beam.GetStatus().GetNodeId() == "" {
-		return trace.Errorf("beam %q is not ready to accept SSH connections", beam.GetStatus().GetAlias())
+	nodeID, err := beamNodeID(beam)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	target := fmt.Sprintf("%s:0", beam.GetStatus().GetNodeId())
+	target := fmt.Sprintf("%s:0", nodeID)
 	tc.HostLogin = types.BeamsLogin
 	tc.Stdin = cf.Stdin()
 

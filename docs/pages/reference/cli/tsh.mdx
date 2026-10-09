@@ -297,6 +297,34 @@ Arguments:
 |command|*no default* (required)|Command to execute in the instance.|
 |name|*no default* (required)|ID (or UUID) of the beam to target.|
 
+## tsh beams ide
+
+Open your IDE with a remote SSH session into a beam.
+
+Usage:
+
+```code
+$ tsh beams ide [<flags>] <beam>
+```
+
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|`TELEPORT_BEAMS_IDE`|*no default* (one of: `vscode`, `cursor`, `zed`)|IDE to open. Prompts for a choice when omitted.|
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--ide`|*no default* (one of: `vscode`, `cursor`, `zed`)|IDE to open. Prompts for a choice when omitted.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|beam|*no default* (required)|Beam to open, specified by ID or UUID.|
+
 ## tsh beams ls
 
 List beam instances.

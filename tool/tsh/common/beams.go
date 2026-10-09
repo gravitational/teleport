@@ -42,6 +42,7 @@ type beamsCommands struct {
 	publish   *beamsPublishCommand
 	unpublish *beamsUnpublishCommand
 	scp       *beamsSCPCommand
+	ide       *beamsIDECommand
 }
 
 func newBeamsCommands(app *kingpin.Application) beamsCommands {
@@ -55,6 +56,7 @@ func newBeamsCommands(app *kingpin.Application) beamsCommands {
 		publish:   newBeamsPublishCommand(beams),
 		unpublish: newBeamsUnpublishCommand(beams),
 		scp:       newBeamsSCPCommand(beams),
+		ide:       newBeamsIDECommand(beams),
 	}
 }
 
@@ -150,4 +152,17 @@ func getBeam(ctx context.Context, client authclient.ClientI, ref string) (*beams
 		return nil, trace.Wrap(err)
 	}
 	return rsp.GetBeam(), nil
+}
+
+// beamNodeID gets the SSH node ID for a beam, or returns an error if not ready.
+func beamNodeID(beam *beamsv1.Beam) (string, error) {
+	// TODO(boxofrad): Right now, we expect the CreateBeam call to block until
+	// it's ready to accept SSH connections - which can lead to timeouts when
+	// we need to spin up more nodes. We should make this non-blocking and have
+	// the retry loop re-read the beam.
+	nodeID := beam.GetStatus().GetNodeId()
+	if nodeID == "" {
+		return "", trace.Errorf("beam %q is not ready to accept SSH connections", beam.GetStatus().GetAlias())
+	}
+	return nodeID, nil
 }

@@ -673,8 +673,8 @@ type CLIConf struct {
 	// profileStatusOverride overrides return of ProfileStatus(). used in tests.
 	profileStatusOverride *client.ProfileStatus
 
-	// lookPathOverride overrides return of LookPath(). used in tests.
-	lookPathOverride string
+	// lookPathOverride overrides LookPath(). used in tests.
+	lookPathOverride func(file string) (string, error)
 
 	// HardwareKeyAgentServer determines whether `tsh daemon` will run the hardware key agent server.
 	HardwareKeyAgentServer bool
@@ -782,10 +782,30 @@ func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
 
 // LookPath searches for an executable named file.
 func (c *CLIConf) LookPath(file string) (string, error) {
-	if c.lookPathOverride != "" {
-		return c.lookPathOverride, nil
+	if c.lookPathOverride != nil {
+		return c.lookPathOverride(file)
 	}
 	return exec.LookPath(file)
+}
+
+// withRootCluster ensures an authenticated connection to the root cluster and
+// passes its auth client and name to fn.
+func withRootCluster(ctx context.Context, tc *client.TeleportClient, fn func(root authclient.ClientI, rootClusterName string) error) error {
+	return trace.Wrap(client.RetryWithRelogin(ctx, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootClient.Close()
+
+		return trace.Wrap(fn(rootClient, clusterClient.RootClusterName()))
+	}))
 }
 
 // PromptConfirmation prompts the user for a yes/no confirmation for question.
@@ -845,6 +865,7 @@ const (
 	relayEnvVar               = "TELEPORT_RELAY"
 	headlessEnvVar            = "TELEPORT_HEADLESS"
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
+	beamsIDEEnvVar            = "TELEPORT_BEAMS_IDE"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar                = "TELEPORT_SITE"
@@ -2108,6 +2129,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = beamsCmd.unpublish.run(&cf)
 	case beamsCmd.scp.FullCommand():
 		err = beamsCmd.scp.run(&cf)
+	case beamsCmd.ide.FullCommand():
+		err = beamsCmd.ide.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
 	case updateCommand.update.FullCommand():

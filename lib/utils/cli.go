@@ -91,12 +91,17 @@ func WithOSLog(subsystem string) LoggerOption {
 
 // IsTerminal checks whether writer is a terminal
 func IsTerminal(w io.Writer) bool {
-	switch v := w.(type) {
-	case *os.File:
-		return term.IsTerminal(int(v.Fd()))
-	default:
-		return false
-	}
+	return isTerminalFile(w)
+}
+
+// IsTerminalReader checks whether reader is a terminal.
+func IsTerminalReader(r io.Reader) bool {
+	return isTerminalFile(r)
+}
+
+func isTerminalFile(v any) bool {
+	f, ok := v.(*os.File)
+	return ok && term.IsTerminal(int(f.Fd()))
 }
 
 // InitLogger configures the global logger for a given purpose / verbosity level
