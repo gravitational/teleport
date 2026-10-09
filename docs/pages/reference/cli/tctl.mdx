@@ -2342,6 +2342,26 @@ Flags:
 |---|---|---|
 |`--start-date`|`<today>`|Start date for the audit log ingest in the YYYY-MM-DD format.|
 
+## tctl plugins install intune
+
+Install a Microsoft Intune integration.
+
+Usage:
+
+```code
+$ tctl plugins install intune --tenant=TENANT [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--client-id`|*no default*|Application (client) ID of the Microsoft Entra ID app registration. Required unless --use-system-credentials is set.|
+|`--graph-endpoint`|*no default*|Microsoft Graph endpoint. Defaults to https://graph.microsoft.com.|
+|`--login-endpoint`|*no default*|Microsoft Entra ID login endpoint. Defaults to https://login.microsoftonline.com.|
+|`--[no-]use-system-credentials`|`false`|Uses credentials available in the environment of the Auth Service (e.g. Azure Workload Identity) instead of a client secret.|
+|`--tenant`|*no default*|Primary domain name (e.g. contoso.onmicrosoft.com) or tenant ID of the Microsoft Entra ID organization.|
+
 ## tctl plugins install netiq
 
 Install an Access Graph NetIQ integration.

@@ -55,6 +55,7 @@ type pluginInstallArgs struct {
 	awsIC   awsICInstallArgs
 	github  githubArgs
 	slack   slackArgs
+	intune  intuneArgs
 }
 
 type pluginEditArgs struct {
@@ -129,6 +130,7 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 	p.initInstallAWSIC(p.install.cmd)
 	p.initInstallGithub(p.install.cmd)
 	p.initInstallSlack(p.install.cmd)
+	p.initInstallIntune(p.install.cmd)
 }
 
 func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
@@ -255,6 +257,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallGithub
 	case p.install.slack.cmd.FullCommand():
 		commandFunc = p.InstallSlack
+	case p.install.intune.cmd.FullCommand():
+		commandFunc = p.InstallIntune
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
 	case p.edit.awsIC.cmd.FullCommand():
