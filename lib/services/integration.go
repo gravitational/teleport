@@ -56,6 +56,14 @@ type IntegrationsTokenGenerator interface {
 	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
 }
 
+// OAuthProxyAuthRequests provides CRUD operations on OAuthProxyAuthRequest.
+type OAuthProxyAuthRequests interface {
+	// CreateOAuthProxyAuthRequest persists an OAuthProxyAuthRequest to the backend.
+	CreateOAuthProxyAuthRequest(ctx context.Context, req types.OAuthProxyAuthRequest) error
+	// ConsumeOAuthProxyAuthRequest returns an OAuthProxyAuthRequest and deletes it from the backend so that each request is single use.
+	ConsumeOAuthProxyAuthRequest(ctx context.Context, username, integration, stateToken string) (*types.OAuthProxyAuthRequest, error)
+}
+
 // MarshalIntegration marshals the Integration resource to JSON.
 func MarshalIntegration(ig types.Integration, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)

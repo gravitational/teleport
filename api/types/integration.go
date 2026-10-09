@@ -483,8 +483,8 @@ func (s *IntegrationSpecV1_OAuthProxy) CheckAndSetDefaults() error {
 		}
 	}
 
+	reservedOAuthParams := ReservedOAuthParams()
 	for k := range s.OAuthProxy.ExtraParams {
-		reservedOAuthParams := ReservedOAuthParams()
 		if slices.Contains(reservedOAuthParams, strings.ToLower(k)) {
 			return trace.BadParameter("extra_params must not contain reserved parameter %q", k)
 		}

@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/gravitational/trace"
 
@@ -31,7 +32,8 @@ import (
 )
 
 const (
-	integrationsPrefix = "integrations"
+	integrationsPrefix       = "integrations"
+	oauthProxyRequestsPrefix = "oauth_proxy_requests"
 )
 
 // IntegrationsService manages Integrations in the Backend.
@@ -228,4 +230,70 @@ func (s *IntegrationsService) DeleteAllIntegrations(ctx context.Context) error {
 		return trace.BadParameter("Deleting all integrations is not supported, this is a bug")
 	}
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
+}
+
+// CreateOAuthProxyAuthRequest persists an OAuthProxyAuthRequest to the backend.
+func (s *IntegrationsService) CreateOAuthProxyAuthRequest(ctx context.Context, req types.OAuthProxyAuthRequest) error {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := json.Marshal(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key := backend.NewKey(oauthProxyRequestsPrefix, req.StateToken)
+	if !backend.IsKeySafe(key) {
+		return trace.BadParameter("state_token contains invalid characters")
+	}
+
+	_, err = s.backend.Create(ctx, backend.Item{
+		Key:     key,
+		Value:   value,
+		Expires: req.Expires,
+	})
+
+	return trace.Wrap(err)
+}
+
+// ConsumeOAuthProxyAuthRequest returns an OAuthProxyAuthRequest and deletes it from the backend
+// so that each request is single use.
+func (s *IntegrationsService) ConsumeOAuthProxyAuthRequest(ctx context.Context, username, integration, stateToken string) (*types.OAuthProxyAuthRequest, error) {
+	switch {
+	case stateToken == "":
+		return nil, trace.BadParameter("state token is required")
+	case username == "":
+		return nil, trace.BadParameter("username is required")
+	case integration == "":
+		return nil, trace.BadParameter("integration is required")
+	}
+
+	item, err := s.backend.Get(ctx, backend.NewKey(oauthProxyRequestsPrefix, stateToken))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req types.OAuthProxyAuthRequest
+	if err := json.Unmarshal(item.Value, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case req.User != username:
+		return nil, trace.Errorf("username does not match")
+	case req.Expires.Before(s.backend.Clock().Now()):
+		return nil, trace.Errorf("request is expired")
+	case req.Integration != integration:
+		return nil, trace.Errorf("integration does not match")
+	}
+
+	if err := s.backend.ConditionalDelete(ctx, item.Key, item.Revision); err != nil {
+		if trace.IsCompareFailed(err) || trace.IsNotFound(err) {
+			return nil, trace.NotFound("no matching request")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return &req, nil
 }
