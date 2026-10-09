@@ -511,7 +511,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		cfg.ServerVersion = v
 	}
 
-	// apply idle read/write timeout to this connection.
+	// apply idle read timeout to this connection.
 	conn = utils.ObeyIdleTimeout(conn, defaults.DefaultIdleConnectionDuration)
 	// Wrap connection with a tracker used to monitor how much data was
 	// transmitted and received over the connection.

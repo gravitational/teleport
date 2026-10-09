@@ -121,3 +121,42 @@ func (c *timeoutConn) Read(p []byte) (n int, err error) {
 	// connection (like io.EOF)
 	return n, err
 }
+
+// rwTimeoutConn adds write monitoring to the embedded timeoutConn
+// that monitors reads
+type rwTimeoutConn struct {
+	timeoutConn
+}
+
+// Write implements [io.Writer] and [net.Conn], petting the watchdog timer if
+// any data is successfully written.
+func (c *rwTimeoutConn) Write(p []byte) (n int, err error) {
+	n, err = c.Conn.Write(p)
+	if n > 0 {
+		c.pet()
+	}
+	// avoid trace.Wrap to maintain the exact errors from the underlying
+	// connection (like io.EOF)
+	return n, err
+}
+
+// ObeyRWIdleTimeout wraps an existing network connection, closing it if data
+// isn't read from or written to often enough. The connection will be closed
+// even if Read or Write is never called, or if it's called on the underlying
+// connection instead of the returned one.
+func ObeyRWIdleTimeout(conn net.Conn, timeout time.Duration) net.Conn {
+	return obeyRWIdleTimeoutClock(conn, timeout, clockwork.NewRealClock())
+}
+
+func obeyRWIdleTimeoutClock(conn net.Conn, timeout time.Duration, clock clockwork.Clock) net.Conn {
+	return &rwTimeoutConn{
+		// Use of promoted fields only allowed in go1.27 or above
+		timeoutConn{
+			Conn:    conn,
+			timeout: timeout,
+			watchdog: clock.AfterFunc(timeout, func() {
+				conn.Close()
+			}),
+		},
+	}
+}

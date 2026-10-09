@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -113,6 +114,13 @@ func (s *TunnelService) Run(ctx context.Context) error {
 				s.log.ErrorContext(ctx, "Failed to close listener", "error", err)
 			}
 		}()
+	}
+
+	if s.cfg.IdleTimeout > 0 {
+		l = &idleTimeoutListener{
+			Listener: l,
+			timeout:  s.cfg.IdleTimeout,
+		}
 	}
 
 	var lpCfg alpnproxy.LocalProxyConfig
@@ -405,4 +413,18 @@ func (s *TunnelService) String() string {
 		s.cfg.Name,
 		fmt.Sprintf("%s:%s:%s", TunnelServiceType, s.cfg.Listen, s.cfg.AppName),
 	)
+}
+
+type idleTimeoutListener struct {
+	net.Listener
+	timeout time.Duration
+}
+
+func (l *idleTimeoutListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	return utils.ObeyRWIdleTimeout(conn, l.timeout), nil
 }

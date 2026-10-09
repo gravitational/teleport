@@ -39,6 +39,7 @@ type ApplicationTunnelCommand struct {
 	Listen      string
 	AppName     string
 	DialTimeout time.Duration
+	IdleTimeout time.Duration
 }
 
 // NewApplicationTunnelCommand initializes flags for an app tunnel command and
@@ -53,6 +54,7 @@ func NewApplicationTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAct
 	cmd.Flag("listen", "The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.").Required().StringVar(&c.Listen)
 	cmd.Flag("app", "The name of the app in Teleport").Required().StringVar(&c.AppName)
 	cmd.Flag("dial-timeout", "The maximum duration for establishing a new upstream connection.").DurationVar(&c.DialTimeout)
+	cmd.Flag("idle-timeout", "Close client connections after this duration without application traffic.").DurationVar(&c.IdleTimeout)
 
 	// Note: CLI will not support roles; all will be requested.
 
@@ -68,6 +70,7 @@ func (c *ApplicationTunnelCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Lo
 		Listen:      c.Listen,
 		AppName:     c.AppName,
 		DialTimeout: c.DialTimeout,
+		IdleTimeout: c.IdleTimeout,
 	})
 
 	return nil

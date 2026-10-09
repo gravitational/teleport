@@ -161,6 +161,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--dial-timeout`|*no default*|The maximum duration for establishing a new upstream connection.|
+|`--idle-timeout`|*no default*|Close client connections after this duration without application traffic.|
 |`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
@@ -1027,6 +1028,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--dial-timeout`|*no default*|The maximum duration for establishing a new upstream connection.|
+|`--idle-timeout`|*no default*|Close client connections after this duration without application traffic.|
 |`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|

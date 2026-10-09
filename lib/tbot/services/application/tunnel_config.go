@@ -70,6 +70,15 @@ type TunnelConfig struct {
 	// Defaults to Teleport’s default I/O timeout.
 	DialTimeout time.Duration `yaml:"dial_timeout,omitempty"`
 
+	// IdleTimeout closes an accepted client connection if no application data is
+	// successfully read from or written to it for the duration. The timer starts
+	// when the connection is accepted and resets after successful reads or
+	// writes. Progress in establishing the upstream connection, TCP keepalive
+	// probes and Teleport tunnel transport keepalives do not reset it.
+	//
+	// Zero disables the timeout.
+	IdleTimeout time.Duration `yaml:"idle_timeout,omitempty"`
+
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
 	Listener net.Listener `yaml:"-"`
@@ -127,6 +136,10 @@ func (t *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
 	if t.DialTimeout == 0 {
 		t.DialTimeout = apidefaults.DefaultIOTimeout
 	}
+	if t.IdleTimeout < 0 {
+		return trace.BadParameter("idle_timeout: cannot be negative")
+	}
+
 	if t.clock == nil {
 		t.clock = clockwork.NewRealClock()
 	}
