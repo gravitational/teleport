@@ -276,6 +276,7 @@ func ValidateClassifier(c *summarizerv1.Classifier) error {
 		string(types.SSHSessionKind),
 		string(types.KubernetesSessionKind),
 		string(types.DatabaseSessionKind),
+		string(types.WindowsDesktopSessionKind),
 	}
 	for _, kind := range kinds {
 		if !slices.Contains(supportedKinds, kind) {
