@@ -283,6 +283,10 @@ function Generate-Artifacts {
                 $description = "Teleport Authentication Package"
                 Break
             }
+            "teleport-binaries*.zip" {
+                $description = "Windows (64-bit)"
+                Break
+            }
             "teleport*.zip" {
                 $description = "Windows (64-bit, tsh client only)"
                 Break
@@ -765,6 +769,49 @@ function Build-Tbot {
     return "$SignedBinaryPath"  # This is needed for bundling the zip archive
 }
 
+function Build-Teleport
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $ArtifactDirectory,
+        [Parameter(Mandatory)]
+        [string] $TeleportVersion
+    )
+
+    $BinaryName = "teleport.exe"
+    $BuildDirectory = "$TeleportSourceDirectory\build"
+    $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+    $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
+    $KubectlLDFlags = Get-KubectlVersionLDFlag -TeleportSourceDirectory "$TeleportSourceDirectory"
+
+    $CommandDuration = Measure-Block {
+        Write-Host "::group::Building teleport..."
+        # The --target must be set explicitly so the staticlib is emitted to
+        # target/x86_64-pc-windows-gnu/release, which is where the cgo LDFLAGS
+        # look for it.
+        cargo build -p rdp-client --release --locked --target x86_64-pc-windows-gnu
+        $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
+        # -Wl,--gc-sections lets the linker drop unreachable native code.
+        go build -tags "grpcnotrace desktop_access_rdp kustomize_disable_go_plugin_support" -trimpath -ldflags "-s -w $BuildTypeLDFlags $KubectlLDFlags -extldflags=-Wl,--gc-sections" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\teleport"
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
+
+        Write-Host "::endgroup::"
+
+        Write-Host "::group::Signing teleport..."
+        Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
+        Write-Host "::endgroup::"
+    }
+    Write-Host $( "Built teleport in {0:g}" -f $CommandDuration )
+
+    return "$SignedBinaryPath"
+}
+
+
 function Package-Artifacts {
     [CmdletBinding()]
     param(
@@ -779,7 +826,9 @@ function Package-Artifacts {
         [Parameter(Mandatory)]
         [string] $SignedTshBinaryPath,
         [Parameter(Mandatory)]
-        [string] $SignedTBotBinaryPath
+        [string] $SignedTBotBinaryPath,
+        [Parameter(Mandatory)]
+        [string] $SignedTeleportBinaryPath
     )
 
     $CommandDuration = Measure-Block {
@@ -792,6 +841,8 @@ function Package-Artifacts {
         Copy-Item -Path "$TeleportSourceDirectory\README.md" -Destination "$PackageDirectory"
         Out-File -FilePath "$PackageDirectory\VERSION" -InputObject "v$TeleportVersion"
         Compress-Archive -Path "$PackageDirectory\*" -DestinationPath "$ArtifactDirectory\teleport-v$TeleportVersion-windows-amd64-bin.zip"
+        Copy-Item -Path "$SignedTeleportBinaryPath" -Destination "$PackageDirectory"
+        Compress-Archive -Path "$PackageDirectory\*" -DestinationPath "$ArtifactDirectory\teleport-binaries-v$TeleportVersion-windows-amd64-bin.zip"
     }
     Write-Host $("Created archive in {0:g}" -f $CommandDuration)
 
@@ -885,6 +936,17 @@ function Write-Version-Objects {
         --file-version $TeleportVersion `
         --out "$TeleportSourceDirectory\tool\tbot\resource.syso"
 
+    # generate teleport version info
+    & $GoWinres simply --no-suffix --arch amd64 `
+        --file-description "Teleport agent" `
+        --original-filename teleport.exe `
+        --copyright "Copyright (C) $Year Gravitational Inc." `
+        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
+        --product-name Teleport `
+        --product-version $TeleportVersion `
+        --file-version $TeleportVersion `
+        --out "$TeleportSourceDirectory\tool\teleport\resource.syso"
+
     # generate windowsauth version info (note the --admin flag, as the installer must run as admin)
     & $GoWinres simply --no-suffix --arch amd64 --admin `
         --file-description "Teleport Authentication Package" `
@@ -941,6 +1003,12 @@ function Build-Artifacts {
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion"
 
+    # Build the Teleport agent
+    $SignedTeleportBinaryPath = Build-Teleport `
+        -TeleportSourceDirectory "$TeleportSourceDirectory" `
+        -ArtifactDirectory "$ArtifactDirectory" `
+        -TeleportVersion "$TeleportVersion"
+
     # Create archive
     Package-Artifacts `
         -TeleportSourceDirectory "$TeleportSourceDirectory" `
@@ -948,7 +1016,8 @@ function Build-Artifacts {
         -TeleportVersion "$TeleportVersion" `
         -SignedTshBinaryPath "$SignedTshBinaryPath" `
         -SignedTctlBinaryPath "$SignedTctlBinaryPath" `
-        -SignedTBotBinaryPath "$SignedTBotBinaryPath"
+        -SignedTBotBinaryPath "$SignedTBotBinaryPath" `
+        -SignedTeleportBinaryPath "$SignedTeleportBinaryPath"
 
     # Build Teleport Connect
     Build-Connect `
