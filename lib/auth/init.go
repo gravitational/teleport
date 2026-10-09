@@ -489,6 +489,9 @@ type InitConfig struct {
 
 	// UserExternalCredentials manages user session encryption keys.
 	UserExternalCredentials services.UserExternalCredentials
+
+	// LLMEndpointQuotaService defines interface to manage LLM endpoint quotas.
+	LLMEndpointQuotaService services.LLMEndpointQuotaService
 }
 
 // Init instantiates and configures an instance of AuthServer

@@ -309,6 +309,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newPendingCSRRequestParser()
 		case types.KindValidatedMFAChallenge:
 			parser = newValidatedMFAChallengeParser(kind.Filter)
+		case types.KindLLMEndpointQuota:
+			parser = newLLMEndpointQuotaParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue

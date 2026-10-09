@@ -32,6 +32,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	llmv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/llm/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
@@ -159,6 +160,7 @@ type collections struct {
 	classifiers                        *collection[*summarizerv1.Classifier, classifierIndex]
 	retrievalModels                    *collection[*summarizerv1.RetrievalModel, retrievalModelIndex]
 	certAuthorityOverrides             *collection[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]
+	llmEndpointQuotas                  *collection[*llmv1.LLMEndpointQuota, llmEndpointQuotaIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -866,6 +868,13 @@ func setupCollections(c Config) (*collections, error) {
 			}
 			out.certAuthorityOverrides = collect
 			out.byKind[resourceKind] = out.certAuthorityOverrides
+		case types.KindLLMEndpointQuota:
+			collect, err := newLLMEndpointQuotaCollection(c.LLMEndpointQuotaService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.llmEndpointQuotas = collect
+			out.byKind[resourceKind] = out.llmEndpointQuotas
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

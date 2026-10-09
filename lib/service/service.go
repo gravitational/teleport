@@ -3270,6 +3270,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Plugin = services.Plugins
 	cfg.Summarizer = services.Summarizer
 	cfg.SubCAService = services.SubCAService
+	cfg.LLMEndpointUsage = services.LLMEndpointQuotaService
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3320,6 +3321,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client
 	cfg.SubCAService = client
+	cfg.LLMEndpointUsage = client.LLMUsageClient()
 
 	return accesspoint.NewCache(cfg)
 }

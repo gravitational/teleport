@@ -121,6 +121,7 @@ type Config struct {
 	Plugin                  services.Plugins
 	Summarizer              services.Summarizer
 	SubCAService            services.SubCAServiceGetter
+	LLMEndpointUsage        services.LLMEndpointQuotaGetter
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -213,6 +214,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Plugin:                  cfg.Plugin,
 		Summarizer:              cfg.Summarizer,
 		SubCAService:            cfg.SubCAService,
+		LLMEndpointQuotaService: cfg.LLMEndpointUsage,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

@@ -75,6 +75,7 @@ import (
 	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	linuxdesktopv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	llmv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/llm/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -127,6 +128,7 @@ import (
 	issuancev1 "github.com/gravitational/teleport/lib/auth/issuance/v1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
 	"github.com/gravitational/teleport/lib/auth/linuxdesktop/linuxdesktopv1"
+	"github.com/gravitational/teleport/lib/auth/llm/llmv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
@@ -7023,6 +7025,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	appv1pb.RegisterAppIssuanceServiceServer(server, appIssuanceSvc)
+
+	llmUsageSvc, err := llmv1.NewUsageService(llmv1.UsageServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	llmv1pb.RegisterUsageServiceServer(server, llmUsageSvc)
 
 	if !cfg.AuthServer.modules.Features().Cloud {
 		// start a workload cluster service that returns errors for all RPCs when not running on Teleport Cloud

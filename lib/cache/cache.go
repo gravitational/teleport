@@ -234,6 +234,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindClassifier},
 		{Kind: types.KindRetrievalModel},
 		{Kind: types.KindValidatedMFAChallenge},
+		{Kind: types.KindLLMEndpointQuota},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -408,6 +409,7 @@ func ForApps(cfg Config) Config {
 		{Kind: types.KindRole},
 		{Kind: types.KindProxy},
 		{Kind: types.KindApp},
+		{Kind: types.KindLLMEndpointQuota},
 	}
 	cfg.QueueSize = defaults.AppsQueueSize
 	return cfg
@@ -848,6 +850,8 @@ type Config struct {
 	Summarizer services.Summarizer
 	// SubCAService reads CertAuthorityOverride resources.
 	SubCAService services.SubCAServiceGetter
+	// LLMEndpointQuotaService reads LLM endpoint quota resources.
+	LLMEndpointQuotaService services.LLMEndpointQuotaGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

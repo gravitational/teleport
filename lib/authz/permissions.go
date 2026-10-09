@@ -1170,6 +1170,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						// access decisions for the given app specifically. This verb grant will need to
 						// be revisited as part of that work.
 						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
+						types.NewRule(types.KindLLMEndpointQuota, services.RO()),
 					}...),
 				},
 			})

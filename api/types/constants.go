@@ -774,6 +774,9 @@ const (
 	// MetaNameBeamsConfig is the exact name of the singleton resource holding Beams config.
 	MetaNameBeamsConfig = "beams-config"
 
+	// KindLLMEndpointQuota is the resource kind for LLM endpoint quota.
+	KindLLMEndpointQuota = "llm_endpoint_quota"
+
 	// V9 is the ninth version of resources.
 	V9 = "v9"
 

@@ -1548,6 +1548,9 @@ type Cache interface {
 
 	// KubernetesClusterGetter reads KubeCluster resources.
 	services.KubernetesClusterGetter
+
+	// LLMEndpointQuotaGetter defines interface for getting LLM endpoint quotas.
+	services.LLMEndpointQuotaGetter
 }
 
 type NodeWrapper struct {

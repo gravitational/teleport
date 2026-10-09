@@ -305,7 +305,7 @@ const (
 	// ComponentMCP represents the MCP server handler.
 	ComponentMCP = "mcp"
 
-	// ComponentLLM represents the LLM server handler.
+	// ComponentLLM represents LLM related services.
 	ComponentLLM = "llm"
 
 	// ComponentRecordingEncryption represents recording encryption

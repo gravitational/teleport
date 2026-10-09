@@ -701,6 +701,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.LLMEndpointQuotaService == nil {
+		cfg.LLMEndpointQuotaService, err = local.NewLLMEndpointQuotaService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating LLMEndpointQuotaService")
+		}
+	}
+
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -768,6 +775,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		SubCAService:                    cfg.SubCAService,
 		PendingCSRRequestService:        cfg.PendingCSRRequestService,
 		EnrollPairing:                   cfg.EnrollPairing,
+		LLMEndpointQuotaService:         cfg.LLMEndpointQuotaService,
 	}
 
 	if cfg.FakePasswordHash == nil {

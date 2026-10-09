@@ -2460,4 +2460,7 @@ type ClientI interface {
 
 	// BeamReplayServiceClient returns a client for the beam replay service.
 	BeamReplayServiceClient() beamsv1.BeamReplayServiceClient
+
+	// LLMUsageClient returns a client for the LLM usage service.
+	LLMUsageClient() *client.LLMUsageClient
 }

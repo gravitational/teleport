@@ -30,6 +30,7 @@ import "teleport/identitycenter/v1/identitycenter.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/linuxdesktop/v1/linux_desktop.proto";
+import "teleport/llm/v1/llm_endpoint_quota.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
 import "teleport/mfa/v1/validated_challenge.proto";
@@ -271,5 +272,7 @@ message Event {
     // PendingCSRRequest allows asynchronous, watcher-based CSR requests to
     // other Auth server instances.
     teleport.subca.v1.PendingCSRRequest PendingCSRRequest = 99;
+    // LLMEndpointQuota is resource tracks a LLM endpoint quota usage.
+    teleport.llm.v1.LLMEndpointQuota LLMEndpointQuota = 100;
   }
 }

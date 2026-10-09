@@ -28,6 +28,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	llmv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/llm/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -222,6 +223,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]:
 		out.Resource = &proto.Event_ValidatedMFAChallengeV2{
 			ValidatedMFAChallengeV2: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*llmv1.LLMEndpointQuota]:
+		out.Resource = &proto.Event_LLMEndpointQuota{
+			LLMEndpointQuota: r.UnwrapT(),
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -763,6 +768,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetValidatedMFAChallengeV2(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetLLMEndpointQuota(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else {
