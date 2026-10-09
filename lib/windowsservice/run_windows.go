@@ -34,6 +34,17 @@ import (
 
 const defaultTerminateTimeout = 30 * time.Second
 
+// Service-specific exit codes reported to the SCM when the service stops
+// with an error. The SCM surfaces them as ERROR_SERVICE_SPECIFIC_ERROR (1066)
+// with the service-specific code set to one of the values below.
+const (
+	// exitCodeHandlerError means the handler's Execute returned an error.
+	exitCodeHandlerError uint32 = 1
+	// exitCodeTerminateTimeout means the handler did not stop within the
+	// terminate timeout and the process was exited forcibly.
+	exitCodeTerminateTimeout uint32 = 2
+)
+
 // ServiceHandler abstracts the core service workload behind a Windows service.
 type ServiceHandler interface {
 	// Execute will be called by the package code at the start of
@@ -106,7 +117,7 @@ func Run(cfg *RunConfig) error {
 
 // Execute implements [svc.Handler.Execute].
 func (s *runner) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
-	const cmdsAccepted = svc.AcceptStop // Interrogate is always accepted and there is no const for it.
+	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown // Interrogate is always accepted and there is no const for it.
 	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -132,22 +143,30 @@ loop:
 				cancel()
 				terminateTimedOut = cmp.Or(terminateTimedOut, time.After(s.terminateTimeout))
 				status <- svc.Status{State: svc.StopPending}
+			case svc.Shutdown:
+				s.logger.InfoContext(ctx, "Received shutdown command, shutting down service")
+				// Cancel the context passed to s.handler.Execute to terminate the service.
+				cancel()
+				terminateTimedOut = cmp.Or(terminateTimedOut, time.After(s.terminateTimeout))
+				status <- svc.Status{State: svc.StopPending}
 			}
 		case <-terminateTimedOut:
 			s.logger.ErrorContext(ctx, "Service failed to terminate within timeout, exiting process",
 				slog.Duration("timeout", s.terminateTimeout))
-			exitCode = 1
+			exitCode = exitCodeTerminateTimeout
 			break loop
 		case err := <-errCh:
 			if err == nil || errors.Is(err, context.Canceled) {
 				s.logger.InfoContext(ctx, "Service terminated")
 			} else {
 				s.logger.ErrorContext(ctx, "Service terminated", "error", err)
-				exitCode = 1
+				exitCode = exitCodeHandlerError
 			}
 			break loop
 		}
 	}
-	status <- svc.Status{State: svc.Stopped, Win32ExitCode: exitCode}
-	return false, exitCode
+	// Report the exit code as service-specific so the SCM shows it as
+	// ERROR_SERVICE_SPECIFIC_ERROR rather than misinterpreting it as a
+	// Win32 error code.
+	return true, exitCode
 }

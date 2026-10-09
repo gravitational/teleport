@@ -217,7 +217,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		start.Flag("enable-selinux", "Enables SELinux support for Teleport SSH and exits if SELinux is not configured correctly.").Hidden().BoolVar(&ccf.EnableSELinux)
 		start.Flag("ensure-selinux-enforcing", "Exits with an error if SELinux is not configured to enforce Teleport SSH.").Hidden().BoolVar(&ccf.EnsureSELinuxEnforcing)
 	}
-
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
 
@@ -764,7 +763,20 @@ Examples:
 		}
 
 		if !options.InitOnly {
-			err = OnStart(ccf, conf)
+			var isService bool
+			isService, err = isWindowsService()
+			if err != nil {
+				utils.FatalError(err)
+			}
+			if isService {
+				// Running under the Windows Service Control Manager: block
+				// in svc.Run instead so the process reports its state back
+				// to the SCM and reacts to service stop requests. See
+				// service_windows.go.
+				err = runAsWindowsService(ccf, conf)
+			} else {
+				err = OnStart(context.Background(), ccf, conf)
+			}
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
@@ -957,8 +969,19 @@ func writeInstallJoinFailureError(w io.Writer, joinErr *installer.JoinFailureErr
 	}
 }
 
-// OnStart is the handler for "start" CLI command
-func OnStart(clf config.CommandLineFlags, config *servicecfg.Config) error {
+// OnStart is the handler for "start" CLI command. ctx is used as the base
+// context for the running Teleport process. Note that canceling it makes the
+// process exit immediately via TeleportProcess.Close rather than going through
+// the graceful shutdown that OS signals trigger; see service_windows.go for
+// how the Windows service wrapper maps SCM stop requests onto the latter.
+func OnStart(ctx context.Context, clf config.CommandLineFlags, config *servicecfg.Config) error {
+	logStart(ctx, clf, config)
+	return service.Run(ctx, *config, nil)
+}
+
+// logStart logs the startup banner, including the config file that is going
+// to be used.
+func logStart(ctx context.Context, clf config.CommandLineFlags, config *servicecfg.Config) {
 	// check to see if the config file is not passed and if the
 	// default config file is available. If available it will be used
 	configFileUsed := clf.ConfigFile
@@ -966,13 +989,11 @@ func OnStart(clf config.CommandLineFlags, config *servicecfg.Config) error {
 		configFileUsed = defaults.ConfigFilePath
 	}
 
-	ctx := context.Background()
 	if configFileUsed == "" {
 		config.Logger.InfoContext(ctx, "Starting Teleport", "version", teleport.Version)
 	} else {
 		config.Logger.InfoContext(ctx, "Starting Teleport with a config file", "version", teleport.Version, "config_file", configFileUsed)
 	}
-	return service.Run(ctx, *config, nil)
 }
 
 // onStatus is the handler for "status" CLI command
@@ -1302,7 +1323,7 @@ func onJoinOpenSSH(clf config.CommandLineFlags, conf *servicecfg.Config) error {
 	if err := config.ConfigureOpenSSH(&clf, conf); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := OnStart(clf, conf); err != nil {
+	if err := OnStart(context.Background(), clf, conf); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
