@@ -217,6 +217,58 @@ func (x SessionSearchAvailability) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
+// ResourceStatsType selects the resource to aggregate.
+type ResourceStatsType int32
+
+const (
+	// RESOURCE_STATS_TYPE_UNSPECIFIED is the default/unknown value.
+	ResourceStatsType_RESOURCE_STATS_TYPE_UNSPECIFIED ResourceStatsType = 0
+	// RESOURCE_STATS_TYPE_CLASSIFIER scopes to a single classifier (by name).
+	ResourceStatsType_RESOURCE_STATS_TYPE_CLASSIFIER ResourceStatsType = 1
+	// RESOURCE_STATS_TYPE_MODEL scopes to a single inference model.
+	ResourceStatsType_RESOURCE_STATS_TYPE_MODEL ResourceStatsType = 2
+	// RESOURCE_STATS_TYPE_POLICY scopes to a single inference policy.
+	ResourceStatsType_RESOURCE_STATS_TYPE_POLICY ResourceStatsType = 3
+)
+
+// Enum value maps for ResourceStatsType.
+var (
+	ResourceStatsType_name = map[int32]string{
+		0: "RESOURCE_STATS_TYPE_UNSPECIFIED",
+		1: "RESOURCE_STATS_TYPE_CLASSIFIER",
+		2: "RESOURCE_STATS_TYPE_MODEL",
+		3: "RESOURCE_STATS_TYPE_POLICY",
+	}
+	ResourceStatsType_value = map[string]int32{
+		"RESOURCE_STATS_TYPE_UNSPECIFIED": 0,
+		"RESOURCE_STATS_TYPE_CLASSIFIER":  1,
+		"RESOURCE_STATS_TYPE_MODEL":       2,
+		"RESOURCE_STATS_TYPE_POLICY":      3,
+	}
+)
+
+func (x ResourceStatsType) Enum() *ResourceStatsType {
+	p := new(ResourceStatsType)
+	*p = x
+	return p
+}
+
+func (x ResourceStatsType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ResourceStatsType) Descriptor() protoreflect.EnumDescriptor {
+	return file_accessgraph_v1_session_search_proto_enumTypes[3].Descriptor()
+}
+
+func (ResourceStatsType) Type() protoreflect.EnumType {
+	return &file_accessgraph_v1_session_search_proto_enumTypes[3]
+}
+
+func (x ResourceStatsType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 // SearchSessionSummariesRequest is sent by the client on the SearchSessionSummaries stream.
 // The first message must carry search_params; subsequent messages carry fetch_more
 // to advance to the next batch.
@@ -4161,6 +4213,1486 @@ func (b0 RecordSessionStatsResponse_builder) Build() *RecordSessionStatsResponse
 	return m0
 }
 
+// DailyPoint is one day's bucket in an activity series.
+type DailyPoint struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// date is the bucket day in "YYYY-MM-DD" (UTC).
+	Date string `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
+	// value is the count for that day (zero-filled for empty days).
+	Value         int64 `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DailyPoint) Reset() {
+	*x = DailyPoint{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DailyPoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DailyPoint) ProtoMessage() {}
+
+func (x *DailyPoint) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *DailyPoint) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *DailyPoint) GetValue() int64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+func (x *DailyPoint) SetDate(v string) {
+	x.Date = v
+}
+
+func (x *DailyPoint) SetValue(v int64) {
+	x.Value = v
+}
+
+type DailyPoint_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// date is the bucket day in "YYYY-MM-DD" (UTC).
+	Date string
+	// value is the count for that day (zero-filled for empty days).
+	Value int64
+}
+
+func (b0 DailyPoint_builder) Build() *DailyPoint {
+	m0 := &DailyPoint{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Date = b.Date
+	x.Value = b.Value
+	return m0
+}
+
+// Breakdown is a single key/count pair in a top-N breakdown.
+type Breakdown struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// key is the group value (kind, user, host, policy, ...).
+	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	// value is the count for that key.
+	Value         int64 `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Breakdown) Reset() {
+	*x = Breakdown{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Breakdown) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Breakdown) ProtoMessage() {}
+
+func (x *Breakdown) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Breakdown) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *Breakdown) GetValue() int64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+func (x *Breakdown) SetKey(v string) {
+	x.Key = v
+}
+
+func (x *Breakdown) SetValue(v int64) {
+	x.Value = v
+}
+
+type Breakdown_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// key is the group value (kind, user, host, policy, ...).
+	Key string
+	// value is the count for that key.
+	Value int64
+}
+
+func (b0 Breakdown_builder) Build() *Breakdown {
+	m0 := &Breakdown{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Key = b.Key
+	x.Value = b.Value
+	return m0
+}
+
+// RecordingSample carries an audit event for Auth to authorize the recording.
+type RecordingSample struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// session_id is the recording's session identifier.
+	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// user is the user who initiated the session.
+	User string `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	// target is the host/resource accessed.
+	Target string `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
+	// kind is the session protocol type.
+	Kind string `protobuf:"bytes,4,opt,name=kind,proto3" json:"kind,omitempty"`
+	// duration_ms is the recording length in milliseconds.
+	DurationMs int64 `protobuf:"varint,5,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	// occurred_at is the session timestamp.
+	OccurredAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=occurred_at,json=occurredAt,proto3" json:"occurred_at,omitempty"`
+	// risk_level is the evaluated risk; UNSPECIFIED means no verdict is available.
+	RiskLevel v1.RiskLevel `protobuf:"varint,7,opt,name=risk_level,json=riskLevel,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"risk_level,omitempty"`
+	// session_end_event is the raw session-end audit event for RBAC filtering.
+	SessionEndEvent *structpb.Struct `protobuf:"bytes,8,opt,name=session_end_event,json=sessionEndEvent,proto3" json:"session_end_event,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RecordingSample) Reset() {
+	*x = RecordingSample{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordingSample) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordingSample) ProtoMessage() {}
+
+func (x *RecordingSample) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RecordingSample) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *RecordingSample) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *RecordingSample) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *RecordingSample) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *RecordingSample) GetDurationMs() int64 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *RecordingSample) GetOccurredAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.OccurredAt
+	}
+	return nil
+}
+
+func (x *RecordingSample) GetRiskLevel() v1.RiskLevel {
+	if x != nil {
+		return x.RiskLevel
+	}
+	return v1.RiskLevel(0)
+}
+
+func (x *RecordingSample) GetSessionEndEvent() *structpb.Struct {
+	if x != nil {
+		return x.SessionEndEvent
+	}
+	return nil
+}
+
+func (x *RecordingSample) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *RecordingSample) SetUser(v string) {
+	x.User = v
+}
+
+func (x *RecordingSample) SetTarget(v string) {
+	x.Target = v
+}
+
+func (x *RecordingSample) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *RecordingSample) SetDurationMs(v int64) {
+	x.DurationMs = v
+}
+
+func (x *RecordingSample) SetOccurredAt(v *timestamppb.Timestamp) {
+	x.OccurredAt = v
+}
+
+func (x *RecordingSample) SetRiskLevel(v v1.RiskLevel) {
+	x.RiskLevel = v
+}
+
+func (x *RecordingSample) SetSessionEndEvent(v *structpb.Struct) {
+	x.SessionEndEvent = v
+}
+
+func (x *RecordingSample) HasOccurredAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.OccurredAt != nil
+}
+
+func (x *RecordingSample) HasSessionEndEvent() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionEndEvent != nil
+}
+
+func (x *RecordingSample) ClearOccurredAt() {
+	x.OccurredAt = nil
+}
+
+func (x *RecordingSample) ClearSessionEndEvent() {
+	x.SessionEndEvent = nil
+}
+
+type RecordingSample_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// session_id is the recording's session identifier.
+	SessionId string
+	// user is the user who initiated the session.
+	User string
+	// target is the host/resource accessed.
+	Target string
+	// kind is the session protocol type.
+	Kind string
+	// duration_ms is the recording length in milliseconds.
+	DurationMs int64
+	// occurred_at is the session timestamp.
+	OccurredAt *timestamppb.Timestamp
+	// risk_level is the evaluated risk; UNSPECIFIED means no verdict is available.
+	RiskLevel v1.RiskLevel
+	// session_end_event is the raw session-end audit event for RBAC filtering.
+	SessionEndEvent *structpb.Struct
+}
+
+func (b0 RecordingSample_builder) Build() *RecordingSample {
+	m0 := &RecordingSample{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	x.User = b.User
+	x.Target = b.Target
+	x.Kind = b.Kind
+	x.DurationMs = b.DurationMs
+	x.OccurredAt = b.OccurredAt
+	x.RiskLevel = b.RiskLevel
+	x.SessionEndEvent = b.SessionEndEvent
+	return m0
+}
+
+// GetResourceStatsRequest selects a resource and time window.
+// The response is a bounded aggregate and recording sample.
+// buf:lint:ignore PAGINATION_REQUIRED
+type GetResourceStatsRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// type selects the resource dimension (classifier, model, or policy).
+	Type ResourceStatsType `protobuf:"varint,1,opt,name=type,proto3,enum=accessgraph.v1.ResourceStatsType" json:"type,omitempty"`
+	// name is the classifier / model / policy name to scope to.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// now is the window anchor; the server uses the current time when unset.
+	Now *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=now,proto3" json:"now,omitempty"`
+	// window_days is the trailing window length in days (default 30, maximum 90).
+	WindowDays int32 `protobuf:"varint,4,opt,name=window_days,json=windowDays,proto3" json:"window_days,omitempty"`
+	// top_n bounds the by-kind / top-users / top-hosts and matched-rule breakdowns (default 5, maximum 100).
+	TopN int32 `protobuf:"varint,5,opt,name=top_n,json=topN,proto3" json:"top_n,omitempty"`
+	// recent_n bounds the recent-recordings sample (default 8, maximum 50).
+	RecentN       int32 `protobuf:"varint,6,opt,name=recent_n,json=recentN,proto3" json:"recent_n,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetResourceStatsRequest) Reset() {
+	*x = GetResourceStatsRequest{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResourceStatsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResourceStatsRequest) ProtoMessage() {}
+
+func (x *GetResourceStatsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetResourceStatsRequest) GetType() ResourceStatsType {
+	if x != nil {
+		return x.Type
+	}
+	return ResourceStatsType_RESOURCE_STATS_TYPE_UNSPECIFIED
+}
+
+func (x *GetResourceStatsRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *GetResourceStatsRequest) GetNow() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Now
+	}
+	return nil
+}
+
+func (x *GetResourceStatsRequest) GetWindowDays() int32 {
+	if x != nil {
+		return x.WindowDays
+	}
+	return 0
+}
+
+func (x *GetResourceStatsRequest) GetTopN() int32 {
+	if x != nil {
+		return x.TopN
+	}
+	return 0
+}
+
+func (x *GetResourceStatsRequest) GetRecentN() int32 {
+	if x != nil {
+		return x.RecentN
+	}
+	return 0
+}
+
+func (x *GetResourceStatsRequest) SetType(v ResourceStatsType) {
+	x.Type = v
+}
+
+func (x *GetResourceStatsRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GetResourceStatsRequest) SetNow(v *timestamppb.Timestamp) {
+	x.Now = v
+}
+
+func (x *GetResourceStatsRequest) SetWindowDays(v int32) {
+	x.WindowDays = v
+}
+
+func (x *GetResourceStatsRequest) SetTopN(v int32) {
+	x.TopN = v
+}
+
+func (x *GetResourceStatsRequest) SetRecentN(v int32) {
+	x.RecentN = v
+}
+
+func (x *GetResourceStatsRequest) HasNow() bool {
+	if x == nil {
+		return false
+	}
+	return x.Now != nil
+}
+
+func (x *GetResourceStatsRequest) ClearNow() {
+	x.Now = nil
+}
+
+type GetResourceStatsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// type selects the resource dimension (classifier, model, or policy).
+	Type ResourceStatsType
+	// name is the classifier / model / policy name to scope to.
+	Name string
+	// now is the window anchor; the server uses the current time when unset.
+	Now *timestamppb.Timestamp
+	// window_days is the trailing window length in days (default 30, maximum 90).
+	WindowDays int32
+	// top_n bounds the by-kind / top-users / top-hosts and matched-rule breakdowns (default 5, maximum 100).
+	TopN int32
+	// recent_n bounds the recent-recordings sample (default 8, maximum 50).
+	RecentN int32
+}
+
+func (b0 GetResourceStatsRequest_builder) Build() *GetResourceStatsRequest {
+	m0 := &GetResourceStatsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Name = b.Name
+	x.Now = b.Now
+	x.WindowDays = b.WindowDays
+	x.TopN = b.TopN
+	x.RecentN = b.RecentN
+	return m0
+}
+
+// TokenBreakdown groups token usage by session kind. Model and policy cache usage is unrecorded.
+type TokenBreakdown struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// key is the group value (session kind).
+	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	// tokens_in is the uncached prompt tokens for the key.
+	TokensIn int64 `protobuf:"varint,2,opt,name=tokens_in,json=tokensIn,proto3" json:"tokens_in,omitempty"`
+	// tokens_out is the completion tokens for the key.
+	TokensOut int64 `protobuf:"varint,3,opt,name=tokens_out,json=tokensOut,proto3" json:"tokens_out,omitempty"`
+	// cache_read_tokens is the prompt tokens served from the provider cache.
+	CacheReadTokens int64 `protobuf:"varint,4,opt,name=cache_read_tokens,json=cacheReadTokens,proto3" json:"cache_read_tokens,omitempty"`
+	// cache_write_tokens is the prompt tokens written to the provider cache.
+	CacheWriteTokens int64 `protobuf:"varint,5,opt,name=cache_write_tokens,json=cacheWriteTokens,proto3" json:"cache_write_tokens,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *TokenBreakdown) Reset() {
+	*x = TokenBreakdown{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TokenBreakdown) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TokenBreakdown) ProtoMessage() {}
+
+func (x *TokenBreakdown) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *TokenBreakdown) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *TokenBreakdown) GetTokensIn() int64 {
+	if x != nil {
+		return x.TokensIn
+	}
+	return 0
+}
+
+func (x *TokenBreakdown) GetTokensOut() int64 {
+	if x != nil {
+		return x.TokensOut
+	}
+	return 0
+}
+
+func (x *TokenBreakdown) GetCacheReadTokens() int64 {
+	if x != nil {
+		return x.CacheReadTokens
+	}
+	return 0
+}
+
+func (x *TokenBreakdown) GetCacheWriteTokens() int64 {
+	if x != nil {
+		return x.CacheWriteTokens
+	}
+	return 0
+}
+
+func (x *TokenBreakdown) SetKey(v string) {
+	x.Key = v
+}
+
+func (x *TokenBreakdown) SetTokensIn(v int64) {
+	x.TokensIn = v
+}
+
+func (x *TokenBreakdown) SetTokensOut(v int64) {
+	x.TokensOut = v
+}
+
+func (x *TokenBreakdown) SetCacheReadTokens(v int64) {
+	x.CacheReadTokens = v
+}
+
+func (x *TokenBreakdown) SetCacheWriteTokens(v int64) {
+	x.CacheWriteTokens = v
+}
+
+type TokenBreakdown_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// key is the group value (session kind).
+	Key string
+	// tokens_in is the uncached prompt tokens for the key.
+	TokensIn int64
+	// tokens_out is the completion tokens for the key.
+	TokensOut int64
+	// cache_read_tokens is the prompt tokens served from the provider cache.
+	CacheReadTokens int64
+	// cache_write_tokens is the prompt tokens written to the provider cache.
+	CacheWriteTokens int64
+}
+
+func (b0 TokenBreakdown_builder) Build() *TokenBreakdown {
+	m0 := &TokenBreakdown{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Key = b.Key
+	x.TokensIn = b.TokensIn
+	x.TokensOut = b.TokensOut
+	x.CacheReadTokens = b.CacheReadTokens
+	x.CacheWriteTokens = b.CacheWriteTokens
+	return m0
+}
+
+// GetResourceStatsResponse is a bounded aggregate for one resource. Inapplicable metrics are unset.
+// buf:lint:ignore PAGINATION_REQUIRED
+type GetResourceStatsResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// type echoes the requested resource dimension.
+	Type ResourceStatsType `protobuf:"varint,1,opt,name=type,proto3,enum=accessgraph.v1.ResourceStatsType" json:"type,omitempty"`
+	// total is the headline count over the current window (semantics vary by type).
+	Total int64 `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	// delta_pct is the percent change from the previous window; unset if that window was empty.
+	DeltaPct *float64 `protobuf:"fixed64,3,opt,name=delta_pct,json=deltaPct,proto3,oneof" json:"delta_pct,omitempty"`
+	// avg_per_day is total divided by window_days.
+	AvgPerDay float64 `protobuf:"fixed64,4,opt,name=avg_per_day,json=avgPerDay,proto3" json:"avg_per_day,omitempty"`
+	// last_event_at is the most recent occurrence in scope (unset if none).
+	LastEventAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_event_at,json=lastEventAt,proto3" json:"last_event_at,omitempty"`
+	// series is the per-day activity, ascending, zero-filled, window_days long.
+	Series []*DailyPoint `protobuf:"bytes,6,rep,name=series,proto3" json:"series,omitempty"`
+	// by_kind is the top-N breakdown by session kind.
+	ByKind []*Breakdown `protobuf:"bytes,7,rep,name=by_kind,json=byKind,proto3" json:"by_kind,omitempty"`
+	// top_users is the top-N breakdown by user.
+	TopUsers []*Breakdown `protobuf:"bytes,8,rep,name=top_users,json=topUsers,proto3" json:"top_users,omitempty"`
+	// top_hosts is the top-N breakdown by host.
+	TopHosts []*Breakdown `protobuf:"bytes,9,rep,name=top_hosts,json=topHosts,proto3" json:"top_hosts,omitempty"`
+	// match_rate_pct is matched/evaluated*100 (classifier scope only).
+	MatchRatePct *float64 `protobuf:"fixed64,10,opt,name=match_rate_pct,json=matchRatePct,proto3,oneof" json:"match_rate_pct,omitempty"`
+	// coverage_pct is summarized/eligible*100 (policy scope only).
+	CoveragePct *float64 `protobuf:"fixed64,11,opt,name=coverage_pct,json=coveragePct,proto3,oneof" json:"coverage_pct,omitempty"`
+	// tokens_by_kind is token spend broken down by kind (policy/model scope),
+	// split per token type.
+	TokensByKind []*TokenBreakdown `protobuf:"bytes,12,rep,name=tokens_by_kind,json=tokensByKind,proto3" json:"tokens_by_kind,omitempty"`
+	// tokens_in is the total prompt tokens over the window.
+	TokensIn int64 `protobuf:"varint,13,opt,name=tokens_in,json=tokensIn,proto3" json:"tokens_in,omitempty"`
+	// tokens_out is the total completion tokens over the window.
+	TokensOut int64 `protobuf:"varint,14,opt,name=tokens_out,json=tokensOut,proto3" json:"tokens_out,omitempty"`
+	// cache_read_tokens is cached prompt usage. Only classifier evaluations record it.
+	CacheReadTokens int64 `protobuf:"varint,20,opt,name=cache_read_tokens,json=cacheReadTokens,proto3" json:"cache_read_tokens,omitempty"`
+	// cache_write_tokens is prompt usage written to cache. Only classifier evaluations record it.
+	CacheWriteTokens int64 `protobuf:"varint,21,opt,name=cache_write_tokens,json=cacheWriteTokens,proto3" json:"cache_write_tokens,omitempty"`
+	// avg_latency_ms is the average run duration in milliseconds (model scope only).
+	AvgLatencyMs *float64 `protobuf:"fixed64,16,opt,name=avg_latency_ms,json=avgLatencyMs,proto3,oneof" json:"avg_latency_ms,omitempty"`
+	// error_rate_pct is errored/total*100 (model scope only).
+	ErrorRatePct *float64 `protobuf:"fixed64,17,opt,name=error_rate_pct,json=errorRatePct,proto3,oneof" json:"error_rate_pct,omitempty"`
+	// by_policy is summaries per policy that used this model (model scope only).
+	ByPolicy []*Breakdown `protobuf:"bytes,18,rep,name=by_policy,json=byPolicy,proto3" json:"by_policy,omitempty"`
+	// recordings is the recent-recordings sample, newest first.
+	Recordings []*RecordingSample `protobuf:"bytes,19,rep,name=recordings,proto3" json:"recordings,omitempty"`
+	// matched_rule_counts counts distinct matched sessions per sub-rule. Sorted by count descending,
+	// then name, and limited by top_n. Empty for models and policies.
+	MatchedRuleCounts []*Breakdown `protobuf:"bytes,22,rep,name=matched_rule_counts,json=matchedRuleCounts,proto3" json:"matched_rule_counts,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GetResourceStatsResponse) Reset() {
+	*x = GetResourceStatsResponse{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResourceStatsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResourceStatsResponse) ProtoMessage() {}
+
+func (x *GetResourceStatsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetResourceStatsResponse) GetType() ResourceStatsType {
+	if x != nil {
+		return x.Type
+	}
+	return ResourceStatsType_RESOURCE_STATS_TYPE_UNSPECIFIED
+}
+
+func (x *GetResourceStatsResponse) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetDeltaPct() float64 {
+	if x != nil && x.DeltaPct != nil {
+		return *x.DeltaPct
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetAvgPerDay() float64 {
+	if x != nil {
+		return x.AvgPerDay
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetLastEventAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastEventAt
+	}
+	return nil
+}
+
+func (x *GetResourceStatsResponse) GetSeries() []*DailyPoint {
+	if x != nil {
+		return x.Series
+	}
+	return nil
+}
+
+func (x *GetResourceStatsResponse) GetByKind() []*Breakdown {
+	if x != nil {
+		return x.ByKind
+	}
+	return nil
+}
+
+func (x *GetResourceStatsResponse) GetTopUsers() []*Breakdown {
+	if x != nil {
+		return x.TopUsers
+	}
+	return nil
+}
+
+func (x *GetResourceStatsResponse) GetTopHosts() []*Breakdown {
+	if x != nil {
+		return x.TopHosts
+	}
+	return nil
+}
+
+func (x *GetResourceStatsResponse) GetMatchRatePct() float64 {
+	if x != nil && x.MatchRatePct != nil {
+		return *x.MatchRatePct
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetCoveragePct() float64 {
+	if x != nil && x.CoveragePct != nil {
+		return *x.CoveragePct
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetTokensByKind() []*TokenBreakdown {
+	if x != nil {
+		return x.TokensByKind
+	}
+	return nil
+}
+
+func (x *GetResourceStatsResponse) GetTokensIn() int64 {
+	if x != nil {
+		return x.TokensIn
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetTokensOut() int64 {
+	if x != nil {
+		return x.TokensOut
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetCacheReadTokens() int64 {
+	if x != nil {
+		return x.CacheReadTokens
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetCacheWriteTokens() int64 {
+	if x != nil {
+		return x.CacheWriteTokens
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetAvgLatencyMs() float64 {
+	if x != nil && x.AvgLatencyMs != nil {
+		return *x.AvgLatencyMs
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetErrorRatePct() float64 {
+	if x != nil && x.ErrorRatePct != nil {
+		return *x.ErrorRatePct
+	}
+	return 0
+}
+
+func (x *GetResourceStatsResponse) GetByPolicy() []*Breakdown {
+	if x != nil {
+		return x.ByPolicy
+	}
+	return nil
+}
+
+func (x *GetResourceStatsResponse) GetRecordings() []*RecordingSample {
+	if x != nil {
+		return x.Recordings
+	}
+	return nil
+}
+
+func (x *GetResourceStatsResponse) GetMatchedRuleCounts() []*Breakdown {
+	if x != nil {
+		return x.MatchedRuleCounts
+	}
+	return nil
+}
+
+func (x *GetResourceStatsResponse) SetType(v ResourceStatsType) {
+	x.Type = v
+}
+
+func (x *GetResourceStatsResponse) SetTotal(v int64) {
+	x.Total = v
+}
+
+func (x *GetResourceStatsResponse) SetDeltaPct(v float64) {
+	x.DeltaPct = &v
+}
+
+func (x *GetResourceStatsResponse) SetAvgPerDay(v float64) {
+	x.AvgPerDay = v
+}
+
+func (x *GetResourceStatsResponse) SetLastEventAt(v *timestamppb.Timestamp) {
+	x.LastEventAt = v
+}
+
+func (x *GetResourceStatsResponse) SetSeries(v []*DailyPoint) {
+	x.Series = v
+}
+
+func (x *GetResourceStatsResponse) SetByKind(v []*Breakdown) {
+	x.ByKind = v
+}
+
+func (x *GetResourceStatsResponse) SetTopUsers(v []*Breakdown) {
+	x.TopUsers = v
+}
+
+func (x *GetResourceStatsResponse) SetTopHosts(v []*Breakdown) {
+	x.TopHosts = v
+}
+
+func (x *GetResourceStatsResponse) SetMatchRatePct(v float64) {
+	x.MatchRatePct = &v
+}
+
+func (x *GetResourceStatsResponse) SetCoveragePct(v float64) {
+	x.CoveragePct = &v
+}
+
+func (x *GetResourceStatsResponse) SetTokensByKind(v []*TokenBreakdown) {
+	x.TokensByKind = v
+}
+
+func (x *GetResourceStatsResponse) SetTokensIn(v int64) {
+	x.TokensIn = v
+}
+
+func (x *GetResourceStatsResponse) SetTokensOut(v int64) {
+	x.TokensOut = v
+}
+
+func (x *GetResourceStatsResponse) SetCacheReadTokens(v int64) {
+	x.CacheReadTokens = v
+}
+
+func (x *GetResourceStatsResponse) SetCacheWriteTokens(v int64) {
+	x.CacheWriteTokens = v
+}
+
+func (x *GetResourceStatsResponse) SetAvgLatencyMs(v float64) {
+	x.AvgLatencyMs = &v
+}
+
+func (x *GetResourceStatsResponse) SetErrorRatePct(v float64) {
+	x.ErrorRatePct = &v
+}
+
+func (x *GetResourceStatsResponse) SetByPolicy(v []*Breakdown) {
+	x.ByPolicy = v
+}
+
+func (x *GetResourceStatsResponse) SetRecordings(v []*RecordingSample) {
+	x.Recordings = v
+}
+
+func (x *GetResourceStatsResponse) SetMatchedRuleCounts(v []*Breakdown) {
+	x.MatchedRuleCounts = v
+}
+
+func (x *GetResourceStatsResponse) HasDeltaPct() bool {
+	if x == nil {
+		return false
+	}
+	return x.DeltaPct != nil
+}
+
+func (x *GetResourceStatsResponse) HasLastEventAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastEventAt != nil
+}
+
+func (x *GetResourceStatsResponse) HasMatchRatePct() bool {
+	if x == nil {
+		return false
+	}
+	return x.MatchRatePct != nil
+}
+
+func (x *GetResourceStatsResponse) HasCoveragePct() bool {
+	if x == nil {
+		return false
+	}
+	return x.CoveragePct != nil
+}
+
+func (x *GetResourceStatsResponse) HasAvgLatencyMs() bool {
+	if x == nil {
+		return false
+	}
+	return x.AvgLatencyMs != nil
+}
+
+func (x *GetResourceStatsResponse) HasErrorRatePct() bool {
+	if x == nil {
+		return false
+	}
+	return x.ErrorRatePct != nil
+}
+
+func (x *GetResourceStatsResponse) ClearDeltaPct() {
+	x.DeltaPct = nil
+}
+
+func (x *GetResourceStatsResponse) ClearLastEventAt() {
+	x.LastEventAt = nil
+}
+
+func (x *GetResourceStatsResponse) ClearMatchRatePct() {
+	x.MatchRatePct = nil
+}
+
+func (x *GetResourceStatsResponse) ClearCoveragePct() {
+	x.CoveragePct = nil
+}
+
+func (x *GetResourceStatsResponse) ClearAvgLatencyMs() {
+	x.AvgLatencyMs = nil
+}
+
+func (x *GetResourceStatsResponse) ClearErrorRatePct() {
+	x.ErrorRatePct = nil
+}
+
+type GetResourceStatsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// type echoes the requested resource dimension.
+	Type ResourceStatsType
+	// total is the headline count over the current window (semantics vary by type).
+	Total int64
+	// delta_pct is the percent change from the previous window; unset if that window was empty.
+	DeltaPct *float64
+	// avg_per_day is total divided by window_days.
+	AvgPerDay float64
+	// last_event_at is the most recent occurrence in scope (unset if none).
+	LastEventAt *timestamppb.Timestamp
+	// series is the per-day activity, ascending, zero-filled, window_days long.
+	Series []*DailyPoint
+	// by_kind is the top-N breakdown by session kind.
+	ByKind []*Breakdown
+	// top_users is the top-N breakdown by user.
+	TopUsers []*Breakdown
+	// top_hosts is the top-N breakdown by host.
+	TopHosts []*Breakdown
+	// match_rate_pct is matched/evaluated*100 (classifier scope only).
+	MatchRatePct *float64
+	// coverage_pct is summarized/eligible*100 (policy scope only).
+	CoveragePct *float64
+	// tokens_by_kind is token spend broken down by kind (policy/model scope),
+	// split per token type.
+	TokensByKind []*TokenBreakdown
+	// tokens_in is the total prompt tokens over the window.
+	TokensIn int64
+	// tokens_out is the total completion tokens over the window.
+	TokensOut int64
+	// cache_read_tokens is cached prompt usage. Only classifier evaluations record it.
+	CacheReadTokens int64
+	// cache_write_tokens is prompt usage written to cache. Only classifier evaluations record it.
+	CacheWriteTokens int64
+	// avg_latency_ms is the average run duration in milliseconds (model scope only).
+	AvgLatencyMs *float64
+	// error_rate_pct is errored/total*100 (model scope only).
+	ErrorRatePct *float64
+	// by_policy is summaries per policy that used this model (model scope only).
+	ByPolicy []*Breakdown
+	// recordings is the recent-recordings sample, newest first.
+	Recordings []*RecordingSample
+	// matched_rule_counts counts distinct matched sessions per sub-rule. Sorted by count descending,
+	// then name, and limited by top_n. Empty for models and policies.
+	MatchedRuleCounts []*Breakdown
+}
+
+func (b0 GetResourceStatsResponse_builder) Build() *GetResourceStatsResponse {
+	m0 := &GetResourceStatsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Total = b.Total
+	x.DeltaPct = b.DeltaPct
+	x.AvgPerDay = b.AvgPerDay
+	x.LastEventAt = b.LastEventAt
+	x.Series = b.Series
+	x.ByKind = b.ByKind
+	x.TopUsers = b.TopUsers
+	x.TopHosts = b.TopHosts
+	x.MatchRatePct = b.MatchRatePct
+	x.CoveragePct = b.CoveragePct
+	x.TokensByKind = b.TokensByKind
+	x.TokensIn = b.TokensIn
+	x.TokensOut = b.TokensOut
+	x.CacheReadTokens = b.CacheReadTokens
+	x.CacheWriteTokens = b.CacheWriteTokens
+	x.AvgLatencyMs = b.AvgLatencyMs
+	x.ErrorRatePct = b.ErrorRatePct
+	x.ByPolicy = b.ByPolicy
+	x.Recordings = b.Recordings
+	x.MatchedRuleCounts = b.MatchedRuleCounts
+	return m0
+}
+
+// GetResourceStatsBatchRequest selects resources over a shared time window.
+// The request and each returned aggregate are bounded.
+// buf:lint:ignore PAGINATION_REQUIRED
+type GetResourceStatsBatchRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// type selects the resource dimension (classifier, model, or policy).
+	Type ResourceStatsType `protobuf:"varint,1,opt,name=type,proto3,enum=accessgraph.v1.ResourceStatsType" json:"type,omitempty"`
+	// names identifies the resources. The server requires between 1 and 100 names.
+	Names []string `protobuf:"bytes,2,rep,name=names,proto3" json:"names,omitempty"`
+	// now is the window anchor; the server uses the current time when unset.
+	Now *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=now,proto3" json:"now,omitempty"`
+	// window_days is the trailing window length in days (default 30, maximum 90).
+	WindowDays int32 `protobuf:"varint,4,opt,name=window_days,json=windowDays,proto3" json:"window_days,omitempty"`
+	// top_n bounds the matched-rule breakdown per classifier (default 5, maximum 100).
+	TopN          int32 `protobuf:"varint,5,opt,name=top_n,json=topN,proto3" json:"top_n,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetResourceStatsBatchRequest) Reset() {
+	*x = GetResourceStatsBatchRequest{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResourceStatsBatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResourceStatsBatchRequest) ProtoMessage() {}
+
+func (x *GetResourceStatsBatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetResourceStatsBatchRequest) GetType() ResourceStatsType {
+	if x != nil {
+		return x.Type
+	}
+	return ResourceStatsType_RESOURCE_STATS_TYPE_UNSPECIFIED
+}
+
+func (x *GetResourceStatsBatchRequest) GetNames() []string {
+	if x != nil {
+		return x.Names
+	}
+	return nil
+}
+
+func (x *GetResourceStatsBatchRequest) GetNow() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Now
+	}
+	return nil
+}
+
+func (x *GetResourceStatsBatchRequest) GetWindowDays() int32 {
+	if x != nil {
+		return x.WindowDays
+	}
+	return 0
+}
+
+func (x *GetResourceStatsBatchRequest) GetTopN() int32 {
+	if x != nil {
+		return x.TopN
+	}
+	return 0
+}
+
+func (x *GetResourceStatsBatchRequest) SetType(v ResourceStatsType) {
+	x.Type = v
+}
+
+func (x *GetResourceStatsBatchRequest) SetNames(v []string) {
+	x.Names = v
+}
+
+func (x *GetResourceStatsBatchRequest) SetNow(v *timestamppb.Timestamp) {
+	x.Now = v
+}
+
+func (x *GetResourceStatsBatchRequest) SetWindowDays(v int32) {
+	x.WindowDays = v
+}
+
+func (x *GetResourceStatsBatchRequest) SetTopN(v int32) {
+	x.TopN = v
+}
+
+func (x *GetResourceStatsBatchRequest) HasNow() bool {
+	if x == nil {
+		return false
+	}
+	return x.Now != nil
+}
+
+func (x *GetResourceStatsBatchRequest) ClearNow() {
+	x.Now = nil
+}
+
+type GetResourceStatsBatchRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// type selects the resource dimension (classifier, model, or policy).
+	Type ResourceStatsType
+	// names identifies the resources. The server requires between 1 and 100 names.
+	Names []string
+	// now is the window anchor; the server uses the current time when unset.
+	Now *timestamppb.Timestamp
+	// window_days is the trailing window length in days (default 30, maximum 90).
+	WindowDays int32
+	// top_n bounds the matched-rule breakdown per classifier (default 5, maximum 100).
+	TopN int32
+}
+
+func (b0 GetResourceStatsBatchRequest_builder) Build() *GetResourceStatsBatchRequest {
+	m0 := &GetResourceStatsBatchRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Names = b.Names
+	x.Now = b.Now
+	x.WindowDays = b.WindowDays
+	x.TopN = b.TopN
+	return m0
+}
+
+// ResourceStatsSummary contains the aggregate metrics for a resource list row.
+type ResourceStatsSummary struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// name is the resource this entry aggregates.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// total is the headline count over the window (semantics vary by type).
+	Total int64 `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	// delta_pct is the percent change from the previous window; unset if that window was empty.
+	DeltaPct *float64 `protobuf:"fixed64,3,opt,name=delta_pct,json=deltaPct,proto3,oneof" json:"delta_pct,omitempty"`
+	// series is the per-day activity, ascending, zero-filled, window_days long.
+	Series []*DailyPoint `protobuf:"bytes,4,rep,name=series,proto3" json:"series,omitempty"`
+	// match_rate_pct is matched/evaluated*100 (classifier scope only).
+	MatchRatePct *float64 `protobuf:"fixed64,5,opt,name=match_rate_pct,json=matchRatePct,proto3,oneof" json:"match_rate_pct,omitempty"`
+	// coverage_pct is summarized/eligible*100 (policy scope only).
+	CoveragePct *float64 `protobuf:"fixed64,6,opt,name=coverage_pct,json=coveragePct,proto3,oneof" json:"coverage_pct,omitempty"`
+	// matched_rule_counts counts distinct matched sessions per sub-rule. Sorted by count descending,
+	// then name, and limited by top_n. Empty for models and policies.
+	MatchedRuleCounts []*Breakdown `protobuf:"bytes,7,rep,name=matched_rule_counts,json=matchedRuleCounts,proto3" json:"matched_rule_counts,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ResourceStatsSummary) Reset() {
+	*x = ResourceStatsSummary{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResourceStatsSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResourceStatsSummary) ProtoMessage() {}
+
+func (x *ResourceStatsSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ResourceStatsSummary) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ResourceStatsSummary) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ResourceStatsSummary) GetDeltaPct() float64 {
+	if x != nil && x.DeltaPct != nil {
+		return *x.DeltaPct
+	}
+	return 0
+}
+
+func (x *ResourceStatsSummary) GetSeries() []*DailyPoint {
+	if x != nil {
+		return x.Series
+	}
+	return nil
+}
+
+func (x *ResourceStatsSummary) GetMatchRatePct() float64 {
+	if x != nil && x.MatchRatePct != nil {
+		return *x.MatchRatePct
+	}
+	return 0
+}
+
+func (x *ResourceStatsSummary) GetCoveragePct() float64 {
+	if x != nil && x.CoveragePct != nil {
+		return *x.CoveragePct
+	}
+	return 0
+}
+
+func (x *ResourceStatsSummary) GetMatchedRuleCounts() []*Breakdown {
+	if x != nil {
+		return x.MatchedRuleCounts
+	}
+	return nil
+}
+
+func (x *ResourceStatsSummary) SetName(v string) {
+	x.Name = v
+}
+
+func (x *ResourceStatsSummary) SetTotal(v int64) {
+	x.Total = v
+}
+
+func (x *ResourceStatsSummary) SetDeltaPct(v float64) {
+	x.DeltaPct = &v
+}
+
+func (x *ResourceStatsSummary) SetSeries(v []*DailyPoint) {
+	x.Series = v
+}
+
+func (x *ResourceStatsSummary) SetMatchRatePct(v float64) {
+	x.MatchRatePct = &v
+}
+
+func (x *ResourceStatsSummary) SetCoveragePct(v float64) {
+	x.CoveragePct = &v
+}
+
+func (x *ResourceStatsSummary) SetMatchedRuleCounts(v []*Breakdown) {
+	x.MatchedRuleCounts = v
+}
+
+func (x *ResourceStatsSummary) HasDeltaPct() bool {
+	if x == nil {
+		return false
+	}
+	return x.DeltaPct != nil
+}
+
+func (x *ResourceStatsSummary) HasMatchRatePct() bool {
+	if x == nil {
+		return false
+	}
+	return x.MatchRatePct != nil
+}
+
+func (x *ResourceStatsSummary) HasCoveragePct() bool {
+	if x == nil {
+		return false
+	}
+	return x.CoveragePct != nil
+}
+
+func (x *ResourceStatsSummary) ClearDeltaPct() {
+	x.DeltaPct = nil
+}
+
+func (x *ResourceStatsSummary) ClearMatchRatePct() {
+	x.MatchRatePct = nil
+}
+
+func (x *ResourceStatsSummary) ClearCoveragePct() {
+	x.CoveragePct = nil
+}
+
+type ResourceStatsSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the resource this entry aggregates.
+	Name string
+	// total is the headline count over the window (semantics vary by type).
+	Total int64
+	// delta_pct is the percent change from the previous window; unset if that window was empty.
+	DeltaPct *float64
+	// series is the per-day activity, ascending, zero-filled, window_days long.
+	Series []*DailyPoint
+	// match_rate_pct is matched/evaluated*100 (classifier scope only).
+	MatchRatePct *float64
+	// coverage_pct is summarized/eligible*100 (policy scope only).
+	CoveragePct *float64
+	// matched_rule_counts counts distinct matched sessions per sub-rule. Sorted by count descending,
+	// then name, and limited by top_n. Empty for models and policies.
+	MatchedRuleCounts []*Breakdown
+}
+
+func (b0 ResourceStatsSummary_builder) Build() *ResourceStatsSummary {
+	m0 := &ResourceStatsSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Total = b.Total
+	x.DeltaPct = b.DeltaPct
+	x.Series = b.Series
+	x.MatchRatePct = b.MatchRatePct
+	x.CoveragePct = b.CoveragePct
+	x.MatchedRuleCounts = b.MatchedRuleCounts
+	return m0
+}
+
+// GetResourceStatsBatchResponse returns one aggregate per distinct name in request order.
+// Resources without activity have zero totals.
+// buf:lint:ignore PAGINATION_REQUIRED
+type GetResourceStatsBatchResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// type echoes the requested resource dimension.
+	Type ResourceStatsType `protobuf:"varint,1,opt,name=type,proto3,enum=accessgraph.v1.ResourceStatsType" json:"type,omitempty"`
+	// stats is the per-resource aggregate, one per requested name.
+	Stats         []*ResourceStatsSummary `protobuf:"bytes,2,rep,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetResourceStatsBatchResponse) Reset() {
+	*x = GetResourceStatsBatchResponse{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetResourceStatsBatchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetResourceStatsBatchResponse) ProtoMessage() {}
+
+func (x *GetResourceStatsBatchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetResourceStatsBatchResponse) GetType() ResourceStatsType {
+	if x != nil {
+		return x.Type
+	}
+	return ResourceStatsType_RESOURCE_STATS_TYPE_UNSPECIFIED
+}
+
+func (x *GetResourceStatsBatchResponse) GetStats() []*ResourceStatsSummary {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+func (x *GetResourceStatsBatchResponse) SetType(v ResourceStatsType) {
+	x.Type = v
+}
+
+func (x *GetResourceStatsBatchResponse) SetStats(v []*ResourceStatsSummary) {
+	x.Stats = v
+}
+
+type GetResourceStatsBatchResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// type echoes the requested resource dimension.
+	Type ResourceStatsType
+	// stats is the per-resource aggregate, one per requested name.
+	Stats []*ResourceStatsSummary
+}
+
+func (b0 GetResourceStatsBatchResponse_builder) Build() *GetResourceStatsBatchResponse {
+	m0 := &GetResourceStatsBatchResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Stats = b.Stats
+	return m0
+}
+
 // FetchMore is sent by the client to request the next batch of results
 // from an in-progress search.
 type SearchSessionSummariesRequest_FetchMore struct {
@@ -4175,7 +5707,7 @@ type SearchSessionSummariesRequest_FetchMore struct {
 
 func (x *SearchSessionSummariesRequest_FetchMore) Reset() {
 	*x = SearchSessionSummariesRequest_FetchMore{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[20]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4187,7 +5719,7 @@ func (x *SearchSessionSummariesRequest_FetchMore) String() string {
 func (*SearchSessionSummariesRequest_FetchMore) ProtoMessage() {}
 
 func (x *SearchSessionSummariesRequest_FetchMore) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[20]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4239,7 +5771,7 @@ type SearchSessionSummariesResponse_BatchComplete struct {
 
 func (x *SearchSessionSummariesResponse_BatchComplete) Reset() {
 	*x = SearchSessionSummariesResponse_BatchComplete{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[22]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4251,7 +5783,7 @@ func (x *SearchSessionSummariesResponse_BatchComplete) String() string {
 func (*SearchSessionSummariesResponse_BatchComplete) ProtoMessage() {}
 
 func (x *SearchSessionSummariesResponse_BatchComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[22]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4515,7 +6047,96 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\x11persistent_change\x18\a \x01(\bR\x10persistentChange\x12(\n" +
 	"\x10mitre_attack_ids\x18\b \x03(\tR\x0emitreAttackIds\x12-\n" +
 	"\x12observed_endpoints\x18\t \x03(\tR\x11observedEndpoints\"\x1c\n" +
-	"\x1aRecordSessionStatsResponse*\x7f\n" +
+	"\x1aRecordSessionStatsResponse\"6\n" +
+	"\n" +
+	"DailyPoint\x12\x12\n" +
+	"\x04date\x18\x01 \x01(\tR\x04date\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x03R\x05value\"3\n" +
+	"\tBreakdown\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x03R\x05value\"\xd5\x02\n" +
+	"\x0fRecordingSample\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
+	"\x04user\x18\x02 \x01(\tR\x04user\x12\x16\n" +
+	"\x06target\x18\x03 \x01(\tR\x06target\x12\x12\n" +
+	"\x04kind\x18\x04 \x01(\tR\x04kind\x12\x1f\n" +
+	"\vduration_ms\x18\x05 \x01(\x03R\n" +
+	"durationMs\x12;\n" +
+	"\voccurred_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"occurredAt\x12@\n" +
+	"\n" +
+	"risk_level\x18\a \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\triskLevel\x12C\n" +
+	"\x11session_end_event\x18\b \x01(\v2\x17.google.protobuf.StructR\x0fsessionEndEvent\"\xe3\x01\n" +
+	"\x17GetResourceStatsRequest\x125\n" +
+	"\x04type\x18\x01 \x01(\x0e2!.accessgraph.v1.ResourceStatsTypeR\x04type\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12,\n" +
+	"\x03now\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x03now\x12\x1f\n" +
+	"\vwindow_days\x18\x04 \x01(\x05R\n" +
+	"windowDays\x12\x13\n" +
+	"\x05top_n\x18\x05 \x01(\x05R\x04topN\x12\x19\n" +
+	"\brecent_n\x18\x06 \x01(\x05R\arecentN\"\xb8\x01\n" +
+	"\x0eTokenBreakdown\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1b\n" +
+	"\ttokens_in\x18\x02 \x01(\x03R\btokensIn\x12\x1d\n" +
+	"\n" +
+	"tokens_out\x18\x03 \x01(\x03R\ttokensOut\x12*\n" +
+	"\x11cache_read_tokens\x18\x04 \x01(\x03R\x0fcacheReadTokens\x12,\n" +
+	"\x12cache_write_tokens\x18\x05 \x01(\x03R\x10cacheWriteTokens\"\xe8\b\n" +
+	"\x18GetResourceStatsResponse\x125\n" +
+	"\x04type\x18\x01 \x01(\x0e2!.accessgraph.v1.ResourceStatsTypeR\x04type\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\x12 \n" +
+	"\tdelta_pct\x18\x03 \x01(\x01H\x00R\bdeltaPct\x88\x01\x01\x12\x1e\n" +
+	"\vavg_per_day\x18\x04 \x01(\x01R\tavgPerDay\x12>\n" +
+	"\rlast_event_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vlastEventAt\x122\n" +
+	"\x06series\x18\x06 \x03(\v2\x1a.accessgraph.v1.DailyPointR\x06series\x122\n" +
+	"\aby_kind\x18\a \x03(\v2\x19.accessgraph.v1.BreakdownR\x06byKind\x126\n" +
+	"\ttop_users\x18\b \x03(\v2\x19.accessgraph.v1.BreakdownR\btopUsers\x126\n" +
+	"\ttop_hosts\x18\t \x03(\v2\x19.accessgraph.v1.BreakdownR\btopHosts\x12)\n" +
+	"\x0ematch_rate_pct\x18\n" +
+	" \x01(\x01H\x01R\fmatchRatePct\x88\x01\x01\x12&\n" +
+	"\fcoverage_pct\x18\v \x01(\x01H\x02R\vcoveragePct\x88\x01\x01\x12D\n" +
+	"\x0etokens_by_kind\x18\f \x03(\v2\x1e.accessgraph.v1.TokenBreakdownR\ftokensByKind\x12\x1b\n" +
+	"\ttokens_in\x18\r \x01(\x03R\btokensIn\x12\x1d\n" +
+	"\n" +
+	"tokens_out\x18\x0e \x01(\x03R\ttokensOut\x12*\n" +
+	"\x11cache_read_tokens\x18\x14 \x01(\x03R\x0fcacheReadTokens\x12,\n" +
+	"\x12cache_write_tokens\x18\x15 \x01(\x03R\x10cacheWriteTokens\x12)\n" +
+	"\x0eavg_latency_ms\x18\x10 \x01(\x01H\x03R\favgLatencyMs\x88\x01\x01\x12)\n" +
+	"\x0eerror_rate_pct\x18\x11 \x01(\x01H\x04R\ferrorRatePct\x88\x01\x01\x126\n" +
+	"\tby_policy\x18\x12 \x03(\v2\x19.accessgraph.v1.BreakdownR\bbyPolicy\x12?\n" +
+	"\n" +
+	"recordings\x18\x13 \x03(\v2\x1f.accessgraph.v1.RecordingSampleR\n" +
+	"recordings\x12I\n" +
+	"\x13matched_rule_counts\x18\x16 \x03(\v2\x19.accessgraph.v1.BreakdownR\x11matchedRuleCountsB\f\n" +
+	"\n" +
+	"_delta_pctB\x11\n" +
+	"\x0f_match_rate_pctB\x0f\n" +
+	"\r_coverage_pctB\x11\n" +
+	"\x0f_avg_latency_msB\x11\n" +
+	"\x0f_error_rate_pctJ\x04\b\x0f\x10\x10\"\xcf\x01\n" +
+	"\x1cGetResourceStatsBatchRequest\x125\n" +
+	"\x04type\x18\x01 \x01(\x0e2!.accessgraph.v1.ResourceStatsTypeR\x04type\x12\x14\n" +
+	"\x05names\x18\x02 \x03(\tR\x05names\x12,\n" +
+	"\x03now\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x03now\x12\x1f\n" +
+	"\vwindow_days\x18\x04 \x01(\x05R\n" +
+	"windowDays\x12\x13\n" +
+	"\x05top_n\x18\x05 \x01(\x05R\x04topN\"\xe6\x02\n" +
+	"\x14ResourceStatsSummary\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x03R\x05total\x12 \n" +
+	"\tdelta_pct\x18\x03 \x01(\x01H\x00R\bdeltaPct\x88\x01\x01\x122\n" +
+	"\x06series\x18\x04 \x03(\v2\x1a.accessgraph.v1.DailyPointR\x06series\x12)\n" +
+	"\x0ematch_rate_pct\x18\x05 \x01(\x01H\x01R\fmatchRatePct\x88\x01\x01\x12&\n" +
+	"\fcoverage_pct\x18\x06 \x01(\x01H\x02R\vcoveragePct\x88\x01\x01\x12I\n" +
+	"\x13matched_rule_counts\x18\a \x03(\v2\x19.accessgraph.v1.BreakdownR\x11matchedRuleCountsB\f\n" +
+	"\n" +
+	"_delta_pctB\x11\n" +
+	"\x0f_match_rate_pctB\x0f\n" +
+	"\r_coverage_pct\"\x92\x01\n" +
+	"\x1dGetResourceStatsBatchResponse\x125\n" +
+	"\x04type\x18\x01 \x01(\x0e2!.accessgraph.v1.ResourceStatsTypeR\x04type\x12:\n" +
+	"\x05stats\x18\x02 \x03(\v2$.accessgraph.v1.ResourceStatsSummaryR\x05stats*\x7f\n" +
 	"\n" +
 	"SearchMode\x12\x1b\n" +
 	"\x17SEARCH_MODE_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -4531,112 +6152,154 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"%SESSION_SEARCH_AVAILABILITY_AVAILABLE\x10\x01\x12/\n" +
 	"+SESSION_SEARCH_AVAILABILITY_NOT_IMPLEMENTED\x10\x02\x123\n" +
 	"/SESSION_SEARCH_AVAILABILITY_PG_TRGM_UNAVAILABLE\x10\x03\x125\n" +
-	"1SESSION_SEARCH_AVAILABILITY_PG_VECTOR_UNAVAILABLE\x10\x042\xec\x03\n" +
+	"1SESSION_SEARCH_AVAILABILITY_PG_VECTOR_UNAVAILABLE\x10\x04*\x9b\x01\n" +
+	"\x11ResourceStatsType\x12#\n" +
+	"\x1fRESOURCE_STATS_TYPE_UNSPECIFIED\x10\x00\x12\"\n" +
+	"\x1eRESOURCE_STATS_TYPE_CLASSIFIER\x10\x01\x12\x1d\n" +
+	"\x19RESOURCE_STATS_TYPE_MODEL\x10\x02\x12\x1e\n" +
+	"\x1aRESOURCE_STATS_TYPE_POLICY\x10\x032\xc9\x05\n" +
 	"\x17SessionRecordingService\x12k\n" +
 	"\x12RecordSessionStats\x12).accessgraph.v1.RecordSessionStatsRequest\x1a*.accessgraph.v1.RecordSessionStatsResponse\x12{\n" +
 	"\x16SearchSessionSummaries\x12-.accessgraph.v1.SearchSessionSummariesRequest\x1a..accessgraph.v1.SearchSessionSummariesResponse(\x010\x01\x12n\n" +
 	"\x13StoreSessionSummary\x12*.accessgraph.v1.StoreSessionSummaryRequest\x1a+.accessgraph.v1.StoreSessionSummaryResponse\x12w\n" +
-	"\x16IsSessionSearchEnabled\x12-.accessgraph.v1.IsSessionSearchEnabledRequest\x1a..accessgraph.v1.IsSessionSearchEnabledResponseBMZKgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1;accessgraphv1b\x06proto3"
+	"\x16IsSessionSearchEnabled\x12-.accessgraph.v1.IsSessionSearchEnabledRequest\x1a..accessgraph.v1.IsSessionSearchEnabledResponse\x12e\n" +
+	"\x10GetResourceStats\x12'.accessgraph.v1.GetResourceStatsRequest\x1a(.accessgraph.v1.GetResourceStatsResponse\x12t\n" +
+	"\x15GetResourceStatsBatch\x12,.accessgraph.v1.GetResourceStatsBatchRequest\x1a-.accessgraph.v1.GetResourceStatsBatchResponseBMZKgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1;accessgraphv1b\x06proto3"
 
-var file_accessgraph_v1_session_search_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_accessgraph_v1_session_search_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_accessgraph_v1_session_search_proto_goTypes = []any{
 	(SearchMode)(0),                                 // 0: accessgraph.v1.SearchMode
 	(DesktopType)(0),                                // 1: accessgraph.v1.DesktopType
 	(SessionSearchAvailability)(0),                  // 2: accessgraph.v1.SessionSearchAvailability
-	(*SearchSessionSummariesRequest)(nil),           // 3: accessgraph.v1.SearchSessionSummariesRequest
-	(*SearchSessionSummariesParams)(nil),            // 4: accessgraph.v1.SearchSessionSummariesParams
-	(*EmbeddedQuery)(nil),                           // 5: accessgraph.v1.EmbeddedQuery
-	(*ResourceProperties)(nil),                      // 6: accessgraph.v1.ResourceProperties
-	(*SSHProperties)(nil),                           // 7: accessgraph.v1.SSHProperties
-	(*KubernetesProperties)(nil),                    // 8: accessgraph.v1.KubernetesProperties
-	(*DatabaseProperties)(nil),                      // 9: accessgraph.v1.DatabaseProperties
-	(*DesktopProperties)(nil),                       // 10: accessgraph.v1.DesktopProperties
-	(*SearchSessionSummariesResponse)(nil),          // 11: accessgraph.v1.SearchSessionSummariesResponse
-	(*SummaryAndCheckpoint)(nil),                    // 12: accessgraph.v1.SummaryAndCheckpoint
-	(*SessionSummary)(nil),                          // 13: accessgraph.v1.SessionSummary
-	(*StoreSessionSummaryRequest)(nil),              // 14: accessgraph.v1.StoreSessionSummaryRequest
-	(*EmbeddingChunk)(nil),                          // 15: accessgraph.v1.EmbeddingChunk
-	(*StoreSessionSummaryResponse)(nil),             // 16: accessgraph.v1.StoreSessionSummaryResponse
-	(*IsSessionSearchEnabledRequest)(nil),           // 17: accessgraph.v1.IsSessionSearchEnabledRequest
-	(*IsSessionSearchEnabledResponse)(nil),          // 18: accessgraph.v1.IsSessionSearchEnabledResponse
-	(*RecordSessionStatsRequest)(nil),               // 19: accessgraph.v1.RecordSessionStatsRequest
-	(*ClassifierRunStats)(nil),                      // 20: accessgraph.v1.ClassifierRunStats
-	(*SessionEventStats)(nil),                       // 21: accessgraph.v1.SessionEventStats
-	(*RecordSessionStatsResponse)(nil),              // 22: accessgraph.v1.RecordSessionStatsResponse
-	(*SearchSessionSummariesRequest_FetchMore)(nil), // 23: accessgraph.v1.SearchSessionSummariesRequest.FetchMore
-	nil, // 24: accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
-	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 25: accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
-	nil,                           // 26: accessgraph.v1.SessionSummary.ResourceLabelsEntry
-	nil,                           // 27: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
-	(*timestamppb.Timestamp)(nil), // 28: google.protobuf.Timestamp
-	(v1.RiskLevel)(0),             // 29: teleport.summarizer.v1.RiskLevel
-	(v1.NeedsReviewReason)(0),     // 30: teleport.summarizer.v1.NeedsReviewReason
-	(*structpb.Struct)(nil),       // 31: google.protobuf.Struct
-	(v1.ThreatCategory)(0),        // 32: teleport.summarizer.v1.ThreatCategory
-	(v1.CommandCategory)(0),       // 33: teleport.summarizer.v1.CommandCategory
+	(ResourceStatsType)(0),                          // 3: accessgraph.v1.ResourceStatsType
+	(*SearchSessionSummariesRequest)(nil),           // 4: accessgraph.v1.SearchSessionSummariesRequest
+	(*SearchSessionSummariesParams)(nil),            // 5: accessgraph.v1.SearchSessionSummariesParams
+	(*EmbeddedQuery)(nil),                           // 6: accessgraph.v1.EmbeddedQuery
+	(*ResourceProperties)(nil),                      // 7: accessgraph.v1.ResourceProperties
+	(*SSHProperties)(nil),                           // 8: accessgraph.v1.SSHProperties
+	(*KubernetesProperties)(nil),                    // 9: accessgraph.v1.KubernetesProperties
+	(*DatabaseProperties)(nil),                      // 10: accessgraph.v1.DatabaseProperties
+	(*DesktopProperties)(nil),                       // 11: accessgraph.v1.DesktopProperties
+	(*SearchSessionSummariesResponse)(nil),          // 12: accessgraph.v1.SearchSessionSummariesResponse
+	(*SummaryAndCheckpoint)(nil),                    // 13: accessgraph.v1.SummaryAndCheckpoint
+	(*SessionSummary)(nil),                          // 14: accessgraph.v1.SessionSummary
+	(*StoreSessionSummaryRequest)(nil),              // 15: accessgraph.v1.StoreSessionSummaryRequest
+	(*EmbeddingChunk)(nil),                          // 16: accessgraph.v1.EmbeddingChunk
+	(*StoreSessionSummaryResponse)(nil),             // 17: accessgraph.v1.StoreSessionSummaryResponse
+	(*IsSessionSearchEnabledRequest)(nil),           // 18: accessgraph.v1.IsSessionSearchEnabledRequest
+	(*IsSessionSearchEnabledResponse)(nil),          // 19: accessgraph.v1.IsSessionSearchEnabledResponse
+	(*RecordSessionStatsRequest)(nil),               // 20: accessgraph.v1.RecordSessionStatsRequest
+	(*ClassifierRunStats)(nil),                      // 21: accessgraph.v1.ClassifierRunStats
+	(*SessionEventStats)(nil),                       // 22: accessgraph.v1.SessionEventStats
+	(*RecordSessionStatsResponse)(nil),              // 23: accessgraph.v1.RecordSessionStatsResponse
+	(*DailyPoint)(nil),                              // 24: accessgraph.v1.DailyPoint
+	(*Breakdown)(nil),                               // 25: accessgraph.v1.Breakdown
+	(*RecordingSample)(nil),                         // 26: accessgraph.v1.RecordingSample
+	(*GetResourceStatsRequest)(nil),                 // 27: accessgraph.v1.GetResourceStatsRequest
+	(*TokenBreakdown)(nil),                          // 28: accessgraph.v1.TokenBreakdown
+	(*GetResourceStatsResponse)(nil),                // 29: accessgraph.v1.GetResourceStatsResponse
+	(*GetResourceStatsBatchRequest)(nil),            // 30: accessgraph.v1.GetResourceStatsBatchRequest
+	(*ResourceStatsSummary)(nil),                    // 31: accessgraph.v1.ResourceStatsSummary
+	(*GetResourceStatsBatchResponse)(nil),           // 32: accessgraph.v1.GetResourceStatsBatchResponse
+	(*SearchSessionSummariesRequest_FetchMore)(nil), // 33: accessgraph.v1.SearchSessionSummariesRequest.FetchMore
+	nil, // 34: accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
+	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 35: accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	nil,                           // 36: accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	nil,                           // 37: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	(*timestamppb.Timestamp)(nil), // 38: google.protobuf.Timestamp
+	(v1.RiskLevel)(0),             // 39: teleport.summarizer.v1.RiskLevel
+	(v1.NeedsReviewReason)(0),     // 40: teleport.summarizer.v1.NeedsReviewReason
+	(*structpb.Struct)(nil),       // 41: google.protobuf.Struct
+	(v1.ThreatCategory)(0),        // 42: teleport.summarizer.v1.ThreatCategory
+	(v1.CommandCategory)(0),       // 43: teleport.summarizer.v1.CommandCategory
 }
 var file_accessgraph_v1_session_search_proto_depIdxs = []int32{
-	4,  // 0: accessgraph.v1.SearchSessionSummariesRequest.search_params:type_name -> accessgraph.v1.SearchSessionSummariesParams
-	23, // 1: accessgraph.v1.SearchSessionSummariesRequest.fetch_more:type_name -> accessgraph.v1.SearchSessionSummariesRequest.FetchMore
-	28, // 2: accessgraph.v1.SearchSessionSummariesParams.start_time:type_name -> google.protobuf.Timestamp
-	28, // 3: accessgraph.v1.SearchSessionSummariesParams.end_time:type_name -> google.protobuf.Timestamp
-	24, // 4: accessgraph.v1.SearchSessionSummariesParams.resource_labels:type_name -> accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
-	6,  // 5: accessgraph.v1.SearchSessionSummariesParams.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	29, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	5,  // 7: accessgraph.v1.SearchSessionSummariesParams.search_queries:type_name -> accessgraph.v1.EmbeddedQuery
+	5,  // 0: accessgraph.v1.SearchSessionSummariesRequest.search_params:type_name -> accessgraph.v1.SearchSessionSummariesParams
+	33, // 1: accessgraph.v1.SearchSessionSummariesRequest.fetch_more:type_name -> accessgraph.v1.SearchSessionSummariesRequest.FetchMore
+	38, // 2: accessgraph.v1.SearchSessionSummariesParams.start_time:type_name -> google.protobuf.Timestamp
+	38, // 3: accessgraph.v1.SearchSessionSummariesParams.end_time:type_name -> google.protobuf.Timestamp
+	34, // 4: accessgraph.v1.SearchSessionSummariesParams.resource_labels:type_name -> accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
+	7,  // 5: accessgraph.v1.SearchSessionSummariesParams.resource_properties:type_name -> accessgraph.v1.ResourceProperties
+	39, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	6,  // 7: accessgraph.v1.SearchSessionSummariesParams.search_queries:type_name -> accessgraph.v1.EmbeddedQuery
 	0,  // 8: accessgraph.v1.SearchSessionSummariesParams.search_mode:type_name -> accessgraph.v1.SearchMode
-	30, // 9: accessgraph.v1.SearchSessionSummariesParams.filter_needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	7,  // 10: accessgraph.v1.ResourceProperties.ssh:type_name -> accessgraph.v1.SSHProperties
-	8,  // 11: accessgraph.v1.ResourceProperties.kubernetes:type_name -> accessgraph.v1.KubernetesProperties
-	9,  // 12: accessgraph.v1.ResourceProperties.database:type_name -> accessgraph.v1.DatabaseProperties
-	10, // 13: accessgraph.v1.ResourceProperties.desktop:type_name -> accessgraph.v1.DesktopProperties
+	40, // 9: accessgraph.v1.SearchSessionSummariesParams.filter_needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	8,  // 10: accessgraph.v1.ResourceProperties.ssh:type_name -> accessgraph.v1.SSHProperties
+	9,  // 11: accessgraph.v1.ResourceProperties.kubernetes:type_name -> accessgraph.v1.KubernetesProperties
+	10, // 12: accessgraph.v1.ResourceProperties.database:type_name -> accessgraph.v1.DatabaseProperties
+	11, // 13: accessgraph.v1.ResourceProperties.desktop:type_name -> accessgraph.v1.DesktopProperties
 	1,  // 14: accessgraph.v1.DesktopProperties.type:type_name -> accessgraph.v1.DesktopType
-	12, // 15: accessgraph.v1.SearchSessionSummariesResponse.summary:type_name -> accessgraph.v1.SummaryAndCheckpoint
-	25, // 16: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
-	13, // 17: accessgraph.v1.SummaryAndCheckpoint.summary:type_name -> accessgraph.v1.SessionSummary
-	28, // 18: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
-	31, // 19: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
-	26, // 20: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
-	6,  // 21: accessgraph.v1.SessionSummary.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	29, // 22: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	31, // 23: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
-	28, // 24: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
-	30, // 25: accessgraph.v1.SessionSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	28, // 26: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
-	28, // 27: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
-	31, // 28: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
-	27, // 29: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
-	6,  // 30: accessgraph.v1.StoreSessionSummaryRequest.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	29, // 31: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	31, // 32: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
-	15, // 33: accessgraph.v1.StoreSessionSummaryRequest.embeddings:type_name -> accessgraph.v1.EmbeddingChunk
-	30, // 34: accessgraph.v1.StoreSessionSummaryRequest.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	13, // 15: accessgraph.v1.SearchSessionSummariesResponse.summary:type_name -> accessgraph.v1.SummaryAndCheckpoint
+	35, // 16: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	14, // 17: accessgraph.v1.SummaryAndCheckpoint.summary:type_name -> accessgraph.v1.SessionSummary
+	38, // 18: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
+	41, // 19: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
+	36, // 20: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	7,  // 21: accessgraph.v1.SessionSummary.resource_properties:type_name -> accessgraph.v1.ResourceProperties
+	39, // 22: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	41, // 23: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
+	38, // 24: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
+	40, // 25: accessgraph.v1.SessionSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	38, // 26: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
+	38, // 27: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
+	41, // 28: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
+	37, // 29: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	7,  // 30: accessgraph.v1.StoreSessionSummaryRequest.resource_properties:type_name -> accessgraph.v1.ResourceProperties
+	39, // 31: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	41, // 32: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
+	16, // 33: accessgraph.v1.StoreSessionSummaryRequest.embeddings:type_name -> accessgraph.v1.EmbeddingChunk
+	40, // 34: accessgraph.v1.StoreSessionSummaryRequest.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
 	2,  // 35: accessgraph.v1.IsSessionSearchEnabledResponse.availability:type_name -> accessgraph.v1.SessionSearchAvailability
-	28, // 36: accessgraph.v1.RecordSessionStatsRequest.occurred_at:type_name -> google.protobuf.Timestamp
-	30, // 37: accessgraph.v1.RecordSessionStatsRequest.needs_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	29, // 38: accessgraph.v1.RecordSessionStatsRequest.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	32, // 39: accessgraph.v1.RecordSessionStatsRequest.mitre_attack_tactics:type_name -> teleport.summarizer.v1.ThreatCategory
-	31, // 40: accessgraph.v1.RecordSessionStatsRequest.session_end_event:type_name -> google.protobuf.Struct
-	20, // 41: accessgraph.v1.RecordSessionStatsRequest.classifiers:type_name -> accessgraph.v1.ClassifierRunStats
-	21, // 42: accessgraph.v1.RecordSessionStatsRequest.session_events:type_name -> accessgraph.v1.SessionEventStats
-	29, // 43: accessgraph.v1.ClassifierRunStats.applied_risk_level_floor:type_name -> teleport.summarizer.v1.RiskLevel
-	29, // 44: accessgraph.v1.ClassifierRunStats.risk_level_after:type_name -> teleport.summarizer.v1.RiskLevel
-	33, // 45: accessgraph.v1.SessionEventStats.category:type_name -> teleport.summarizer.v1.CommandCategory
-	32, // 46: accessgraph.v1.SessionEventStats.mitre_attack_tactic:type_name -> teleport.summarizer.v1.ThreatCategory
-	19, // 47: accessgraph.v1.SessionRecordingService.RecordSessionStats:input_type -> accessgraph.v1.RecordSessionStatsRequest
-	3,  // 48: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
-	14, // 49: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
-	17, // 50: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:input_type -> accessgraph.v1.IsSessionSearchEnabledRequest
-	22, // 51: accessgraph.v1.SessionRecordingService.RecordSessionStats:output_type -> accessgraph.v1.RecordSessionStatsResponse
-	11, // 52: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
-	16, // 53: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
-	18, // 54: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:output_type -> accessgraph.v1.IsSessionSearchEnabledResponse
-	51, // [51:55] is the sub-list for method output_type
-	47, // [47:51] is the sub-list for method input_type
-	47, // [47:47] is the sub-list for extension type_name
-	47, // [47:47] is the sub-list for extension extendee
-	0,  // [0:47] is the sub-list for field type_name
+	38, // 36: accessgraph.v1.RecordSessionStatsRequest.occurred_at:type_name -> google.protobuf.Timestamp
+	40, // 37: accessgraph.v1.RecordSessionStatsRequest.needs_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	39, // 38: accessgraph.v1.RecordSessionStatsRequest.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	42, // 39: accessgraph.v1.RecordSessionStatsRequest.mitre_attack_tactics:type_name -> teleport.summarizer.v1.ThreatCategory
+	41, // 40: accessgraph.v1.RecordSessionStatsRequest.session_end_event:type_name -> google.protobuf.Struct
+	21, // 41: accessgraph.v1.RecordSessionStatsRequest.classifiers:type_name -> accessgraph.v1.ClassifierRunStats
+	22, // 42: accessgraph.v1.RecordSessionStatsRequest.session_events:type_name -> accessgraph.v1.SessionEventStats
+	39, // 43: accessgraph.v1.ClassifierRunStats.applied_risk_level_floor:type_name -> teleport.summarizer.v1.RiskLevel
+	39, // 44: accessgraph.v1.ClassifierRunStats.risk_level_after:type_name -> teleport.summarizer.v1.RiskLevel
+	43, // 45: accessgraph.v1.SessionEventStats.category:type_name -> teleport.summarizer.v1.CommandCategory
+	42, // 46: accessgraph.v1.SessionEventStats.mitre_attack_tactic:type_name -> teleport.summarizer.v1.ThreatCategory
+	38, // 47: accessgraph.v1.RecordingSample.occurred_at:type_name -> google.protobuf.Timestamp
+	39, // 48: accessgraph.v1.RecordingSample.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	41, // 49: accessgraph.v1.RecordingSample.session_end_event:type_name -> google.protobuf.Struct
+	3,  // 50: accessgraph.v1.GetResourceStatsRequest.type:type_name -> accessgraph.v1.ResourceStatsType
+	38, // 51: accessgraph.v1.GetResourceStatsRequest.now:type_name -> google.protobuf.Timestamp
+	3,  // 52: accessgraph.v1.GetResourceStatsResponse.type:type_name -> accessgraph.v1.ResourceStatsType
+	38, // 53: accessgraph.v1.GetResourceStatsResponse.last_event_at:type_name -> google.protobuf.Timestamp
+	24, // 54: accessgraph.v1.GetResourceStatsResponse.series:type_name -> accessgraph.v1.DailyPoint
+	25, // 55: accessgraph.v1.GetResourceStatsResponse.by_kind:type_name -> accessgraph.v1.Breakdown
+	25, // 56: accessgraph.v1.GetResourceStatsResponse.top_users:type_name -> accessgraph.v1.Breakdown
+	25, // 57: accessgraph.v1.GetResourceStatsResponse.top_hosts:type_name -> accessgraph.v1.Breakdown
+	28, // 58: accessgraph.v1.GetResourceStatsResponse.tokens_by_kind:type_name -> accessgraph.v1.TokenBreakdown
+	25, // 59: accessgraph.v1.GetResourceStatsResponse.by_policy:type_name -> accessgraph.v1.Breakdown
+	26, // 60: accessgraph.v1.GetResourceStatsResponse.recordings:type_name -> accessgraph.v1.RecordingSample
+	25, // 61: accessgraph.v1.GetResourceStatsResponse.matched_rule_counts:type_name -> accessgraph.v1.Breakdown
+	3,  // 62: accessgraph.v1.GetResourceStatsBatchRequest.type:type_name -> accessgraph.v1.ResourceStatsType
+	38, // 63: accessgraph.v1.GetResourceStatsBatchRequest.now:type_name -> google.protobuf.Timestamp
+	24, // 64: accessgraph.v1.ResourceStatsSummary.series:type_name -> accessgraph.v1.DailyPoint
+	25, // 65: accessgraph.v1.ResourceStatsSummary.matched_rule_counts:type_name -> accessgraph.v1.Breakdown
+	3,  // 66: accessgraph.v1.GetResourceStatsBatchResponse.type:type_name -> accessgraph.v1.ResourceStatsType
+	31, // 67: accessgraph.v1.GetResourceStatsBatchResponse.stats:type_name -> accessgraph.v1.ResourceStatsSummary
+	20, // 68: accessgraph.v1.SessionRecordingService.RecordSessionStats:input_type -> accessgraph.v1.RecordSessionStatsRequest
+	4,  // 69: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
+	15, // 70: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
+	18, // 71: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:input_type -> accessgraph.v1.IsSessionSearchEnabledRequest
+	27, // 72: accessgraph.v1.SessionRecordingService.GetResourceStats:input_type -> accessgraph.v1.GetResourceStatsRequest
+	30, // 73: accessgraph.v1.SessionRecordingService.GetResourceStatsBatch:input_type -> accessgraph.v1.GetResourceStatsBatchRequest
+	23, // 74: accessgraph.v1.SessionRecordingService.RecordSessionStats:output_type -> accessgraph.v1.RecordSessionStatsResponse
+	12, // 75: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
+	17, // 76: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
+	19, // 77: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:output_type -> accessgraph.v1.IsSessionSearchEnabledResponse
+	29, // 78: accessgraph.v1.SessionRecordingService.GetResourceStats:output_type -> accessgraph.v1.GetResourceStatsResponse
+	32, // 79: accessgraph.v1.SessionRecordingService.GetResourceStatsBatch:output_type -> accessgraph.v1.GetResourceStatsBatchResponse
+	74, // [74:80] is the sub-list for method output_type
+	68, // [68:74] is the sub-list for method input_type
+	68, // [68:68] is the sub-list for extension type_name
+	68, // [68:68] is the sub-list for extension extendee
+	0,  // [0:68] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1_session_search_proto_init() }
@@ -4663,13 +6326,15 @@ func file_accessgraph_v1_session_search_proto_init() {
 		(*SearchSessionSummariesResponse_Summary)(nil),
 		(*SearchSessionSummariesResponse_BatchComplete_)(nil),
 	}
+	file_accessgraph_v1_session_search_proto_msgTypes[25].OneofWrappers = []any{}
+	file_accessgraph_v1_session_search_proto_msgTypes[27].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessgraph_v1_session_search_proto_rawDesc), len(file_accessgraph_v1_session_search_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   25,
+			NumEnums:      4,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

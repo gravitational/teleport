@@ -74,6 +74,11 @@ service SessionRecordingService {
   // exposing session search to end users so that it can surface a clear
   // "feature disabled" error rather than an empty result set.
   rpc IsSessionSearchEnabled(IsSessionSearchEnabledRequest) returns (IsSessionSearchEnabledResponse);
+  // GetResourceStats returns bounded aggregate statistics. Auth requires
+  // unconditional session visibility and filters the recording sample.
+  rpc GetResourceStats(GetResourceStatsRequest) returns (GetResourceStatsResponse);
+  // GetResourceStatsBatch returns compact statistics for a bounded resource list.
+  rpc GetResourceStatsBatch(GetResourceStatsBatchRequest) returns (GetResourceStatsBatchResponse);
 }
 
 // SearchSessionSummariesRequest is sent by the client on the SearchSessionSummaries stream.
@@ -688,3 +693,184 @@ message SessionEventStats {
 
 // RecordSessionStatsResponse is returned after stats are recorded.
 message RecordSessionStatsResponse {}
+
+// ResourceStatsType selects the resource to aggregate.
+enum ResourceStatsType {
+  // RESOURCE_STATS_TYPE_UNSPECIFIED is the default/unknown value.
+  RESOURCE_STATS_TYPE_UNSPECIFIED = 0;
+  // RESOURCE_STATS_TYPE_CLASSIFIER scopes to a single classifier (by name).
+  RESOURCE_STATS_TYPE_CLASSIFIER = 1;
+  // RESOURCE_STATS_TYPE_MODEL scopes to a single inference model.
+  RESOURCE_STATS_TYPE_MODEL = 2;
+  // RESOURCE_STATS_TYPE_POLICY scopes to a single inference policy.
+  RESOURCE_STATS_TYPE_POLICY = 3;
+}
+
+// DailyPoint is one day's bucket in an activity series.
+message DailyPoint {
+  // date is the bucket day in "YYYY-MM-DD" (UTC).
+  string date = 1;
+  // value is the count for that day (zero-filled for empty days).
+  int64 value = 2;
+}
+
+// Breakdown is a single key/count pair in a top-N breakdown.
+message Breakdown {
+  // key is the group value (kind, user, host, policy, ...).
+  string key = 1;
+  // value is the count for that key.
+  int64 value = 2;
+}
+
+// RecordingSample carries an audit event for Auth to authorize the recording.
+message RecordingSample {
+  // session_id is the recording's session identifier.
+  string session_id = 1;
+  // user is the user who initiated the session.
+  string user = 2;
+  // target is the host/resource accessed.
+  string target = 3;
+  // kind is the session protocol type.
+  string kind = 4;
+  // duration_ms is the recording length in milliseconds.
+  int64 duration_ms = 5;
+  // occurred_at is the session timestamp.
+  google.protobuf.Timestamp occurred_at = 6;
+  // risk_level is the evaluated risk; UNSPECIFIED means no verdict is available.
+  teleport.summarizer.v1.RiskLevel risk_level = 7;
+  // session_end_event is the raw session-end audit event for RBAC filtering.
+  google.protobuf.Struct session_end_event = 8;
+}
+
+// GetResourceStatsRequest selects a resource and time window.
+// The response is a bounded aggregate and recording sample.
+// buf:lint:ignore PAGINATION_REQUIRED
+message GetResourceStatsRequest {
+  // type selects the resource dimension (classifier, model, or policy).
+  ResourceStatsType type = 1;
+  // name is the classifier / model / policy name to scope to.
+  string name = 2;
+  // now is the window anchor; the server uses the current time when unset.
+  google.protobuf.Timestamp now = 3;
+  // window_days is the trailing window length in days (default 30, maximum 90).
+  int32 window_days = 4;
+  // top_n bounds the by-kind / top-users / top-hosts and matched-rule breakdowns (default 5, maximum 100).
+  int32 top_n = 5;
+  // recent_n bounds the recent-recordings sample (default 8, maximum 50).
+  int32 recent_n = 6;
+}
+
+// TokenBreakdown groups token usage by session kind. Model and policy cache usage is unrecorded.
+message TokenBreakdown {
+  // key is the group value (session kind).
+  string key = 1;
+  // tokens_in is the uncached prompt tokens for the key.
+  int64 tokens_in = 2;
+  // tokens_out is the completion tokens for the key.
+  int64 tokens_out = 3;
+  // cache_read_tokens is the prompt tokens served from the provider cache.
+  int64 cache_read_tokens = 4;
+  // cache_write_tokens is the prompt tokens written to the provider cache.
+  int64 cache_write_tokens = 5;
+}
+
+// GetResourceStatsResponse is a bounded aggregate for one resource. Inapplicable metrics are unset.
+// buf:lint:ignore PAGINATION_REQUIRED
+message GetResourceStatsResponse {
+  // type echoes the requested resource dimension.
+  ResourceStatsType type = 1;
+  // total is the headline count over the current window (semantics vary by type).
+  int64 total = 2;
+  // delta_pct is the percent change from the previous window; unset if that window was empty.
+  optional double delta_pct = 3;
+  // avg_per_day is total divided by window_days.
+  double avg_per_day = 4;
+  // last_event_at is the most recent occurrence in scope (unset if none).
+  google.protobuf.Timestamp last_event_at = 5;
+
+  // series is the per-day activity, ascending, zero-filled, window_days long.
+  repeated DailyPoint series = 6;
+  // by_kind is the top-N breakdown by session kind.
+  repeated Breakdown by_kind = 7;
+  // top_users is the top-N breakdown by user.
+  repeated Breakdown top_users = 8;
+  // top_hosts is the top-N breakdown by host.
+  repeated Breakdown top_hosts = 9;
+
+  // match_rate_pct is matched/evaluated*100 (classifier scope only).
+  optional double match_rate_pct = 10;
+  // coverage_pct is summarized/eligible*100 (policy scope only).
+  optional double coverage_pct = 11;
+  // tokens_by_kind is token spend broken down by kind (policy/model scope),
+  // split per token type.
+  repeated TokenBreakdown tokens_by_kind = 12;
+
+  // tokens_in is the total prompt tokens over the window.
+  int64 tokens_in = 13;
+  // tokens_out is the total completion tokens over the window.
+  int64 tokens_out = 14;
+  reserved 15;
+  // cache_read_tokens is cached prompt usage. Only classifier evaluations record it.
+  int64 cache_read_tokens = 20;
+  // cache_write_tokens is prompt usage written to cache. Only classifier evaluations record it.
+  int64 cache_write_tokens = 21;
+
+  // avg_latency_ms is the average run duration in milliseconds (model scope only).
+  optional double avg_latency_ms = 16;
+  // error_rate_pct is errored/total*100 (model scope only).
+  optional double error_rate_pct = 17;
+  // by_policy is summaries per policy that used this model (model scope only).
+  repeated Breakdown by_policy = 18;
+
+  // recordings is the recent-recordings sample, newest first.
+  repeated RecordingSample recordings = 19;
+
+  // matched_rule_counts counts distinct matched sessions per sub-rule. Sorted by count descending,
+  // then name, and limited by top_n. Empty for models and policies.
+  repeated Breakdown matched_rule_counts = 22;
+}
+
+// GetResourceStatsBatchRequest selects resources over a shared time window.
+// The request and each returned aggregate are bounded.
+// buf:lint:ignore PAGINATION_REQUIRED
+message GetResourceStatsBatchRequest {
+  // type selects the resource dimension (classifier, model, or policy).
+  ResourceStatsType type = 1;
+  // names identifies the resources. The server requires between 1 and 100 names.
+  repeated string names = 2;
+  // now is the window anchor; the server uses the current time when unset.
+  google.protobuf.Timestamp now = 3;
+  // window_days is the trailing window length in days (default 30, maximum 90).
+  int32 window_days = 4;
+  // top_n bounds the matched-rule breakdown per classifier (default 5, maximum 100).
+  int32 top_n = 5;
+}
+
+// ResourceStatsSummary contains the aggregate metrics for a resource list row.
+message ResourceStatsSummary {
+  // name is the resource this entry aggregates.
+  string name = 1;
+  // total is the headline count over the window (semantics vary by type).
+  int64 total = 2;
+  // delta_pct is the percent change from the previous window; unset if that window was empty.
+  optional double delta_pct = 3;
+  // series is the per-day activity, ascending, zero-filled, window_days long.
+  repeated DailyPoint series = 4;
+  // match_rate_pct is matched/evaluated*100 (classifier scope only).
+  optional double match_rate_pct = 5;
+  // coverage_pct is summarized/eligible*100 (policy scope only).
+  optional double coverage_pct = 6;
+  // matched_rule_counts counts distinct matched sessions per sub-rule. Sorted by count descending,
+  // then name, and limited by top_n. Empty for models and policies.
+  repeated Breakdown matched_rule_counts = 7;
+}
+
+// GetResourceStatsBatchResponse returns one aggregate per distinct name in request order.
+// Resources without activity have zero totals.
+// buf:lint:ignore PAGINATION_REQUIRED
+message GetResourceStatsBatchResponse {
+  // type echoes the requested resource dimension.
+  ResourceStatsType type = 1;
+  // stats is the per-resource aggregate, one per requested name.
+  repeated ResourceStatsSummary stats = 2;
+}

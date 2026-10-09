@@ -40,6 +40,8 @@ const (
 	SessionRecordingService_SearchSessionSummaries_FullMethodName = "/accessgraph.v1.SessionRecordingService/SearchSessionSummaries"
 	SessionRecordingService_StoreSessionSummary_FullMethodName    = "/accessgraph.v1.SessionRecordingService/StoreSessionSummary"
 	SessionRecordingService_IsSessionSearchEnabled_FullMethodName = "/accessgraph.v1.SessionRecordingService/IsSessionSearchEnabled"
+	SessionRecordingService_GetResourceStats_FullMethodName       = "/accessgraph.v1.SessionRecordingService/GetResourceStats"
+	SessionRecordingService_GetResourceStatsBatch_FullMethodName  = "/accessgraph.v1.SessionRecordingService/GetResourceStatsBatch"
 )
 
 // SessionRecordingServiceClient is the client API for SessionRecordingService service.
@@ -93,6 +95,11 @@ type SessionRecordingServiceClient interface {
 	// exposing session search to end users so that it can surface a clear
 	// "feature disabled" error rather than an empty result set.
 	IsSessionSearchEnabled(ctx context.Context, in *IsSessionSearchEnabledRequest, opts ...grpc.CallOption) (*IsSessionSearchEnabledResponse, error)
+	// GetResourceStats returns bounded aggregate statistics. Auth requires
+	// unconditional session visibility and filters the recording sample.
+	GetResourceStats(ctx context.Context, in *GetResourceStatsRequest, opts ...grpc.CallOption) (*GetResourceStatsResponse, error)
+	// GetResourceStatsBatch returns compact statistics for a bounded resource list.
+	GetResourceStatsBatch(ctx context.Context, in *GetResourceStatsBatchRequest, opts ...grpc.CallOption) (*GetResourceStatsBatchResponse, error)
 }
 
 type sessionRecordingServiceClient struct {
@@ -140,6 +147,26 @@ func (c *sessionRecordingServiceClient) IsSessionSearchEnabled(ctx context.Conte
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(IsSessionSearchEnabledResponse)
 	err := c.cc.Invoke(ctx, SessionRecordingService_IsSessionSearchEnabled_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionRecordingServiceClient) GetResourceStats(ctx context.Context, in *GetResourceStatsRequest, opts ...grpc.CallOption) (*GetResourceStatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetResourceStatsResponse)
+	err := c.cc.Invoke(ctx, SessionRecordingService_GetResourceStats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionRecordingServiceClient) GetResourceStatsBatch(ctx context.Context, in *GetResourceStatsBatchRequest, opts ...grpc.CallOption) (*GetResourceStatsBatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetResourceStatsBatchResponse)
+	err := c.cc.Invoke(ctx, SessionRecordingService_GetResourceStatsBatch_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -197,6 +224,11 @@ type SessionRecordingServiceServer interface {
 	// exposing session search to end users so that it can surface a clear
 	// "feature disabled" error rather than an empty result set.
 	IsSessionSearchEnabled(context.Context, *IsSessionSearchEnabledRequest) (*IsSessionSearchEnabledResponse, error)
+	// GetResourceStats returns bounded aggregate statistics. Auth requires
+	// unconditional session visibility and filters the recording sample.
+	GetResourceStats(context.Context, *GetResourceStatsRequest) (*GetResourceStatsResponse, error)
+	// GetResourceStatsBatch returns compact statistics for a bounded resource list.
+	GetResourceStatsBatch(context.Context, *GetResourceStatsBatchRequest) (*GetResourceStatsBatchResponse, error)
 	mustEmbedUnimplementedSessionRecordingServiceServer()
 }
 
@@ -218,6 +250,12 @@ func (UnimplementedSessionRecordingServiceServer) StoreSessionSummary(context.Co
 }
 func (UnimplementedSessionRecordingServiceServer) IsSessionSearchEnabled(context.Context, *IsSessionSearchEnabledRequest) (*IsSessionSearchEnabledResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method IsSessionSearchEnabled not implemented")
+}
+func (UnimplementedSessionRecordingServiceServer) GetResourceStats(context.Context, *GetResourceStatsRequest) (*GetResourceStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetResourceStats not implemented")
+}
+func (UnimplementedSessionRecordingServiceServer) GetResourceStatsBatch(context.Context, *GetResourceStatsBatchRequest) (*GetResourceStatsBatchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetResourceStatsBatch not implemented")
 }
 func (UnimplementedSessionRecordingServiceServer) mustEmbedUnimplementedSessionRecordingServiceServer() {
 }
@@ -302,6 +340,42 @@ func _SessionRecordingService_IsSessionSearchEnabled_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionRecordingService_GetResourceStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetResourceStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionRecordingServiceServer).GetResourceStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionRecordingService_GetResourceStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionRecordingServiceServer).GetResourceStats(ctx, req.(*GetResourceStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionRecordingService_GetResourceStatsBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetResourceStatsBatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionRecordingServiceServer).GetResourceStatsBatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionRecordingService_GetResourceStatsBatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionRecordingServiceServer).GetResourceStatsBatch(ctx, req.(*GetResourceStatsBatchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionRecordingService_ServiceDesc is the grpc.ServiceDesc for SessionRecordingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -320,6 +394,14 @@ var SessionRecordingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "IsSessionSearchEnabled",
 			Handler:    _SessionRecordingService_IsSessionSearchEnabled_Handler,
+		},
+		{
+			MethodName: "GetResourceStats",
+			Handler:    _SessionRecordingService_GetResourceStats_Handler,
+		},
+		{
+			MethodName: "GetResourceStatsBatch",
+			Handler:    _SessionRecordingService_GetResourceStatsBatch_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
