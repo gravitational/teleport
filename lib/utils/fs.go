@@ -190,8 +190,37 @@ func StatDir(path string) (os.FileInfo, error) {
 
 // FSTryWriteLock tries to grab write lock, returns ErrUnsuccessfulLockTry
 // if lock is already acquired by someone else
+//
+// The locked file is created if it does not exist. Use
+// [FSTryWriteLockExistingFile] to lock a file that must already be there.
 func FSTryWriteLock(filePath string) (unlock func() error, err error) {
-	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	return tryWriteLock(flock.New(getPlatformLockFilePath(filePath)))
+}
+
+// FSTryWriteLockExistingFile tries to grab a write lock on a file that must
+// already exist. It returns ErrUnsuccessfulLockTry if the lock is already
+// acquired by someone else, and NotFound if the file is gone.
+func FSTryWriteLockExistingFile(filePath string) (unlock func() error, err error) {
+	unlock, err = tryWriteLock(
+		flock.New(getPlatformLockFilePath(filePath),
+			noCreateFlockOpts()...,
+		),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// on windows the lock lives on a separate .lock.tmp file, so check the
+	// target is still there. no-op on unix.
+	if err := checkLockedFileExists(filePath); err != nil {
+		_ = unlock()
+		return nil, trace.Wrap(err)
+	}
+
+	return unlock, nil
+}
+
+func tryWriteLock(fileLock *flock.Flock) (unlock func() error, err error) {
 	locked, err := fileLock.TryLock()
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)

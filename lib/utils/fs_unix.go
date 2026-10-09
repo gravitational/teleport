@@ -24,11 +24,25 @@ package utils
 import (
 	"os"
 	"syscall"
+
+	"github.com/gofrs/flock"
 )
 
 // On non-windows we just lock the target file itself.
 func getPlatformLockFilePath(path string) string {
 	return path
+}
+
+// noCreateFlockOpts opens the lock file without O_CREATE so locking a removed
+// file fails instead of creating an empty one. It uses O_RDWR because on NFS
+// an exclusive flock becomes a write lock, which needs a writable descriptor.
+func noCreateFlockOpts() []flock.Option {
+	return []flock.Option{flock.SetFlag(os.O_RDWR)}
+}
+
+// checkLockedFileExists is a no-op on unix: the lock is on the file itself.
+func checkLockedFileExists(string) error {
+	return nil
 }
 
 func getHardLinkCount(fi os.FileInfo) (uint64, bool) {

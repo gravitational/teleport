@@ -24,6 +24,9 @@ package utils
 import (
 	"os"
 	"strings"
+
+	"github.com/gofrs/flock"
+	"github.com/gravitational/trace"
 )
 
 const lockPostfix = ".lock.tmp"
@@ -42,6 +45,22 @@ func getPlatformLockFilePath(path string) string {
 		return path
 	}
 	return path + lockPostfix
+}
+
+// noCreateFlockOpts is a no-op on windows: the lock is on a .lock.tmp file
+// that is supposed to be created. FSTryWriteLockExistingFile checks the
+// target file separately.
+func noCreateFlockOpts() []flock.Option {
+	return nil
+}
+
+// checkLockedFileExists returns NotFound if path was removed. Needed on windows
+// because the lock is held on a different file.
+func checkLockedFileExists(path string) error {
+	if _, err := os.Stat(path); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 func getHardLinkCount(fi os.FileInfo) (uint64, bool) {
