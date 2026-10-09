@@ -138,6 +138,7 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		semaphore:     make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:      make(chan events.UploadEvent, cfg.ConcurrentUploads),
 		eventPreparer: &events.NoOpPreparer{},
+		openFile:      os.OpenFile,
 	}
 	return uploader, nil
 }
@@ -164,6 +165,9 @@ type Uploader struct {
 	isClosing bool
 
 	eventPreparer *events.NoOpPreparer
+
+	// openFile is os.OpenFile, swapped in tests to hit the gap between open and lock.
+	openFile utils.OpenFileWithFlagsFunc
 }
 
 func (u *Uploader) Close() {
@@ -522,6 +526,23 @@ func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) ite
 	}
 }
 
+// sameFile returns NotFound if path no longer points to the file f has open,
+// i.e. the recording was removed or replaced after we opened it.
+func sameFile(f *os.File, path string) error {
+	openFI, err := f.Stat()
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	pathFI, err := os.Stat(path)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	if !os.SameFile(openFI, pathFI) {
+		return trace.NotFound("recording %q was replaced on disk while acquiring its lock", path)
+	}
+	return nil
+}
+
 func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error) {
 	sessionID, err := sessionIDFromPath(fileName)
 	if err != nil {
@@ -574,16 +595,29 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 	}
 
 	// Apparently, exclusive lock can be obtained only in RDWR mode on NFS
-	sessionFile, err := os.OpenFile(sessionFilePath, os.O_RDWR, 0)
+	sessionFile, err := u.openFile(sessionFilePath, os.O_RDWR, 0)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	unlock, err := utils.FSTryWriteLock(sessionFilePath)
+	// don't let the lock create the file: if another uploader already removed it,
+	// flock would create an empty recording that gets uploaded on the next scan.
+	unlock, err := utils.FSTryWriteLockExistingFile(sessionFilePath)
 	if err != nil {
 		if e := sessionFile.Close(); e != nil {
-			log.WarnContext(ctx, "Failed to close", "error", err, "upload", fileName)
+			log.WarnContext(ctx, "Failed to close", "error", e, "upload", fileName)
 		}
 		return trace.Wrap(err, "uploader could not acquire file lock for %q", sessionFilePath)
+	}
+
+	// the recording may have been replaced between open and lock.
+	if err := sameFile(sessionFile, sessionFilePath); err != nil {
+		if e := unlock(); e != nil {
+			log.WarnContext(ctx, "Failed to unlock recording", "error", e, "upload", fileName)
+		}
+		if e := sessionFile.Close(); e != nil {
+			log.WarnContext(ctx, "Failed to close", "error", e, "upload", fileName)
+		}
+		return trace.Wrap(err)
 	}
 
 	upload := &upload{
@@ -803,16 +837,17 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// canceled once the stream reports it's done.
+	streamCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	u.wg.Add(1)
 	go func() {
 		defer u.wg.Done()
-		u.monitorStreamStatus(ctx, up, stream, cancel)
+		u.monitorStreamStatus(streamCtx, up, stream, cancel)
 	}()
 
 	for {
-		event, err := up.reader.Read(ctx)
+		event, err := up.reader.Read(streamCtx)
 		if err != nil {
 			// Note that empty upload files are not treated as a session error.
 			if errors.Is(err, io.EOF) {
@@ -828,7 +863,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 		// this event doesn't need to be prepared again. Convert it
 		// with a NoOpPreparer.
 		preparedEvent, _ := u.eventPreparer.PrepareSessionEvent(event)
-		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
+		if err := stream.RecordEvent(streamCtx, preparedEvent); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -842,7 +877,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	// before the files are closed to avoid async writes
 	// the timeout is a defensive measure to avoid blocking
 	// indefinitely in case of unforeseen error (e.g. write taking too long)
-	wctx, wcancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
+	wctx, wcancel := context.WithTimeout(streamCtx, apidefaults.DefaultIOTimeout)
 	defer wcancel()
 
 	<-wctx.Done()
