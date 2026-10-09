@@ -43,6 +43,7 @@ import (
 type Client interface {
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 	client.ListResourcesClient
 	services.UserOrLoginStateGetter
 }
@@ -194,14 +195,28 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 		"req_id", req.GetName(),
 		"user", req.GetUser())
 
-	env, err := handler.newExpressionEnv(ctx, req)
+	env, resourceLabelsComplete, err := handler.newExpressionEnv(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	reviewRule := handler.getMatchingRule(ctx, env)
+	reviewRule, err := handler.getMatchingRule(ctx, env)
+	if err != nil {
+		// Whether the rule would have blocked this request is unknown; leave pending for manual review.
+		log.WarnContext(ctx, "Skipping automatic review because a DENY rule failed evaluation",
+			"error", err)
+		return nil
+	}
 	if reviewRule == nil {
 		// This access request does not match any access monitoring rules.
+		return nil
+	}
+
+	// Unresolved resource could hide a label a deny rule matches on; withhold approval.
+	if !resourceLabelsComplete &&
+		reviewRule.GetSpec().GetAutomaticReview().GetDecision() == types.RequestState_APPROVED.String() {
+		log.WarnContext(ctx, "Skipping automatic approval because labels for some requested resources failed resolution",
+			"rule", reviewRule.GetMetadata().GetName())
 		return nil
 	}
 
@@ -238,19 +253,22 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 func (handler *Handler) getMatchingRule(
 	ctx context.Context,
 	env accessmonitoring.AccessRequestExpressionEnv,
-) *accessmonitoringrulesv1.AccessMonitoringRule {
+) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
-	matchingRules := accessmonitoring.EvaluateRules(ctx, handler.Logger, env, handler.rules.Get())
+	matchingRules, err := accessmonitoring.EvaluateRules(ctx, handler.Logger, env, handler.rules.Get())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	for _, rule := range matchingRules {
 		if rule.GetSpec().GetAutomaticReview().GetDecision() == types.RequestState_DENIED.String() {
-			return rule
+			return rule, nil
 		}
 
 		if reviewRule == nil {
 			reviewRule = rule
 		}
 	}
-	return reviewRule
+	return reviewRule, nil
 }
 
 func newAccessReview(userName, ruleName, state string, created time.Time) (types.AccessReview, error) {
@@ -282,24 +300,72 @@ func isAlreadyReviewedError(err error) bool {
 	return trace.IsAlreadyExists(err) || strings.HasSuffix(err.Error(), "has already reviewed this request")
 }
 
-func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRequest) (accessmonitoring.AccessRequestExpressionEnv, error) {
+// newExpressionEnv builds the rule-evaluation environment for a request.
+// Returned bool reports whether every requested resource successfully resolved
+// to labels; False indicating the caller should not auto-approve.
+func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRequest) (accessmonitoring.AccessRequestExpressionEnv, bool, error) {
 	userState, err := services.GetUserOrLoginState(ctx, handler.Client, req.GetUser())
 	if err != nil {
-		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
+		return accessmonitoring.AccessRequestExpressionEnv{}, false, trace.Wrap(err)
 	}
 
-	// GetAllRequestedResourceIDs includes resources that carry
-	// constraints; RiskyExtractResourceIDs then drops those constraints,
-	// keeping only the bare IDs to fetch. Dropping them is safe here:
-	// access monitoring expressions have no access to constraints, and
-	// because a constraint only narrows the request, evaluating the
-	// un-narrowed resource means a restrictive (DENY) expression cannot be
-	// circumvented by adding a constraint.
-	resourceIDs := types.RiskyExtractResourceIDs(req.GetAllRequestedResourceIDs())
-	requestedResources, err := accessrequest.GetResourcesByResourceIDs(ctx, handler.Client, resourceIDs)
+	clusterName, err := handler.Client.GetClusterName(ctx)
 	if err != nil {
-		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
+		return accessmonitoring.AccessRequestExpressionEnv{}, false, trace.Wrap(err)
 	}
 
-	return accessmonitoring.NewAccessRequestExpressionEnv(req, userState.GetTraits(), requestedResources), nil
+	requestedResources, complete, err := handler.resolveRequestedResourceLabels(ctx, req, clusterName.GetClusterName())
+	if err != nil {
+		return accessmonitoring.AccessRequestExpressionEnv{}, false, trace.Wrap(err)
+	}
+
+	return accessmonitoring.NewAccessRequestExpressionEnv(req, userState.GetTraits(), requestedResources), complete, nil
+}
+
+// resolveRequestedResourceLabels resolves the requested resources to their
+// labels and reports whether each was accounted for. Only the bare ResourceID
+// of each resource is used for the lookup; any constraints are dropped. Since
+// root can only list its own cluster, leaf resources are left out and
+// reported unresolved.
+func (handler *Handler) resolveRequestedResourceLabels(ctx context.Context, req types.AccessRequest, localCluster string) ([]types.ResourceWithLabels, bool, error) {
+	complete := true
+	var localIDs []types.ResourceID
+	for _, wrapped := range req.GetAllRequestedResourceIDs() {
+		id := wrapped.GetResourceID()
+		if id.ClusterName != localCluster {
+			complete = false
+			continue
+		}
+		localIDs = append(localIDs, id)
+	}
+
+	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, handler.Client, localIDs)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+
+	resolved := make(map[resourceKey]struct{}, len(resources))
+	for _, resource := range resources {
+		kind := resource.GetKind()
+		// The gRPC client represents Identity Center accounts as apps.
+		if kind == types.KindApp && resource.GetSubKind() == types.KindIdentityCenterAccount {
+			kind = types.KindIdentityCenterAccount
+		}
+		resolved[resourceKey{kind: kind, name: resource.GetName()}] = struct{}{}
+	}
+
+	for _, id := range localIDs {
+		key := resourceKey{kind: id.Kind, name: id.Name}
+		if _, ok := resolved[key]; !ok {
+			complete = false
+			break
+		}
+	}
+	return resources, complete, nil
+}
+
+// resourceKey identifies a resource within one cluster.
+type resourceKey struct {
+	kind string
+	name string
 }
