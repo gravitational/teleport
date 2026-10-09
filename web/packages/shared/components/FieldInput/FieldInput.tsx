@@ -144,8 +144,10 @@ export const HelperTextLine = ({
   helperTextId,
   helperText,
   errorMessage,
+  typography = 'body3',
 }: {
   hasError: boolean;
+  typography?: 'body2' | 'body3';
   /**
    * ID of the helper text element, used to connect it to the input control for
    * better accessibility.
@@ -159,12 +161,13 @@ export const HelperTextLine = ({
     <HelperTextContainer
       expanded={(hasError && !!errorMessage) || !!helperText}
       id={helperTextId}
+      $typography={typography}
     >
       {!hasError && (
         <HelperText
           color={theme.colors.text.slightlyMuted}
           style={{ display: hasError ? 'none' : undefined }}
-          typography="body3"
+          typography={typography}
           pt={1}
         >
           {helperText}
@@ -180,7 +183,7 @@ export const HelperTextLine = ({
           <HelperText
             color={theme.colors.interactive.solid.danger.default}
             style={{ display: hasError ? undefined : 'none' }}
-            typography="body3"
+            typography={typography}
             pt={1}
           >
             {errorMessage}
@@ -193,11 +196,12 @@ export const HelperTextLine = ({
 
 const HelperTextContainer = styled.div<{
   expanded?: boolean;
+  $typography: 'body2' | 'body3';
 }>`
   // Constrain the height to be able to animate it.
   height: ${props =>
     props.expanded
-      ? `calc(${props.theme.space[1]}px + ${props.theme.typography.body3.lineHeight})`
+      ? `calc(${props.theme.space[1]}px + ${props.theme.typography[props.$typography].lineHeight})`
       : '0'};
   opacity: ${props => (props.expanded ? 1 : 0)};
   transition:

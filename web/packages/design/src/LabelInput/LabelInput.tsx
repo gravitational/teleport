@@ -50,19 +50,21 @@ export function LabelContent({
   required,
   tooltipContent,
   tooltipSticky,
+  typography = 'body3',
   children,
   ...otherProps
 }: PropsWithChildren<
   SpaceProps & {
     /** Adds a red asterisk after the field name. */
     required?: boolean;
+    typography?: 'body2' | 'body3';
     tooltipContent?: ReactNode;
     tooltipSticky?: boolean;
   }
 >) {
   return (
     <Flex flexDirection="row" gap={2} alignItems="center" {...otherProps}>
-      <Text typography="body3">
+      <Text typography={typography}>
         {children}
         {required && (
           <RequiredIndicator aria-label="(required)"> *</RequiredIndicator>
