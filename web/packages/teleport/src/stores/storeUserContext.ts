@@ -311,6 +311,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.autoUpdateAgentReport;
   }
 
+  getClassifierAccess() {
+    return this.state.acl.classifier;
+  }
+
   getInferencePolicyAccess() {
     return this.state.acl.inferencePolicy;
   }

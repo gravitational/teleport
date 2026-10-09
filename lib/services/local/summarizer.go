@@ -251,6 +251,14 @@ func (s *SummarizerService) DeleteClassifier(
 	return trace.Wrap(s.classifierService.DeleteResource(ctx, name))
 }
 
+// ConditionalDeleteClassifier deletes a session summarization classifier from
+// the backend only if its revision matches.
+func (s *SummarizerService) ConditionalDeleteClassifier(
+	ctx context.Context, name, revision string,
+) error {
+	return trace.Wrap(s.classifierService.ConditionalDeleteResource(ctx, name, revision))
+}
+
 // GetClassifier retrieves a session summarization classifier from the backend
 // by name.
 func (s *SummarizerService) GetClassifier(

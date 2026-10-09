@@ -412,6 +412,8 @@ message UpsertClassifierResponse {
 message DeleteClassifierRequest {
   // Name is the resource name of the Classifier to delete.
   string name = 1;
+  // Revision, when set, deletes the Classifier only if its stored revision still matches.
+  string revision = 2;
 }
 
 // DeleteClassifierResponse is a response to deleting a Classifier.

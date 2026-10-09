@@ -246,7 +246,8 @@ class TeleportContext implements types.Context {
       sessionSummaries:
         userContext.getInferencePolicyAccess().list ||
         userContext.getInferenceModelAccess().list ||
-        userContext.getInferenceSecretAccess().list,
+        userContext.getInferenceSecretAccess().list ||
+        userContext.getClassifierAccess().list,
       listBeam: userContext.getBeamAccess().list,
       readBeam: userContext.getBeamAccess().read,
     };

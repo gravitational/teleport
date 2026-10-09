@@ -92,6 +92,9 @@ type Summarizer interface {
 	// DeleteClassifier deletes a session summarization classifier from the
 	// backend by name.
 	DeleteClassifier(ctx context.Context, name string) error
+	// ConditionalDeleteClassifier deletes a session summarization classifier
+	// from the backend only if its revision matches.
+	ConditionalDeleteClassifier(ctx context.Context, name, revision string) error
 
 	// CreateRetrievalModel creates the search model in the backend.
 	// Only one RetrievalModel can exist per cluster.

@@ -3067,7 +3067,9 @@ func (b0 UpsertClassifierResponse_builder) Build() *UpsertClassifierResponse {
 type DeleteClassifierRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the resource name of the Classifier to delete.
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Revision, when set, deletes the Classifier only if its stored revision still matches.
+	Revision      string `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3104,8 +3106,19 @@ func (x *DeleteClassifierRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteClassifierRequest) GetRevision() string {
+	if x != nil {
+		return x.Revision
+	}
+	return ""
+}
+
 func (x *DeleteClassifierRequest) SetName(v string) {
 	x.Name = v
+}
+
+func (x *DeleteClassifierRequest) SetRevision(v string) {
+	x.Revision = v
 }
 
 type DeleteClassifierRequest_builder struct {
@@ -3113,6 +3126,8 @@ type DeleteClassifierRequest_builder struct {
 
 	// Name is the resource name of the Classifier to delete.
 	Name string
+	// Revision, when set, deletes the Classifier only if its stored revision still matches.
+	Revision string
 }
 
 func (b0 DeleteClassifierRequest_builder) Build() *DeleteClassifierRequest {
@@ -3120,6 +3135,7 @@ func (b0 DeleteClassifierRequest_builder) Build() *DeleteClassifierRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.Name = b.Name
+	x.Revision = b.Revision
 	return m0
 }
 
@@ -4912,9 +4928,10 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x18UpsertClassifierResponse\x12B\n" +
 	"\n" +
 	"classifier\x18\x01 \x01(\v2\".teleport.summarizer.v1.ClassifierR\n" +
-	"classifier\"-\n" +
+	"classifier\"I\n" +
 	"\x17DeleteClassifierRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"\x1a\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\"\x1a\n" +
 	"\x18DeleteClassifierResponse\"T\n" +
 	"\x16ListClassifiersRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
