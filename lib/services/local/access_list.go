@@ -19,6 +19,7 @@
 package local
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -82,6 +83,8 @@ const (
 	// It must stay below accessListLockTTL/2 (2.5s): the lock refresher is stopped
 	// before release, so remaining lock ownership can be as short as TTL/2, and a
 	// release that outlives ownership could delete a lock acquired by another writer.
+	// This invariant is enforced for configurable overrides in
+	// AccessListServiceConfig.checkAndSetDefault.
 	accessListLockReleaseTimeout = 2*time.Second + 300*time.Millisecond
 
 	// createAccessListLimitLockName is the lock used to prevent simultaneous
@@ -108,6 +111,9 @@ type AccessListService struct {
 	service        *generic.ScopeAwareService[*accesslist.AccessList]
 	memberService  *generic.ScopeAwareService[*accesslist.AccessListMember]
 	reviewService  *generic.ScopeAwareService[*accesslist.Review]
+	// lockTTL is the TTL applied to the AccessList/AccessListMember/Review backend
+	// locks acquired via RunWhileLocked. See AccessListServiceConfig.RunWhileLockedTTL.
+	lockTTL time.Duration
 }
 
 type accessListAndMembersGetter struct {
@@ -320,14 +326,39 @@ type AccessListServiceConfig struct {
 	// RunWhileLockedRetryInterval alters locking behavior when interacting with the backend.
 	// This allows tests to run faster.
 	RunWhileLockedRetryInterval time.Duration
+	// RunWhileLockedReleaseTimeout overrides the timeout used when releasing the
+	// AccessList/AccessListMember/Review backend locks (see accessListLockReleaseTimeout).
+	RunWhileLockedReleaseTimeout time.Duration
+	// RunWhileLockedTTL overrides the TTL of the AccessList/AccessListMember/Review
+	// backend locks (see accessListLockTTL). Defaults to accessListLockTTL.
+	RunWhileLockedTTL time.Duration
 	// ScopesFeatures specifies which scopes features are enabled.
 	ScopesFeatures scopes.Features
 }
 
+func (c *AccessListServiceConfig) checkAndSetDefaults() error {
+	if c.Modules == nil {
+		return trace.BadParameter("Modules are a required parameter for the AccessListService")
+	}
+	c.RunWhileLockedReleaseTimeout = cmp.Or(c.RunWhileLockedReleaseTimeout, accessListLockReleaseTimeout)
+
+	if c.RunWhileLockedTTL == 0 {
+		c.RunWhileLockedTTL = max(accessListLockTTL, 2*c.RunWhileLockedReleaseTimeout+100*time.Millisecond)
+	}
+	if c.RunWhileLockedReleaseTimeout >= c.RunWhileLockedTTL/2 {
+		// It must stay below accessListLockTTL/2: the lock refresher is stopped
+		// before release. Where if release timeout is greater than TTL it can happen that release wil fail because
+		// the lock was already release via TTL expiration.
+		return trace.BadParameter("RunWhileLockedReleaseTimeout (%v) must stay below half of the lock TTL (%v)",
+			c.RunWhileLockedReleaseTimeout, c.RunWhileLockedTTL/2)
+	}
+	return nil
+}
+
 // NewAccessListServiceV2 creates a new AccessListService.
 func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, error) {
-	if cfg.Modules == nil {
-		return nil, trace.BadParameter("Modules are a required parameter for the AccessListService")
+	if err := cfg.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	service, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[*accesslist.AccessList]{
@@ -339,7 +370,7 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 		MarshalFunc:                  services.MarshalAccessList,
 		UnmarshalFunc:                services.UnmarshalAccessList,
 		RunWhileLockedRetryInterval:  cfg.RunWhileLockedRetryInterval,
-		RunWhileLockedReleaseTimeout: accessListLockReleaseTimeout,
+		RunWhileLockedReleaseTimeout: cfg.RunWhileLockedReleaseTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -354,7 +385,7 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 		MarshalFunc:                  services.MarshalAccessListMember,
 		UnmarshalFunc:                services.UnmarshalAccessListMember,
 		RunWhileLockedRetryInterval:  cfg.RunWhileLockedRetryInterval,
-		RunWhileLockedReleaseTimeout: accessListLockReleaseTimeout,
+		RunWhileLockedReleaseTimeout: cfg.RunWhileLockedReleaseTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -369,7 +400,7 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 		MarshalFunc:                  services.MarshalAccessListReview,
 		UnmarshalFunc:                services.UnmarshalAccessListReview,
 		RunWhileLockedRetryInterval:  cfg.RunWhileLockedRetryInterval,
-		RunWhileLockedReleaseTimeout: accessListLockReleaseTimeout,
+		RunWhileLockedReleaseTimeout: cfg.RunWhileLockedReleaseTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -382,6 +413,7 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 		service:        service,
 		memberService:  memberService,
 		reviewService:  reviewService,
+		lockTTL:        cfg.RunWhileLockedTTL,
 	}, nil
 }
 
@@ -583,9 +615,9 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL,
+	err = a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, a.lockTTL,
 		func(ctx context.Context, _ backend.Backend) error {
-			return a.service.RunWhileLocked(ctx, resourceLockName, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+			return a.service.RunWhileLocked(ctx, resourceLockName, a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
 				for _, action := range actions {
 					if err := action(); err != nil {
 						return trace.Wrap(err)
@@ -679,8 +711,8 @@ func (a *AccessListService) DeleteAccessListV2(ctx context.Context, req *accessl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		return a.service.RunWhileLocked(ctx, resourceLockName, accessListLockTTL, action)
+	return trace.Wrap(a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, resourceLockName, a.lockTTL, action)
 	}))
 }
 
@@ -970,8 +1002,8 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		return a.service.RunWhileLocked(ctx, lockName, accessListLockTTL, action)
+	err = a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName, a.lockTTL, action)
 	})
 	return upserted, trace.Wrap(err)
 }
@@ -996,8 +1028,8 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		return a.service.RunWhileLocked(ctx, lockName, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+	err = a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName, a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
 			memberList, err := a.getAccessList(ctx, parentListName)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1062,8 +1094,8 @@ func (a *AccessListService) DeleteAccessListMemberV2(ctx context.Context, req *a
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		return a.service.RunWhileLocked(ctx, lockName, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+	err = a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName, a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
 			_, err := a.getAccessList(ctx, accessListName)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1117,8 +1149,8 @@ func (a *AccessListService) DeleteAllAccessListMembersForAccessListV2(ctx contex
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		return a.service.RunWhileLocked(ctx, lockName, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+	err = a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName, a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
 			_, err := a.getAccessList(ctx, accessListName)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1366,8 +1398,8 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	if err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		return a.service.RunWhileLocked(ctx, lockName, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+	if err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName, 2*a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
 			for _, action := range actions {
 				if err := action(); err != nil {
 					return trace.Wrap(err)
@@ -1531,7 +1563,7 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 	if err != nil {
 		return nil, time.Time{}, trace.Wrap(err)
 	}
-	err = a.service.RunWhileLocked(ctx, lockName, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+	err = a.service.RunWhileLocked(ctx, lockName, a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
 		accessList, err := a.getAccessList(ctx, reviewedListName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2189,8 +2221,8 @@ func (a *AccessListService) runWithGlobalLock(ctx context.Context, accessListNam
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		return a.service.RunWhileLocked(ctx, lockName, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+	return a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName, 2*a.lockTTL, func(ctx context.Context, _ backend.Backend) error {
 			return trace.Wrap(fn())
 		})
 	})
