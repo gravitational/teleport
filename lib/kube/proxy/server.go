@@ -25,6 +25,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -32,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
-	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -388,11 +388,18 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	default:
 	}
 	t.listener = mux.TLS()
-	err = http2.ConfigureServer(t.Server, &http2.Server{})
-	t.mu.Unlock()
-	if err != nil {
-		return trace.Wrap(err)
+
+	t.Server.Protocols = &http.Protocols{}
+	t.Server.Protocols.SetHTTP1(true)
+	t.Server.Protocols.SetHTTP2(true)
+	// Correctly advertise "h2" and "http/1.1".
+	for _, proto := range []string{"h2", "http/1.1"} {
+		if !slices.Contains(t.TLS.NextProtos, proto) {
+			t.TLS.NextProtos = append(t.TLS.NextProtos, proto)
+		}
 	}
+
+	t.mu.Unlock()
 
 	// startStaticClusterHeartbeats starts the heartbeat process for static clusters.
 	// static clusters can be specified via kubeconfig or clusterName for Teleport agent

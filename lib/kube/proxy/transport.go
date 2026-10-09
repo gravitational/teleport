@@ -385,9 +385,9 @@ func newH2Transport(tlsConfig *tls.Config, dial dialContextFunc) (*http.Transpor
 	h2HTTPTransport := newTransport(dial, tlsConfig)
 	// Upgrade transport to h2 where HTTP_PROXY and HTTPS_PROXY
 	// envs are not take into account purposely.
-	if err := http2.ConfigureTransport(h2HTTPTransport); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	h2HTTPTransport.Protocols = &http.Protocols{}
+	h2HTTPTransport.Protocols.SetHTTP1(true)
+	h2HTTPTransport.Protocols.SetHTTP2(true)
 	return h2HTTPTransport, nil
 }
 
