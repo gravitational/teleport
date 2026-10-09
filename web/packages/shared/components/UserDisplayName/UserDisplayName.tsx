@@ -84,9 +84,13 @@ export function UserDisplayName({
     case 'stacked': {
       const supportingValues = displayPrimary ? (
         <>
-          <UsernameValue {...usernameTextProps} title={username}>
+          <StackedUsernameValue
+            $hasSecondary={Boolean(displaySecondary)}
+            {...usernameTextProps}
+            title={username}
+          >
             {username}
-          </UsernameValue>
+          </StackedUsernameValue>
           {separatedSecondaryValue}
         </>
       ) : (
@@ -163,6 +167,15 @@ const UsernameValue = styled(singleLineText).attrs({
   typography: 'body3',
 })``;
 
+const StackedUsernameValue = styled(UsernameValue)<{ $hasSecondary: boolean }>`
+  ${props =>
+    props.$hasSecondary &&
+    css`
+      flex-shrink: 0;
+      max-width: 50%;
+    `}
+`;
+
 const SecondaryValue = styled(singleLineText).attrs({
   color: 'text.muted',
   typography: 'body3',
@@ -184,7 +197,6 @@ const InlineSupportingValues = styled(Text).attrs({
   ${containedContent}
   display: inline-flex;
   align-items: baseline;
-  flex-shrink: 0;
 
   &::before {
     content: '(';

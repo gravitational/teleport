@@ -216,14 +216,14 @@ export function RequestView({
                     : props.theme.colors.levels.elevated};
               `}
             >
-              <Flex alignItems="center">
+              <Flex alignItems="center" minWidth={0}>
                 <StateLabel
                   state={request.state}
                   mr={3}
                   px={3}
                   style={{ fontWeight: 'bold' }}
                 />
-                <H3>
+                <H3 style={{ minWidth: 0 }}>
                   <Flex flexWrap="wrap" alignItems="baseline">
                     <RequesterDisplayName
                       username={request.user}
@@ -442,7 +442,7 @@ function Timestamp({
       >
         {$icon}
       </Box>
-      <Text typography="body2">
+      <Text typography="body2" style={{ minWidth: 0 }}>
         <UserDisplayName
           username={author}
           primaryText={display?.primary}
@@ -572,7 +572,7 @@ function Comment({
       style={{ position: 'relative' }}
     >
       <Flex bg="levels.sunken" py={1} px={3} alignItems="baseline">
-        <H3 mr={2}>
+        <H3 mr={2} style={{ minWidth: 0 }}>
           <UserDisplayName
             username={author}
             primaryText={display?.primary}
@@ -580,7 +580,12 @@ function Comment({
             layout="inline"
           />
         </H3>
-        <Text typography="body3">{createdDuration}</Text>
+        <Text
+          typography="body3"
+          style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+        >
+          {createdDuration}
+        </Text>
       </Flex>
       {comment && (
         <Box p={3} bg="levels.elevated" css="white-space: pre-wrap;">

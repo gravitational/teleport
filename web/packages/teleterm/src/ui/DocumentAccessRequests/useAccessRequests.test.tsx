@@ -43,6 +43,7 @@ test('makeUiAccessRequest', async () => {
       },
     ],
     suggestedReviewers: ['sugested-reviewer-1'],
+    suggestedReviewersInfo: [{ username: 'sugested-reviewer-1' }],
     thresholdNames: ['default'],
     resources: [
       {

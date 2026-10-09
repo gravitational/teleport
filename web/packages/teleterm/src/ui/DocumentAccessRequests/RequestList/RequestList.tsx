@@ -53,6 +53,12 @@ export function RequestList({
   viewRequest(requestId: string): void;
   assumeAccessList(): void;
 }) {
+  const rows = (attempt.data || []).map(request => ({
+    ...request,
+    userDisplayPrimary: request.userDisplay?.primary,
+    userDisplaySecondary: request.userDisplay?.secondary,
+  }));
+
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
       {attempt.status === 'error' && (
@@ -75,8 +81,8 @@ export function RequestList({
           Refresh
         </ButtonPrimary>
       </Flex>
-      <Table
-        data={attempt.data || []}
+      <Table<(typeof rows)[number]>
+        data={rows}
         columns={[
           {
             key: 'id',
@@ -103,6 +109,14 @@ export function RequestList({
           },
           {
             key: 'resources',
+            isNonRender: true,
+          },
+          {
+            key: 'userDisplayPrimary',
+            isNonRender: true,
+          },
+          {
+            key: 'userDisplaySecondary',
             isNonRender: true,
           },
           {
@@ -239,7 +253,7 @@ const Layout = styled(Box)`
   flex-direction: column;
   display: flex;
   flex: 1;
-  max-width: 1248px;
+  width: 100%;
 
   &::after {
     content: ' ';

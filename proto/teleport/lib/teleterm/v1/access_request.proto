@@ -22,6 +22,7 @@ package teleport.lib.teleterm.v1;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/legacy/types/resources.proto";
+import "teleport/lib/teleterm/v1/cluster.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
@@ -63,6 +64,10 @@ message AccessRequest {
   // reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
   // It's only added in response to a dry run request.
   repeated string reason_prompts = 20;
+  // user_info holds the requester and the display values stored when the request was created.
+  AccessRequestUserInfo user_info = 21;
+  // suggested_reviewers_info has one entry per suggested_reviewers name, in the same order.
+  repeated AccessRequestUserInfo suggested_reviewers_info = 22;
 }
 
 message AccessRequestReview {
@@ -81,6 +86,16 @@ message AccessRequestReview {
   // if not a nil value, this reviewer overwrote
   // the requested start time.
   google.protobuf.Timestamp assume_start_time = 7;
+  // author_info holds the author and the display values stored when the review was submitted.
+  AccessRequestUserInfo author_info = 8;
+}
+
+// AccessRequestUserInfo pairs a username with the display values Auth stored for it.
+message AccessRequestUserInfo {
+  // username is the Teleport username.
+  string username = 1;
+  // display holds the stored display values. Unset when none are stored.
+  UserDisplay display = 2;
 }
 
 message ResourceID {

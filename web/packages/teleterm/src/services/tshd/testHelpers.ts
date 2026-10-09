@@ -373,6 +373,7 @@ export const makeAccessRequest = (
   sessionTtl: { seconds: 1729026573n, nanos: 0 },
   reasonMode: 'optional',
   reasonPrompts: [],
+  suggestedReviewersInfo: [{ username: 'admin' }, { username: 'reviewer' }],
   ...props,
 });
 

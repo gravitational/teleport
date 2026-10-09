@@ -50,9 +50,11 @@ const mockedAccessRequest: AccessRequest = {
   resolveReason: '',
   requestReason: '',
   user: 'requester',
+  userInfo: { username: 'requester' },
   roles: ['access', 'searcheable-resources'],
   reviews: [],
   suggestedReviewers: ['admin', 'reviewer'],
+  suggestedReviewersInfo: [{ username: 'admin' }, { username: 'reviewer' }],
   thresholdNames: ['default'],
   resources: [
     {

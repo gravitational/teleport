@@ -165,7 +165,17 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 			Created:                 timestamppb.New(rev.Created),
 			PromotedAccessListTitle: rev.GetAccessListTitle(),
 			AssumeStartTime:         getProtoTimestamp(rev.AssumeStartTime),
+			AuthorInfo:              newAPIAccessRequestUserInfo(rev.Author, rev.AuthorInfo.UserDisplay()),
 		}.Build())
+	}
+
+	// The stored info is a map, but the API expects a repeated field.
+	// Iterate reviewer names to preserve their order and include entries without display data.
+	storedReviewerInfo := req.GetSuggestedReviewersInfo()
+	suggestedReviewersInfo := make([]*api.AccessRequestUserInfo, 0, len(req.GetSuggestedReviewers()))
+	for _, reviewer := range req.GetSuggestedReviewers() {
+		info := storedReviewerInfo[reviewer]
+		suggestedReviewersInfo = append(suggestedReviewersInfo, newAPIAccessRequestUserInfo(reviewer, info.UserDisplay()))
 	}
 
 	thresholdNames := make([]string, 0, len(req.GetThresholds()))
@@ -218,7 +228,18 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		SessionTtl:              timestamppb.New(req.GetSessionTLL()),
 		ReasonMode:              string(dryRunEnrichment.ReasonMode),
 		ReasonPrompts:           dryRunEnrichment.ReasonPrompts,
+		UserInfo:                newAPIAccessRequestUserInfo(req.GetUser(), req.GetUserInfo().UserDisplay()),
+		SuggestedReviewersInfo:  suggestedReviewersInfo,
 	}.Build()
+}
+
+// newAPIAccessRequestUserInfo pairs a username with its stored display.
+func newAPIAccessRequestUserInfo(username string, display types.UserDisplay) *api.AccessRequestUserInfo {
+	b := api.AccessRequestUserInfo_builder{Username: username}
+	if display != (types.UserDisplay{}) {
+		b.Display = api.UserDisplay_builder{Primary: display.Primary, Secondary: display.Secondary}.Build()
+	}
+	return b.Build()
 }
 
 // resourceIDToString marshals a ResourceID to a string.

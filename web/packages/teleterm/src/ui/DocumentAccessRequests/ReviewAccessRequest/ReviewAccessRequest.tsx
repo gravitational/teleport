@@ -64,6 +64,7 @@ export function ReviewAccessRequest(props: {
       <RequestDelete
         deleteRequestAttempt={deleteRequestAttempt}
         user={request.user}
+        userDisplay={request.userDisplay}
         roles={request.roles}
         requestId={request.id}
         requestState={request.state}
@@ -95,6 +96,7 @@ export function ReviewAccessRequest(props: {
       )}
       <RequestView
         user={user?.name}
+        userDisplay={user?.display}
         fetchRequestAttempt={fetchRequestAttempt}
         getFlags={getFlags}
         confirmDelete={false} // never show the embedded request delete

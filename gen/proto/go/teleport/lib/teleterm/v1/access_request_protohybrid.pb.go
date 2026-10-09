@@ -78,8 +78,12 @@ type AccessRequest struct {
 	// reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
 	// It's only added in response to a dry run request.
 	ReasonPrompts []string `protobuf:"bytes,20,rep,name=reason_prompts,json=reasonPrompts,proto3" json:"reason_prompts,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// user_info holds the requester and the display values stored when the request was created.
+	UserInfo *AccessRequestUserInfo `protobuf:"bytes,21,opt,name=user_info,json=userInfo,proto3" json:"user_info,omitempty"`
+	// suggested_reviewers_info has one entry per suggested_reviewers name, in the same order.
+	SuggestedReviewersInfo []*AccessRequestUserInfo `protobuf:"bytes,22,rep,name=suggested_reviewers_info,json=suggestedReviewersInfo,proto3" json:"suggested_reviewers_info,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *AccessRequest) Reset() {
@@ -240,6 +244,20 @@ func (x *AccessRequest) GetReasonPrompts() []string {
 	return nil
 }
 
+func (x *AccessRequest) GetUserInfo() *AccessRequestUserInfo {
+	if x != nil {
+		return x.UserInfo
+	}
+	return nil
+}
+
+func (x *AccessRequest) GetSuggestedReviewersInfo() []*AccessRequestUserInfo {
+	if x != nil {
+		return x.SuggestedReviewersInfo
+	}
+	return nil
+}
+
 func (x *AccessRequest) SetId(v string) {
 	x.Id = v
 }
@@ -316,6 +334,14 @@ func (x *AccessRequest) SetReasonPrompts(v []string) {
 	x.ReasonPrompts = v
 }
 
+func (x *AccessRequest) SetUserInfo(v *AccessRequestUserInfo) {
+	x.UserInfo = v
+}
+
+func (x *AccessRequest) SetSuggestedReviewersInfo(v []*AccessRequestUserInfo) {
+	x.SuggestedReviewersInfo = v
+}
+
 func (x *AccessRequest) HasCreated() bool {
 	if x == nil {
 		return false
@@ -358,6 +384,13 @@ func (x *AccessRequest) HasSessionTtl() bool {
 	return x.SessionTtl != nil
 }
 
+func (x *AccessRequest) HasUserInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserInfo != nil
+}
+
 func (x *AccessRequest) ClearCreated() {
 	x.Created = nil
 }
@@ -380,6 +413,10 @@ func (x *AccessRequest) ClearRequestTtl() {
 
 func (x *AccessRequest) ClearSessionTtl() {
 	x.SessionTtl = nil
+}
+
+func (x *AccessRequest) ClearUserInfo() {
+	x.UserInfo = nil
 }
 
 type AccessRequest_builder struct {
@@ -420,6 +457,10 @@ type AccessRequest_builder struct {
 	// reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
 	// It's only added in response to a dry run request.
 	ReasonPrompts []string
+	// user_info holds the requester and the display values stored when the request was created.
+	UserInfo *AccessRequestUserInfo
+	// suggested_reviewers_info has one entry per suggested_reviewers name, in the same order.
+	SuggestedReviewersInfo []*AccessRequestUserInfo
 }
 
 func (b0 AccessRequest_builder) Build() *AccessRequest {
@@ -445,6 +486,8 @@ func (b0 AccessRequest_builder) Build() *AccessRequest {
 	x.SessionTtl = b.SessionTtl
 	x.ReasonMode = b.ReasonMode
 	x.ReasonPrompts = b.ReasonPrompts
+	x.UserInfo = b.UserInfo
+	x.SuggestedReviewersInfo = b.SuggestedReviewersInfo
 	return m0
 }
 
@@ -465,8 +508,10 @@ type AccessRequestReview struct {
 	// if not a nil value, this reviewer overwrote
 	// the requested start time.
 	AssumeStartTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=assume_start_time,json=assumeStartTime,proto3" json:"assume_start_time,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// author_info holds the author and the display values stored when the review was submitted.
+	AuthorInfo    *AccessRequestUserInfo `protobuf:"bytes,8,opt,name=author_info,json=authorInfo,proto3" json:"author_info,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AccessRequestReview) Reset() {
@@ -543,6 +588,13 @@ func (x *AccessRequestReview) GetAssumeStartTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *AccessRequestReview) GetAuthorInfo() *AccessRequestUserInfo {
+	if x != nil {
+		return x.AuthorInfo
+	}
+	return nil
+}
+
 func (x *AccessRequestReview) SetAuthor(v string) {
 	x.Author = v
 }
@@ -571,6 +623,10 @@ func (x *AccessRequestReview) SetAssumeStartTime(v *timestamppb.Timestamp) {
 	x.AssumeStartTime = v
 }
 
+func (x *AccessRequestReview) SetAuthorInfo(v *AccessRequestUserInfo) {
+	x.AuthorInfo = v
+}
+
 func (x *AccessRequestReview) HasCreated() bool {
 	if x == nil {
 		return false
@@ -585,12 +641,23 @@ func (x *AccessRequestReview) HasAssumeStartTime() bool {
 	return x.AssumeStartTime != nil
 }
 
+func (x *AccessRequestReview) HasAuthorInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.AuthorInfo != nil
+}
+
 func (x *AccessRequestReview) ClearCreated() {
 	x.Created = nil
 }
 
 func (x *AccessRequestReview) ClearAssumeStartTime() {
 	x.AssumeStartTime = nil
+}
+
+func (x *AccessRequestReview) ClearAuthorInfo() {
+	x.AuthorInfo = nil
 }
 
 type AccessRequestReview_builder struct {
@@ -611,6 +678,8 @@ type AccessRequestReview_builder struct {
 	// if not a nil value, this reviewer overwrote
 	// the requested start time.
 	AssumeStartTime *timestamppb.Timestamp
+	// author_info holds the author and the display values stored when the review was submitted.
+	AuthorInfo *AccessRequestUserInfo
 }
 
 func (b0 AccessRequestReview_builder) Build() *AccessRequestReview {
@@ -624,6 +693,94 @@ func (b0 AccessRequestReview_builder) Build() *AccessRequestReview {
 	x.Created = b.Created
 	x.PromotedAccessListTitle = b.PromotedAccessListTitle
 	x.AssumeStartTime = b.AssumeStartTime
+	x.AuthorInfo = b.AuthorInfo
+	return m0
+}
+
+// AccessRequestUserInfo pairs a username with the display values Auth stored for it.
+type AccessRequestUserInfo struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// username is the Teleport username.
+	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	// display holds the stored display values. Unset when none are stored.
+	Display       *UserDisplay `protobuf:"bytes,2,opt,name=display,proto3" json:"display,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessRequestUserInfo) Reset() {
+	*x = AccessRequestUserInfo{}
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessRequestUserInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessRequestUserInfo) ProtoMessage() {}
+
+func (x *AccessRequestUserInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AccessRequestUserInfo) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *AccessRequestUserInfo) GetDisplay() *UserDisplay {
+	if x != nil {
+		return x.Display
+	}
+	return nil
+}
+
+func (x *AccessRequestUserInfo) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *AccessRequestUserInfo) SetDisplay(v *UserDisplay) {
+	x.Display = v
+}
+
+func (x *AccessRequestUserInfo) HasDisplay() bool {
+	if x == nil {
+		return false
+	}
+	return x.Display != nil
+}
+
+func (x *AccessRequestUserInfo) ClearDisplay() {
+	x.Display = nil
+}
+
+type AccessRequestUserInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the Teleport username.
+	Username string
+	// display holds the stored display values. Unset when none are stored.
+	Display *UserDisplay
+}
+
+func (b0 AccessRequestUserInfo_builder) Build() *AccessRequestUserInfo {
+	m0 := &AccessRequestUserInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.Display = b.Display
 	return m0
 }
 
@@ -639,7 +796,7 @@ type ResourceID struct {
 
 func (x *ResourceID) Reset() {
 	*x = ResourceID{}
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[2]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -651,7 +808,7 @@ func (x *ResourceID) String() string {
 func (*ResourceID) ProtoMessage() {}
 
 func (x *ResourceID) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[2]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -736,7 +893,7 @@ type ResourceDetails struct {
 
 func (x *ResourceDetails) Reset() {
 	*x = ResourceDetails{}
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[3]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -748,7 +905,7 @@ func (x *ResourceDetails) String() string {
 func (*ResourceDetails) ProtoMessage() {}
 
 func (x *ResourceDetails) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[3]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -809,7 +966,7 @@ type Resource struct {
 
 func (x *Resource) Reset() {
 	*x = Resource{}
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[4]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -821,7 +978,7 @@ func (x *Resource) String() string {
 func (*Resource) ProtoMessage() {}
 
 func (x *Resource) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[4]
+	mi := &file_teleport_lib_teleterm_v1_access_request_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -921,7 +1078,7 @@ var File_teleport_lib_teleterm_v1_access_request_proto protoreflect.FileDescript
 
 const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\"\x98\a\n" +
+	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\x1a&teleport/lib/teleterm/v1/cluster.proto\"\xd1\b\n" +
 	"\rAccessRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12%\n" +
@@ -945,7 +1102,9 @@ const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"sessionTtl\x12\x1f\n" +
 	"\vreason_mode\x18\x13 \x01(\tR\n" +
 	"reasonMode\x12%\n" +
-	"\x0ereason_prompts\x18\x14 \x03(\tR\rreasonPromptsJ\x04\b\f\x10\rR\fresource_ids\"\xac\x02\n" +
+	"\x0ereason_prompts\x18\x14 \x03(\tR\rreasonPrompts\x12L\n" +
+	"\tuser_info\x18\x15 \x01(\v2/.teleport.lib.teleterm.v1.AccessRequestUserInfoR\buserInfo\x12i\n" +
+	"\x18suggested_reviewers_info\x18\x16 \x03(\v2/.teleport.lib.teleterm.v1.AccessRequestUserInfoR\x16suggestedReviewersInfoJ\x04\b\f\x10\rR\fresource_ids\"\xfe\x02\n" +
 	"\x13AccessRequestReview\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x14\n" +
@@ -953,7 +1112,12 @@ const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\x06reason\x18\x04 \x01(\tR\x06reason\x124\n" +
 	"\acreated\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\acreated\x12;\n" +
 	"\x1apromoted_access_list_title\x18\x06 \x01(\tR\x17promotedAccessListTitle\x12F\n" +
-	"\x11assume_start_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x0fassumeStartTime\"\x83\x01\n" +
+	"\x11assume_start_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x0fassumeStartTime\x12P\n" +
+	"\vauthor_info\x18\b \x01(\v2/.teleport.lib.teleterm.v1.AccessRequestUserInfoR\n" +
+	"authorInfo\"t\n" +
+	"\x15AccessRequestUserInfo\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12?\n" +
+	"\adisplay\x18\x02 \x01(\v2%.teleport.lib.teleterm.v1.UserDisplayR\adisplay\"\x83\x01\n" +
 	"\n" +
 	"ResourceID\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
@@ -968,35 +1132,41 @@ const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\adetails\x18\x02 \x01(\v2).teleport.lib.teleterm.v1.ResourceDetailsR\adetails\x12<\n" +
 	"\vconstraints\x18\x03 \x01(\v2\x1a.types.ResourceConstraintsR\vconstraintsBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
-var file_teleport_lib_teleterm_v1_access_request_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_lib_teleterm_v1_access_request_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_lib_teleterm_v1_access_request_proto_goTypes = []any{
 	(*AccessRequest)(nil),             // 0: teleport.lib.teleterm.v1.AccessRequest
 	(*AccessRequestReview)(nil),       // 1: teleport.lib.teleterm.v1.AccessRequestReview
-	(*ResourceID)(nil),                // 2: teleport.lib.teleterm.v1.ResourceID
-	(*ResourceDetails)(nil),           // 3: teleport.lib.teleterm.v1.ResourceDetails
-	(*Resource)(nil),                  // 4: teleport.lib.teleterm.v1.Resource
-	(*timestamppb.Timestamp)(nil),     // 5: google.protobuf.Timestamp
-	(*types.ResourceConstraints)(nil), // 6: types.ResourceConstraints
+	(*AccessRequestUserInfo)(nil),     // 2: teleport.lib.teleterm.v1.AccessRequestUserInfo
+	(*ResourceID)(nil),                // 3: teleport.lib.teleterm.v1.ResourceID
+	(*ResourceDetails)(nil),           // 4: teleport.lib.teleterm.v1.ResourceDetails
+	(*Resource)(nil),                  // 5: teleport.lib.teleterm.v1.Resource
+	(*timestamppb.Timestamp)(nil),     // 6: google.protobuf.Timestamp
+	(*UserDisplay)(nil),               // 7: teleport.lib.teleterm.v1.UserDisplay
+	(*types.ResourceConstraints)(nil), // 8: types.ResourceConstraints
 }
 var file_teleport_lib_teleterm_v1_access_request_proto_depIdxs = []int32{
-	5,  // 0: teleport.lib.teleterm.v1.AccessRequest.created:type_name -> google.protobuf.Timestamp
-	5,  // 1: teleport.lib.teleterm.v1.AccessRequest.expires:type_name -> google.protobuf.Timestamp
+	6,  // 0: teleport.lib.teleterm.v1.AccessRequest.created:type_name -> google.protobuf.Timestamp
+	6,  // 1: teleport.lib.teleterm.v1.AccessRequest.expires:type_name -> google.protobuf.Timestamp
 	1,  // 2: teleport.lib.teleterm.v1.AccessRequest.reviews:type_name -> teleport.lib.teleterm.v1.AccessRequestReview
-	4,  // 3: teleport.lib.teleterm.v1.AccessRequest.resources:type_name -> teleport.lib.teleterm.v1.Resource
-	5,  // 4: teleport.lib.teleterm.v1.AccessRequest.assume_start_time:type_name -> google.protobuf.Timestamp
-	5,  // 5: teleport.lib.teleterm.v1.AccessRequest.max_duration:type_name -> google.protobuf.Timestamp
-	5,  // 6: teleport.lib.teleterm.v1.AccessRequest.request_ttl:type_name -> google.protobuf.Timestamp
-	5,  // 7: teleport.lib.teleterm.v1.AccessRequest.session_ttl:type_name -> google.protobuf.Timestamp
-	5,  // 8: teleport.lib.teleterm.v1.AccessRequestReview.created:type_name -> google.protobuf.Timestamp
-	5,  // 9: teleport.lib.teleterm.v1.AccessRequestReview.assume_start_time:type_name -> google.protobuf.Timestamp
-	2,  // 10: teleport.lib.teleterm.v1.Resource.id:type_name -> teleport.lib.teleterm.v1.ResourceID
-	3,  // 11: teleport.lib.teleterm.v1.Resource.details:type_name -> teleport.lib.teleterm.v1.ResourceDetails
-	6,  // 12: teleport.lib.teleterm.v1.Resource.constraints:type_name -> types.ResourceConstraints
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	5,  // 3: teleport.lib.teleterm.v1.AccessRequest.resources:type_name -> teleport.lib.teleterm.v1.Resource
+	6,  // 4: teleport.lib.teleterm.v1.AccessRequest.assume_start_time:type_name -> google.protobuf.Timestamp
+	6,  // 5: teleport.lib.teleterm.v1.AccessRequest.max_duration:type_name -> google.protobuf.Timestamp
+	6,  // 6: teleport.lib.teleterm.v1.AccessRequest.request_ttl:type_name -> google.protobuf.Timestamp
+	6,  // 7: teleport.lib.teleterm.v1.AccessRequest.session_ttl:type_name -> google.protobuf.Timestamp
+	2,  // 8: teleport.lib.teleterm.v1.AccessRequest.user_info:type_name -> teleport.lib.teleterm.v1.AccessRequestUserInfo
+	2,  // 9: teleport.lib.teleterm.v1.AccessRequest.suggested_reviewers_info:type_name -> teleport.lib.teleterm.v1.AccessRequestUserInfo
+	6,  // 10: teleport.lib.teleterm.v1.AccessRequestReview.created:type_name -> google.protobuf.Timestamp
+	6,  // 11: teleport.lib.teleterm.v1.AccessRequestReview.assume_start_time:type_name -> google.protobuf.Timestamp
+	2,  // 12: teleport.lib.teleterm.v1.AccessRequestReview.author_info:type_name -> teleport.lib.teleterm.v1.AccessRequestUserInfo
+	7,  // 13: teleport.lib.teleterm.v1.AccessRequestUserInfo.display:type_name -> teleport.lib.teleterm.v1.UserDisplay
+	3,  // 14: teleport.lib.teleterm.v1.Resource.id:type_name -> teleport.lib.teleterm.v1.ResourceID
+	4,  // 15: teleport.lib.teleterm.v1.Resource.details:type_name -> teleport.lib.teleterm.v1.ResourceDetails
+	8,  // 16: teleport.lib.teleterm.v1.Resource.constraints:type_name -> types.ResourceConstraints
+	17, // [17:17] is the sub-list for method output_type
+	17, // [17:17] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_access_request_proto_init() }
@@ -1004,13 +1174,14 @@ func file_teleport_lib_teleterm_v1_access_request_proto_init() {
 	if File_teleport_lib_teleterm_v1_access_request_proto != nil {
 		return
 	}
+	file_teleport_lib_teleterm_v1_cluster_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_access_request_proto_rawDesc), len(file_teleport_lib_teleterm_v1_access_request_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -31,6 +31,7 @@ import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
 import { ResourceConstraints } from "../../../legacy/types/resources_pb";
+import { UserDisplay } from "./cluster_pb";
 import { Timestamp } from "../../../../google/protobuf/timestamp_pb";
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequest
@@ -140,6 +141,18 @@ export interface AccessRequest {
      * @generated from protobuf field: repeated string reason_prompts = 20;
      */
     reasonPrompts: string[];
+    /**
+     * user_info holds the requester and the display values stored when the request was created.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.AccessRequestUserInfo user_info = 21;
+     */
+    userInfo?: AccessRequestUserInfo;
+    /**
+     * suggested_reviewers_info has one entry per suggested_reviewers name, in the same order.
+     *
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.AccessRequestUserInfo suggested_reviewers_info = 22;
+     */
+    suggestedReviewersInfo: AccessRequestUserInfo[];
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestReview
@@ -187,6 +200,31 @@ export interface AccessRequestReview {
      * @generated from protobuf field: google.protobuf.Timestamp assume_start_time = 7;
      */
     assumeStartTime?: Timestamp;
+    /**
+     * author_info holds the author and the display values stored when the review was submitted.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.AccessRequestUserInfo author_info = 8;
+     */
+    authorInfo?: AccessRequestUserInfo;
+}
+/**
+ * AccessRequestUserInfo pairs a username with the display values Auth stored for it.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestUserInfo
+ */
+export interface AccessRequestUserInfo {
+    /**
+     * username is the Teleport username.
+     *
+     * @generated from protobuf field: string username = 1;
+     */
+    username: string;
+    /**
+     * display holds the stored display values. Unset when none are stored.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.UserDisplay display = 2;
+     */
+    display?: UserDisplay;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.ResourceID
@@ -263,7 +301,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
             { no: 17, name: "request_ttl", kind: "message", T: () => Timestamp },
             { no: 18, name: "session_ttl", kind: "message", T: () => Timestamp },
             { no: 19, name: "reason_mode", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 20, name: "reason_prompts", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+            { no: 20, name: "reason_prompts", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 21, name: "user_info", kind: "message", T: () => AccessRequestUserInfo },
+            { no: 22, name: "suggested_reviewers_info", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AccessRequestUserInfo }
         ]);
     }
     create(value?: PartialMessage<AccessRequest>): AccessRequest {
@@ -281,6 +321,7 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         message.promotedAccessListTitle = "";
         message.reasonMode = "";
         message.reasonPrompts = [];
+        message.suggestedReviewersInfo = [];
         if (value !== undefined)
             reflectionMergePartial<AccessRequest>(this, message, value);
         return message;
@@ -346,6 +387,12 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
                     break;
                 case /* repeated string reason_prompts */ 20:
                     message.reasonPrompts.push(reader.string());
+                    break;
+                case /* teleport.lib.teleterm.v1.AccessRequestUserInfo user_info */ 21:
+                    message.userInfo = AccessRequestUserInfo.internalBinaryRead(reader, reader.uint32(), options, message.userInfo);
+                    break;
+                case /* repeated teleport.lib.teleterm.v1.AccessRequestUserInfo suggested_reviewers_info */ 22:
+                    message.suggestedReviewersInfo.push(AccessRequestUserInfo.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -416,6 +463,12 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         /* repeated string reason_prompts = 20; */
         for (let i = 0; i < message.reasonPrompts.length; i++)
             writer.tag(20, WireType.LengthDelimited).string(message.reasonPrompts[i]);
+        /* teleport.lib.teleterm.v1.AccessRequestUserInfo user_info = 21; */
+        if (message.userInfo)
+            AccessRequestUserInfo.internalBinaryWrite(message.userInfo, writer.tag(21, WireType.LengthDelimited).fork(), options).join();
+        /* repeated teleport.lib.teleterm.v1.AccessRequestUserInfo suggested_reviewers_info = 22; */
+        for (let i = 0; i < message.suggestedReviewersInfo.length; i++)
+            AccessRequestUserInfo.internalBinaryWrite(message.suggestedReviewersInfo[i], writer.tag(22, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -436,7 +489,8 @@ class AccessRequestReview$Type extends MessageType<AccessRequestReview> {
             { no: 4, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "created", kind: "message", T: () => Timestamp },
             { no: 6, name: "promoted_access_list_title", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "assume_start_time", kind: "message", T: () => Timestamp }
+            { no: 7, name: "assume_start_time", kind: "message", T: () => Timestamp },
+            { no: 8, name: "author_info", kind: "message", T: () => AccessRequestUserInfo }
         ]);
     }
     create(value?: PartialMessage<AccessRequestReview>): AccessRequestReview {
@@ -476,6 +530,9 @@ class AccessRequestReview$Type extends MessageType<AccessRequestReview> {
                 case /* google.protobuf.Timestamp assume_start_time */ 7:
                     message.assumeStartTime = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.assumeStartTime);
                     break;
+                case /* teleport.lib.teleterm.v1.AccessRequestUserInfo author_info */ 8:
+                    message.authorInfo = AccessRequestUserInfo.internalBinaryRead(reader, reader.uint32(), options, message.authorInfo);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -509,6 +566,9 @@ class AccessRequestReview$Type extends MessageType<AccessRequestReview> {
         /* google.protobuf.Timestamp assume_start_time = 7; */
         if (message.assumeStartTime)
             Timestamp.internalBinaryWrite(message.assumeStartTime, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.AccessRequestUserInfo author_info = 8; */
+        if (message.authorInfo)
+            AccessRequestUserInfo.internalBinaryWrite(message.authorInfo, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -519,6 +579,60 @@ class AccessRequestReview$Type extends MessageType<AccessRequestReview> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AccessRequestReview
  */
 export const AccessRequestReview = new AccessRequestReview$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessRequestUserInfo$Type extends MessageType<AccessRequestUserInfo> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.AccessRequestUserInfo", [
+            { no: 1, name: "username", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "display", kind: "message", T: () => UserDisplay }
+        ]);
+    }
+    create(value?: PartialMessage<AccessRequestUserInfo>): AccessRequestUserInfo {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.username = "";
+        if (value !== undefined)
+            reflectionMergePartial<AccessRequestUserInfo>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestUserInfo): AccessRequestUserInfo {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string username */ 1:
+                    message.username = reader.string();
+                    break;
+                case /* teleport.lib.teleterm.v1.UserDisplay display */ 2:
+                    message.display = UserDisplay.internalBinaryRead(reader, reader.uint32(), options, message.display);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessRequestUserInfo, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string username = 1; */
+        if (message.username !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.username);
+        /* teleport.lib.teleterm.v1.UserDisplay display = 2; */
+        if (message.display)
+            UserDisplay.internalBinaryWrite(message.display, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AccessRequestUserInfo
+ */
+export const AccessRequestUserInfo = new AccessRequestUserInfo$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResourceID$Type extends MessageType<ResourceID> {
     constructor() {
