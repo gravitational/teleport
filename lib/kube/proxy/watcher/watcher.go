@@ -542,6 +542,11 @@ func (w *ProxyKubeServerWatcher) WaitInitialization() error {
 		case <-ticker.C:
 			w.Logger.DebugContext(w.ctx, "ProxyKubeServerWatcher is not yet initialized.")
 		case <-w.ctx.Done():
+			// select picks randomly among ready cases.
+			// initC may also be closed here if the watcher was closed after initializing.
+			if w.IsInitialized() {
+				return nil
+			}
 			return trace.ConnectionProblem(nil, "Failed to initialize, context closing")
 		}
 	}
