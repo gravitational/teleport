@@ -98,7 +98,7 @@ A role matcher can include the following values:
 - A [Go regular expression](https://pkg.go.dev/regexp/syntax) inside a string
   that begins with `^` and ends with `$`. For example, if you define roles by
   AWS region, a role matcher could use the regular expression
-  `^db-writer-us-(east|west)-[0-9]+` to match the `db-writer-us-east-1` and
+  `^db-writer-us-(east|west)-[0-9]+$` to match the `db-writer-us-east-1` and
   `db-writer-us-west-2` roles.
 
 To add the values of `claims_to_roles` to the lists of role matchers, the Auth
