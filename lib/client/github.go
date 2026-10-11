@@ -55,6 +55,11 @@ func (tc *TeleportClient) ReissueWithGitHubOAuth(ctx context.Context, githubOrg 
 		return trace.Wrap(err)
 	}
 
+	// The backend may omit the certs if the GitHub identity does not change.
+	if len(resp.Cert) == 0 && len(resp.TLSCert) == 0 {
+		return nil
+	}
+
 	// Update the key ring with the reissued certs.
 	keyRing.ClusterName = tc.SiteName
 	keyRing.Cert = resp.Cert

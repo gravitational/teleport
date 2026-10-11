@@ -126,6 +126,7 @@ const (
 //    │   ├── foo                      --> SSH Private Key for user "foo"
 //    │   ├── foo.pub                  --> SSH Public Key
 //    │   ├── foo-encryption.key       --> User-session-owned encryption key
+//    │   ├── foo-cred.json            --> Cached user external credentials of the session
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
 //    │   ├── kube_credentials.lock    --> Kube credential lockfile, used to prevent excessive relogin attempts
 //    │   ├── proxy_ssh_retryer.lock   --> Proxy SSH retryer lockfile, used to synchronize relogin in 'tsh proxy ssh'
@@ -584,4 +585,12 @@ func TrimKeyPathSuffix(path string) string {
 // <baseDir>/keys/<proxy>/<username>-encryption.key
 func UserEncryptionKeyPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+"-encryption.key")
+}
+
+// UserExternalCredentialPath returns the path to the cached user external credentials
+// of the user's session for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-cred.json
+func UserExternalCredentialPath(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+"-cred.json")
 }

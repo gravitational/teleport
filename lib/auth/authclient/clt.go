@@ -68,6 +68,7 @@ import (
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -2463,4 +2464,8 @@ type ClientI interface {
 
 	// LLMUsageClient returns a client for the LLM usage service.
 	LLMUsageClient() *client.LLMUsageClient
+
+	// UserExternalCredentialClient returns a client for the user external
+	// credential service.
+	UserExternalCredentialClient() usercredpb.UserExternalCredentialServiceClient
 }

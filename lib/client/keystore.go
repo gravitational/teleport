@@ -542,6 +542,10 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 		deleteErrs = append(deleteErrs, trace.Wrap(err, "failed to remove encryption key file"))
 	}
 
+	if err := deleteUserExternalCredentialsCache(context.Background(), keypaths.UserExternalCredentialPath(fs.KeyDir, idx.ProxyHost, idx.Username)); err != nil {
+		deleteErrs = append(deleteErrs, trace.Wrap(err, "failed to remove cached user credentials file"))
+	}
+
 	// Access Graph cert may not exist — it's only persisted when minted.
 	if err := utils.RemoveSecure(fs.accessGraphTLSCertPath(idx)); err != nil && !errors.Is(err, iofs.ErrNotExist) {
 		deleteErrs = append(deleteErrs, trace.Wrap(err, "failed to remove Access Graph TLS cert file"))

@@ -45,3 +45,13 @@ func MakeUserEncryptionKeyID(pubKeyDER []byte) string {
 	// Unfortunately stdlib uuid does not support UUID v5 yet.
 	return uuid.NewSHA1(uuid.NameSpaceOID, pubKeyDER).String()
 }
+
+// FindUserExternalCredential returns the credential for the given resource.
+func FindUserExternalCredential(resource *userexternalcredentialsv1.UserExternalCredentials, resourceKind, resourceName string) (*userexternalcredentialsv1.Credential, bool) {
+	for _, credential := range resource.GetSpec().GetCredentials() {
+		if credential.GetResourceKind() == resourceKind && credential.GetResourceName() == resourceName {
+			return credential, true
+		}
+	}
+	return nil, false
+}

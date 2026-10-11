@@ -20,7 +20,10 @@ package common
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"io"
+	"net/url"
 	"os/exec"
 	"strings"
 
@@ -28,7 +31,15 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type gitCommands struct {
@@ -135,4 +146,187 @@ You can install it by following the instructions at https://git-scm.com/book/en/
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	return trace.Wrap(cf.RunCommand(cmd))
+}
+
+// gitContext holds the state shared by the steps of a git command. It is not
+// designed for concurrent use; callers that need concurrency are expected to
+// synchronize outside of it.
+type gitContext struct {
+	*CLIConf
+	tc            *client.TeleportClient
+	clusterClient *client.ClusterClient
+	gitServer     types.Server
+
+	// doOAuthFlow performs the GitHub OAuth flow. Overridden in tests.
+	// TODO(greedy52) support github oauth flow with git server
+	doOAuthFlow func(cf *CLIConf, org string) error
+}
+
+// newGitContextForGitHubOrg returns a new gitContext with the GitHub git server
+// of the organization, or the only GitHub git server if org is empty. close
+// must be called when done.
+func newGitContextForGitHubOrg(cf *CLIConf, org string) (*gitContext, error) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gitCtx := &gitContext{
+		CLIConf:     cf,
+		tc:          tc,
+		doOAuthFlow: doGitHubOAuthFlow,
+	}
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		gitServer, err := findGitHubServer(cf.Context, clusterClient.AuthClient, org)
+		if err != nil {
+			_ = clusterClient.Close()
+			return trace.Wrap(err)
+		}
+		gitCtx.clusterClient = clusterClient
+		gitCtx.gitServer = gitServer
+		return nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return gitCtx, nil
+}
+
+func (c *gitContext) close() error {
+	return trace.Wrap(c.clusterClient.Close())
+}
+
+func (c *gitContext) userExternalCredentialsCachePath() string {
+	return keypaths.UserExternalCredentialPath(profile.FullProfilePath(c.HomePath), c.tc.WebProxyHost(), c.tc.Username)
+}
+
+// findGitHubServer finds the GitHub git server of the GitHub organization, or
+// the only GitHub git server if no organization is specified.
+func findGitHubServer(ctx context.Context, clt apiclient.ListUnifiedResourcesClient, inputOrg string) (types.Server, error) {
+	var labels map[string]string
+	if inputOrg != "" {
+		labels = map[string]string{types.GitHubOrgLabel: inputOrg}
+	}
+	resources, err := apiclient.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
+		Kinds:  []string{types.KindGitServer},
+		SortBy: types.SortBy{Field: types.ResourceMetadataName},
+		Labels: labels,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := types.EnrichedResources(resources).ToResourcesWithLabels().AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	checkGitHubServer := func(server types.Server) (types.Server, error) {
+		if server.GetGitHub() == nil {
+			return nil, trace.BadParameter("git server %q is not a GitHub server", server.GetName())
+		}
+		return server, nil
+	}
+
+	if inputOrg != "" {
+		if len(servers) == 0 {
+			return nil, trace.NotFound("GitHub organization %q not found", inputOrg)
+		}
+		// Multiple git servers for same org. Just pick one for now.
+		return checkGitHubServer(servers[0])
+	}
+
+	if len(servers) == 1 {
+		return checkGitHubServer(servers[0])
+	}
+	// Zero or more than one git servers found, ask user to input --github-org.
+	return nil, trace.BadParameter("please specify a GitHub organization with --github-org, run 'tsh git ls' to see the available Git servers")
+}
+
+// checkGitOverHTTPS returns an error if the git server or the current session
+// does not support Git over HTTPS.
+func (c *gitContext) checkGitOverHTTPS() error {
+	if !types.IsGitProtocolAllowed(c.gitServer.GetGitHub().AllowProtocols, types.GitProtocolHTTPS) {
+		return trace.BadParameter("Git over HTTPS is not allowed for GitHub organization %q, contact your Teleport administrator", c.gitServer.GetGitHub().Organization)
+	}
+	profile, err := c.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if profile.EncryptionKeyID == "" {
+		return trace.BadParameter("the current session does not support Git over HTTPS. Run 'tsh login' again, or contact your Teleport administrator if the problem persists.")
+	}
+	return nil
+}
+
+func (c *gitContext) getUserGitCredentialFromBackend() (*usercredpb.Credential, error) {
+	logger.DebugContext(c.Context, "Getting GitHub credentials from Auth", "git_server", c.gitServer.GetName())
+	resp, err := c.clusterClient.AuthClient.UserExternalCredentialClient().GetUserExternalCredentials(c.Context, &usercredpb.GetUserExternalCredentialsRequest{})
+	if trace.IsNotImplemented(err) {
+		return nil, trace.BadParameter("the Teleport cluster does not support Git over HTTPS yet, contact your Teleport administrator")
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userCreds := resp.GetCredentials()
+	if err := client.SaveUserExternalCredentialsCache(c.Context, c.userExternalCredentialsCachePath(), userCreds); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if gitCred, ok := services.FindUserExternalCredential(userCreds, c.gitServer.GetKind(), c.gitServer.GetName()); ok {
+		return gitCred, nil
+	}
+	return nil, trace.NotFound("credentials for %s %s not found", c.gitServer.GetKind(), c.gitServer.GetName())
+}
+
+func (c *gitContext) getUserGitCredentialFromOAuth() (*usercredpb.Credential, error) {
+	logger.DebugContext(c.Context, "Getting GitHub credentials from GitHub OAuth flow", "git_server", c.gitServer.GetName())
+	github := c.gitServer.GetGitHub()
+	// Without a browser on this machine, the user authorizes on the web UI
+	// from any browser.
+	//
+	// TODO(greedy52) poll/watch for the credentials instead of asking the user
+	// to run the command again.
+	if !sso.OpenBrowserPathAvailable(c.Browser, c.LookPath) {
+		nextStep := "run this command again"
+		// Authorizing on the web UI adds the GitHub identity to the user but not
+		// to the current cert, which Git over SSH needs.
+		if types.IsGitProtocolAllowed(github.AllowProtocols, types.GitProtocolSSH) {
+			if profile, err := c.ProfileStatus(); err == nil && profile.GitHubIdentity == nil {
+				nextStep = "run 'tsh login --force' and this command again"
+			}
+		}
+		return nil, trace.NotFound("GitHub credentials for organization %q not found. "+
+			"Open this link in a browser logged in to Teleport as %s, then %s:\n\n  %s\n",
+			github.Organization, c.tc.Username, nextStep, c.gitServerAuthorizeOnWebURL())
+	}
+	fmt.Fprintf(c.Stderr(), "Authorizing GitHub organization %q for Git over HTTPS.\n", github.Organization)
+	if err := c.doOAuthFlow(c.CLIConf, github.Organization); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.getUserGitCredentialFromBackend()
+}
+
+func (c *gitContext) getUserGitCredentialWithFallbacks(getFuncs ...func() (*usercredpb.Credential, error)) (*usercredpb.Credential, error) {
+	var notFoundErr error = trace.NotFound("credentials for %s %s not found", c.gitServer.GetKind(), c.gitServer.GetName())
+	for _, getFunc := range getFuncs {
+		cred, err := getFunc()
+		switch {
+		case trace.IsNotFound(err):
+			notFoundErr = err
+		case err != nil:
+			return nil, trace.Wrap(err)
+		default:
+			return cred, nil
+		}
+	}
+	return nil, trace.Wrap(notFoundErr)
+}
+
+func (c *gitContext) gitServerAuthorizeOnWebURL() string {
+	authorizeURL := url.URL{
+		Scheme: "https",
+		Host:   c.tc.WebProxyAddr,
+		Path:   "/web/gitservers/" + url.PathEscape(c.gitServer.GetName()) + "/authorize",
+	}
+	return authorizeURL.String()
 }
