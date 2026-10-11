@@ -2843,6 +2843,11 @@ message ValidateGithubAuthCallbackResponse {
     // ClientRedirectURL is the URL the client will be redirected to after
     // successful auth.
     string ClientRedirectURL = 6;
+    // SSOTestFlow indicates this is a test flow.
+    bool SSOTestFlow = 7;
+    // AuthenticatedUser is the Teleport user who initiated the GitHub
+    // integration OAuth flow.
+    string AuthenticatedUser = 8;
   }
 
   // Username is the name of the authenticated Teleport user.

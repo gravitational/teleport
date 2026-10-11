@@ -2727,6 +2727,19 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		return sso.LoginFailedBadCallbackRedirectURL
 	}
 
+	// Suggest callback URL migration when the test flow hits the old
+	// unauthenticated endpoint for GitHub integration.
+	if response.Req.SSOTestFlow && response.Req.AuthenticatedUser != "" {
+		migrationErr := trace.BadParameter(
+			"the GitHub OAuth app is using the unauthenticated callback URL (/v1/webapi/github/callback). " +
+				"Migrate to the authenticated callback URL (/web/github/integration/callback). " +
+				"See https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/github-integration/#migrate-to-the-authenticated-callback-url")
+		if redURL, errEnc := RedirectURLWithError(response.Req.ClientRedirectURL, migrationErr); errEnc == nil {
+			return redURL.String()
+		}
+		return sso.LoginFailedRedirectURL
+	}
+
 	// if we created web session, set session cookie and redirect to original url
 	if response.Req.CreateWebSession {
 		logger.InfoContext(r.Context(), "Redirecting to web browser")

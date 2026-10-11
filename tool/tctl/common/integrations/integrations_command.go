@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -44,6 +45,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.testCmd = integrationsCmd.Command("test", "Verify an integration.")
 	c.testCmd.Arg("integration", "Name of the integration to test. Use `tctl get integrations` to list integrations.").Required().StringVar(&c.testArgs.integration)
 	c.testCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.testArgs.format, teleport.Text, teleport.JSON, teleport.YAML)
+	c.testCmd.Flag("browser", "Set to 'none' to suppress browser opening for tests requiring a browser like GitHub OAuth.").StringVar(&c.testArgs.browser)
 
 	awsicCmd := integrationsCmd.Command("awsic", "View AWS Identity Center resources synced with the cluster. "+
 		"To configure the AWS Identity Center integration itself, use `tctl plugins install awsic` or `tctl plugins edit awsic`.")
@@ -93,6 +95,19 @@ func (c *Command) test(ctx context.Context, client testClient) error {
 		if err != nil {
 			return trace.Wrap(err, "testing AWS OIDC integration")
 		}
+	case types.IntegrationSubKindGitHub:
+		ceremony, err := c.newGitHubSSOCeremony(ctx, client.GitServerClient(), client.ProxyGetter(), integration)
+		if err != nil {
+			return trace.Wrap(err, "setting up GitHub SSO ceremony")
+		}
+		output, err = c.testGitHub(ctx, testGitHubConfig{
+			diagGetter:  client.SSODiagGetter(),
+			integration: integration,
+			ceremony:    ceremony,
+		})
+		if err != nil {
+			return trace.Wrap(err, "testing GitHub integration")
+		}
 	default:
 		return trace.BadParameter("unsupported integration subkind: %s", integration.GetSubKind())
 	}
@@ -126,11 +141,19 @@ type Command struct {
 type testArgs struct {
 	integration string
 	format      string
+	browser     string
+}
+
+func (a testArgs) isTextFormat() bool {
+	return a.format == "" || a.format == teleport.Text
 }
 
 type testClient interface {
 	IntegrationsClient() integrationsFetcher
 	AWSOIDCClient() awsOIDCPinger
+	GitServerClient() gitHubAuthRequestCreator
+	ProxyGetter() services.ProxyGetter
+	SSODiagGetter() ssoDiagGetter
 }
 
 type integrationsFetcher interface {
@@ -147,6 +170,18 @@ func (a testClientAdapter) IntegrationsClient() integrationsFetcher {
 
 func (a testClientAdapter) AWSOIDCClient() awsOIDCPinger {
 	return a.client.IntegrationAWSOIDCClient()
+}
+
+func (a testClientAdapter) GitServerClient() gitHubAuthRequestCreator {
+	return a.client.GitServerClient()
+}
+
+func (a testClientAdapter) ProxyGetter() services.ProxyGetter {
+	return a.client
+}
+
+func (a testClientAdapter) SSODiagGetter() ssoDiagGetter {
+	return a.client
 }
 
 // bold wraps the given text in an ANSI escape to bold it

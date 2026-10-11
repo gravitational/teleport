@@ -428,6 +428,8 @@ func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubA
 		CSRFToken:         req.CSRFToken,
 		CreateWebSession:  req.CreateWebSession,
 		ClientRedirectURL: req.ClientRedirectURL,
+		SSOTestFlow:       req.SSOTestFlow,
+		AuthenticatedUser: req.AuthenticatedUser,
 	}
 }
 
@@ -983,6 +985,22 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	// In test flow, return early without issuing certificates or saving the
+	// GitHub identity for the requestor. Record diagnostic info for the test
+	// output.
+	if req.SSOTestFlow {
+		diagCtx.Info.GithubClaims = &types.GithubClaims{
+			Username: githubUser.Login,
+			UserID:   githubUser.getIDStr(),
+		}
+		diagCtx.Info.Success = true
+		return &authclient.GithubAuthResponse{
+			Req:      GithubAuthRequestFromProto(req),
+			Identity: githubUser.makeExternalIdentity(req.ConnectorID),
+			Username: req.AuthenticatedUser,
+		}, nil
 	}
 
 	// Attach the new (but secondary) identity.

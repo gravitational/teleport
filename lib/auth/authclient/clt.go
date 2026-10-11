@@ -1217,6 +1217,11 @@ type GithubAuthRequest struct {
 	// ClientRedirectURL is the URL where client will be redirected after
 	// successful auth.
 	ClientRedirectURL string `json:"client_redirect_url"`
+	// SSOTestFlow indicates this is a test flow.
+	SSOTestFlow bool `json:"sso_test_flow,omitempty"`
+	// AuthenticatedUser is the Teleport user who initiated the GitHub
+	// integration OAuth flow.
+	AuthenticatedUser string `json:"authenticated_user,omitempty"`
 }
 
 // ValidateGithubAuthCallbackRequestToProto converts a GitHub OAuth2 callback
@@ -1255,6 +1260,8 @@ func (r *GithubAuthResponse) ToProto() (*proto.ValidateGithubAuthCallbackRespons
 			TLSPubKey:         r.Req.TLSPubKey,
 			CreateWebSession:  r.Req.CreateWebSession,
 			ClientRedirectURL: r.Req.ClientRedirectURL,
+			SSOTestFlow:       r.Req.SSOTestFlow,
+			AuthenticatedUser: r.Req.AuthenticatedUser,
 		},
 		ClientOptions: &proto.LoginClientOptions{
 			DefaultRelayAddr: r.ClientOptions.DefaultRelayAddr,
@@ -1300,6 +1307,8 @@ func GithubAuthResponseFromProto(resp *proto.ValidateGithubAuthCallbackResponse)
 			TLSPubKey:         resp.Req.TLSPubKey,
 			CreateWebSession:  resp.Req.CreateWebSession,
 			ClientRedirectURL: resp.Req.ClientRedirectURL,
+			SSOTestFlow:       resp.Req.SSOTestFlow,
+			AuthenticatedUser: resp.Req.AuthenticatedUser,
 		}
 	}
 	if resp.ClientOptions != nil {

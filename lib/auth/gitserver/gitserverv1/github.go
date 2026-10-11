@@ -20,6 +20,7 @@ package gitserverv1
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -33,11 +34,18 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 	if !in.HasRequest() {
 		return nil, trace.BadParameter("missing github auth request")
 	}
-	if in.GetRequest().SSOTestFlow {
-		return nil, trace.BadParameter("sso test flow is not supported when creating GitHub auth request for authenticated user")
-	}
 	if in.GetRequest().CreateWebSession {
 		return nil, trace.BadParameter("CreateWebSession is not supported when creating GitHub auth request for authenticated user")
+	}
+	if in.GetRequest().SSOTestFlow {
+		return s.createGitHubAuthRequestForTest(ctx, in)
+	}
+	return s.createGitHubAuthRequestForUser(ctx, in)
+}
+
+func (s *Service) createGitHubAuthRequestForUser(ctx context.Context, in *pb.CreateGitHubAuthRequestRequest) (*types.GithubAuthRequest, error) {
+	if in.GetRequest().Integration != "" {
+		return nil, trace.BadParameter("integration must not be set")
 	}
 
 	authCtx, gitServer, err := s.authAndFindServer(ctx, in.GetRequest().ConnectorID, in.GetOrganization())
@@ -51,18 +59,60 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 		"org", gitServer.GetGitHub().Organization,
 		"integration", gitServer.GetGitHub().Integration,
 	)
-
 	// ConnectorID is the git server name for the authenticated user flow, so
 	// the callback knows which git server the user authorized.
-	in.GetRequest().ConnectorID = gitServer.GetName()
-	in.GetRequest().Integration = gitServer.GetGitHub().Integration
-	in.GetRequest().AuthenticatedUser = authCtx.User.GetName()
-	in.GetRequest().CertTTL = authCtx.Identity.GetIdentity().Expires.Sub(s.cfg.clock.Now())
-	in.GetRequest().ClientLoginIP = authCtx.Identity.GetIdentity().LoginIP
+	return s.createGitHubAuthRequestForIntegration(ctx, authCtx, in.GetRequest(), gitServer.GetName(), gitServer.GetGitHub().Integration)
+}
 
-	// More params of in.Request will get updated and checked by
+func (s *Service) createGitHubAuthRequestForTest(ctx context.Context, in *pb.CreateGitHubAuthRequestRequest) (*types.GithubAuthRequest, error) {
+	integration := in.GetRequest().Integration
+	if integration == "" {
+		return nil, trace.BadParameter("integration name is required for test flow")
+	}
+
+	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := s.cfg.Backend.GetIntegration(ctx, integration)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spec := ig.GetGitHubIntegrationSpec()
+	if spec == nil {
+		return nil, trace.BadParameter("integration %q is not a GitHub integration", integration)
+	}
+	if !strings.HasSuffix(spec.OAuthCallbackURL, types.IntegrationGitHubOAuthCallbackPath) {
+		callbackURL := "https://" + s.cfg.ProxyPublicAddrGetter(ctx) + types.IntegrationGitHubOAuthCallbackPath
+		return nil, trace.BadParameter("integration %q uses the legacy OAuth callback URL. "+
+			"Update the callback URL of the GitHub app to %q "+
+			"and set oauth_callback_url to the same value on the integration resource (tctl edit integration/%s).",
+			integration, callbackURL, integration)
+	}
+
+	s.cfg.Log.DebugContext(ctx, "Creating GitHub auth request for test flow.",
+		"user", authCtx.User.GetName(),
+		"org", spec.Organization,
+		"integration", integration,
+	)
+	// ConnectorID is not meaningful for the test flow.
+	return s.createGitHubAuthRequestForIntegration(ctx, authCtx, in.GetRequest(), integration, integration)
+}
+
+func (s *Service) createGitHubAuthRequestForIntegration(ctx context.Context, authCtx *authz.Context, req *types.GithubAuthRequest, connectorID, integration string) (*types.GithubAuthRequest, error) {
+	req.ConnectorID = connectorID
+	req.Integration = integration
+	req.AuthenticatedUser = authCtx.User.GetName()
+	req.CertTTL = authCtx.Identity.GetIdentity().Expires.Sub(s.cfg.clock.Now())
+	req.ClientLoginIP = authCtx.Identity.GetIdentity().LoginIP
+
+	// More params of req will get updated and checked by
 	// s.cfg.GitHubAuthRequestCreator.
-	request, err := s.cfg.GitHubAuthRequestCreator(ctx, *in.GetRequest())
+	request, err := s.cfg.GitHubAuthRequestCreator(ctx, *req)
 	return request, trace.Wrap(err)
 }
 
