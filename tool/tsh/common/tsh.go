@@ -1643,6 +1643,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
 
 	gitCmd := newGitCommands(app)
+	ghCmd := newGHCommand(app)
 	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
@@ -2115,6 +2116,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case ghCmd.FullCommand():
+		err = ghCmd.run(&cf)
 	case beamsCmd.ls.FullCommand():
 		err = beamsCmd.ls.run(&cf)
 	case beamsCmd.add.FullCommand():

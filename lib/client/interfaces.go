@@ -771,3 +771,13 @@ func equalEncryptionKey(a, b *ecdsa.PrivateKey) bool {
 	}
 	return a.Equal(b)
 }
+
+// GitTLSCert returns the tls.Certificate for authentication against a named git
+// server.
+func (k *KeyRing) GitTLSCert(gitServerName string) (tls.Certificate, error) {
+	cred, ok := k.GitTLSCredentials[gitServerName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("TLS certificate for git server %q not found", gitServerName)
+	}
+	return cred.TLSCertificate()
+}

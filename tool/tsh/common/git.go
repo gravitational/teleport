@@ -21,11 +21,14 @@ package common
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/url"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -38,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/credentialencryption"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -260,6 +264,88 @@ func (c *gitContext) checkGitOverHTTPS() error {
 	return nil
 }
 
+// getUserDecryptedAccessToken returns the GitHub access token of the session
+// for the git server, decrypted with the session's encryption key.
+func (c *gitContext) getUserDecryptedAccessToken() (string, error) {
+	keyRing, err := c.tc.LocalAgent().GetKeyRing(c.tc.SiteName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if keyRing.EncryptionPrivateKey == nil {
+		return "", trace.BadParameter("the current session does not support Git over HTTPS. Run 'tsh login' again, or contact your Teleport administrator if the problem persists.")
+	}
+
+	credential, err := c.getUserGitCredentialWithFallbacks(
+		c.getUserGitCredentialFromCache,
+		c.getUserGitCredentialFromBackendWithRefresh(keyRing.EncryptionPrivateKey),
+		c.getUserGitCredentialFromOAuth,
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	authEncrypted, err := credentialencryption.Decrypt(keyRing.EncryptionPrivateKey, credential.GetOauth().GetAccessTokenBlob())
+	if err != nil {
+		return "", trace.Wrap(err, "decrypting GitHub credentials")
+	}
+	logger.DebugContext(c.Context, "Loaded GitHub credentials for git HTTP proxy",
+		"git_server", c.gitServer.GetName(),
+		"access_token_expiry", credential.GetOauth().GetAccessTokenExpiry().AsTime(),
+	)
+	return base64.StdEncoding.EncodeToString(authEncrypted), nil
+}
+
+func (c *gitContext) getUserGitCredentialFromBackendWithRefresh(encryptionKey *ecdsa.PrivateKey) func() (*usercredpb.Credential, error) {
+	return func() (*usercredpb.Credential, error) {
+		latest, err := c.getUserGitCredentialFromBackend()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !isGitCredentialExpiring(latest) {
+			return latest, nil
+		}
+
+		logger.DebugContext(c.Context, "Refreshing GitHub credentials",
+			"git_server", c.gitServer.GetName(),
+			"access_token_expiry", latest.GetOauth().GetAccessTokenExpiry().AsTime(),
+		)
+		if len(latest.GetOauth().GetRefreshTokenBlob()) == 0 {
+			return nil, trace.NotFound("GitHub credentials for organization %[1]q cannot be refreshed, run 'tsh git login --github-org %[1]s --force'",
+				c.gitServer.GetGitHub().Organization)
+		}
+		authEncrypted, err := credentialencryption.Decrypt(encryptionKey, latest.GetOauth().GetRefreshTokenBlob())
+		if err != nil {
+			return nil, trace.Wrap(err, "decrypting GitHub refresh token")
+		}
+		if _, err := c.clusterClient.AuthClient.UserExternalCredentialClient().RefreshOAuthTokens(c.Context, usercredpb.RefreshOAuthTokensRequest_builder{
+			AuthEncryptedRefreshToken: authEncrypted,
+		}.Build()); err != nil {
+			return nil, trace.Wrap(err, "refreshing GitHub credentials")
+		}
+		// Fetch the user credentials again to update the local cache.
+		return c.getUserGitCredentialFromBackend()
+	}
+}
+
+func (c *gitContext) getUserGitCredentialFromCache() (*usercredpb.Credential, error) {
+	logger.DebugContext(c.Context, "Getting GitHub credentials from local cache", "git_server", c.gitServer.GetName())
+	profile, err := c.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userCreds, err := client.LoadUserExternalCredentialsCache(c.Context, c.userExternalCredentialsCachePath(), profile.EncryptionKeyID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gitCred, ok := services.FindUserExternalCredential(userCreds, c.gitServer.GetKind(), c.gitServer.GetName())
+	if !ok {
+		return nil, trace.NotFound("credentials for %s %s not found", c.gitServer.GetKind(), c.gitServer.GetName())
+	}
+	if isGitCredentialExpiring(gitCred) {
+		return nil, trace.NotFound("cached credentials for %s %s are expiring", c.gitServer.GetKind(), c.gitServer.GetName())
+	}
+	return gitCred, nil
+}
+
 func (c *gitContext) getUserGitCredentialFromBackend() (*usercredpb.Credential, error) {
 	logger.DebugContext(c.Context, "Getting GitHub credentials from Auth", "git_server", c.gitServer.GetName())
 	resp, err := c.clusterClient.AuthClient.UserExternalCredentialClient().GetUserExternalCredentials(c.Context, &usercredpb.GetUserExternalCredentialsRequest{})
@@ -320,6 +406,14 @@ func (c *gitContext) getUserGitCredentialWithFallbacks(getFuncs ...func() (*user
 		}
 	}
 	return nil, trace.Wrap(notFoundErr)
+}
+
+// isGitCredentialExpiring returns true if the access token expires within 30
+// seconds. Auth refreshes within a longer window, so a local clock slightly
+// ahead of Auth still gets the token refreshed.
+func isGitCredentialExpiring(credential *usercredpb.Credential) bool {
+	oauth := credential.GetOauth()
+	return oauth.HasAccessTokenExpiry() && time.Until(oauth.GetAccessTokenExpiry().AsTime()) < 30*time.Second
 }
 
 func (c *gitContext) gitServerAuthorizeOnWebURL() string {

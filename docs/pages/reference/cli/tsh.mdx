@@ -745,6 +745,28 @@ Arguments:
 |---|---|---|
 |command|*no default* (optional)|`gcloud` command and subcommands arguments.|
 
+## tsh gh
+
+Run gh CLI commands through Teleport.
+
+Usage:
+
+```code
+$ tsh gh [<flags>] [<args>...]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--github-org`|*no default*|GitHub organization. Required when more than one GitHub organization is available.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|args|*no default* (optional)|Arguments for the gh CLI, after '--'.|
+
 ## tsh git clone
 
 Clone a Git repository.
