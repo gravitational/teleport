@@ -103,6 +103,7 @@ type Services struct {
 	services.PendingCSRRequestService
 	services.EnrollPairing
 	services.LLMEndpointQuotaService
+	services.OAuthProxyAuthRequests
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.

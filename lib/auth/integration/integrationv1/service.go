@@ -97,6 +97,7 @@ type Backend interface {
 	services.GitServers
 	services.DiscoveryConfigs
 	services.Presence
+	services.OAuthProxyAuthRequests
 }
 
 // ServiceConfig holds configuration options for

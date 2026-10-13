@@ -272,6 +272,9 @@ type InitConfig struct {
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
+	// OAuthProxyAuthRequests is a service that manages in-flight OAuth Proxy auth requests.
+	OAuthProxyAuthRequests services.OAuthProxyAuthRequests
+
 	// UserTasks is a service that manages UserTasks.
 	UserTasks services.UserTasks
 

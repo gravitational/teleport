@@ -45,6 +45,9 @@ const (
 	// PurposeGitHubOAuth is the label value that indicates the static
 	// credentials contains the GitHub OAuth ID and secret.
 	PurposeGitHubOAuth = "github-oauth"
+	// PurposeOAuthProxyClient is the label value that indicates
+	// the static credentials contain the client secret for OAuth Proxy.
+	PurposeOAuthProxyClient = "oauth-proxy"
 )
 
 // NewRef creates a new PluginStaticCredentialsRef that is saved along with the
