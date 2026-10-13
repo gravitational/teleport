@@ -35,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	clientmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -73,7 +75,8 @@ func NewCertChecker(certIssuer CertIssuer, clock clockwork.Clock) *CertChecker {
 type CertCheckerOption func(*certCheckerOptions)
 
 type certCheckerOptions struct {
-	ttl time.Duration
+	ttl         time.Duration
+	reusableMFA *clientmfa.ReusableMFA
 }
 
 func applyOptions(opts ...CertCheckerOption) certCheckerOptions {
@@ -91,6 +94,13 @@ func WithTTL(ttl time.Duration) CertCheckerOption {
 	}
 }
 
+// WithReusableMFA sets the resuableMFA option
+func WithReusableMFA(reusableMFA *clientmfa.ReusableMFA) CertCheckerOption {
+	return func(options *certCheckerOptions) {
+		options.reusableMFA = reusableMFA
+	}
+}
+
 // NewDBCertChecker creates a new CertChecker for the given database.
 func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock, opts ...CertCheckerOption) *CertChecker {
 	opt := applyOptions(opts...)
@@ -105,9 +115,10 @@ func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock c
 func NewAppCertChecker(tc *TeleportClient, appRoute proto.RouteToApp, clock clockwork.Clock, opts ...CertCheckerOption) *CertChecker {
 	opt := applyOptions(opts...)
 	return NewCertChecker(&AppCertIssuer{
-		Client:     tc,
-		RouteToApp: appRoute,
-		TTL:        opt.ttl,
+		Client:      tc,
+		RouteToApp:  appRoute,
+		TTL:         opt.ttl,
+		ReusableMFA: opt.reusableMFA,
 	}, clock)
 }
 
@@ -270,11 +281,21 @@ type AppCertIssuer struct {
 	// remains valid. It's bounded by the `max_session_ttl` or `mfa_verification_interval`
 	// if MFA is required.
 	TTL time.Duration
+	// ReusableMFA coordinates sharing MFA responses among multiple app cert issuers in
+	// a single local proxy invocation
+	ReusableMFA *clientmfa.ReusableMFA
 }
 
 func (c *AppCertIssuer) CheckCert(cert *x509.Certificate) error {
 	// appCertIssuer does not perform any additional certificate checks.
 	return nil
+}
+
+type appCertClient interface {
+	IssueUserCertsWithMFA(context.Context, ReissueParams) (*IssueUserCertsWithMFAResult, error)
+	ConnectToCluster(ctx context.Context, clusterName string) (authclient.ClientI, error)
+	MFARequired(context.Context, dialAuthClientFunc, ReissueParams) (bool, authclient.ClientI, func() error, error)
+	withRootAuthClient(authclient.ClientI) *ClusterClient
 }
 
 func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
@@ -299,8 +320,9 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer clusterClient.Close()
 
-		result, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
+		result, err := c.issueMFAGatedCert(ctx, clusterClient, appCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -324,6 +346,46 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	return appCert, nil
+}
+
+func (c *AppCertIssuer) issueMFAGatedCert(ctx context.Context, client appCertClient, params ReissueParams) (*IssueUserCertsWithMFAResult, error) {
+	var result *IssueUserCertsWithMFAResult
+	var err error
+	if c.ReusableMFA == nil {
+		result, err = client.IssueUserCertsWithMFA(ctx, params)
+	} else {
+		mfaRequired, rootAuthClient, releaseRootAuthClient, checkErr := client.MFARequired(ctx, client.ConnectToCluster, params)
+		if checkErr != nil {
+			return nil, trace.Wrap(checkErr)
+		}
+		defer releaseRootAuthClient()
+		if rootAuthClient != nil {
+			client = client.withRootAuthClient(rootAuthClient)
+		}
+
+		params.MFACheck = &proto.IsMFARequiredResponse{Required: mfaRequired}
+
+		if !mfaRequired {
+			result, err = client.IssueUserCertsWithMFA(ctx, params)
+		} else {
+			err = c.ReusableMFA.Issue(ctx, func(ctx context.Context, mfaParams clientmfa.IssueParams) error {
+				params.RequesterName = mfaParams.RequesterName
+				params.ReusableMFAResponse = mfaParams.ReusableMFAResponse
+				params.FailOnExpiredReusableMFAResponse = mfaParams.FailOnExpiredReusableMFAResponse
+				var err error
+				result, err = client.IssueUserCertsWithMFA(ctx, params)
+				if err == nil && result.ReusableMFAResponse != nil {
+					c.ReusableMFA.Capture(result.ReusableMFAResponse)
+				}
+				return trace.Wrap(err)
+			})
+		}
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return result, nil
 }
 
 // LocalCertGenerator is a TLS Certificate generator used to inject

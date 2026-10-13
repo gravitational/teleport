@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/aws/awsconfigfile"
 	"github.com/gravitational/teleport/lib/client"
+	clientmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -284,6 +285,7 @@ type multiplexedAWSSession struct {
 	sharedArtifacts *awsSharedSessionArtifacts
 
 	localHTTPProxy *localHTTPProxy
+	mfa            *clientmfa.ReusableMFA
 }
 
 func newAWSProxyRoute(name scopes.QualifiedName, route proto.RouteToApp, profile string) (awsProxyRoute, error) {
@@ -426,6 +428,7 @@ func newMultiplexedAWSProxySession(cf *CLIConf) (*multiplexedAWSSession, error) 
 		profile:         profile,
 		routes:          routes,
 		sharedArtifacts: newAWSSharedSessionArtifacts(awsDir),
+		mfa:             clientmfa.NewReusableMFA(proto.UserCertsRequest_TSH_APP_LOCAL_PROXY_MULTI, proto.UserCertsRequest_TSH_APP_LOCAL_PROXY),
 	}, nil
 }
 
@@ -495,7 +498,13 @@ func (m *multiplexedAWSSession) buildMultiplexedAWSSessionMiddleware(ctx context
 		getClientCertificate := route.getClientCertificate
 		if getClientCertificate == nil {
 			// Create a cert checker to check and reissue app certs for this app that this route corresponds to.
-			appCertChecker := client.NewAppCertChecker(m.tc, route.routeToApp, nil, client.WithTTL(m.tc.KeyTTL))
+			appCertChecker := client.NewAppCertChecker(
+				m.tc,
+				route.routeToApp,
+				nil,
+				client.WithTTL(m.tc.KeyTTL),
+				client.WithReusableMFA(m.mfa),
+			)
 
 			// If a stored cert is found for the app, try using it.
 			// Otherwise, let the checker reissue one as needed.

@@ -234,6 +234,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	isPerSessionMFA := slices.Contains([]mfav1.ChallengeScope{
 		mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI,
+		mfav1.ChallengeScope_CHALLENGE_SCOPE_APP_LOCAL_PROXY_MULTI,
 	}, c.cfg.Extensions.GetScope())
 
 	// Build list of available methods from the challenge before filtering

@@ -21,7 +21,6 @@ package common
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -34,9 +33,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	clientmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
@@ -54,7 +53,7 @@ type kubeCertIssuer struct {
 	// conn is the cluster connection shared by in-flight operations, so none is held while idle.
 	conn *clusterConn
 	// mfa is the reusable MFA state shared across issuances.
-	mfa *reusableMFA
+	mfa *clientmfa.ReusableMFA
 	// sharedCertUnsupported latches once an auth server has rejected an unrouted request.
 	// The middleware reissues concurrently with the burst that starts the proxy, so it is atomic.
 	sharedCertUnsupported atomic.Bool
@@ -71,7 +70,7 @@ func newKubeCertIssuer(tc *client.TeleportClient) *kubeCertIssuer {
 		tc:       tc,
 		keyStore: tc.LocalAgent(),
 		conn:     newClusterConn(tc),
-		mfa:      newReusableMFA(),
+		mfa:      clientmfa.NewReusableMFA(proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI, proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY),
 	}
 }
 
@@ -335,93 +334,19 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfi
 	return run.certs, nil
 }
 
-// issueMFAGatedCert issues one cert that may require MFA.
-// It replays the shared reusable response when one is held, and takes the single-flight ceremony path otherwise.
-// Rejected replays loop back into the ceremony path to refresh the response.
+// issueMFAGatedCert issues one certificate that may require MFA through
+// the shared MFA coordinator.
 func (issuer *kubeCertIssuer) issueMFAGatedCert(ctx context.Context, cc kubeCertClient, params client.ReissueParams) (*tls.Certificate, error) {
-	// Tolerate up to 3 rejected replays before giving up. Only two rejections are recoverable:
-	// - The replayed response outlived the server's reuse window and expired.
-	// - This auth server does not allow reuse at all (a mixed-version auth pool).
-	// The worst honest sequence is one of each, so the bound leaves margin while
-	// making termination unconditional. Any other error fails the issuance immediately.
-	const maxRejections = 3
-	var rejections int
-	var lastErr error
-	for rejections < maxRejections {
-		requester, reusable := issuer.mfa.State()
-
-		if reusable == nil {
-			cert, done, err := issuer.issueWithCeremony(ctx, cc, params)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if !done {
-				// A peer's ceremony captured a fresh response. Replay it.
-				continue
-			}
-			return cert, nil
-		}
-
-		params.RequesterName = requester
-		params.ReusableMFAResponse = reusable
-		params.FailOnExpiredReusableMFAResponse = true
-		cert, err := issuer.requestCert(ctx, cc, params)
-		switch {
-		case errors.Is(err, &mfa.ErrExpiredReusableMFAResponse):
-			// The response expired mid-flight. Drop it and loop into the ceremony path.
-			issuer.mfa.Clear(reusable)
-		case isMFAReuseRejected(err):
-			// This auth server does not allow reuse (a mixed-version auth pool).
-			issuer.mfa.FallbackToLegacy(ctx, err)
-		default:
-			return cert, trace.Wrap(err)
-		}
-		rejections++
-		lastErr = err
-		params.ReusableMFAResponse = nil
-		params.FailOnExpiredReusableMFAResponse = false
-	}
-	return nil, trace.Wrap(lastErr, "issuing certificate for Kubernetes cluster %q: giving up after %d rejected MFA responses", params.KubernetesCluster, maxRejections)
-}
-
-// issueWithCeremony runs an issuance that may prompt the user, under the single-flight lock.
-// It reports done=false without issuing when the ceremony it waited on captured a reusable response.
-// The caller replays it instead, with no prompt.
-func (issuer *kubeCertIssuer) issueWithCeremony(ctx context.Context, cc kubeCertClient, params client.ReissueParams) (cert *tls.Certificate, done bool, err error) {
-	release, err := issuer.mfa.AcquireCeremonyLock(ctx)
-	if err != nil {
-		return nil, false, trace.Wrap(err)
-	}
-	defer release()
-
-	requester, reusable := issuer.mfa.State()
-	if reusable != nil {
-		return nil, false, nil
-	}
-
-	params.RequesterName = requester
-	params.ReusableMFAResponse = nil
-	params.FailOnExpiredReusableMFAResponse = false
-	cert, err = issuer.requestCert(ctx, cc, params)
-	if requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
-		switch {
-		case isMFAReuseRejected(err):
-			// An auth server that predates the multi-requester rejected the ceremony.
-			issuer.mfa.FallbackToLegacy(ctx, err)
-			params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
-			cert, err = issuer.requestCert(ctx, cc, params)
-		case isMFAReuseRejectionSuspected(err):
-			// A masked rejection from an old auth server and
-			// a transient challenge-creation failure are indistinguishable, so fall back for this issuance only.
-			// Every fresh ceremony probes the reusable requester again.
-			// A transient failure cannot degrade the proxy permanently,
-			// and an old auth server costs one failed request per ceremony.
-			logger.DebugContext(ctx, "MFA challenge creation failed, retrying this issuance with a per-cluster ceremony", "error", err)
-			params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
-			cert, err = issuer.requestCert(ctx, cc, params)
-		}
-	}
-	return cert, true, trace.Wrap(err)
+	var cert *tls.Certificate
+	err := issuer.mfa.Issue(ctx, func(ctx context.Context, mfaParams clientmfa.IssueParams) error {
+		params.RequesterName = mfaParams.RequesterName
+		params.ReusableMFAResponse = mfaParams.ReusableMFAResponse
+		params.FailOnExpiredReusableMFAResponse = mfaParams.FailOnExpiredReusableMFAResponse
+		var err error
+		cert, err = issuer.requestCert(ctx, cc, params)
+		return err
+	})
+	return cert, trace.Wrap(err, "issuing certificate for Kubernetes cluster %q:", params.KubernetesCluster)
 }
 
 // requestCert requests one cert from the cluster, with no single-flight lock.
@@ -545,26 +470,4 @@ func isUnroutedKubeCertRejected(err error) bool {
 	// Scoped identities are only allowed a Kubernetes cert that names a cluster,
 	// so an unrouted request reads to auth as an unsupported usage.
 	return trace.IsAccessDenied(err) && strings.Contains(err.Error(), "generating scoped user cert for unsupported usage")
-}
-
-// isMFAReuseRejected reports whether an auth server unambiguously rejected the reusable MFA flow.
-func isMFAReuseRejected(err error) bool {
-	// Auth servers that validate challenge scopes reject the unknown kube scope with a typed error at challenge creation.
-	if errors.Is(err, &mfa.ErrUnknownChallengeScope) {
-		return true
-	}
-	// Servers that predate scope validation reject the response at validation without a typed error, recognized by message below.
-	if trace.IsAccessDenied(err) || trace.IsBadParameter(err) {
-		msg := err.Error()
-		return strings.Contains(msg, "is not satisfied by the given") || // response scope unknown to the server, rejected at validation
-			strings.Contains(msg, "reuse is not permitted") // server knows the scope but does not allow reuse for the requester
-	}
-	return false
-}
-
-// isMFAReuseRejectionSuspected reports whether the error may be a masked reuse rejection.
-// Auth servers that predate challenge scope validation reject the unknown kube scope
-// at challenge creation, masked behind their generic challenge-creation failure message.
-func isMFAReuseRejectionSuspected(err error) bool {
-	return trace.IsAccessDenied(err) && strings.Contains(err.Error(), "unable to create MFA challenges")
 }
