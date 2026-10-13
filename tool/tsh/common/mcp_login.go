@@ -746,7 +746,7 @@ func getMCPOAuthServerMetadata(ctx context.Context, handler *mcpclienttransport.
 	}
 	// mcp-go guesses root endpoints when discovery fails. we keep those endpoints
 	// bound to the authorization server selected by the protected resource.
-	if advertised := discovery.advertisedAuthorizationServer; advertised != "" && metadata.Issuer != advertised {
+	if advertised := discovery.advertisedAuthorizationServer; advertised != "" && strings.TrimSuffix(metadata.Issuer, "/") != strings.TrimSuffix(advertised, "/") {
 		return nil, trace.BadParameter("OAuth authorization server metadata identifies issuer %q, but protected resource metadata advertised %q", metadata.Issuer, advertised)
 	}
 	for _, endpoint := range []struct {
@@ -950,7 +950,7 @@ func validateMCPOAuthMetadataResponse(req *http.Request, resp *http.Response, ex
 	// discovered from, so a document cannot impersonate another provider.
 	// https://www.rfc-editor.org/rfc/rfc8414.html#section-3.3
 	expectedIssuer := metadataURL.Scheme + "://" + metadataURL.Host + strings.TrimPrefix(metadataURL.EscapedPath(), rootPath)
-	if metadata.Issuer != expectedIssuer {
+	if strings.TrimSuffix(metadata.Issuer, "/") != strings.TrimSuffix(expectedIssuer, "/") {
 		return trace.BadParameter("OAuth authorization server metadata identifies issuer %q, expected %q", metadata.Issuer, expectedIssuer)
 	}
 	return nil

@@ -602,7 +602,12 @@ func (a *AppV3) checkMCP() error {
 		return trace.BadParameter("MCP server %q cannot specify 'tcp_ports' configuration", a.GetName())
 	}
 
-	switch GetMCPServerTransportType(a.Spec.URI) {
+	transport := GetMCPServerTransportType(a.Spec.URI)
+	if err := a.checkMCPOAuth(transport); err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch transport {
 	case MCPTransportStdio:
 		return trace.Wrap(a.checkMCPStdio())
 	case MCPTransportSSE, MCPTransportHTTP:
@@ -611,6 +616,47 @@ func (a *AppV3) checkMCP() error {
 	default:
 		return trace.BadParameter("unsupported MCP server %q with URI %q", a.GetName(), a.Spec.URI)
 	}
+}
+
+func (a *AppV3) checkMCPOAuth(transport string) error {
+	if a.Spec.MCP == nil || a.Spec.MCP.Oauth == nil {
+		return nil
+	}
+	oauth := a.Spec.MCP.Oauth
+	if transport != MCPTransportHTTP {
+		return trace.BadParameter("MCP server %q cannot specify 'oauth' configuration, which is only supported for streamable HTTP transport", a.GetName())
+	}
+
+	switch oauth.Mode {
+	case "", MCPOAuthModeRequired, MCPOAuthModeNotRequired:
+	default:
+		return trace.BadParameter("MCP server %q has unexpected OAuth mode %q", a.GetName(), oauth.Mode)
+	}
+	hasClientSettings := oauth.ClientId != "" || oauth.CallbackPort != 0 || oauth.RedirectUri != "" || len(oauth.Scopes) != 0 || oauth.AuthServerMetadataUrl != ""
+	if oauth.Mode == MCPOAuthModeNotRequired && hasClientSettings {
+		return trace.BadParameter("MCP server %q cannot specify OAuth client settings when the OAuth mode is %q", a.GetName(), MCPOAuthModeNotRequired)
+	}
+
+	if oauth.CallbackPort != 0 {
+		if oauth.RedirectUri != "" {
+			return trace.BadParameter("MCP server %q cannot specify both 'callback_port' and 'redirect_uri'", a.GetName())
+		}
+		if err := netutils.ValidatePortRange(int(oauth.CallbackPort), 0); err != nil {
+			return trace.BadParameter("MCP server %q has an invalid OAuth callback port: %v", a.GetName(), err)
+		}
+	}
+	if oauth.RedirectUri != "" {
+		if _, err := url.Parse(oauth.RedirectUri); err != nil {
+			return trace.BadParameter("MCP server %q has an invalid OAuth redirect URI: %v", a.GetName(), err)
+		}
+	}
+	if oauth.AuthServerMetadataUrl != "" {
+		metadataURL, err := url.Parse(oauth.AuthServerMetadataUrl)
+		if err != nil || metadataURL.Scheme != "https" || metadataURL.Host == "" {
+			return trace.BadParameter("MCP server %q has an invalid OAuth authorization server metadata URL %q; it must be an absolute HTTPS URL", a.GetName(), oauth.AuthServerMetadataUrl)
+		}
+	}
+	return nil
 }
 
 func (a *AppV3) checkMCPStdio() error {

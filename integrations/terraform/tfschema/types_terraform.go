@@ -2151,6 +2151,49 @@ func GenSchemaAppV3Resource(ctx context.Context) (github_com_hashicorp_terraform
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
+						"oauth": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+								"auth_server_metadata_url": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "AuthServerMetadataUrl is the URL of the OAuth authorization server metadata document, such as \"https://auth.example.com/.well-known/oauth-authorization-server\". When set, clients fetch the metadata from it instead of discovering it from the MCP server, and do not check its issuer against the URL.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"callback_port": github_com_hashicorp_terraform_plugin_framework_resource_schema.Int64Attribute{
+									Computed:      true,
+									Description:   "CallbackPort is the local port of the OAuth callback registered with the OAuth provider. Mutually exclusive with redirect_uri.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Int64{github_com_hashicorp_terraform_plugin_framework_resource_schema_int64planmodifier.UseStateForUnknown()},
+								},
+								"client_id": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "ClientId is the OAuth client ID of a pre-registered client. When set, clients skip dynamic client registration.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"mode": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "Mode declares whether the MCP server requires OAuth. When empty, it is unspecified. Supported values: \"required\" (the MCP server requires OAuth), \"not_required\" (the MCP server does not use OAuth)",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"redirect_uri": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "RedirectUri is the loopback OAuth redirect URI registered with the OAuth provider, such as \"http://localhost:3118/callback\". Mutually exclusive with callback_port.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"scopes": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+									Computed:      true,
+									Description:   "Scopes is the list of OAuth scopes to request.",
+									ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+								},
+							},
+							Description: "Oauth contains the OAuth settings clients use to log in to the MCP server. Only supported for MCP servers using streamable HTTP transport.",
+							Optional:    true,
+						},
 						"run_as_host_user": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
 							Description:   "RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.",
@@ -2554,6 +2597,43 @@ func GenSchemaAppV3DataSource(ctx context.Context) (github_com_hashicorp_terrafo
 						"command": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "Command to launch stdio-based MCP servers.",
+							Optional:    true,
+						},
+						"oauth": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+								"auth_server_metadata_url": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "AuthServerMetadataUrl is the URL of the OAuth authorization server metadata document, such as \"https://auth.example.com/.well-known/oauth-authorization-server\". When set, clients fetch the metadata from it instead of discovering it from the MCP server, and do not check its issuer against the URL.",
+									Optional:    true,
+								},
+								"callback_port": github_com_hashicorp_terraform_plugin_framework_datasource_schema.Int64Attribute{
+									Computed:    true,
+									Description: "CallbackPort is the local port of the OAuth callback registered with the OAuth provider. Mutually exclusive with redirect_uri.",
+									Optional:    true,
+								},
+								"client_id": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "ClientId is the OAuth client ID of a pre-registered client. When set, clients skip dynamic client registration.",
+									Optional:    true,
+								},
+								"mode": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "Mode declares whether the MCP server requires OAuth. When empty, it is unspecified. Supported values: \"required\" (the MCP server requires OAuth), \"not_required\" (the MCP server does not use OAuth)",
+									Optional:    true,
+								},
+								"redirect_uri": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "RedirectUri is the loopback OAuth redirect URI registered with the OAuth provider, such as \"http://localhost:3118/callback\". Mutually exclusive with callback_port.",
+									Optional:    true,
+								},
+								"scopes": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+									Computed:    true,
+									Description: "Scopes is the list of OAuth scopes to request.",
+									ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Optional:    true,
+								},
+							},
+							Description: "Oauth contains the OAuth settings clients use to log in to the MCP server. Only supported for MCP servers using streamable HTTP transport.",
 							Optional:    true,
 						},
 						"run_as_host_user": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
@@ -20376,6 +20456,136 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 											}
 										}
 									}
+									{
+										a, ok := tf.Attributes()["oauth"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Oauth = nil
+												if !v.IsNull() && !v.IsUnknown() {
+													tf := v
+													obj.Oauth = &github_com_gravitational_teleport_api_types.MCPOAuth{}
+													obj := obj.Oauth
+													{
+														a, ok := tf.Attributes()["mode"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.mode"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.IsNull() && !v.IsUnknown() {
+																	t = (v.ValueString())
+																}
+																obj.Mode = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attributes()["client_id"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.client_id"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.IsNull() && !v.IsUnknown() {
+																	t = (v.ValueString())
+																}
+																obj.ClientId = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attributes()["callback_port"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.callback_port"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.callback_port", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+															} else {
+																var t uint32
+																if !v.IsNull() && !v.IsUnknown() {
+																	t = uint32(v.ValueInt64())
+																}
+																obj.CallbackPort = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attributes()["redirect_uri"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.redirect_uri"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.redirect_uri", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.IsNull() && !v.IsUnknown() {
+																	t = (v.ValueString())
+																}
+																obj.RedirectUri = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attributes()["scopes"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.scopes"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.scopes", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.Scopes = make([]string, len(v.Elements()))
+																if !v.IsNull() && !v.IsUnknown() {
+																	for k, a := range v.Elements() {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.scopes", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.Scopes[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+													{
+														a, ok := tf.Attributes()["auth_server_metadata_url"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.auth_server_metadata_url"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.auth_server_metadata_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.IsNull() && !v.IsUnknown() {
+																	t = (v.ValueString())
+																}
+																obj.AuthServerMetadataUrl = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -21828,6 +22038,128 @@ func CopyAppV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gr
 															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.RunAsHostUser))
 														}
 														attrs["run_as_host_user"] = v
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["oauth"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.oauth"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.oauth", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																existing := attrs["oauth"]
+																v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																	if preserveUnknown && existing != nil && existing.IsUnknown() {
+																		return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																	} else {
+																		if obj.Oauth == nil {
+																			return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																		} else {
+																			obj := obj.Oauth
+																			attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																			v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																			if ok && v.Attributes() != nil {
+																				attrs = v.Attributes()
+																			}
+																			{
+																				var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																				existing := attrs["mode"]
+																				if preserveUnknown && existing != nil && existing.IsUnknown() {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																				} else {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Mode))
+																				}
+																				attrs["mode"] = v
+																			}
+																			{
+																				var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																				existing := attrs["client_id"]
+																				if preserveUnknown && existing != nil && existing.IsUnknown() {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																				} else {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.ClientId))
+																				}
+																				attrs["client_id"] = v
+																			}
+																			{
+																				var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																				existing := attrs["callback_port"]
+																				if preserveUnknown && existing != nil && existing.IsUnknown() {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.Int64Unknown()
+																				} else {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.Int64Value(int64(obj.CallbackPort))
+																				}
+																				attrs["callback_port"] = v
+																			}
+																			{
+																				var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																				existing := attrs["redirect_uri"]
+																				if preserveUnknown && existing != nil && existing.IsUnknown() {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																				} else {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.RedirectUri))
+																				}
+																				attrs["redirect_uri"] = v
+																			}
+																			{
+																				attrType, ok := attrType.AttributeTypes()["scopes"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.oauth.scopes"})
+																				} else {
+																					attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.oauth.scopes", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["scopes"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																						} else {
+																							oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Scopes))
+																							c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																							if ok && c.Elements() != nil {
+																								oldElems = c.Elements()
+																							}
+																							elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Scopes))
+																							copy(elems, oldElems)
+																							for k, a := range obj.Scopes {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := elems[k]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																								} else {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																								}
+																								elems[k] = v
+																							}
+																							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																							diags.Append(resultDiags...)
+																							v = result
+																						}
+																						attrs["scopes"] = v
+																					}
+																				}
+																			}
+																			{
+																				var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																				existing := attrs["auth_server_metadata_url"]
+																				if preserveUnknown && existing != nil && existing.IsUnknown() {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																				} else {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.AuthServerMetadataUrl))
+																				}
+																				attrs["auth_server_metadata_url"] = v
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																			diags.Append(resultDiags...)
+																			return result
+																		}
+																	}
+																}()
+																attrs["oauth"] = v
+															}
+														}
 													}
 													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 													diags.Append(resultDiags...)
