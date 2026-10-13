@@ -115,6 +115,18 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 		return nil, trace.Wrap(err)
 	}
 
+	// Apply global, unscoped traits to converted role
+	// TODO (eriktate): replace this with aggregated scoped assignment
+	// traits
+	role, err = ApplyTraitsWithContext(role, RoleTemplateContext{
+		Username: b.info.Username,
+		Traits:   b.info.Traits,
+		Scoped:   true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// TODO(fspmarshall/scopes): figure out how/when we want to support trait interpolation in scoped
 	// roles. When we do, that will likely need to be done here.
 

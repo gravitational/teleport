@@ -164,7 +164,16 @@ func (c *SSHAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.HostSudoers(srv)
 	}
-	return c.checker.role.GetSpec().GetSsh().GetHostSudoers(), nil
+	return ApplyValueTraitsSlice(
+			c.checker.role.GetSpec().GetSsh().GetHostSudoers(),
+			RoleTemplateContext{
+				Username: c.checker.AccessInfo().Username,
+				Traits:   c.checker.Traits(),
+				Scoped:   true,
+			},
+			"host_sudoers",
+		),
+		nil
 }
 
 // EnhancedRecordingSet returns the set of enhanced session recording events to capture.
@@ -231,9 +240,18 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 		gid = gidL[0]
 	}
 
+	groups := ApplyValueTraitsSlice(
+		createHostUser.GetGroups(),
+		RoleTemplateContext{
+			Username: c.checker.AccessInfo().Username,
+			Traits:   c.checker.Traits(),
+			Scoped:   true,
+		},
+		"host_user_creation.groups",
+	)
 	return &HostUsersDecision{
 		Info: decisionpb.HostUsersInfo_builder{
-			Groups: createHostUser.GetGroups(),
+			Groups: groups,
 			Mode:   decisionMode,
 			Uid:    uid,
 			Gid:    gid,
@@ -290,7 +308,15 @@ func (c *SSHAccessChecker) getScopedLogins() []string {
 	if !c.checker.isScoped() {
 		return nil
 	}
-	return c.checker.role.GetSpec().GetSsh().GetLogins()
+	return filterInvalidUnixLogins(ApplyValueTraitsSlice(
+		c.checker.role.GetSpec().GetSsh().GetLogins(),
+		RoleTemplateContext{
+			Username: c.checker.AccessInfo().Username,
+			Traits:   c.checker.Traits(),
+			Scoped:   true,
+		},
+		"logins",
+	))
 }
 
 // CanCopyFiles returns true if remote file operations via SCP or SFTP are permitted.

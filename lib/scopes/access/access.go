@@ -887,8 +887,9 @@ func validateRoleTemplates(spec *scopedaccessv1.ScopedRoleSpec) error {
 	return trace.Wrap(err)
 }
 
-// validateTemplate validates a potentially templated value. If the value is not a template, no error is returned.
-func validateTemplate(value string) error {
+// ScopedValidateTemplate validates a potentially templated value for use with scoped roles. If the value is not a
+// template, no error is returned.
+func ScopedValidateTemplate(value string) error {
 	if err := parse.ValidateTraitTemplateExpression(value, validateTemplateTrait); err != nil {
 		// we expect to get a typical.UnknownIdentifierError when the parser
 		// detects an unrecognized namespace, so we return a more explicit
@@ -982,14 +983,14 @@ func filterInvalidTemplatesFromRole(spec *scopedaccessv1.ScopedRoleSpec, failFas
 		//
 		// Rather than leave behind a malformed resource with invalid scalar
 		// configs, we skip it entirely if any of them fail validation
-		if err := validateTemplate(res.GetNamespace()); err != nil {
+		if err := ScopedValidateTemplate(res.GetNamespace()); err != nil {
 			if err := handleErrs(err); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			continue
 		}
 
-		if err := validateTemplate(res.GetName()); err != nil {
+		if err := ScopedValidateTemplate(res.GetName()); err != nil {
 			if err := handleErrs(err); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1060,21 +1061,21 @@ func filterInvalidTemplatesFromRole(spec *scopedaccessv1.ScopedRoleSpec, failFas
 	// NOTE: Dropping an invalid label expression, similar to label keys, could result in increased
 	// access. Instead of dropping the expression, we drop the entire block the expression lives in
 	// (e.g. spec.ssh, spec.kube, spec.app).
-	if err := validateTemplate(spec.GetSsh().GetLabelExpression()); err != nil {
+	if err := ScopedValidateTemplate(spec.GetSsh().GetLabelExpression()); err != nil {
 		if err := handleErrs(err); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		spec.SetSsh(nil)
 	}
 
-	if err := validateTemplate(spec.GetKube().GetLabelExpression()); err != nil {
+	if err := ScopedValidateTemplate(spec.GetKube().GetLabelExpression()); err != nil {
 		if err := handleErrs(err); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		spec.SetKube(nil)
 	}
 
-	if err := validateTemplate(spec.GetApp().GetLabelExpression()); err != nil {
+	if err := ScopedValidateTemplate(spec.GetApp().GetLabelExpression()); err != nil {
 		if err := handleErrs(err); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1087,7 +1088,7 @@ func filterInvalidTemplatesFromRole(spec *scopedaccessv1.ScopedRoleSpec, failFas
 func filterInvalidTemplatesFromLabels(labels []*labelv1.Label) (bool, []error) {
 	var outErrs []error
 	for _, label := range labels {
-		if err := validateTemplate(label.GetName()); err != nil {
+		if err := ScopedValidateTemplate(label.GetName()); err != nil {
 			return false, []error{trace.Wrap(err)}
 		}
 
@@ -1113,7 +1114,7 @@ func filterInvalidTemplates(get func() []string, set func(values []string)) []er
 		errs []error
 	)
 	for _, value := range values {
-		if err := validateTemplate(value); err != nil {
+		if err := ScopedValidateTemplate(value); err != nil {
 			errs = append(errs, err)
 			continue
 		}
