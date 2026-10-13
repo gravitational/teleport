@@ -547,7 +547,7 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 
 func (t *remoteTerminal) Run(ctx context.Context) error {
 	// prepare the remote session by setting environment variables
-	t.prepareRemoteSession(ctx, t.session, t.ctx)
+	prepareRemoteSession(ctx, t.log, t.session, t.ctx)
 
 	// combine stdout and stderr
 	stdout, err := t.session.StdoutPipe()
@@ -717,7 +717,7 @@ func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
 }
 
 // prepareRemoteSession prepares the remote session with env vars provided by the forwarding server or client.
-func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *tracessh.Session, scx *ServerContext) {
+func prepareRemoteSession(ctx context.Context, logger *slog.Logger, session *tracessh.Session, scx *ServerContext) {
 	envs := map[string]string{
 		teleport.SSHTeleportUser:        scx.Identity.TeleportUser,
 		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
@@ -730,6 +730,6 @@ func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *trac
 	}
 
 	if err := session.SetEnvs(ctx, envs); err != nil {
-		t.log.DebugContext(ctx, "Unable to set environment variables", "error", err)
+		logger.DebugContext(ctx, "Unable to set environment variables", "error", err)
 	}
 }

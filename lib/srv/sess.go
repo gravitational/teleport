@@ -359,6 +359,11 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
 	}
 
+	// A beam shell without a PTY runs as a non-interactive session, similar to exec.
+	if isBeamShellWithoutPTY(scx) {
+		return s.OpenExecSession(ctx, ch, scx)
+	}
+
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition
 	sess, p, err := newSession(ctx, s, scx, ch, sessionTypeInteractive)
@@ -386,6 +391,11 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// isBeamShellWithoutPTY returns true if the session is a beam shell without a PTY else false.
+func isBeamShellWithoutPTY(scx *ServerContext) bool {
+	return scx.GetTerm() == nil && scx.isBeamSession()
 }
 
 // JoinSession joins an existing interactive session.

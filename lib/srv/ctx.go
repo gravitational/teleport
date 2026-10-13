@@ -1154,6 +1154,20 @@ func getPAMConfig(c *ServerContext) (*reexec.PAMConfig, error) {
 	}, nil
 }
 
+// isBeamSession returns true if the target node is a Beam, identified by the
+// BeamIDLabel on the node.
+func (c *ServerContext) isBeamSession() bool {
+	if c.srv == nil {
+		return false
+	}
+	info := c.srv.GetInfo()
+	if info == nil {
+		return false
+	}
+	_, ok := info.GetLabel(types.BeamIDLabel)
+	return ok
+}
+
 // ExecCommand takes a *ServerContext and extracts the parts needed to create
 // an *execCommand which can be re-sent to Teleport.
 func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {

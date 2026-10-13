@@ -41,6 +41,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/session/envutils"
 	sessionreexec "github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
@@ -351,7 +352,18 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 		inputWriter.Close()
 	}()
 
-	err = e.session.Start(ctx, e.command)
+	// A beam shell with no PTY comes through here as an exec session, but the
+	// remote host still needs a shell request, not an empty exec.
+	request, err := e.ctx.GetSSHRequest()
+	if err != nil {
+		return nil, trace.Wrap(err, "cannot determine SSH request type for remote session")
+	}
+	if request.Type == sshutils.ShellRequest {
+		prepareRemoteSession(ctx, e.ctx.Logger, e.session, e.ctx)
+		err = e.session.Shell(ctx)
+	} else {
+		err = e.session.Start(ctx, e.command)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -420,10 +432,15 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	}
 
 	// Parse the exec command to find out if it was SCP or not.
-	path, action, isSCP, err := parseSecureCopy(cmd)
-	if err != nil {
-		ctx.Logger.WarnContext(ctx.srv.Context(), "Unable to parse scp command", "error", err)
-		return
+	// An empty command (shell with no pty case) is never SCP and emits a plain exec event.
+	var path, action string
+	var isSCP bool
+	if cmd != "" {
+		var err error
+		if path, action, isSCP, err = parseSecureCopy(cmd); err != nil {
+			ctx.Logger.WarnContext(ctx.srv.Context(), "Unable to parse scp command", "error", err)
+			return
+		}
 	}
 
 	// Update appropriate fields based off if the request was SCP or not.
