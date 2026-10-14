@@ -50,13 +50,15 @@ struct PostEnrollmentLandingView: View {
 	}
 }
 
+// MARK: - Subviews
+
 extension PostEnrollmentLandingView {
 	private func clusterView(for cluster: Cluster) -> some View {
 		Button {
 			Task { await didTapOnCluster(cluster) }
 		} label: {
 			HStack(alignment: .firstTextBaseline, spacing: .small) {
-				Text(cluster.host)
+				Text(displayText(for: cluster))
 					.frame(maxWidth: .infinity, alignment: .leading)
 				Image(systemName: "arrow.up.right.square")
 			}
@@ -71,10 +73,24 @@ extension PostEnrollmentLandingView {
 	}
 }
 
+// MARK: - UI Helpers
+
+extension PostEnrollmentLandingView {
+	private func displayText(for cluster: Cluster) -> String {
+		if cluster.port == Cluster.defaultPort {
+			cluster.host
+		} else {
+			"\(cluster.host):\(cluster.port)"
+		}
+	}
+}
+
+// MARK: - Previews
+
 #Preview("Post Enrollment") {
 	@Previewable @State
 	var clusters = [
-		Cluster(id: UUID(), host: "production.teleport.sh", port: 443),
+		Cluster(id: UUID(), host: "production.teleport.sh", port: Cluster.defaultPort),
 		Cluster(id: UUID(), host: "a-very-long-staging-cluster-name.teleport.example.com", port: 8080),
 		Cluster(id: UUID(), host: "dev.teleport.sh", port: 2048),
 	]

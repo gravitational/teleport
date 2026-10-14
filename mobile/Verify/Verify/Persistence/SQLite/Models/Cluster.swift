@@ -26,6 +26,8 @@ struct Cluster: Identifiable {
 }
 
 extension Cluster {
+	static let defaultPort = 443
+
 	var url: URL? {
 		var components = URLComponents()
 		components.host = host
@@ -61,8 +63,8 @@ extension Cluster {
 
 extension Cluster {
 	static let previews: [Cluster] = [
-		Cluster(id: UUID(0), host: "production.teleport.example.com", port: 443),
+		Cluster(id: UUID(0), host: "production.teleport.example.com", port: Cluster.defaultPort),
 		Cluster(id: UUID(1), host: "staging.teleport.example.com", port: 3080),
-		Cluster(id: UUID(2), host: "development.teleport.example.com", port: 443),
+		Cluster(id: UUID(2), host: "development.teleport.example.com", port: Cluster.defaultPort),
 	]
 }

@@ -46,10 +46,9 @@ extension AuthenticateDeviceDeepLink {
 			throw .missingPart(Self.tokenKey)
 		}
 
-		let defaultHTTPSPort = 443
 		self.init(
 			hostname: hostname,
-			port: components.port ?? defaultHTTPSPort,
+			port: components.port ?? Cluster.defaultPort,
 			webTokenID: tokenID,
 			webToken: token,
 			redirectURI: components.nonEmptyQueryValue(named: Self.redirectURIKey),

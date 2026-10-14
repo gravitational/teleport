@@ -58,7 +58,7 @@ struct DeepLinkTests {
 		let expected = DeepLink.authenticateDevice(
 			AuthenticateDeviceDeepLink(
 				hostname: "my.cluster.com",
-				port: 443,
+				port: Cluster.defaultPort,
 				webTokenID: "token-id",
 				webToken: "token-value",
 				redirectURI: nil,
@@ -94,7 +94,7 @@ struct DeepLinkTests {
 		let expected = DeepLink.authenticateDevice(
 			AuthenticateDeviceDeepLink(
 				hostname: "my.cluster.com",
-				port: 443,
+				port: Cluster.defaultPort,
 				webTokenID: "token-id",
 				webToken: "token-value",
 				redirectURI: nil,

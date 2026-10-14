@@ -109,7 +109,7 @@ extension AuthenticateDeviceView {
 		viewModel: AuthenticateDeviceViewModel(
 			deepLink: AuthenticateDeviceDeepLink(
 				hostname: "example.com",
-				port: 443,
+				port: Cluster.defaultPort,
 				webTokenID: "dummy-id",
 				webToken: "dummy-token",
 				redirectURI: "https://example.com/some-resource",

@@ -37,10 +37,9 @@ extension EnrollMobileDeviceDeepLink {
 			throw DeepLinkParseError.missingPart(Self.enrollPairingTokenKey)
 		}
 
-		let defaultHTTPSPort = 443
 		self.init(
 			hostname: hostname,
-			port: components.port ?? defaultHTTPSPort,
+			port: components.port ?? Cluster.defaultPort,
 			enrollPairingToken: enrollPairingToken,
 		)
 	}
