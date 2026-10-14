@@ -18,7 +18,6 @@ package grpcproxy
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net"
 
@@ -118,24 +117,14 @@ func (s *Service) CreatePairedDeviceEnrollToken(ctx context.Context, req *public
 	if err := s.rateLimitByClientIP(addr); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx = clientaddr.WithOutgoingContext(ctx, addr)
-
-	ctx, cancel := context.WithTimeoutCause(ctx,
-		devicetrust.PublicCreatePairedDeviceEnrollTokenProxyTimeout,
-		errCreatePairedDeviceEnrollTokenProxyTimeout)
-	defer cancel()
-
-	res, err := s.authClient.PublicDevicesClient().CreatePairedDeviceEnrollToken(ctx, req)
-	if err != nil {
-		if cause := context.Cause(ctx); errors.Is(cause, errCreatePairedDeviceEnrollTokenProxyTimeout) {
-			// Debug log the cause to match [grpcutils.ProxyBidiStream] behavior.
-			s.log.DebugContext(ctx, "Proxied CreatePairedDeviceEnrollToken timed out",
-				"timeout", devicetrust.PublicCreatePairedDeviceEnrollTokenProxyTimeout)
-			return nil, trace.Wrap(cause)
-		}
-		return nil, trace.Wrap(err)
-	}
-	return res, nil
+	res, err := grpcutils.ProxyUnaryCall(ctx, s.log,
+		func(ctx context.Context) (*publicdevicepb.CreatePairedDeviceEnrollTokenResponse, error) {
+			ctx = clientaddr.WithOutgoingContext(ctx, addr)
+			return s.authClient.PublicDevicesClient().CreatePairedDeviceEnrollToken(ctx, req)
+		},
+		grpcutils.WithCallTimeout(devicetrust.PublicCreatePairedDeviceEnrollTokenProxyTimeout, errCreatePairedDeviceEnrollTokenProxyTimeout),
+	)
+	return res, trace.Wrap(err)
 }
 
 // errEnrollDeviceFirstMessageTimeout ends a stream whose client sent no init

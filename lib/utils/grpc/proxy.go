@@ -34,10 +34,7 @@ type ProxyBidiStreamOption func(*proxyBidiStreamConfig)
 type proxyBidiStreamConfig struct {
 	firstMessageTimeout    time.Duration
 	firstMessageTimeoutErr error
-	streamTimeout          time.Duration
-	streamTimeoutErr       error
-	// streamDeadline is when streamTimeout expires, set by [ProxyBidiStream].
-	streamDeadline time.Time
+	streamTimeout          proxyTimeout
 }
 
 // WithStreamTimeout makes [ProxyBidiStream] return timeoutErr if the timeout
@@ -51,8 +48,7 @@ type proxyBidiStreamConfig struct {
 // disconnecting.
 func WithStreamTimeout(timeout time.Duration, timeoutErr error) ProxyBidiStreamOption {
 	return func(cfg *proxyBidiStreamConfig) {
-		cfg.streamTimeout = timeout
-		cfg.streamTimeoutErr = timeoutErr
+		cfg.streamTimeout = proxyTimeout{timeout: timeout, err: timeoutErr}
 	}
 }
 
@@ -100,14 +96,7 @@ func ProxyBidiStream[Req, Resp any](log *slog.Logger, client grpc.BidiStreamingS
 		opt(&cfg)
 	}
 
-	var ctx context.Context
-	var cancel context.CancelFunc
-	if cfg.streamTimeout > 0 {
-		cfg.streamDeadline = time.Now().Add(cfg.streamTimeout)
-		ctx, cancel = context.WithDeadlineCause(client.Context(), cfg.streamDeadline, cfg.streamTimeoutErr)
-	} else {
-		ctx, cancel = context.WithCancel(client.Context())
-	}
+	ctx, cancel := cfg.streamTimeout.start(client.Context())
 	defer cancel()
 
 	if md, ok := metadata.FromIncomingContext(client.Context()); ok {
@@ -128,7 +117,7 @@ func ProxyBidiStream[Req, Resp any](log *slog.Logger, client grpc.BidiStreamingS
 
 	server, err := getServer(ctx)
 	if err != nil {
-		if timeoutErr := streamTimeoutCause(ctx, log, cfg); timeoutErr != nil {
+		if timeoutErr := cfg.streamTimeout.cause(ctx, log); timeoutErr != nil {
 			return timeoutErr
 		}
 		return trace.Wrap(err, "establishing server stream")
@@ -159,7 +148,7 @@ func ProxyBidiStream[Req, Resp any](log *slog.Logger, client grpc.BidiStreamingS
 			// waiting for the client to read. Otherwise gRPC releases Send only once
 			// this handler returns, so the handler has to observe the deadline
 			// itself.
-			if timeoutErr := streamTimeoutCause(ctx, log, cfg); timeoutErr != nil {
+			if timeoutErr := cfg.streamTimeout.cause(ctx, log); timeoutErr != nil {
 				return timeoutErr
 			}
 			return trace.Wrap(context.Cause(ctx))
@@ -168,7 +157,7 @@ func ProxyBidiStream[Req, Resp any](log *slog.Logger, client grpc.BidiStreamingS
 			// Whatever it returns is what the client should see, unless the stream
 			// timeout is what ended it: the client then gets timeoutErr in place of
 			// the DeadlineExceeded the deadline produced.
-			if timeoutErr := streamTimeoutCause(ctx, log, cfg); timeoutErr != nil {
+			if timeoutErr := cfg.streamTimeout.cause(ctx, log); timeoutErr != nil {
 				return timeoutErr
 			}
 			return trace.Wrap(err)
@@ -186,21 +175,6 @@ func ProxyBidiStream[Req, Resp any](log *slog.Logger, client grpc.BidiStreamingS
 			// case, keep waiting on the server stream to deliver its terminal status.
 		}
 	}
-}
-
-// streamTimeoutCause returns cfg.streamTimeoutErr once the stream timeout has
-// expired, and nil before that, so that callers can tell the timeout from the
-// client disconnecting or from a deadline the client set itself.
-//
-// It checks the clock rather than ctx. gRPC hands the server the same deadline,
-// and the server's copy can end the server stream a moment before ctx observes
-// its own timer, in which case ctx still reports no error and no cause.
-func streamTimeoutCause(ctx context.Context, log *slog.Logger, cfg proxyBidiStreamConfig) error {
-	if cfg.streamTimeout <= 0 || time.Now().Before(cfg.streamDeadline) {
-		return nil
-	}
-	log.DebugContext(ctx, "Proxied stream timed out", "timeout", cfg.streamTimeout)
-	return trace.Wrap(cfg.streamTimeoutErr)
 }
 
 // recvFirstClientMessage receives the client's first message under
@@ -242,7 +216,7 @@ func recvFirstClientMessage[Req, Resp any](ctx context.Context, log *slog.Logger
 		return nil, trace.Wrap(cfg.firstMessageTimeoutErr)
 	case <-ctx.Done():
 		// The stream deadline keeps running during the wait.
-		if timeoutErr := streamTimeoutCause(ctx, log, cfg); timeoutErr != nil {
+		if timeoutErr := cfg.streamTimeout.cause(ctx, log); timeoutErr != nil {
 			return nil, timeoutErr
 		}
 		return nil, trace.Wrap(context.Cause(ctx))
@@ -324,4 +298,88 @@ func forwardServerToClient[Req, Resp any](ctx context.Context, log *slog.Logger,
 			return trace.Wrap(err)
 		}
 	}
+}
+
+// ProxyUnaryCallOption configures [ProxyUnaryCall].
+type ProxyUnaryCallOption func(*proxyUnaryCallConfig)
+
+type proxyUnaryCallConfig struct {
+	callTimeout proxyTimeout
+}
+
+// WithCallTimeout makes [ProxyUnaryCall] return timeoutErr if the timeout fires
+// before the server answers. The timeout is the deadline of the context that
+// call receives and reaches the server as the RPC deadline.
+//
+// The server's handler should usually enforce a timeout of its own, and the
+// timeout here should be longer, so that in the normal case the server ends the
+// call and tells the client why.
+func WithCallTimeout(timeout time.Duration, timeoutErr error) ProxyUnaryCallOption {
+	return func(cfg *proxyUnaryCallConfig) {
+		cfg.callTimeout = proxyTimeout{timeout: timeout, err: timeoutErr}
+	}
+}
+
+// ProxyUnaryCall forwards a unary RPC from a client to a server. call makes the
+// RPC to the server with a context derived from ctx, and what it returns is
+// what the client gets, so the server's status reaches the client as is.
+//
+// Options add a timeout to the call: see [WithCallTimeout].
+func ProxyUnaryCall[Resp any](ctx context.Context, log *slog.Logger,
+	call func(context.Context) (*Resp, error),
+	opts ...ProxyUnaryCallOption,
+) (*Resp, error) {
+	var cfg proxyUnaryCallConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	ctx, cancel := cfg.callTimeout.start(ctx)
+	defer cancel()
+
+	resp, err := call(ctx)
+	if err != nil {
+		if timeoutErr := cfg.callTimeout.cause(ctx, log); timeoutErr != nil {
+			return nil, timeoutErr
+		}
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// proxyTimeout is the timeout a proxy puts on the server side of the RPC it
+// forwards. The zero value is no timeout.
+type proxyTimeout struct {
+	timeout time.Duration
+	// err is what the proxy returns once timeout expires.
+	err error
+	// deadline is when timeout expires, set by start.
+	deadline time.Time
+}
+
+// start derives from ctx the context for the server side of the RPC, with err
+// as the cause of its deadline. Without a timeout the context still gets its
+// own cancel func, which ProxyBidiStream uses to end the server stream when the
+// client side fails.
+func (t *proxyTimeout) start(ctx context.Context) (context.Context, context.CancelFunc) {
+	if t.timeout <= 0 {
+		return context.WithCancel(ctx)
+	}
+	t.deadline = time.Now().Add(t.timeout)
+	return context.WithDeadlineCause(ctx, t.deadline, t.err)
+}
+
+// cause returns err once the timeout has expired, and nil before that, so that
+// callers can tell the timeout from the client disconnecting or from a deadline
+// the client set itself.
+//
+// It checks the clock rather than ctx. gRPC hands the server the same deadline,
+// and the server's copy can end the RPC a moment before ctx observes its own
+// timer, in which case ctx still reports no error and no cause.
+func (t proxyTimeout) cause(ctx context.Context, log *slog.Logger) error {
+	if t.timeout <= 0 || time.Now().Before(t.deadline) {
+		return nil
+	}
+	log.DebugContext(ctx, "Proxied RPC timed out", "timeout", t.timeout)
+	return trace.Wrap(t.err)
 }
