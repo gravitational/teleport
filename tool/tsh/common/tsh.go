@@ -874,6 +874,9 @@ const (
 	queryHelp   = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels["key1"] == "value1" && labels["key2"] != "value2"').`
 	labelHelp   = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)."
 	quietHelp   = "Quiet mode."
+
+	insecureListenAnywhereHelp = "Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted."
+
 	// proxyDefaultResolutionTimeout is how long to wait for an unknown proxy
 	// port to be resolved.
 	//
@@ -1165,7 +1168,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for.").StringVar(&cf.DatabaseService)
-	proxyDB.Flag("insecure-listen-anywhere", "Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted.").BoolVar(&cf.InsecureListenAnywhere)
+	proxyDB.Flag("insecure-listen-anywhere", insecureListenAnywhereHelp).BoolVar(&cf.InsecureListenAnywhere)
 	proxyDB.Flag("listen", "Specifies the source address used by proxy db listener. Mutually exclusive with --port.").StringVar(&cf.LocalProxyAddr)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate.").BoolVar(&cf.LocalProxyTunnel)
@@ -1181,6 +1184,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().SetValue(&cf.AppSQN)
 	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
+	proxyApp.Flag("listen", "Specifies the source address used by the proxy app listener. Mutually exclusive with --port.").StringVar(&cf.LocalProxyAddr)
+	proxyApp.Flag("insecure-listen-anywhere", insecureListenAnywhereHelp).BoolVar(&cf.InsecureListenAnywhere)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyApp.Flag("https-tunnel", "Use the teleport-app-https ALPN protocol (HTTPS tunneled over mTLS) for HTTP apps.").Hidden().BoolVar(&cf.AppHTTPSTunnel)
 
@@ -1192,18 +1197,24 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAWS.Flag("listen", "Specifies the source address used by the proxy listener. Mutually exclusive with --port.").StringVar(&cf.LocalProxyAddr)
+	proxyAWS.Flag("insecure-listen-anywhere", insecureListenAnywhereHelp).BoolVar(&cf.InsecureListenAnywhere)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
 
 	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
 	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyAzure.Flag("listen", "Specifies the source address used by the proxy listener. Mutually exclusive with --port.").StringVar(&cf.LocalProxyAddr)
+	proxyAzure.Flag("insecure-listen-anywhere", insecureListenAnywhereHelp).BoolVar(&cf.InsecureListenAnywhere)
 	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyAzure.Alias("az")
 
 	proxyGcloud := proxy.Command("gcloud", "Start local proxy for GCP access.")
 	proxyGcloud.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	proxyGcloud.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyGcloud.Flag("listen", "Specifies the source address used by the proxy listener. Mutually exclusive with --port.").StringVar(&cf.LocalProxyAddr)
+	proxyGcloud.Flag("insecure-listen-anywhere", insecureListenAnywhereHelp).BoolVar(&cf.InsecureListenAnywhere)
 	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyGcloud.Alias("gcp")
 

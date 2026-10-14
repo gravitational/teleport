@@ -1329,6 +1329,8 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
+|`--listen`|*no default*|Specifies the source address used by the proxy app listener. Mutually exclusive with --port.|
+|`--[no-]insecure-listen-anywhere`|`false`|Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted.|
 |`-p`, `--port`|*no default*|Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. "1234:5678".|
 |`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
@@ -1360,6 +1362,8 @@ Flags:
 |---|---|---|
 |`--app`|*no default*|Optional Name of the AWS application to use if logged into multiple.|
 |`-f`, `--format`|`unix` (one of: `unix`, `command-prompt`, `powershell`, `text`, `athena-odbc`, `athena-jdbc`)|Optional format to print the commands for setting environment variables, one of: unix, command-prompt, powershell, text. Default is unix. Or specify a service format, one of: athena-odbc, athena-jdbc.|
+|`--listen`|*no default*|Specifies the source address used by the proxy listener. Mutually exclusive with --port.|
+|`--[no-]insecure-listen-anywhere`|`false`|Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted.|
 |`-p`, `--port`|*no default*|Specifies the source port used by the proxy listener.|
 |`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
@@ -1385,6 +1389,8 @@ Flags:
 |---|---|---|
 |`--app`|*no default*|Optional Name of the Azure application to use if logged into multiple.|
 |`-f`, `--format`|`unix` (one of: `unix`, `command-prompt`, `powershell`, `text`)|Optional format to print the commands for setting environment variables, one of: unix, command-prompt, powershell, text. Default is unix.|
+|`--listen`|*no default*|Specifies the source address used by the proxy listener. Mutually exclusive with --port.|
+|`--[no-]insecure-listen-anywhere`|`false`|Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted.|
 |`-p`, `--port`|*no default*|Specifies the source port used by the proxy listener.|
 |`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
@@ -1451,6 +1457,8 @@ Flags:
 |---|---|---|
 |`--app`|*no default*|Optional Name of the GCP application to use if logged into multiple.|
 |`-f`, `--format`|`unix` (one of: `unix`, `command-prompt`, `powershell`, `text`)|Optional format to print the commands for setting environment variables, one of: unix, command-prompt, powershell, text. Default is unix.|
+|`--listen`|*no default*|Specifies the source address used by the proxy listener. Mutually exclusive with --port.|
+|`--[no-]insecure-listen-anywhere`|`false`|Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted.|
 |`-p`, `--port`|*no default*|Specifies the source port used by the proxy listener.|
 |`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 

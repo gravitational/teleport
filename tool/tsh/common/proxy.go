@@ -277,6 +277,25 @@ func formatCommand(cmd *exec.Cmd) string {
 	return argsfmt
 }
 
+// checkLocalProxyListenAddr validates the --listen address. Non-loopback
+// addresses require --insecure-listen-anywhere.
+func checkLocalProxyListenAddr(cf *CLIConf) error {
+	if cf.LocalProxyAddr == "" {
+		return nil
+	}
+	if cf.LocalProxyPort != "" || cf.LocalProxyPortMapping != "" {
+		return trace.BadParameter("either the address or port for the local proxy can be specified, not both")
+	}
+	host, _, err := net.SplitHostPort(cf.LocalProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !cf.InsecureListenAnywhere && !apiutils.IsLoopback(host) {
+		return trace.BadParameter("only loopback addresses are allowed for listener without --insecure-listen-anywhere switch, got %q", cf.LocalProxyAddr)
+	}
+	return nil
+}
+
 func onProxyCommandDB(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
@@ -316,19 +335,12 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if cf.LocalProxyAddr != "" && cf.LocalProxyPort != "" {
-		return trace.BadParameter("either the address or port for the local proxy can be specified, not both")
+	if err := checkLocalProxyListenAddr(cf); err != nil {
+		return trace.Wrap(err)
 	}
 	addr := "localhost:0"
 	randomPort := true
 	if cf.LocalProxyAddr != "" {
-		host, _, err := net.SplitHostPort(cf.LocalProxyAddr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if !cf.InsecureListenAnywhere && !apiutils.IsLoopback(host) {
-			return trace.BadParameter("only loopback addresses are allowed for listener without --insecure-listen-anywhere switch, got %q", cf.LocalProxyAddr)
-		}
 		randomPort = false
 		addr = cf.LocalProxyAddr
 	} else if cf.LocalProxyPort != "" {
@@ -623,6 +635,9 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err := checkLocalProxyListenAddr(cf); err != nil {
+		return trace.Wrap(err)
+	}
 
 	profile, err := tc.ProfileStatus()
 	if err != nil {
@@ -656,7 +671,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
+	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, cf.LocalProxyAddr, portMapping, cf.InsecureSkipVerify)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -675,7 +690,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 	fmt.Fprintf(cf.ProxyStatusOutput(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.
-	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
+	if cf.LocalProxyAddr == "" && portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
 		fmt.Fprintln(cf.ProxyStatusOutput(), "To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 
@@ -723,6 +738,9 @@ func onProxyCommandAWS(cf *CLIConf) error {
 	if err := checkProxyAWSFormatCompatibility(cf); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := checkLocalProxyListenAddr(cf); err != nil {
+		return trace.Wrap(err)
+	}
 
 	awsApp, err := pickAWSApp(cf)
 	if err != nil {
@@ -763,7 +781,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 	templateData := map[string]any{
 		"envVars":    envVars,
 		"format":     cf.Format,
-		"randomPort": cf.LocalProxyPort == "",
+		"randomPort": cf.LocalProxyPort == "" && cf.LocalProxyAddr == "",
 		"appName":    awsApp.GetAppName(),
 		"region":     getEnvOrDefault(awsRegionEnvVar, "<region>"),
 		"keystore":   getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
@@ -812,6 +830,10 @@ func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
 
 // onProxyCommandAzure creates local proxes for Azure apps.
 func onProxyCommandAzure(cf *CLIConf) error {
+	if err := checkLocalProxyListenAddr(cf); err != nil {
+		return trace.Wrap(err)
+	}
+
 	azApp, err := pickAzureApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -833,7 +855,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err = printCloudTemplate(envVars, cf.Format, cf.LocalProxyPort == "", types.CloudAzure); err != nil {
+	if err = printCloudTemplate(envVars, cf.Format, cf.LocalProxyPort == "" && cf.LocalProxyAddr == "", types.CloudAzure); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -843,6 +865,10 @@ func onProxyCommandAzure(cf *CLIConf) error {
 
 // onProxyCommandGCloud creates local proxies for GCP apps.
 func onProxyCommandGCloud(cf *CLIConf) error {
+	if err := checkLocalProxyListenAddr(cf); err != nil {
+		return trace.Wrap(err)
+	}
+
 	gcpApp, err := pickGCPApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -864,7 +890,7 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err = printCloudTemplate(envVars, cf.Format, cf.LocalProxyPort == "", types.CloudGCP); err != nil {
+	if err = printCloudTemplate(envVars, cf.Format, cf.LocalProxyPort == "" && cf.LocalProxyAddr == "", types.CloudGCP); err != nil {
 		return trace.Wrap(err)
 	}
 
