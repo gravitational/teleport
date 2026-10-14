@@ -64,6 +64,21 @@ accepted the config and routed non-deterministically. The check uses
 this agent's `proxy_service.public_addr`; apps served via another
 proxy's public address in a multi-proxy cluster are not checked.
 
+#### Application Access JWT expiry
+
+The JWT that the Application Service sends to upstream apps in the
+`Teleport-Jwt-Assertion` header now expires at most ten minutes after
+it's issued, rather than when the user's app certificate expires. A
+session's requests get a new JWT every five minutes. Upstream apps that
+validate the JWT on each request are unaffected, provided their clocks
+are within five minutes of the Application Service's. Apps that cache
+the JWT for later use, or end their own session when the JWT expires,
+may see failed requests or shorter sessions.
+
+To restore the previous behavior, start your Application Service
+instances with the `TELEPORT_UNSTABLE_APP_JWT_EXPIRES_WITH_CERT=yes`
+environment variable. This flag will be removed in a future release.
+
 #### CLI --help Output Improvements
 
 In the past, Teleport CLI programs printed all subcommands, subcommands'

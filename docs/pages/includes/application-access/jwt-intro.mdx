@@ -59,7 +59,7 @@ Teleport JWTs include three sections:
       "ec2-user"
     ]
   },
-  // Teleport identity expiration.
+  // Expires at most ten minutes after the token is issued, and never after the Teleport identity.
   "exp": 1603943800,
 }
 ```

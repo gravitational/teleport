@@ -23,6 +23,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -148,12 +149,21 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 	return sess, nil
 }
 
+// jwtExpiryMargin keeps a JWT valid until its chunk ends, unless creating the chunk takes longer than the margin.
+const jwtExpiryMargin = 5 * time.Minute
+
+// jwtExpiresWithCertEnv makes JWTs expire with the client's certificate rather than with their session chunk, as they
+// did before v19
+const jwtExpiresWithCertEnv = "TELEPORT_UNSTABLE_APP_JWT_EXPIRES_WITH_CERT"
+
 // withJWTTokenForwarder is a sessionOpt that creates a forwarder that attaches
 // a generated JWT token to all requests.
 func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
-	// TODO(greedy52) consider using a shorter ttl for the token. The chunk is
-	// only 5 minutes anyway.
-	jwt, rewriteTraits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient, identity.Expires)
+	expires := c.cfg.Clock.Now().Add(common.MaxSessionChunkDuration + jwtExpiryMargin)
+	if identity.Expires.Before(expires) || os.Getenv(jwtExpiresWithCertEnv) == "yes" {
+		expires = identity.Expires
+	}
+	jwt, rewriteTraits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient, expires)
 	if err != nil {
 		return trace.Wrap(err)
 	}
