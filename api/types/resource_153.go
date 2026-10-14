@@ -291,6 +291,16 @@ type resource153ToResourceWithLabelsAdapter[T Resource153] struct {
 	resource153ToLegacyAdapter[T]
 }
 
+// WithoutSecrets returns an instance of the resource which
+// has had all secrets removed.  If the current resource has
+// already had its secrets removed, this may be a no-op.
+func (r *resource153ToResourceWithLabelsAdapter[T]) WithoutSecrets() Resource {
+	if r.copyWithoutSecrets == nil {
+		return r
+	}
+	return Resource153ToResourceWithLabels(r.copyWithoutSecrets(r.inner))
+}
+
 // UnwrapT is an escape hatch for Resource153 instances that are piped down into
 // the codebase as a legacy Resource.
 //
@@ -370,6 +380,16 @@ type ProtoResource153 interface {
 type protoResource153ToLegacyAdapter[T ProtoResource153] struct {
 	inner T
 	resource153ToResourceWithLabelsAdapter[T]
+}
+
+// WithoutSecrets returns an instance of the resource which
+// has had all secrets removed.  If the current resource has
+// already had its secrets removed, this may be a no-op.
+func (r *protoResource153ToLegacyAdapter[T]) WithoutSecrets() Resource {
+	if r.copyWithoutSecrets == nil {
+		return r
+	}
+	return ProtoResource153ToLegacy(r.copyWithoutSecrets(r.inner))
 }
 
 func (r *protoResource153ToLegacyAdapter[T]) CloneResource() ResourceWithLabels {
