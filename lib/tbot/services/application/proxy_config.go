@@ -103,7 +103,7 @@ type ProxyServiceHTTPConfig struct {
 	WriteTimeout *time.Duration `yaml:"write_timeout,omitempty"`
 
 	// UpstreamRequestTimeout is the maximum duration for the upstream HTTP exchange,
-	// including connection establishment, redirects, and reading the response body.
+	// including connection establishment and reading the response body.
 	// Does not include application certificate acquisition.
 	// Client-facing reads and writes remain subject to read_timeout and write_timeout.
 	//
