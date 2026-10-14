@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - audit
+page_type: how-to
 ---
 
 Teleport's Event Handler plugin receives audit events from the Teleport Auth
@@ -14,12 +15,12 @@ historical analysis, detect unusual behavior, and form a better understanding of
 how users interact with your Teleport cluster.
 
 In this guide, we will show you how to configure the Teleport Event Handler
-plugin to send your Teleport audit events to Splunk. 
+plugin to send your Teleport audit events to Splunk.
 
 ## How it works
 
 The Teleport Event Handler authenticates to the Teleport Auth Service to receive
-audit events over a gRPC stream, sends them to a local Fluentd
+audit events over a gRPC stream, and sends them to a local Fluentd
 instance as HTTP requests. The Fluentd instance forwards these requests to the
 Splunk HTTP Event Collector (HEC), which in turn sends them to Splunk Cloud Platform
 or Splunk Enterprise for visualization and alerting.
@@ -67,26 +68,58 @@ will show up in Splunk at the time it was ingested, not at the time it was
 generated. Adjust the format of the `time` field in Splunk so Teleport audit
 events appear as expected.
 
+Teleport formats the `time` field with a variable number of fractional-second
+digits, and omits the fraction entirely for events that land on a whole second.
+After indexing a mix of events, confirm that this format extracted the
+correct time for all of them rather than falling back to ingestion time for
+some, by comparing Splunk's indexed `_time` against the `time` value in the
+raw event:
+
+```spl
+index="teleport-audit-logs" sourcetype="_json-gotime"
+| eval parsed_time=strptime(replace(time, "(\.\d+)?Z$", "+0000"), "%Y-%m-%dT%H:%M:%S%z")
+| eval drift_sec=abs(_time - parsed_time)
+| where isnull(parsed_time) OR drift_sec > 1
+| table _time, time, parsed_time, drift_sec
+```
+
+This search parses each event's raw `time` field independently of the source
+type: it strips any fractional seconds, treats the trailing `Z` as UTC, and
+flags any event where that parse fails (`parsed_time` is null) or where `_time`
+disagrees with it by more than a second. Dropping the fractional seconds
+doesn't affect the result, since the check only looks for drift greater than
+one second. If the search returns no rows across a time range that includes
+both whole-second and fractional-second events, `_time` is correct for all of
+them. If it returns rows, adjust `TIME_FORMAT` on the `_json-gotime` source
+type and re-run this search until it comes back empty.
+
 {/*cSpell:disable*/}
 
-1. Navigate to **Settings -> Source Types**. 
-1. Find the `_json` source type and click **Clone**. 
-1. Name the new source type `_json-gotime`. 
-1. Under **Timestamp** click **Advanced**. 
+1. Navigate to **Settings -> Source Types**.
+1. Find the `_json` source type and click **Clone**.
+1. Name the new source type `_json-gotime`.
+1. Under **Timestamp** click **Advanced**.
 1. Input `%Y-%m-%dT%H:%M:%S.%3NZ` and click **Save**.
 
 {/*cSpell:enable*/}
 
 ### Create a token for the HTTP Event Collector
 
+On Splunk Enterprise, HEC tokens don't accept data until you enable the
+**All Tokens** toggle under HEC's global settings. From the Splunk UI home
+page, navigate to **Settings > Data Inputs > HTTP Event Collector >
+Global Settings**, set **All Tokens** to **Enabled**, and click **Save**.
+Splunk Cloud Platform enables HEC by default, so Splunk Cloud users can skip
+this.
+
 {/*cSpell:disable*/}
-1. Visit the home page of the Splunk UI. 
+1. Visit the home page of the Splunk UI.
 1. Navigate to **Settings > Data inputs**.
 1. In the **Local inputs** table, find the HTTP Event Collector row and click
    **Add new**.
 1. Enter a name you can use to recognize the token later so you can manage it,
-   e.g., `Teleport Audit Events`. 
-1. **Click Next**.
+   e.g., `Teleport Audit Events`.
+1. Click **Next**.
 1. In the **Input Settings** view, next to the **Source type** field, click
    **Select**.
 1. In the **Select Source Type** dropdown menu, click **Structured**, then
@@ -94,8 +127,8 @@ events appear as expected.
    optional step, choose `_json`. Splunk will index incoming logs as JSON, which
    is the format the Event Handler uses to send logs to Splunk.
 1. In the **Index** section, select the `teleport-audit-logs` index you created
-   earlier. 
-1. Click **Review,** then view the summary and click **Submit**. 
+   earlier.
+1. Click **Review**, then view the summary and click **Submit**.
 1. Copy the **Token Value** field and assign <Var name="TOKEN" /> to it so you
    can use it later in this guide.
 {/*cSpell:enable*/}
@@ -107,16 +140,17 @@ https://github.com/splunk/fluent-plugin-splunk-hec, this has been deprecated.
 We can still connect Fluentd to the HEC using Fluentd's built-in HTTP output
 plugin.
 
-In Step 1, you generated a configuration file for Fluentd at `fluent.conf`. Edit
-your `fluent.conf` file as follows:
+Completing one of the prerequisite Event Handler setup guides generated a
+configuration file for Fluentd at `fluent.conf`. Edit your `fluent.conf` file
+as follows:
 
-1. Edit the `<parse>` section with the following section: 
+1. Edit the `<parse>` section with the following section:
 
    ```xml
        <parse>
          @type json
          json_parser oj
-   
+
          # This time format is used by the plugin. This field is required.
          time_type string
          time_format %Y-%m-%dT%H:%M:%S
@@ -136,7 +170,7 @@ your `fluent.conf` file as follows:
    For Splunk Cloud, this will be of the format:
    - AWS: `https://http-inputs-<host>.splunkcloud.com:443/services/collector/raw`
    - Google Cloud / Azure: `https://http-inputs.<host>.splunkcloud.com:443/services/collector/raw`
-   - Free Trial: `https://<host>.splunkcloud.com:8088/services/collector/raw`
+   - Free Trial: `https://http-inputs-<host>.splunkcloud.com:8088/services/collector/raw`
 
    For more information on Splunk HEC URIs, see [Splunk HTTP Event Collector
    ](https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.2/get-data-with-http-event-collector/set-up-and-use-http-event-collector-in-splunk-web#send-data-to-http-event-collector-on-splunk-cloud-platform-0).
@@ -215,9 +249,12 @@ Teleport:
 If the Teleport Event Handler is displaying error logs while connecting to your
 Teleport Cluster, ensure that:
 
-- The certificate the Teleport Event Handler is using to connect to your
-  Teleport cluster is not past its expiration date. This is the value of the
-  `--ttl` flag in the `tctl auth sign` command, which is 12 hours by default.
+- If you set up credentials with `tctl auth sign`, the certificate the Teleport
+  Event Handler is using to connect to your Teleport cluster is not past its
+  expiration date. This is the value of the `--ttl` flag in the `tctl auth
+  sign` command, which is 12 hours by default. If you set up credentials with
+  Machine & Workload Identity (`tbot`) instead, this doesn't apply, since
+  `tbot` renews credentials automatically.
 - In your Teleport Event Handler configuration file, you have provided
   the correct host *and* port for the Teleport Proxy Service.
 
