@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
 	"path"
 	"slices"
 	"sort"
@@ -272,7 +273,10 @@ func onRequestCreate(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	onStatus(cf)
+	// onStatus also reads --format, and prints a second document
+	if !structuredRequestOutput(cf) {
+		onStatus(cf)
+	}
 	return nil
 }
 
@@ -713,6 +717,51 @@ func ignoreDuplicateResourceID(deduplicateResourceIDs map[string]struct{}, resou
 	}
 	deduplicateResourceIDs[resourceID] = struct{}{}
 	return false
+}
+
+// createdRequestJSON is the structured output of `tsh request create`.
+type createdRequestJSON struct {
+	ID    string   `json:"id"`
+	State string   `json:"state"`
+	User  string   `json:"user"`
+	Roles []string `json:"roles"`
+	// Resources are in --resource flag inline form.
+	Resources []string `json:"resources"`
+}
+
+func structuredRequestOutput(cf *CLIConf) bool {
+	switch strings.ToLower(cf.Format) {
+	case teleport.JSON, teleport.YAML:
+		return true
+	default:
+		return false
+	}
+}
+
+func requestProgressWriter(cf *CLIConf) io.Writer {
+	if structuredRequestOutput(cf) {
+		return cf.Stderr()
+	}
+	return cf.Stdout()
+}
+
+func printCreatedRequest(cf *CLIConf, req types.AccessRequest) error {
+	payload := createdRequestJSON{
+		ID:        req.GetName(),
+		State:     req.GetState().String(),
+		User:      req.GetUser(),
+		Roles:     []string{},
+		Resources: []string{},
+	}
+	payload.Roles = append(payload.Roles, req.GetRoles()...)
+	for _, raid := range req.GetAllRequestedResourceIDs() {
+		payload.Resources = append(payload.Resources, common.FormatResourceAccessIDInline(raid))
+	}
+
+	if strings.ToLower(cf.Format) == teleport.YAML {
+		return trace.Wrap(utils.WriteYAML(cf.Stdout(), payload))
+	}
+	return trace.Wrap(utils.WriteJSON(cf.Stdout(), payload))
 }
 
 func onRequestDrop(cf *CLIConf) error {

@@ -179,6 +179,10 @@ type CLIConf struct {
 	NoWait bool
 	// RequestedResourceIDs is a list of resources to request access to.
 	RequestedResourceIDs []string
+	// RequestedResourcesFile is a JSON ResourceAccessIDList path, or "-" for stdin.
+	// Kingpin drops a bare "-", and only --resource-file=- sets it.
+	RequestedResourcesFile string
+	resourceFileSet        bool
 	// RequestID is an access request ID
 	RequestID string
 	// RequestIDs is a list of access request IDs
@@ -1505,11 +1509,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("reason", "Reason for requesting.").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers.").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
-	reqCreate.Flag("resource", "Resource ID to be requested.").StringsVar(&cf.RequestedResourceIDs)
+	reqCreate.Flag("resource", common.ResourceFlagDescription).StringsVar(&cf.RequestedResourceIDs)
+	reqCreate.Flag("resource-file", common.ResourceFileFlagDescription).IsSetByUser(&cf.resourceFileSet).StringVar(&cf.RequestedResourcesFile)
 	reqCreate.Flag("request-ttl", "Expiration time for the Access Request.").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate.").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the access should be granted for.").DurationVar(&cf.MaxDuration)
 	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
+	reqCreate.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	reqReview := req.Command("review", "Review an Access Request.")
 	reqReview.Arg("request-id", "ID of target request.").Required().StringVar(&cf.RequestID)
@@ -3357,12 +3363,16 @@ func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID,
 func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	roles := utils.SplitIdentifiers(cf.DesiredRoles)
 	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-	requestedResourceIDs, err := types.ResourceIDsFromStrings(cf.RequestedResourceIDs)
+
+	resourceAccessIDs, err := common.CollectRequestedResources(cf.RequestedResourceIDs, cf.RequestedResourcesFile, cf.Stdin())
 	if err != nil {
+		if trace.GetFields(err)["resource_input_format"] == "json" {
+			return nil, trace.BadParameter("%s. Use --resource-file for JSON input", err)
+		}
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := services.NewAccessRequestWithResources(cf.Username, roles, types.ResourceIDsToResourceAccessIDs(requestedResourceIDs))
+	req, err := services.NewAccessRequestWithResources(cf.Username, roles, resourceAccessIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3396,7 +3406,10 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
-	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 {
+	if cf.resourceFileSet && cf.RequestedResourcesFile == "" {
+		return trace.BadParameter("--resource-file requires a path. Use --resource-file=- to read stdin")
+	}
+	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 && cf.RequestedResourcesFile == "" {
 		return trace.BadParameter("at least one role or resource or a request ID must be specified")
 	}
 	if cf.RequestTTL < 0 {
@@ -3419,10 +3432,15 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		}
 		// If the request isn't pending, handle resolution
 		if !req.GetState().IsPending() {
+			if structuredRequestOutput(cf) {
+				if err := printCreatedRequest(cf, req); err != nil {
+					return trace.Wrap(err)
+				}
+			}
 			err := onRequestResolution(cf, tc, req)
 			return trace.Wrap(err)
 		}
-		fmt.Fprint(os.Stdout, "Request pending...\n")
+		fmt.Fprint(requestProgressWriter(cf), "Request pending...\n")
 	} else {
 		// This is a new access request, create it. This just creates the local
 		// object, it is not yet sent to the backend.
@@ -3434,9 +3452,18 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 
 	// Upsert request if it doesn't already exist.
 	if cf.RequestID == "" {
-		fmt.Fprint(os.Stdout, "Creating request...\n")
+		fmt.Fprint(requestProgressWriter(cf), "Creating request...\n")
 		// always create access request against the root cluster
 		if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
+			if err := common.CheckConstraintsSupported(req, func() (string, error) {
+				pr, err := clt.Ping(cf.Context)
+				if err != nil {
+					return "", trace.Wrap(err)
+				}
+				return pr.ServerVersion, nil
+			}); err != nil {
+				return trace.Wrap(err)
+			}
 			req, err = clt.CreateAccessRequestV2(cf.Context, req)
 			return trace.Wrap(err)
 		}); err != nil {
@@ -3451,8 +3478,14 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		cf.RequestID = req.GetName()
 	}
 
-	onRequestShow(cf)
-	fmt.Println("")
+	if structuredRequestOutput(cf) && cf.NoWait {
+		if err := printCreatedRequest(cf, req); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if !structuredRequestOutput(cf) {
+		onRequestShow(cf)
+		fmt.Println("")
+	}
 
 	// Don't wait for request to get resolved, just print out request info.
 	if cf.NoWait {
@@ -3460,7 +3493,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	}
 
 	// Wait for the request to be resolved.
-	fmt.Fprintf(os.Stdout, "Waiting for request approval...\n")
+	fmt.Fprintf(requestProgressWriter(cf), "Waiting for request approval...\n")
 
 	var resolvedReq types.AccessRequest
 	if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
@@ -3468,6 +3501,12 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if structuredRequestOutput(cf) {
+		if err := printCreatedRequest(cf, resolvedReq); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Handle resolution and update client certs if approved.
@@ -5736,8 +5775,15 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 			count = count + 1
 		}
 	}
+	hasSSHConstraints := slices.ContainsFunc(p.AllowedResourceAccessIDs, func(id types.ResourceAccessID) bool {
+		return id.GetResourceID().Kind == types.KindNode && id.GetConstraints() != nil
+	})
 	if len(p.Logins) > 0 {
-		fmt.Fprintf(w, "  Logins:             %v\n", strings.Join(p.Logins, ", "))
+		if hasSSHConstraints {
+			fmt.Fprintf(w, "  Certificate logins: %v\n", strings.Join(p.Logins, ", "))
+		} else {
+			fmt.Fprintf(w, "  Logins:             %v\n", strings.Join(p.Logins, ", "))
+		}
 	}
 	if p.KubernetesEnabled {
 		fmt.Fprintf(w, "  Kubernetes:         enabled\n")
@@ -5757,7 +5803,7 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 		fmt.Fprintf(w, "  Databases:          %v\n", strings.Join(p.Databases, ", "))
 	}
 	if len(p.AllowedResourceAccessIDs) > 0 {
-		allowedResourcesStr, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(p.AllowedResourceAccessIDs))
+		allowedResourcesStr, err := common.FormatResourceAccessIDs(p.AllowedResourceAccessIDs)
 		if err != nil {
 			logger.WarnContext(context.Background(), "failed to marshal allowed resource IDs to string", "error", err)
 		} else {

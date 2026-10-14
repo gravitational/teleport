@@ -2679,7 +2679,8 @@ Flags:
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format, 'text', 'json', or 'yaml'|
 |`--[no-]dry-run`|`false`|Don't actually generate the Access Request|
 |`--reason`|*no default*|Optional reason message|
-|`--resource`|*no default*|Resource ID to be requested|
+|`--resource`|*no default*|Resource ID to request, with optional inline constraints ("/main/node/\<node-uuid\>?logins=root"). Repeatable. Escape literal commas in constraint values as \,. Use --resource-file for JSON input.|
+|`--resource-file`|*no default*|Path to a JSON ResourceAccessIDList file. Use --resource-file=- to read stdin.|
 |`--roles`|*no default*|Roles to be requested|
 
 Arguments:

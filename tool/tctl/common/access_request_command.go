@@ -28,7 +28,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -38,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -51,12 +49,14 @@ type AccessRequestCommand struct {
 	config *servicecfg.Config
 	reqIDs string
 
-	user                 string
-	roles                string
-	requestedResourceIDs []string
-	delegator            string
-	reason               string
-	annotations          string
+	user                   string
+	roles                  string
+	requestedResourceIDs   []string
+	requestedResourcesFile string
+	resourceFileSet        bool
+	delegator              string
+	reason                 string
+	annotations            string
 	// format is the output format, e.g. text or json
 	format string
 
@@ -113,7 +113,8 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	c.requestCreate = requests.Command("create", "Create pending Access Request.")
 	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
 	c.requestCreate.Flag("roles", "Roles to be requested").StringVar(&c.roles)
-	c.requestCreate.Flag("resource", "Resource ID to be requested").StringsVar(&c.requestedResourceIDs)
+	c.requestCreate.Flag("resource", common.ResourceFlagDescription).StringsVar(&c.requestedResourceIDs)
+	c.requestCreate.Flag("resource-file", common.ResourceFileFlagDescription).IsSetByUser(&c.resourceFileSet).StringVar(&c.requestedResourcesFile)
 	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestCreate.Flag("dry-run", "Don't actually generate the Access Request").BoolVar(&c.dryRun)
 	c.requestCreate.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
@@ -321,28 +322,38 @@ func (c *AccessRequestCommand) Deny(ctx context.Context, client *authclient.Clie
 }
 
 func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Client) error {
-	if len(c.roles) == 0 && len(c.requestedResourceIDs) == 0 {
+	if c.resourceFileSet && c.requestedResourcesFile == "" {
+		return trace.BadParameter("--resource-file requires a path. Use --resource-file=- to read stdin")
+	}
+	if len(c.roles) == 0 && len(c.requestedResourceIDs) == 0 && c.requestedResourcesFile == "" {
 		c.roles = "*"
 	}
-	requestedResourceIDs, err := types.ResourceIDsFromStrings(c.requestedResourceIDs)
+	resourceAccessIDs, err := common.CollectRequestedResources(c.requestedResourceIDs, c.requestedResourcesFile, os.Stdin)
 	if err != nil {
+		if trace.GetFields(err)["resource_input_format"] == "json" {
+			return trace.BadParameter("%s. Use --resource-file for JSON input", err)
+		}
 		return trace.Wrap(err)
 	}
-	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), types.ResourceIDsToResourceAccessIDs(requestedResourceIDs))
+	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), resourceAccessIDs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	req.SetRequestReason(c.reason)
 
-	if c.dryRun {
-		users := &struct {
-			*authclient.Client
-			services.UserLoginStatesGetter
-		}{
-			Client:                client,
-			UserLoginStatesGetter: client.UserLoginStateClient(),
+	if err := common.CheckConstraintsSupported(req, func() (string, error) {
+		pong, err := client.Ping(ctx)
+		if err != nil {
+			return "", trace.Wrap(err)
 		}
-		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), users, req, tlsca.Identity{}, services.WithExpandVars(true))
+		return pong.ServerVersion, nil
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if c.dryRun {
+		req.SetDryRun(true)
+		req, err = client.CreateAccessRequestV2(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}

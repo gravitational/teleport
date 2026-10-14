@@ -231,26 +231,67 @@ func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 	return r.GetName()
 }
 
-// FormatResourceAccessID returns the provided ResourceAccessID in its string form,
-// appending constraints when present.
+func formatConstraintPairs(rc *types.ResourceConstraints) (string, bool) {
+	if rc == nil {
+		return "", true
+	}
+	recognized := (rc.Version == "" || rc.Version == types.ResourceConstraintVersionV1) && len(rc.XXX_unrecognized) == 0
+	switch d := rc.GetDetails().(type) {
+	case *types.ResourceConstraints_Ssh:
+		if d == nil || d.Ssh == nil {
+			return "", false
+		}
+		recognized = recognized && len(d.Ssh.XXX_unrecognized) == 0
+	case *types.ResourceConstraints_AwsConsole:
+		if d == nil || d.AwsConsole == nil {
+			return "", false
+		}
+		recognized = recognized && len(d.AwsConsole.XXX_unrecognized) == 0
+	default:
+		return "", false
+	}
+	var pairs []string
+	for _, d := range constraintDimensions(rc) {
+		escaped := make([]string, 0, len(d.values))
+		for _, v := range d.values {
+			escaped = append(escaped, EscapeConstraintValue(v))
+		}
+		pairs = append(pairs, d.key+"="+strings.Join(escaped, ","))
+	}
+	return strings.Join(pairs, "&"), recognized
+}
+
+// FormatResourceAccessID formats rid for display as "<resource-id> (key=value,value)".
+// Use [FormatResourceAccessIDInline] for a form that parses back.
 func FormatResourceAccessID(rid types.ResourceAccessID) string {
 	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
-	constraintsString := ""
-
-	if c := rid.GetConstraints(); c != nil && c.GetDetails() != nil {
-		switch d := c.GetDetails().(type) {
-		case *types.ResourceConstraints_AwsConsole:
-			if d.AwsConsole == nil {
-				break
-			}
-			constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(d.AwsConsole.RoleArns, ","))
+	constraints, recognized := formatConstraintPairs(rid.GetConstraints())
+	if !recognized {
+		if constraints != "" {
+			constraints += "; "
 		}
+		return fmt.Sprintf("%s (%sunrecognized constraints)", resourceIDString, constraints)
 	}
-
-	if constraintsString != "" {
-		return fmt.Sprintf("%s (%s)", resourceIDString, constraintsString)
+	if constraints != "" {
+		return fmt.Sprintf("%s (%s)", resourceIDString, constraints)
 	}
+	return resourceIDString
+}
 
+// FormatResourceAccessIDInline formats recognized constraints for [ParseResourceValues].
+// Unrecognized constraints use a diagnostic form that cannot be parsed.
+func FormatResourceAccessIDInline(rid types.ResourceAccessID) string {
+	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
+	constraints, recognized := formatConstraintPairs(rid.GetConstraints())
+	if !recognized {
+		if constraints != "" {
+			resourceIDString += " (" + constraints + ")"
+		}
+		return "unrecognized constraints: " + resourceIDString
+	}
+	if constraints != "" {
+		return resourceIDString + "?" + constraints
+	}
 	return resourceIDString
 }
 
