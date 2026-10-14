@@ -14,7 +14,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
+import Dependencies
 import SwiftUI
+import SystemClients
 
 /// A small view that requests log collection on appearance and displaying sharing options to the user when the logs are
 /// ready.
@@ -120,9 +122,9 @@ extension ShareLogsView {
 						Label("Email", systemImage: "envelope")
 							.shareButtonStyling()
 					}
-					.buttonStyle(.borderedProminent)
+					.buttonStyle(.primary)
 				} else {
-					shareLink.buttonStyle(.borderedProminent)
+					shareLink.buttonStyle(.primary)
 				}
 			}
 			.buttonBorderShape(.roundedRectangle(radius: .small))
@@ -140,3 +142,42 @@ extension Label {
 			.frame(maxWidth: .infinity)
 	}
 }
+
+// MARK: - Preview
+
+#if DEBUG
+
+	#Preview("No Email Setup") {
+		@Previewable @State
+		var delegate = ShareLogsPreviewDelegate()
+
+		let viewModel = withDependencies {
+			$0.emailComposeClient.isAvailable = { false }
+		} operation: {
+			ShareLogsViewModel(delegate: delegate)
+		}
+
+		ShareLogsView(viewModel: viewModel)
+	}
+
+	#Preview("Email Setup") {
+		@Previewable @State
+		var delegate = ShareLogsPreviewDelegate()
+
+		let viewModel = withDependencies {
+			$0.emailComposeClient.isAvailable = { true }
+		} operation: {
+			ShareLogsViewModel(delegate: delegate)
+		}
+
+		ShareLogsView(viewModel: viewModel)
+	}
+
+	@MainActor
+	private final class ShareLogsPreviewDelegate: ShareLogsViewModel.Delegate {
+		func shareLogsViewModelDidRequestLogCollection(_ viewModel: ShareLogsViewModel) async throws -> URL {
+			URL(fileURLWithPath: "/tmp/teleport-verify-logs.zip")
+		}
+	}
+
+#endif

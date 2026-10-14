@@ -23,6 +23,8 @@ struct PrimaryButtonStyle: PrimitiveButtonStyle {
 			configuration.label
 				.foregroundStyle(Color.Button.primaryForeground)
 		}
+		// This wrapper supplies the foreground color needed for correct contrast.
+		// swiftlint:disable:next no_bordered_prominent
 		.buttonStyle(.borderedProminent)
 		.tint(.teleport)
 	}

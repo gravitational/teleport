@@ -49,7 +49,7 @@ struct EnrollRequestStatusView: View {
 						}
 						.frame(maxWidth: .infinity)
 					}
-					.buttonStyle(.borderedProminent)
+					.buttonStyle(.primary)
 					.controlSize(.large)
 				case .failure:
 					Button("Dismiss", action: onDismiss)

@@ -18,3 +18,17 @@ identifier_name:
 
 trailing_comma:
   mandatory_comma: true
+
+custom_rules:
+  no_bordered_prominent:
+    name: "Use Teleport primary button style"
+    regex: '\.buttonStyle\s*\(\s*(?:\.borderedProminent|(?:SwiftUI\.)?BorderedProminentButtonStyle\s*\(\s*\))\s*\)'
+    excluded_match_kinds:
+      - comment
+      - comment.mark
+      - comment.url
+      - doccomment
+      - doccomment.field
+      - string
+    message: "Use .buttonStyle(.primary) for correct contrast with Teleport colors."
+    severity: warning
