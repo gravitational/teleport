@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"slices"
 	"sort"
@@ -199,13 +200,36 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Reason:", reason})
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
-	if !req.GetAccessExpiry().IsZero() {
-		// Display the expiry time in the local timezone. UTC is confusing.
-		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
+	timing := req.GetTiming()
+	if timing != nil {
+		scheduled := timing.GetScheduled()
+		if scheduled == nil {
+			return trace.BadParameter("invalid timing parameters: missing scheduled mode")
+		}
+
+		end := scheduled.Start.Add(scheduled.Duration)
+		start := scheduled.Start
+		now := time.Now()
+		if now.After(start) && now.Before(end) {
+			start = now
+		}
+
+		table.AddRow([]string{"Access Starts:", timeZoneFromEnvOrLocal(start).Format(time.RFC1123)})
+		table.AddRow([]string{"Access Ends:", timeZoneFromEnvOrLocal(end).Format(time.RFC1123)})
+		table.AddRow([]string{"Access Duration:", end.Sub(start).String()})
+		if req.GetState().IsPending() {
+			table.AddRow([]string{"Approval Required By:", timeZoneFromEnvOrLocal(req.Expiry()).Format(time.RFC1123)})
+		}
+
+	} else {
+		if !req.GetAccessExpiry().IsZero() {
+			table.AddRow([]string{"Access Expires:", timeZoneFromEnvOrLocal(req.GetAccessExpiry()).Format(time.RFC1123)})
+		}
+		if req.GetAssumeStartTime() != nil {
+			table.AddRow([]string{"Assume Start Time:", timeZoneFromEnvOrLocal(*req.GetAssumeStartTime()).Format(time.RFC1123)})
+		}
 	}
-	if req.GetAssumeStartTime() != nil {
-		table.AddRow([]string{"Assume Start Time:", req.GetAssumeStartTime().Local().Format(time.DateTime)})
-	}
+
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
 	_, err = table.AsBuffer().WriteTo(cf.Stdout())
@@ -354,10 +378,11 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 	})
 	table.AddFootnote("[+]",
 		"Columns are truncated, use 'tsh request show <request-id>' to view the full list")
-	table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
-	table.AddColumn(asciitable.Column{Title: "Request TTL"})
-	table.AddColumn(asciitable.Column{Title: "Session TTL"})
-	table.AddColumn(asciitable.Column{Title: "Assume Time (UTC)"})
+	table.AddColumn(asciitable.Column{Title: "Created At"})
+	table.AddColumn(asciitable.Column{Title: "Access Starts"})
+	table.AddColumn(asciitable.Column{Title: "Access Duration"})
+	table.AddColumn(asciitable.Column{Title: "Access Ends"})
+	table.AddColumn(asciitable.Column{Title: "Approve By"})
 	table.AddColumn(asciitable.Column{Title: "Status"})
 	now := time.Now()
 	for _, req := range reqs {
@@ -370,19 +395,31 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		assumeStartTime := ""
-		if req.GetAssumeStartTime() != nil {
-			assumeStartTime = req.GetAssumeStartTime().UTC().Format(time.RFC822)
+
+		scheduled := req.GetTiming().GetScheduled()
+
+		accessStarts := req.GetCreationTime()
+		if scheduled != nil {
+			accessStarts = scheduled.Start
+		} else if req.GetAssumeStartTime() != nil {
+			accessStarts = *req.GetAssumeStartTime()
 		}
+
+		accessEnds := req.GetAccessExpiry()
+		if scheduled != nil {
+			accessEnds = scheduled.Start.Add(scheduled.Duration)
+		}
+
 		table.AddRow([]string{
 			req.GetName(),
 			req.GetUser(),
 			strings.Join(req.GetRoles(), ","),
 			resourceIDsString,
-			req.GetCreationTime().UTC().Format(time.RFC822),
-			time.Until(req.Expiry()).Round(time.Minute).String(),
-			time.Until(req.GetAccessExpiry()).Round(time.Minute).String(),
-			assumeStartTime,
+			timeZoneFromEnvOrLocal(req.GetCreationTime()).Format(time.RFC822),
+			timeZoneFromEnvOrLocal(accessStarts).Format(time.RFC822),
+			accessEnds.Sub(accessStarts).String(),
+			timeZoneFromEnvOrLocal(accessEnds).Format(time.RFC822),
+			timeZoneFromEnvOrLocal(req.Expiry()).Format(time.RFC822),
 			req.GetState().String(),
 		})
 	}
@@ -779,4 +816,31 @@ func onRequestDrop(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(onStatus(cf))
+}
+
+// Load the timezone from the TZ env variable or use the default timezone if TZ is not set. If the
+// timezone cannot be loaded, return the time in UTC.
+// NOTE: the TZ env variable MUST be in IANA format (eg. "Europe/London" or "America/Los_Angeles").
+// If the TZ env variable is set to a non-IANA format (eg. "PST" or "EST"), the timezone will not be
+// loaded and the time will be returned in UTC.
+func timeZoneFromEnvOr(ts time.Time, defaultTZ string) time.Time {
+	if ts.IsZero() {
+		return ts
+	}
+
+	tz := os.Getenv("TZ")
+	if tz == "" {
+		tz = defaultTZ
+	}
+
+	timeZone, err := time.LoadLocation(tz)
+	if err != nil {
+		return ts.UTC()
+	}
+
+	return ts.In(timeZone)
+}
+
+func timeZoneFromEnvOrLocal(ts time.Time) time.Time {
+	return timeZoneFromEnvOr(ts, "Local")
 }

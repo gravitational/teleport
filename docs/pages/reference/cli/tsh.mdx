@@ -1717,13 +1717,15 @@ Flags:
 |`--assume-start-time`|*no default*|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--max-duration`|*no default*|How long the access should be granted for.|
-|`--[no-]nowait`|`false`|Finish without waiting for request resolution.|
+|`--[no-]interactive`|`false`|Start interactive mode for scheduled access request creation.|
+|`--[no-]nowait`|`false`|Finish without waiting for request resolution (default for scheduled requests).|
 |`--reason`|*no default*|Reason for requesting.|
 |`--request-ttl`|*no default*|Expiration time for the Access Request.|
 |`--resource`|*no default*|Resource ID to request, with optional inline constraints ("/main/node/\<node-uuid\>?logins=root"). Repeatable. Escape literal commas in constraint values as \,. Use --resource-file for JSON input.|
 |`--resource-file`|*no default*|Path to a JSON ResourceAccessIDList file. Use --resource-file=- to read stdin.|
 |`--reviewers`|*no default*|Suggested reviewers.|
 |`--roles`|*no default*|Roles to be requested.|
+|`--scheduled-start`|*no default*|Start of the scheduled access window (RFC3339 e.g 2023-12-12T23:20:50.52Z).|
 |`--session-ttl`|*no default*|Expiration time for the elevated certificate.|
 
 ## tsh request drop
