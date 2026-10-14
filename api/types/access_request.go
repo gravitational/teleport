@@ -18,6 +18,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"slices"
@@ -159,6 +160,10 @@ type AccessRequest interface {
 	SetRequestedResourceAccessIDs([]ResourceAccessID)
 	// GetAllRequestedResourceIDs get all requested resources, in [ResourceAccessID]-form.
 	GetAllRequestedResourceIDs() []ResourceAccessID
+	// GetTiming returns the timing context.
+	GetTiming() *AccessRequestTiming
+	// SetTiming sets the timing context.
+	SetTiming(*AccessRequestTiming)
 	// IsEqual determines if two access requests are equivalent to one another.
 	IsEqual(AccessRequest) bool
 }
@@ -201,8 +206,8 @@ func (r *AccessRequestV3) IsEqual(other AccessRequest) bool {
 		return false
 	}
 
-	if r == nil && otherv3 == nil {
-		return true
+	if r == nil || otherv3 == nil {
+		return r == nil && otherv3 == nil
 	}
 
 	if !deriveTeleportEqualAccessRequestV3(r, otherv3) {
@@ -524,6 +529,11 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	if len(r.GetRoles()) == 0 && len(r.GetAllRequestedResourceIDs()) == 0 {
 		return trace.BadParameter("access request does not specify any roles or resources")
 	}
+	if r.Spec.Timing != nil {
+		if err := r.Spec.Timing.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	// dedupe and sort roles to simplify comparing role lists
 	r.Spec.Roles = utils.Deduplicate(r.Spec.Roles)
@@ -813,6 +823,16 @@ func (r *AccessRequestV3) Origin() string {
 // SetOrigin sets the origin value of the resource.
 func (r *AccessRequestV3) SetOrigin(origin string) {
 	r.Metadata.SetOrigin(origin)
+}
+
+// GetTiming returns timing context from the access request spec. Can be nil.
+func (r *AccessRequestV3) GetTiming() *AccessRequestTiming {
+	return r.Spec.Timing
+}
+
+// SetTiming sets timing context in the access request spec.
+func (r *AccessRequestV3) SetTiming(timing *AccessRequestTiming) {
+	r.Spec.Timing = timing
 }
 
 // String returns a text representation of this AccessRequest
@@ -1184,5 +1204,109 @@ func ValidateAssumeStartTime(assumeStartTime time.Time, accessExpiry time.Time, 
 			maxAssumableStartTime.Format(time.RFC3339))
 	}
 
+	return nil
+}
+
+// Equal instructs derive how to compare AccessRequestTiming correctly.
+func (t *AccessRequestTiming) Equal(other *AccessRequestTiming) bool {
+	return t.IsEqual(other)
+}
+
+// IsEqual checks if provided AccessRequestTiming equal to the current one.
+func (t *AccessRequestTiming) IsEqual(other *AccessRequestTiming) bool {
+	if t == nil || other == nil {
+		return t == other
+	}
+
+	switch timing := t.Mode.(type) {
+	case *AccessRequestTiming_Scheduled:
+		otherTiming, ok := other.Mode.(*AccessRequestTiming_Scheduled)
+		if !ok {
+			return false
+		}
+		if timing == nil || otherTiming == nil {
+			return timing == otherTiming
+		}
+		if timing.Scheduled == nil || otherTiming.Scheduled == nil {
+			return timing.Scheduled == otherTiming.Scheduled
+		}
+		return timing.Scheduled.Start.Equal(otherTiming.Scheduled.Start) &&
+			timing.Scheduled.Duration == otherTiming.Scheduled.Duration
+	default:
+		return t.Mode == nil && other.Mode == nil
+	}
+}
+
+func (t *AccessRequestTiming) CheckAndSetDefaults() error {
+	if t == nil {
+		return trace.BadParameter("missing timing")
+	}
+	if t.Mode == nil {
+		return trace.BadParameter("missing timing mode")
+	}
+
+	switch timing := t.Mode.(type) {
+	case *AccessRequestTiming_Scheduled:
+		if timing == nil {
+			return trace.BadParameter("invalid timing mode")
+		}
+		scheduled := timing.Scheduled
+
+		if scheduled == nil {
+			return trace.BadParameter("missing scheduled timing")
+		}
+
+		if scheduled.Duration <= 0 {
+			return trace.BadParameter("invalid or missing scheduled duration")
+		}
+
+		if scheduled.Start.IsZero() {
+			return trace.BadParameter("missing scheduled start time")
+		}
+
+	default:
+		return trace.BadParameter("invalid timing mode requested: %v", timing)
+	}
+
+	return nil
+}
+
+type accessRequestTimingJSON struct {
+	Scheduled *AccessRequestScheduledTiming `json:"scheduled,omitempty"`
+}
+
+// MarshalJSON marshals the timing oneof into its concrete JSON representation.
+func (t *AccessRequestTiming) MarshalJSON() ([]byte, error) {
+	if t == nil {
+		return []byte("null"), nil
+	}
+	switch mode := t.Mode.(type) {
+	case *AccessRequestTiming_Scheduled:
+		return json.Marshal(accessRequestTimingJSON{Scheduled: mode.Scheduled})
+	default:
+		return nil, trace.BadParameter("unsupported access request timing mode %T", mode)
+	}
+}
+
+// UnmarshalJSON unmarshals the concrete JSON representation into the timing oneof.
+// NOTE: Currently using the stdlib json, which is not really compatible with oneof semantics.
+// Using stdlib here but it would be better to use jsonpb here if possible.
+func (t *AccessRequestTiming) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return trace.Wrap(err)
+	}
+	scheduledJSON, ok := fields["scheduled"]
+	if !ok {
+		return trace.BadParameter("missing scheduled timing")
+	}
+	if len(fields) != 1 {
+		return trace.BadParameter("unsupported access request timing fields")
+	}
+	var scheduled AccessRequestScheduledTiming
+	if err := json.Unmarshal(scheduledJSON, &scheduled); err != nil {
+		return trace.Wrap(err)
+	}
+	t.Mode = &AccessRequestTiming_Scheduled{Scheduled: &scheduled}
 	return nil
 }

@@ -149,6 +149,9 @@ type newWebSessionOpts struct {
 	// pinned to a specific scope, but also retain all privilege assignments
 	// present in an existing scope pin.
 	scopePin *scopesv1.Pin
+	// adjustExplicitSessionTTL applies the resulting role set's
+	// max_session_ttl to an explicitly supplied session TTL.
+	adjustExplicitSessionTTL bool
 }
 
 func (o *newWebSessionOpts) getScopePin() *scopesv1.Pin {
@@ -258,6 +261,8 @@ func (a *Server) newWebSession(
 	sessionTTL := req.SessionTTL
 	if sessionTTL == 0 {
 		sessionTTL = checkerCtx.CertParams().AdjustSessionTTL(apidefaults.CertDuration)
+	} else if opts != nil && opts.adjustExplicitSessionTTL {
+		sessionTTL = checkerCtx.CertParams().AdjustSessionTTL(sessionTTL)
 	}
 
 	if req.AttestWebSession {

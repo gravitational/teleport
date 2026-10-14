@@ -390,7 +390,8 @@ func deriveTeleportEqual(this, that *AccessRequestSpecV3) bool {
 			this.RequestKind == that.RequestKind &&
 			deriveTeleportEqual_40(this.LongTermGrouping, that.LongTermGrouping) &&
 			deriveTeleportEqual_41(this.UserInfo, that.UserInfo) &&
-			deriveTeleportEqual_42(this.SuggestedReviewersInfo, that.SuggestedReviewersInfo)
+			deriveTeleportEqual_42(this.SuggestedReviewersInfo, that.SuggestedReviewersInfo) &&
+			this.Timing.Equal(that.Timing)
 }
 
 // deriveTeleportEqual_ returns whether this and that are equal.

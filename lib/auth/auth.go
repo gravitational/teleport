@@ -5268,6 +5268,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 	traits := accessInfo.Traits
 	allowedResourceAccessIDs := accessInfo.AllowedResourceAccessIDs
 	accessRequests := identity.ActiveRequests
+	var scheduledAccessRequest bool
 
 	opts := &newWebSessionOpts{}
 
@@ -5302,6 +5303,23 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		accessRequest, err := a.getValidatedAccessRequest(ctx, identity, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		scheduledAccessRequest = accessRequest.GetTiming().GetScheduled() != nil
+
+		// Legacy requests retain the SessionTTL set at creation, which is already capped by
+		// the requesting identity's expiration, so they do not need this additional check.
+		// Scheduled requests ignore the creation-time SessionTTL when assumed.
+		// Reject expired identities and cap the new web session's expiration at
+		// the current identity's expiration.
+		if scheduledAccessRequest {
+			now := a.clock.Now().UTC()
+			if !identity.Expires.After(now) {
+				return nil, trace.Wrap(client.ErrClientCredentialsHaveExpired)
+			}
+			if identity.Expires.Before(expiresAt) {
+				expiresAt = identity.Expires
+			}
 		}
 
 		roles = append(roles, accessRequest.GetRoles()...)
@@ -5361,6 +5379,9 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		// Keep existing scope pin, if any, in the new session.
 		opts.scopePin = identity.ScopePin
 	}
+
+	// Adjust SessionTTL for scheduled access requests.
+	opts.adjustExplicitSessionTTL = scheduledAccessRequest
 
 	// Create a new web session with the same private key. This way, if the
 	// original session was an attested web session, the extended session will
@@ -5438,6 +5459,14 @@ func decodeDeviceExtensionsFromSession(webSession types.WebSession) (*tlsca.Devi
 // getWebSessionTTL returns the earliest expiration time of allowed in the access request.
 func (a *Server) getWebSessionTTL(accessRequest types.AccessRequest) time.Time {
 	webSessionTTL := accessRequest.GetAccessExpiry()
+
+	// Scheduled requests store a creation-time SessionTTL for backward compatibility.
+	// Ignore it when assuming the request; use the scheduled window's end instead.
+	// The caller separately enforces the current session and identity expiration.
+	if accessRequest.GetTiming().GetScheduled() != nil {
+		return webSessionTTL
+	}
+
 	sessionTTL := accessRequest.GetSessionTLL()
 	if sessionTTL.IsZero() {
 		return webSessionTTL
@@ -5485,6 +5514,17 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if scheduled := req.GetTiming().GetScheduled(); scheduled != nil {
+		now := a.GetClock().Now().UTC()
+		if now.Before(scheduled.Start) {
+			return nil, trace.BadParameter("access request %q can not be assumed until %v", accessRequestID, scheduled.Start)
+		}
+		if !now.Before(scheduled.Start.Add(scheduled.Duration)) {
+			return nil, trace.BadParameter("access request %q has expired", accessRequestID)
+		}
+		return req, nil
 	}
 
 	accessExpiry := req.GetAccessExpiry()
@@ -6157,6 +6197,14 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		expandOpts, services.WithRoleSuggestedReviewersOutput(&roleSuggestedReviewers),
 	); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Handle requests that are created with approved state.
+	if req.GetState().IsApproved() && req.GetTiming() != nil {
+		if err := services.ValidateScheduledAccessRequestApproval(req, req.Expiry(), now); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		req.SetExpiry(req.GetAccessExpiry())
 	}
 
 	// Look for user groups and associated applications to the request.

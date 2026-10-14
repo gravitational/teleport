@@ -4120,6 +4120,21 @@ func (a *ScopedServerWithRoles) desiredAccessInfoForUser(ctx context.Context, re
 			return nil, trace.Wrap(err)
 		}
 
+		// Legacy requests retain the SessionTTL set at creation, which is already capped by
+		// the requesting identity's expiration, so they do not need this additional check.
+		// Scheduled access requests however need to recompute SessionTTL when assumed, so reject
+		// expired identities and cap the requested certificate's expiration at the current
+		// identity's expiration.
+		if accessRequest.GetTiming().GetScheduled() != nil {
+			now := a.authServer.clock.Now().UTC()
+			if !currentIdentity.Expires.After(now) {
+				return nil, trace.Wrap(client.ErrClientCredentialsHaveExpired)
+			}
+			if currentIdentity.Expires.Before(req.Expires) {
+				req.Expires = currentIdentity.Expires
+			}
+		}
+
 		// Cannot generate a cert that would outlive the access request.
 		if accessRequest.GetAccessExpiry().Before(req.Expires) {
 			req.Expires = accessRequest.GetAccessExpiry()

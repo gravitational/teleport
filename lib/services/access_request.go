@@ -60,6 +60,10 @@ const (
 	// granted for.
 	MaxAccessDuration = 14 * day
 
+	// MaxScheduledStartDelay is the maximum time between creating an access
+	// request and the start of its scheduled access window.
+	MaxScheduledStartDelay = 30 * day
+
 	// requestTTL is the TTL for an access request, i.e. the amount of time that
 	// the access request can be reviewed. Defaults to 1 week.
 	requestTTL = 7 * day
@@ -513,6 +517,9 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 	// basic compatibility/sanity checks
 	if err := checkReviewCompat(req, rev); err != nil {
 		return trace.Wrap(err)
+	}
+	if req.GetTiming() != nil && rev.AssumeStartTime != nil {
+		return trace.BadParameter("assume_start_time cannot be changed for a scheduled access request")
 	}
 
 	// aggregate the threshold indexes for this review
@@ -1269,6 +1276,12 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 		return trace.BadParameter("request validator configured for different user (this is a bug)")
 	}
 
+	if timing := req.GetTiming(); timing != nil {
+		if err := timing.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if !req.GetState().IsPromoted() && req.GetPromotedAccessListTitle() != "" {
 		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
@@ -1370,7 +1383,20 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 
 	}
 
+	if !m.opts.expandVars {
+		// Validate if the existing access request was not mutated since creation.
+		if err := validateScheduledTimingValues(req); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if m.opts.expandVars {
+		// Scheduled mode parameters (if enabled) in the new request.
+		scheduled, err := validateScheduledTimingInput(req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// deduplicate requested resource IDs
 		deduplicateRequestedResources(req)
 
@@ -1426,8 +1452,13 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 
 		// Pin the time to the current time to prevent time drift.
 		now := m.clock.Now().UTC()
+		if scheduled != nil && scheduled.Start.After(now.Add(MaxScheduledStartDelay)) {
+			return trace.BadParameter("scheduled start must be no more than %v in the future", MaxScheduledStartDelay)
+		}
 
 		// TODO(kiosion): The following logic shouldn't be relevant for long-term requests, post-Reviewer-changes.
+
+		var accessExpiry time.Time
 
 		// Calculate the expiration time of the elevated certificate that will
 		// be issued if the Access Request is approved.
@@ -1436,25 +1467,38 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 
-		maxDuration, err := m.calculateMaxAccessDuration(req, sessionTTL)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		if scheduled != nil {
+			effectiveDuration := m.adjustScheduledAccessDuration(req, scheduled.Duration)
+			scheduled.Duration = effectiveDuration
+			accessExpiry = scheduled.Start.Add(effectiveDuration)
+			if !accessExpiry.After(now) {
+				return trace.BadParameter("scheduled access window has already ended")
+			}
 
-		// If the maxDuration flag is set, consider it instead of only using the session TTL.
-		var maxAccessDuration time.Duration
+			creationTime := req.GetCreationTime()
 
-		if maxDuration > 0 {
-			req.SetSessionTLL(now.Add(min(sessionTTL, maxDuration)))
-			maxAccessDuration = maxDuration
+			// Keep the legacy creation-relative SessionTTL value for backward compatibility.
+			// The SessionTTL will be recomputed on assumption in scheduled mode.
+			req.SetSessionTLL(creationTime.Add(min(sessionTTL, effectiveDuration)))
+			req.SetAssumeStartTime(scheduled.Start)
 		} else {
-			req.SetSessionTLL(now.Add(sessionTTL))
-			maxAccessDuration = sessionTTL
+			maxDuration, err := m.calculateMaxAccessDuration(req, sessionTTL)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			// If the maxDuration flag is set, consider it instead of only using the session TTL.
+			var maxAccessDuration time.Duration
+			if maxDuration > 0 {
+				req.SetSessionTLL(now.Add(min(sessionTTL, maxDuration)))
+				maxAccessDuration = maxDuration
+			} else {
+				req.SetSessionTLL(now.Add(sessionTTL))
+				maxAccessDuration = sessionTTL
+			}
+			accessExpiry = now.Add(maxAccessDuration)
 		}
 
-		// This is the final adjusted access expiry where both max duration
-		// and session TTL were taken into consideration.
-		accessExpiry := now.Add(maxAccessDuration)
 		// Adjusted max access duration is equal to the access expiry time.
 		req.SetMaxDuration(accessExpiry)
 
@@ -1470,7 +1514,7 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 		}
 		req.SetExpiry(now.Add(requestTTL))
 
-		if req.GetAssumeStartTime() != nil {
+		if scheduled == nil && req.GetAssumeStartTime() != nil {
 			assumeStartTime := *req.GetAssumeStartTime()
 			if err := types.ValidateAssumeStartTime(assumeStartTime, accessExpiry, req.GetCreationTime()); err != nil {
 				return trace.Wrap(err)
@@ -2884,4 +2928,106 @@ func regexpMatchFunc(list []string, re string) (bool, error) {
 		return false, trace.Wrap(err, "invalid regular expression %q", re)
 	}
 	return match, nil
+}
+
+// validateScheduledTimingInput validates input from a new access request.
+func validateScheduledTimingInput(req types.AccessRequest) (*types.AccessRequestScheduledTiming, error) {
+	timing := req.GetTiming()
+	if timing == nil {
+		return nil, nil
+	}
+
+	scheduled := timing.GetScheduled()
+	if scheduled == nil {
+		return nil, trace.BadParameter("access request timing mode must be scheduled")
+	}
+
+	// Require the legacy start time so older Auth instances cannot silently
+	// treat scheduled requests as immediately assumable during rolling upgrades.
+	if req.GetAssumeStartTime() == nil || !req.GetAssumeStartTime().Equal(scheduled.Start) {
+		return nil, trace.BadParameter("assume_start_time does not match scheduled timing")
+	}
+
+	scheduledMaxDuration := scheduled.Start.Add(scheduled.Duration)
+
+	if req.GetMaxDuration().IsZero() || !req.GetMaxDuration().Equal(scheduledMaxDuration) {
+		return nil, trace.BadParameter("max_duration does not match scheduled timing")
+	}
+
+	if !req.GetAccessExpiry().IsZero() {
+		return nil, trace.BadParameter("access_expiry cannot be set with scheduled timing")
+	}
+
+	if !req.GetSessionTLL().IsZero() {
+		return nil, trace.BadParameter("session_ttl cannot be set with scheduled timing")
+	}
+
+	return scheduled, nil
+}
+
+// validateScheduledTimingValues validates values from the existing access request and validates
+// that the existing fields did not diverge from the timing ones.
+func validateScheduledTimingValues(req types.AccessRequest) error {
+	timing := req.GetTiming()
+	if timing == nil {
+		return nil
+	}
+
+	scheduled := timing.GetScheduled()
+	if scheduled == nil {
+		return trace.BadParameter("access request timing mode must be scheduled")
+	}
+
+	end := scheduled.Start.Add(scheduled.Duration)
+	if req.GetAssumeStartTime() == nil || !req.GetAssumeStartTime().Equal(scheduled.Start) {
+		return trace.BadParameter("assume_start_time does not match scheduled timing")
+	}
+	if !req.GetMaxDuration().Equal(end) {
+		return trace.BadParameter("max_duration does not match scheduled timing")
+	}
+	if !req.GetAccessExpiry().Equal(end) {
+		return trace.BadParameter("access expiry does not match scheduled timing")
+	}
+
+	created := req.GetCreationTime()
+	sessionTTL := req.GetSessionTLL()
+	if created.IsZero() || !sessionTTL.After(created) || sessionTTL.After(created.Add(scheduled.Duration)) {
+		return trace.BadParameter("session_ttl does not match scheduled timing")
+	}
+
+	return nil
+}
+
+// ValidateScheduledAccessRequestApproval validates that a scheduled request can
+// be approved at the supplied time. Legacy requests are not affected.
+func ValidateScheduledAccessRequestApproval(req types.AccessRequest, pendingExpiry, now time.Time) error {
+	if req.GetTiming() == nil {
+		return nil
+	}
+
+	if err := validateScheduledTimingValues(req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !pendingExpiry.After(now) {
+		return trace.BadParameter("access request approval deadline has passed")
+	}
+
+	if !req.GetAccessExpiry().After(now) {
+		return trace.BadParameter("scheduled access window has already ended")
+	}
+
+	return nil
+}
+
+func (m *RequestValidator) adjustScheduledAccessDuration(req types.AccessRequest, requested time.Duration) time.Duration {
+	effective := min(requested, MaxAccessDuration)
+	for _, roleName := range req.GetRoles() {
+		roleLimit := m.maxDurationForRole(roleName)
+		if roleLimit != 0 && roleLimit < effective {
+			effective = roleLimit
+		}
+	}
+
+	return effective
 }
