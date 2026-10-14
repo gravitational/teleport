@@ -80,8 +80,24 @@ with the following content and assign it to the identity that the Teleport proce
   }
 ```
 
-Replace the `{subscription_id}` with the desired Subscription ID or a wildcard if
-you want to guarantee permissions on all subscriptions.
+Replace `{subscription_id}` with the desired Subscription ID. Azure custom
+roles don't support wildcards in `assignableScopes`, so if you need to grant
+permissions across multiple subscriptions, either list each Subscription ID as
+a separate entry in the array, or set `assignableScopes` to a management group
+that contains all target subscriptions, for example:
+
+```text
+/providers/Microsoft.Management/managementGroups/{management_group_id}
+```
+
+<Admonition type="note">
+
+A custom role definition allows at most one management group in
+`assignableScopes`. Furthermore, because this role contains `DataActions`,
+Azure allows defining the role at the management group scope, but requires the
+role *assignment* to be created at the subscription level.
+
+</Admonition>
 
   </TabItem>
 
@@ -116,7 +132,7 @@ following permissions with Teleport's identity.
             "Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action",
             "Microsoft.ContainerService/managedClusters/listClusterUserCredential/action",
             "Microsoft.ContainerService/managedClusters/runcommand/action",
-            "Microsoft.ContainerService/managedclusters/commandResults/read"
+            "Microsoft.ContainerService/managedClusters/commandResults/read"
           ],
           "NotActions": [],
           "DataActions": [],
@@ -126,6 +142,11 @@ following permissions with Teleport's identity.
           ]
       }
     ```
+
+Replace `{subscription_id}` with the desired Subscription ID. As with the
+Azure RBAC role above, list each Subscription ID separately, or scope to a
+management group, if you need to cover more than one subscription (maximum of
+one management group per custom role in `assignableScopes`).
 
 In all other cases, you must manually set up the required access as described in the guide below.
 
@@ -216,6 +237,11 @@ associated with Teleport identity.
       }
     ```
 
+  Replace `{subscription_id}` with the desired Subscription ID. As with the
+  other tabs, list each Subscription ID separately, or scope to a management
+  group, if you need to cover more than one subscription (maximum of one
+  management group per custom role in `assignableScopes`).
+
   </TabItem>
 </Tabs>
 
@@ -230,14 +256,22 @@ Discovery Service:
 
 ### Get a join token
 
-Teleport AKS Auto-Discovery requires a valid auth token for the Discovery and
+Teleport AKS Auto-Discovery requires a valid join token for the Discovery and
 Kubernetes services to join the cluster. Generate one by running the following
-command against your Teleport Auth Service and save it in `/tmp/token` on the
-machine that will run Kubernetes Discovery:
+command against your Teleport Auth Service:
 
 ```code
 $ tctl tokens add --type=discovery,kube --format=text
 (=presets.tokens.first=)
+```
+
+On the host that will run the Discovery and Kubernetes services, save the token
+to a file that only the owner can read:
+
+```code
+$ sudo mkdir -p /var/lib/teleport
+$ sudo install -m 600 /dev/null /var/lib/teleport/token
+$ echo "(=presets.tokens.first=)" | sudo tee /var/lib/teleport/token > /dev/null
 ```
 
 ### Configure the Kubernetes Service and Discovery Service
@@ -258,7 +292,7 @@ Service.
 version: v3
 teleport:
   join_params:
-    token_name: "/tmp/token"
+    token_name: "/var/lib/teleport/token"
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
