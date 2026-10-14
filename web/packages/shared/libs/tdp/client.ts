@@ -795,11 +795,9 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    const bytesWritten = await sharedDirectory.write(
-      req.path,
-      req.offset,
-      req.writeData
-    );
+    const bytesWritten = await sharedDirectory
+      .serialized()
+      .write(req.path, req.offset, req.writeData);
 
     this.sendSharedDirectoryWriteResponse({
       completionId: req.completionId,
@@ -866,7 +864,10 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    await sharedDirectory.truncate(req.path, Number(req.endOfFile));
+    await sharedDirectory
+      .serialized()
+      .truncate(req.path, Number(req.endOfFile));
+    this.logger.info('truncate done! completionId: ' + req.completionId);
     this.sendSharedDirectoryTruncateResponse({
       completionId: req.completionId,
       directoryId: req.directoryId,

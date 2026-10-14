@@ -260,6 +260,9 @@ async function shareDirectoryInTshd(
     delete: () => {
       throw new NotImplemented();
     },
+    serialized: () => {
+      throw new NotImplemented();
+    },
   };
 }
 

@@ -383,5 +383,6 @@ function mockDirectoryAccess(name: string = ''): SharedDirectoryAccess {
     readDir: () => undefined,
     truncate: () => undefined,
     write: () => undefined,
+    serialized: () => undefined,
   };
 }
