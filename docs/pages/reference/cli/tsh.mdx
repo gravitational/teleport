@@ -1837,6 +1837,29 @@ Arguments:
 |---|---|---|
 |request-id|*no default* (required)|ID of the target request.|
 
+## tsh request show-principals
+
+Show the granted and requestable principals for a resource.
+
+Usage:
+
+```code
+$ tsh request show-principals [<flags>] <resource-id>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`-v`, `--[no-]verbose`|`false`|Show full labels.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|resource-id|*no default* (required)|Resource ID to show principals for (e.g. /cluster/node/\<node-uuid\>).|
+
 ## tsh resolve
 
 Resolves an SSH host.

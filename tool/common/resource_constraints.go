@@ -64,6 +64,16 @@ var constraintKeySpecs = map[string]constraintKeySpec{
 // Sorted for error messages.
 var supportedConstraintKeys = slices.Sorted(maps.Keys(constraintKeySpecs))
 
+// ConstraintKeyVariant returns the variant of key for resources of kind, or
+// false if key does not apply to kind.
+func ConstraintKeyVariant(kind, key string) (string, bool) {
+	spec, ok := constraintKeySpecs[key]
+	if !ok || !slices.Contains(spec.kinds, kind) {
+		return "", false
+	}
+	return spec.variant, true
+}
+
 type constraintDimension struct {
 	key    string
 	values []string
