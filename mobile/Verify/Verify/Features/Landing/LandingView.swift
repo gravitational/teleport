@@ -39,7 +39,7 @@ struct LandingView: View {
 					PostEnrollmentLandingView(
 						clusters: viewModel.clusters,
 						didTapOnCluster: viewModel.userTapped(onCluster:),
-						didDeleteClustersAtIndex: viewModel.userDeletedClusters(at:),
+						didDeleteClustersAtIndex: viewModel.userTappedForgetClusters(at:),
 					)
 				}
 			}
@@ -116,11 +116,27 @@ struct LandingView: View {
 					Button("Cancel", role: .cancel) {}
 				},
 				message: {
+					Text(Self.forgetClustersAlertMessage)
+				},
+			)
+			.alert(
+				item: $viewModel.destination.forgetSomeClustersAlert,
+				title: { clusters in
+					Text("Are you sure you want to forget \(clusters.count) cluster(s)?")
+				},
+				actions: { clusters in
+					Button("Forget These Clusters", role: .destructive) {
+						Task {
+							await viewModel.userConfirmedForgetClusters(clusters)
+						}
+					}
+					Button("Cancel", role: .cancel) {}
+				},
+				message: { clusters in
 					Text(
-						"""
-						This action cannot be undone. You will still be able to authenticate using this device until \
-						you remove it from your trusted devices in Account Settings in the web UI.
-						""",
+						clusters.map(\.displayText).joined(separator: "\n")
+						+ "\n\n"
+						+ Self.forgetClustersAlertMessage
 					)
 				},
 			)
@@ -140,6 +156,16 @@ struct LandingView: View {
 			// swiftformat:enable indent
 		}
 	}
+}
+
+// MARK: - UI Helpers
+
+extension LandingView {
+	private static let forgetClustersAlertMessage =
+		"""
+		This action cannot be undone. Once forgotten, in order to use this device with Device Trust on these clusters, \
+		you will need to manually remove the device from your cluster inventory and re-add it before re-enrolling.
+		"""
 }
 
 #Preview("Pre-enrollment") {

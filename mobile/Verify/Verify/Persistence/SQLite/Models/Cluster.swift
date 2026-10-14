@@ -35,6 +35,16 @@ extension Cluster {
 	}
 }
 
+extension Cluster {
+	var displayText: String {
+		if port == Self.defaultPort {
+			host
+		} else {
+			"\(host):\(port)"
+		}
+	}
+}
+
 // MARK: - Logging
 
 extension Cluster {

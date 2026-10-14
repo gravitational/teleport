@@ -31,6 +31,7 @@ final class LandingViewModel {
 		case cameraScanner(EnrollCameraScannerViewModel)
 		case enrollDevice(EnrollDeviceViewModel)
 		case forgetAllClustersAlert
+		case forgetSomeClustersAlert([Cluster])
 		case notice(title: String, message: String? = nil)
 		case shareLogs(ShareLogsViewModel)
 		#if DEBUG
@@ -92,8 +93,12 @@ extension LandingViewModel {
 		}
 	}
 
-	func userDeletedClusters(at indexSet: IndexSet) async {
-		let idsToDelete = clusters.values(at: indexSet).map(\.id)
+	func userTappedForgetClusters(at indexSet: IndexSet) {
+		destination = .forgetSomeClustersAlert(clusters.values(at: indexSet))
+	}
+
+	func userConfirmedForgetClusters(_ clusters: [Cluster]) async {
+		let idsToDelete = clusters.map(\.id)
 		await deleteClusters {
 			Cluster
 				.delete()
