@@ -66,10 +66,56 @@ $ tctl detections get 6f6cf1ce-6d1e-4f9e-8f1a-2f7c9b0f1e23
 Follow the related log entries into [`tctl
 investigate`](./investigate.mdx) to trace the surrounding activity.
 
+## Update a detection's status
+
+Once you have decided what should happen to a detection, record the outcome
+without leaving the terminal:
+
+```code
+$ tctl detections triage 6f6cf1ce-6d1e-4f9e-8f1a-2f7c9b0f1e23 --reason="Investigating, looks like an extended backup window."
+```
+
+| Command                   | Sets the status to | Use when                                              |
+| ------------------------- | ------------------ | ----------------------------------------------------- |
+| `tctl detections triage`  | `triaged`          | You are working on a detection and have not finished. |
+| `tctl detections resolve` | `resolved`         | The issue was real and has been dealt with.           |
+| `tctl detections close`   | `closed`           | No action is needed: false positive or accepted risk. |
+| `tctl detections reopen`  | `in_progress`      | The detection needs to go back to the default state.  |
+
+Each command takes a detection ID and records a free-text reason. There is no
+separate resolution category, so the reason carries that context for whoever
+reads the detection later.
+
+Supply the reason with `--reason`, or omit the flag to have `tctl` open your
+editor on a template. Whole-line `#` comments are stripped, and an empty reason
+aborts the change. To record a status change without a reason, pass
+`--allow-empty`.
+
+Since `tctl detections ls` shows only `in_progress` and `triaged` detections by
+default, a detection drops out of the default list once you resolve or close it.
+Pass `--status` to see it again:
+
+```code
+$ tctl detections ls --status=resolved --status=closed
+```
+
+## Use tctl detections with an AI agent
+
+To let an AI agent drive detection triage with these commands, install the
+Teleport Detection Triage Agent Skill:
+
+```code
+$ npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-detection-triage
+```
+
 ## Next steps
 
 - [tctl detections ls reference](../../reference/cli/tctl.mdx#tctl-detections-ls)
 - [tctl detections get reference](../../reference/cli/tctl.mdx#tctl-detections-get)
+- [tctl detections triage reference](../../reference/cli/tctl.mdx#tctl-detections-triage)
+- [tctl detections resolve reference](../../reference/cli/tctl.mdx#tctl-detections-resolve)
+- [tctl detections close reference](../../reference/cli/tctl.mdx#tctl-detections-close)
+- [tctl detections reopen reference](../../reference/cli/tctl.mdx#tctl-detections-reopen)
 
 ## Troubleshooting
 

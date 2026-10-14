@@ -480,13 +480,13 @@ type Node struct {
 	SubKind    string             `json:"sub_kind"`
 }
 
-// NodeKind defines model for Node.Kind.
-type NodeKind string
-
 // Node_Properties defines model for Node.Properties.
 type Node_Properties struct {
 	union json.RawMessage
 }
+
+// NodeKind defines model for NodeKind.
+type NodeKind string
 
 // PrivateKeyProperties defines model for PrivateKeyProperties.
 type PrivateKeyProperties struct {

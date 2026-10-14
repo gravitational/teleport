@@ -471,6 +471,12 @@ type SecurityAlert struct {
 	// ReportedBy User or system that reported the alert
 	ReportedBy *string `json:"reported_by,omitempty"`
 
+	// SessionId ID of the recorded session the alert refers to, if any
+	SessionId *string `json:"session_id,omitempty"`
+
+	// SessionType Type of the recorded session (ssh, k8s, db, desktop)
+	SessionType *string `json:"session_type,omitempty"`
+
 	// Severity Severity level of the alert
 	Severity SecurityAlertSeverity `json:"severity"`
 
@@ -643,6 +649,9 @@ type ExecuteQueryV1Params struct {
 // GetRoleTesterAccessPathsJSONBody defines parameters for GetRoleTesterAccessPaths.
 type GetRoleTesterAccessPathsJSONBody = map[string]interface{}
 
+// GetRolesTesterAccessPathsJSONBody defines parameters for GetRolesTesterAccessPaths.
+type GetRolesTesterAccessPathsJSONBody = []map[string]interface{}
+
 // CreateAccountAliasJSONRequestBody defines body for CreateAccountAlias for application/json ContentType.
 type CreateAccountAliasJSONRequestBody = AccountAlias
 
@@ -657,6 +666,9 @@ type UpdateInvestigateViewJSONRequestBody = InvestigateView
 
 // GetRoleTesterAccessPathsJSONRequestBody defines body for GetRoleTesterAccessPaths for application/json ContentType.
 type GetRoleTesterAccessPathsJSONRequestBody = GetRoleTesterAccessPathsJSONBody
+
+// GetRolesTesterAccessPathsJSONRequestBody defines body for GetRolesTesterAccessPaths for application/json ContentType.
+type GetRolesTesterAccessPathsJSONRequestBody = GetRolesTesterAccessPathsJSONBody
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -806,6 +818,11 @@ type ClientInterface interface {
 	GetRoleTesterAccessPathsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	GetRoleTesterAccessPaths(ctx context.Context, body GetRoleTesterAccessPathsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetRolesTesterAccessPathsWithBody request with any body
+	GetRolesTesterAccessPathsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	GetRolesTesterAccessPaths(ctx context.Context, body GetRolesTesterAccessPathsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) ListIdentityAccess(ctx context.Context, params *ListIdentityAccessParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1122,6 +1139,30 @@ func (c *Client) GetRoleTesterAccessPathsWithBody(ctx context.Context, contentTy
 
 func (c *Client) GetRoleTesterAccessPaths(ctx context.Context, body GetRoleTesterAccessPathsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRoleTesterAccessPathsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetRolesTesterAccessPathsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRolesTesterAccessPathsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetRolesTesterAccessPaths(ctx context.Context, body GetRolesTesterAccessPathsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRolesTesterAccessPathsRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2034,6 +2075,46 @@ func NewGetRoleTesterAccessPathsRequestWithBody(server string, contentType strin
 	return req, nil
 }
 
+// NewGetRolesTesterAccessPathsRequest calls the generic GetRolesTesterAccessPaths builder with application/json body
+func NewGetRolesTesterAccessPathsRequest(server string, body GetRolesTesterAccessPathsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewGetRolesTesterAccessPathsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewGetRolesTesterAccessPathsRequestWithBody generates requests for GetRolesTesterAccessPaths with any type of body
+func NewGetRolesTesterAccessPathsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/graph/tester/teleport/roles/v1")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -2152,6 +2233,11 @@ type ClientWithResponsesInterface interface {
 	GetRoleTesterAccessPathsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetRoleTesterAccessPathsResponse, error)
 
 	GetRoleTesterAccessPathsWithResponse(ctx context.Context, body GetRoleTesterAccessPathsJSONRequestBody, reqEditors ...RequestEditorFn) (*GetRoleTesterAccessPathsResponse, error)
+
+	// GetRolesTesterAccessPathsWithBodyWithResponse request with any body
+	GetRolesTesterAccessPathsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetRolesTesterAccessPathsResponse, error)
+
+	GetRolesTesterAccessPathsWithResponse(ctx context.Context, body GetRolesTesterAccessPathsJSONRequestBody, reqEditors ...RequestEditorFn) (*GetRolesTesterAccessPathsResponse, error)
 }
 
 type ListIdentityAccessResponse struct {
@@ -2785,6 +2871,34 @@ func (r GetRoleTesterAccessPathsResponse) Bytes() []byte {
 	return r.Body
 }
 
+type GetRolesTesterAccessPathsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AccessPathRoleTesterDiff
+	JSON400      *BadRequest
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRolesTesterAccessPathsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRolesTesterAccessPathsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// Bytes is a convenience method to retrieve the raw bytes from the HTTP response
+func (r GetRolesTesterAccessPathsResponse) Bytes() []byte {
+	return r.Body
+}
+
 // ListIdentityAccessWithResponse request returning *ListIdentityAccessResponse
 func (c *ClientWithResponses) ListIdentityAccessWithResponse(ctx context.Context, params *ListIdentityAccessParams, reqEditors ...RequestEditorFn) (*ListIdentityAccessResponse, error) {
 	rsp, err := c.ListIdentityAccess(ctx, params, reqEditors...)
@@ -3021,6 +3135,23 @@ func (c *ClientWithResponses) GetRoleTesterAccessPathsWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseGetRoleTesterAccessPathsResponse(rsp)
+}
+
+// GetRolesTesterAccessPathsWithBodyWithResponse request with arbitrary body returning *GetRolesTesterAccessPathsResponse
+func (c *ClientWithResponses) GetRolesTesterAccessPathsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetRolesTesterAccessPathsResponse, error) {
+	rsp, err := c.GetRolesTesterAccessPathsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRolesTesterAccessPathsResponse(rsp)
+}
+
+func (c *ClientWithResponses) GetRolesTesterAccessPathsWithResponse(ctx context.Context, body GetRolesTesterAccessPathsJSONRequestBody, reqEditors ...RequestEditorFn) (*GetRolesTesterAccessPathsResponse, error) {
+	rsp, err := c.GetRolesTesterAccessPaths(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRolesTesterAccessPathsResponse(rsp)
 }
 
 // ParseListIdentityAccessResponse parses an HTTP response from a ListIdentityAccessWithResponse call
@@ -3848,6 +3979,39 @@ func ParseGetRoleTesterAccessPathsResponse(rsp *http.Response) (*GetRoleTesterAc
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetRolesTesterAccessPathsResponse parses an HTTP response from a GetRolesTesterAccessPathsWithResponse call
+func ParseGetRolesTesterAccessPathsResponse(rsp *http.Response) (*GetRolesTesterAccessPathsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRolesTesterAccessPathsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AccessPathRoleTesterDiff
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 
