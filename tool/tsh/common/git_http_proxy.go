@@ -65,8 +65,26 @@ func startGitHTTPProxy(gitCtx *gitContext) (*gitHTTPProxy, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Forward CONNECT requests (e.g. from a tsh git run by gh, connecting to
+	// Teleport) to their destination, through the system proxy if configured.
+	forwardProxy, err := alpnproxy.NewForwardProxy(alpnproxy.ForwardProxyConfig{
+		Listener:     listener, // not used but required
+		CloseContext: gitCtx.Context,
+		Handlers: []alpnproxy.ConnectRequestHandler{
+			alpnproxy.NewForwardToSystemProxyHandler(alpnproxy.ForwardToSystemProxyHandlerConfig{
+				InsecureSystemProxy: gitCtx.InsecureSkipVerify,
+			}),
+			alpnproxy.NewForwardToOriginalHostHandler(),
+		},
+	})
+	if err != nil {
+		listener.Close()
+		return nil, trace.Wrap(err)
+	}
 	middleware := &gitHTTPMiddleware{
 		getUserDecryptedAccessToken: gitCtx.getUserDecryptedAccessToken,
+		forwardProxy:                forwardProxy,
 	}
 	lp, err := alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(gitCtx.Context, gitCtx.tc, listener, gitCtx.InsecureSkipVerify),
@@ -102,15 +120,16 @@ type gitHTTPMiddleware struct {
 	// mu makes sure only one getUserDecryptedAccessToken runs at a time, so
 	// concurrent requests do not each refresh the token or run the OAuth flow.
 	mu sync.Mutex
+
+	// forwardProxy tunnels CONNECT requests.
+	forwardProxy http.Handler
 }
 
 // HandleRequest implements [alpnproxy.LocalProxyHTTPMiddleware].
 func (m *gitHTTPMiddleware) HandleRequest(w http.ResponseWriter, r *http.Request) bool {
 	logger.DebugContext(r.Context(), "Git HTTP proxy received request", "method", r.Method, "host", r.URL.Host, "path", r.URL.Path)
-	// Only plain HTTP proxy requests are supported, as the token is added to
-	// the request.
 	if r.Method == http.MethodConnect {
-		http.Error(w, "HTTPS proxy requests are not supported", http.StatusMethodNotAllowed)
+		m.forwardProxy.ServeHTTP(w, r)
 		return true
 	}
 	upstreamHost, ok := gitHTTPProxyHosts[r.URL.Hostname()]
@@ -151,6 +170,11 @@ func (m *gitHTTPMiddleware) HandleResponse(resp *http.Response) error {
 	for i, link := range resp.Header["Link"] {
 		resp.Header["Link"][i] = strings.ReplaceAll(link, "<https://api.github.com/", "<http://api.github.localhost/")
 	}
+	// Make same-host redirects relative, so the client follows them through
+	// this proxy.
+	if loc, err := resp.Location(); err == nil && loc.Host == resp.Request.Host {
+		resp.Header.Set("Location", loc.RequestURI())
+	}
 	return nil
 }
 
@@ -159,6 +183,8 @@ func (m *gitHTTPMiddleware) HandleResponse(resp *http.Response) error {
 var gitHTTPProxyHosts = map[string]string{
 	"github.com":           "github.com",
 	"api.github.localhost": "api.github.com",
+	// Git commands run by `tsh gh`.
+	"github.localhost": "github.com",
 }
 
 // printGitHubCredentialsRejected prints how to authorize again after GitHub

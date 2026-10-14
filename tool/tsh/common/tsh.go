@@ -2116,6 +2116,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case gitCmd.remoteHTTP.FullCommand():
+		err = gitCmd.remoteHTTP.run(&cf)
 	case ghCmd.FullCommand():
 		err = ghCmd.run(&cf)
 	case beamsCmd.ls.FullCommand():

@@ -52,6 +52,10 @@ func newGitCloneCommand(parent *kingpin.CmdClause) *gitCloneCommand {
 }
 
 func (c *gitCloneCommand) run(cf *CLIConf) error {
+	if u, err := parseGitURL(c.repository); err == nil && u.matches("https", "github.com") {
+		return trace.Wrap(c.runHTTPS(cf, u.owner(), u.repoPath()))
+	}
+
 	u, err := parseGitSSHURL(c.repository)
 	if err != nil {
 		return trace.Wrap(err)
@@ -65,6 +69,31 @@ func (c *gitCloneCommand) run(cf *CLIConf) error {
 		"clone",
 		"--config", fmt.Sprintf("%s=%s", gitCoreSSHCommand, sshCommand),
 		c.repository,
+	}
+	if c.directory != "" {
+		args = append(args, c.directory)
+	}
+	return trace.Wrap(execGit(cf, args...))
+}
+
+func (c *gitCloneCommand) runHTTPS(cf *CLIConf, org, repoPath string) error {
+	gitCtx, err := newGitContextForGitHubOrg(cf, org)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer gitCtx.close()
+
+	if err := gitCtx.checkGitOverHTTPS(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// git clone is called with teleport:// as the URL so git will use a custom
+	// remote "teleport". An alias config is set to ensure the "teleport" remote
+	// calls "tsh git remote-http".
+	args := []string{
+		"clone",
+		"--config", gitRemoteHelperAliasKey + "=" + makeGitRemoteHelperAlias(cf.executablePath, gitCtx.tc.WebProxyAddr),
+		"teleport://github.com/" + repoPath,
 	}
 	if c.directory != "" {
 		args = append(args, c.directory)

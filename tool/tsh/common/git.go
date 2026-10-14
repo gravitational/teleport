@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -47,27 +48,29 @@ import (
 )
 
 type gitCommands struct {
-	list   *gitListCommand
-	login  *gitLoginCommand
-	ssh    *gitSSHCommand
-	config *gitConfigCommand
-	clone  *gitCloneCommand
+	list       *gitListCommand
+	login      *gitLoginCommand
+	ssh        *gitSSHCommand
+	config     *gitConfigCommand
+	clone      *gitCloneCommand
+	remoteHTTP *gitRemoteHTTPCommand
 }
 
 func newGitCommands(app *kingpin.Application) gitCommands {
 	git := app.Command("git", "Git server commands.")
 	return gitCommands{
-		login:  newGitLoginCommand(git),
-		list:   newGitListCommand(git),
-		ssh:    newGitSSHCommand(git),
-		config: newGitConfigCommand(git),
-		clone:  newGitCloneCommand(git),
+		login:      newGitLoginCommand(git),
+		list:       newGitListCommand(git),
+		ssh:        newGitSSHCommand(git),
+		config:     newGitConfigCommand(git),
+		clone:      newGitCloneCommand(git),
+		remoteHTTP: newGitRemoteHTTPCommand(git),
 	}
 }
 
-type gitSSHURL transport.Endpoint
+type gitURL transport.Endpoint
 
-func (g gitSSHURL) check() error {
+func (g gitURL) check() error {
 	switch {
 	case g.isGitHub():
 		if err := types.ValidateGitHubOrganizationName(g.owner()); err != nil {
@@ -77,7 +80,7 @@ func (g gitSSHURL) check() error {
 	return nil
 }
 
-func (g gitSSHURL) isGitHub() bool {
+func (g gitURL) isGitHub() bool {
 	return g.Host == "github.com"
 }
 
@@ -88,13 +91,38 @@ func (g gitSSHURL) isGitHub() bool {
 //
 // For example, if the SSH url is git@github.com:gravitational/teleport.git, the
 // owner would be "gravitational".
-func (g gitSSHURL) owner() string {
+func (g gitURL) owner() string {
 	// g.Path may have a preceding "/" from url.Parse.
 	owner, _, ok := strings.Cut(strings.TrimPrefix(g.Path, "/"), "/")
 	if !ok {
 		return ""
 	}
 	return owner
+}
+
+// repoPath returns the path without the preceding and trailing "/", like
+// "gravitational/teleport.git".
+func (g gitURL) repoPath() string {
+	return strings.Trim(g.Path, "/")
+}
+
+// matches returns true if the URL uses the protocol and the host, and has an
+// owner.
+func (g gitURL) matches(protocol, host string) bool {
+	return g.Protocol == protocol && g.Host == host && g.owner() != ""
+}
+
+// parseGitURL parses and validates a Git URL.
+func parseGitURL(originalURL string) (*gitURL, error) {
+	endpoint, err := transport.NewEndpoint(originalURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u := gitURL(*endpoint)
+	if err := u.check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &u, nil
 }
 
 // parseGitSSHURL parse a Git SSH URL.
@@ -106,19 +134,15 @@ func (g gitSSHURL) owner() string {
 // GitHub (SCP-like) URL:
 // - spec: https://docs.github.com/en/get-started/getting-started-with-git/about-remote-repositories
 // - example: git@github.com:gravitational/teleport.git
-func parseGitSSHURL(originalURL string) (*gitSSHURL, error) {
-	endpoint, err := transport.NewEndpoint(originalURL)
+func parseGitSSHURL(originalURL string) (*gitURL, error) {
+	u, err := parseGitURL(originalURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if endpoint.Protocol != "ssh" {
-		return nil, trace.BadParameter("unsupported protocol %q. Please provide the SSH URL of the repository.", endpoint.Protocol)
+	if u.Protocol != "ssh" {
+		return nil, trace.BadParameter("unsupported protocol %q. Please provide the SSH URL of the repository.", u.Protocol)
 	}
-	s := gitSSHURL(*endpoint)
-	if err := s.check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &s, nil
+	return u, nil
 }
 
 func execGitAndCaptureStdout(cf *CLIConf, args ...string) (string, error) {
@@ -134,6 +158,11 @@ func execGit(cf *CLIConf, args ...string) error {
 }
 
 func execGitWithStdoutAndStderr(cf *CLIConf, stdout, stderr io.Writer, args ...string) error {
+	return trace.Wrap(execGitWithEnv(cf, stdout, stderr, nil, args...))
+}
+
+// execGitWithEnv runs git with env added to the environment of tsh.
+func execGitWithEnv(cf *CLIConf, stdout, stderr io.Writer, env []string, args ...string) error {
 	const gitExecutable = "git"
 	gitPath, err := cf.LookPath(gitExecutable)
 	if err != nil {
@@ -149,6 +178,9 @@ You can install it by following the instructions at https://git-scm.com/book/en/
 	cmd.Stdin = cf.Stdin()
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	return trace.Wrap(cf.RunCommand(cmd))
 }
 
@@ -258,6 +290,12 @@ func (c *gitContext) checkGitOverHTTPS() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return trace.Wrap(checkSessionEncryptionKey(profile))
+}
+
+// checkSessionEncryptionKey returns an error if the session of the profile
+// does not support Git over HTTPS.
+func checkSessionEncryptionKey(profile *client.ProfileStatus) error {
 	if profile.EncryptionKeyID == "" {
 		return trace.BadParameter("the current session does not support Git over HTTPS. Run 'tsh login' again, or contact your Teleport administrator if the problem persists.")
 	}
@@ -423,4 +461,44 @@ func (c *gitContext) gitServerAuthorizeOnWebURL() string {
 		Path:   "/web/gitservers/" + url.PathEscape(c.gitServer.GetName()) + "/authorize",
 	}
 	return authorizeURL.String()
+}
+
+type gitRemote struct {
+	name string
+	gitURL
+	// hasSeparatePushURLs is true if the remote has a push URL or more than one
+	// URL, which "git remote set-url" does not update.
+	hasSeparatePushURLs bool
+}
+
+// listGitRemotes returns the remotes of the current Git directory.
+func listGitRemotes(cf *CLIConf) ([]gitRemote, error) {
+	out, err := execGitAndCaptureStdout(cf, "remote")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var remotes []gitRemote
+	for _, name := range strings.Fields(out) {
+		urls, err := execGitAndCaptureStdout(cf, "remote", "get-url", "--all", name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fetchURL, _, hasMoreURLs := strings.Cut(urls, "\n")
+		remote := gitRemote{
+			name: name,
+		}
+		// Remotes that fail to parse or validate keep an empty protocol and
+		// are reported as not supported.
+		if u, err := parseGitURL(strings.TrimSpace(fetchURL)); err == nil {
+			remote.gitURL = *u
+		}
+		pushURL, err := execGitAndCaptureStdout(cf, "config", "--default", "", "--get", fmt.Sprintf("remote.%s.pushurl", name))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Git pushes to all URLs.
+		remote.hasSeparatePushURLs = pushURL != "" || hasMoreURLs
+		remotes = append(remotes, remote)
+	}
+	return remotes, nil
 }
