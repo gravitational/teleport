@@ -6900,6 +6900,13 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 								},
+								"grantable_traits": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+									Computed:      true,
+									Description:   "GrantableTraits is an allowlist of traits a reviewer holding this role may grant to the requester when approving. Empty means no traits may be granted. Has no effect in deny rules. UNSTABLE: This field is experimental and might be subject to breaking changes in the future. This has no effect unless the experimental flag TELEPORT_UNSTABLE_REVIEW_TRAITS is set.",
+									ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+								},
 								"preview_as_roles": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 									Computed:      true,
 									Description:   "PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.",
@@ -7623,6 +7630,13 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 										},
 									}},
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+								},
+								"grantable_traits": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+									Computed:      true,
+									Description:   "GrantableTraits is an allowlist of traits a reviewer holding this role may grant to the requester when approving. Empty means no traits may be granted. Has no effect in deny rules. UNSTABLE: This field is experimental and might be subject to breaking changes in the future. This has no effect unless the experimental flag TELEPORT_UNSTABLE_REVIEW_TRAITS is set.",
+									ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 								},
@@ -8671,6 +8685,12 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 									}},
 									Optional: true,
 								},
+								"grantable_traits": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+									Computed:    true,
+									Description: "GrantableTraits is an allowlist of traits a reviewer holding this role may grant to the requester when approving. Empty means no traits may be granted. Has no effect in deny rules. UNSTABLE: This field is experimental and might be subject to breaking changes in the future. This has no effect unless the experimental flag TELEPORT_UNSTABLE_REVIEW_TRAITS is set.",
+									ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Optional:    true,
+								},
 								"preview_as_roles": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 									Computed:    true,
 									Description: "PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.",
@@ -9291,6 +9311,12 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 										},
 									}},
 									Optional: true,
+								},
+								"grantable_traits": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+									Computed:    true,
+									Description: "GrantableTraits is an allowlist of traits a reviewer holding this role may grant to the requester when approving. Empty means no traits may be granted. Has no effect in deny rules. UNSTABLE: This field is experimental and might be subject to breaking changes in the future. This has no effect unless the experimental flag TELEPORT_UNSTABLE_REVIEW_TRAITS is set.",
+									ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Optional:    true,
 								},
 								"preview_as_roles": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 									Computed:    true,
@@ -35158,6 +35184,33 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 															}
 														}
 													}
+													{
+														a, ok := tf.Attributes()["grantable_traits"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.ReviewRequests.grantable_traits"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.ReviewRequests.grantable_traits", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.GrantableTraits = make([]string, len(v.Elements()))
+																if !v.IsNull() && !v.IsUnknown() {
+																	for k, a := range v.Elements() {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.ReviewRequests.grantable_traits", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.GrantableTraits[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
 												}
 											}
 										}
@@ -37669,6 +37722,33 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																				t = (v.ValueString())
 																			}
 																			obj.SubmitForUsers[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+													{
+														a, ok := tf.Attributes()["grantable_traits"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.ReviewRequests.grantable_traits"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.ReviewRequests.grantable_traits", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.GrantableTraits = make([]string, len(v.Elements()))
+																if !v.IsNull() && !v.IsUnknown() {
+																	for k, a := range v.Elements() {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.ReviewRequests.grantable_traits", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.GrantableTraits[k] = t
 																		}
 																	}
 																}
@@ -41133,6 +41213,45 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																					}
 																				}
 																			}
+																			{
+																				attrType, ok := attrType.AttributeTypes()["grantable_traits"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.ReviewRequests.grantable_traits"})
+																				} else {
+																					attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.ReviewRequests.grantable_traits", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["grantable_traits"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																						} else {
+																							oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.GrantableTraits))
+																							c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																							if ok && c.Elements() != nil {
+																								oldElems = c.Elements()
+																							}
+																							elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.GrantableTraits))
+																							copy(elems, oldElems)
+																							for k, a := range obj.GrantableTraits {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := elems[k]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																								} else {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																								}
+																								elems[k] = v
+																							}
+																							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																							diags.Append(resultDiags...)
+																							v = result
+																						}
+																						attrs["grantable_traits"] = v
+																					}
+																				}
+																			}
 																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 																			diags.Append(resultDiags...)
 																			return result
@@ -44303,6 +44422,45 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																							v = result
 																						}
 																						attrs["submit_for_users"] = v
+																					}
+																				}
+																			}
+																			{
+																				attrType, ok := attrType.AttributeTypes()["grantable_traits"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.ReviewRequests.grantable_traits"})
+																				} else {
+																					attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.ReviewRequests.grantable_traits", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["grantable_traits"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																						} else {
+																							oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.GrantableTraits))
+																							c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																							if ok && c.Elements() != nil {
+																								oldElems = c.Elements()
+																							}
+																							elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.GrantableTraits))
+																							copy(elems, oldElems)
+																							for k, a := range obj.GrantableTraits {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := elems[k]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																								} else {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																								}
+																								elems[k] = v
+																							}
+																							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																							diags.Append(resultDiags...)
+																							v = result
+																						}
+																						attrs["grantable_traits"] = v
 																					}
 																				}
 																			}

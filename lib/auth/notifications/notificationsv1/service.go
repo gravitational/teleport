@@ -434,7 +434,7 @@ func (s *Service) matchRoleConditions(ctx context.Context, authCtx *authz.Contex
 			return false, trace.Wrap(err)
 		}
 
-		canReview, err := checker.CanReviewRequest(fakeAccessRequest)
+		canReview, _, err := checker.CanReviewRequest(fakeAccessRequest)
 		if err != nil {
 			return false, trace.Wrap(err, "failed to evaluate request review permissions")
 		}

@@ -792,6 +792,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		bk:                           cfg.Backend,
 		clock:                        cfg.Clock,
 		scopesFeatures:               cfg.ScopesFeatures,
+		unstableFeatures:             cfg.UnstableFeatures,
 		fakePasswordHash:             cfg.FakePasswordHash,
 		fakeRecoveryCodeHash:         cfg.FakeRecoveryCodeHash,
 		modules:                      cfg.Modules,
@@ -1332,7 +1333,8 @@ type Server struct {
 	bk      backend.Backend
 	modules modules.Modules
 	// scopesFeatures dictates which scoped components are enabled for this auth server.
-	scopesFeatures scopes.Features
+	scopesFeatures   scopes.Features
+	unstableFeatures UnstableFeatures
 
 	insecureMode bool
 	closeCtx     context.Context
@@ -5287,7 +5289,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 			return nil, trace.Wrap(err)
 		}
 
-		// Updating traits is needed for guided SSH flow in Discover.
+		// Updating traits is needed for guided SSH flow in Discover
+		// and to drop traits from a potentially assumed access request.
 		traits = userState.GetTraits()
 		// Updating roles is needed for guided Connect My Computer flow in Discover.
 		roles = userState.GetRoles()
@@ -5342,6 +5345,10 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		if expiresAt.After(webSessionTTL) {
 			expiresAt = webSessionTTL
 		}
+
+		if a.unstableFeatures.ReviewTraits {
+			traits = unionTraits(traits, grantedTraitsToMap(grantedTraits(accessRequest)))
+		}
 	} else if req.Switchback {
 		if identity.ScopePin.GetScope() != "" {
 			return nil, trace.Wrap(
@@ -5374,6 +5381,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		// Set default roles and expiration.
 		expiresAt = prevSession.GetLoginTime().UTC().Add(sessionTTL)
 		roles = userState.GetRoles()
+		// Reset user traits (if traits were previously granted via access request)
+		traits = userState.GetTraits()
 		accessRequests = nil
 	} else {
 		// Keep existing scope pin, if any, in the new session.
@@ -6636,6 +6645,10 @@ func (a *Server) submitAccessReview(
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(params.Review.GrantedTraits) != 0 && !a.unstableFeatures.ReviewTraits {
+		return nil, trace.BadParameter("unstable feature 'review traits' is disabled")
 	}
 
 	// For identities (eg. plugins) that submit the review on behalf of the author, we zero out
