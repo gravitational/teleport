@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/integrations/awscommon"
+	"github.com/gravitational/teleport/lib/integrations"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -156,7 +156,7 @@ func (h *Handler) validateAWSRolesAnywhereIntegration(w http.ResponseWriter, r *
 	}
 
 	// validate integration name.
-	if err := awscommon.ValidIntegrationName(integrationName); err != nil {
+	if err := integrations.ValidName(integrationName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

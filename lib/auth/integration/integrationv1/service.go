@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/integrations/awscommon"
+	"github.com/gravitational/teleport/lib/integrations"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -304,7 +304,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 			return nil, trace.Wrap(err)
 		}
 	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
-		if err := awscommon.ValidIntegrationName(req.GetIntegration().GetName()); err != nil {
+		if err := integrations.ValidName(req.GetIntegration().GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

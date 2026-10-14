@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package awscommon
+package integrations
 
 import (
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-// ValidIntegrationName validates the integration name.
-func ValidIntegrationName(name string) error {
+// ValidName validates the integration name.
+func ValidName(name string) error {
 	// AWS OIDC and Roles Anywhere Integrations can be used as source of credentials to access AWS Web/CLI.
 	// For OIDC, this creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 	// For Roles Anywhere, this creates a AppServers for each Roles Anywhere Profile whose endpoint is <profileName>-<integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
