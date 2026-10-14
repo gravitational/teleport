@@ -128,7 +128,7 @@ func buildStringConstraintTransform(
 //
 // TODO(kiosion): When constraints extend for Kubernetes support, kube sub-resource
 // IDs need name-only correlation against the kube_cluster resource, like
-// getKubeResourcesFromResourceIDs
+// GetKubeResourcesFromResourceIDs
 func BuildResourceConstraintMatchers(resourceAccessIDs []types.ResourceAccessID, resource types.Resource) ([]RoleMatcher, error) {
 	var matchers []RoleMatcher
 	for _, raid := range resourceAccessIDs {

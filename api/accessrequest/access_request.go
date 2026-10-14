@@ -109,10 +109,17 @@ func GetResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceI
 }
 
 // GetResourcesByResourceIDs gets a list of resources by their resource IDs.
+//
+// For kube resources, such as pods or namespaces, their IDs resolve to their
+// kube cluster; ListResources has no record below the cluster level for them.
 func GetResourcesByResourceIDs(ctx context.Context, lister client.ListResourcesClient, resourceIDs []types.ResourceID, opts ...ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
 	resourceNamesByKind := make(map[string][]string)
 	for _, resourceID := range resourceIDs {
-		resourceNamesByKind[resourceID.Kind] = append(resourceNamesByKind[resourceID.Kind], resourceID.Name)
+		kind := resourceID.Kind
+		if types.IsKubernetesClusterResourceKind(kind) {
+			kind = types.KindKubernetesCluster
+		}
+		resourceNamesByKind[kind] = append(resourceNamesByKind[kind], resourceID.Name)
 	}
 	var resources []types.ResourceWithLabels
 	for kind, resourceNames := range resourceNamesByKind {

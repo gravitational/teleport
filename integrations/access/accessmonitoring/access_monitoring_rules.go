@@ -261,6 +261,13 @@ func (amrh *RuleHandler) newExpressionEnv(ctx context.Context, req types.AccessR
 		userTraits = userState.GetTraits()
 	}
 
+	requestedResources, labelsErr := amrh.resolveRequestedResourceLabels(ctx, req)
+	env := accessmonitoring.NewAccessRequestExpressionEnv(req, userTraits, requestedResources)
+	env.ResourceLabelsError = labelsErr
+	return env, nil
+}
+
+func (amrh *RuleHandler) resolveRequestedResourceLabels(ctx context.Context, req types.AccessRequest) ([]types.ResourceWithLabels, error) {
 	// UsePreviewAsRoles option is required to fetch requested resource labels.
 	usePreviewAsRoles := func(req *proto.ListResourcesRequest) {
 		req.UsePreviewAsRoles = true
@@ -273,6 +280,17 @@ func (amrh *RuleHandler) newExpressionEnv(ctx context.Context, req types.AccessR
 	// resource labels for the access monitoring rule condition expression
 	// evaluation.
 	resourceIDs := types.RiskyExtractResourceIDs(req.GetAllRequestedResourceIDs())
+	if slices.ContainsFunc(resourceIDs, func(id types.ResourceID) bool { return id.ClusterName != "" }) {
+		ping, err := amrh.apiClient.Ping(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, id := range resourceIDs {
+			if id.ClusterName != "" && id.ClusterName != ping.ClusterName {
+				return nil, trace.NotFound("labels for resources in cluster %q are unavailable", id.ClusterName)
+			}
+		}
+	}
 	requestedResources, err := accessrequest.GetResourcesByResourceIDs(
 		ctx,
 		amrh.apiClient,
@@ -280,8 +298,26 @@ func (amrh *RuleHandler) newExpressionEnv(ctx context.Context, req types.AccessR
 		usePreviewAsRoles,
 	)
 	if err != nil {
-		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+	for _, id := range resourceIDs {
+		kind := id.Kind
+		if types.IsKubernetesClusterResourceKind(kind) {
+			kind = types.KindKubernetesCluster
+		}
+		if !slices.ContainsFunc(requestedResources, func(resource types.ResourceWithLabels) bool {
+			if resource.GetName() != id.Name {
+				return false
+			}
+			resourceKind := resource.GetKind()
+			if resourceKind == types.KindApp && resource.GetSubKind() == types.KindIdentityCenterAccount {
+				resourceKind = types.KindIdentityCenterAccount
+			}
+			return resourceKind == kind
+		}) {
+			return nil, trace.NotFound("labels for requested resource %q are unavailable", types.ResourceIDToString(id))
+		}
 	}
 
-	return accessmonitoring.NewAccessRequestExpressionEnv(req, userTraits, requestedResources), nil
+	return requestedResources, nil
 }
