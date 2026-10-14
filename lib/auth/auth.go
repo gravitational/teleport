@@ -6298,7 +6298,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = a.emitter.EmitAuditEvent(ctx, &apievents.AccessRequestCreate{
+
+	event := &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
@@ -6316,7 +6317,11 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		Reason:                     req.GetRequestReason(),
 		MaxDuration:                req.GetMaxDuration(),
 		Annotations:                annotations,
-	})
+	}
+
+	updateEventTiming(req, event)
+
+	err = a.emitter.EmitAuditEvent(ctx, event)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit access request create event", "error", err)
 	}
@@ -6558,6 +6563,9 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 		Roles:           params.Roles,
 		AssumeStartTime: params.AssumeStartTime,
 	}
+
+	updateEventTiming(req, event)
+
 	if sa := req.GetSystemAnnotations(); len(sa) > 0 {
 		var err error
 		event.Annotations, err = apievents.EncodeMapStrings(sa)
@@ -6583,6 +6591,19 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
 	return trace.Wrap(err)
+}
+
+// Update the event's timing field with the access request's timing information, if it exists. This
+// is used to ensure that the event has the correct timing information for scheduled access
+// requests.
+func updateEventTiming(req types.AccessRequest, event *apievents.AccessRequestCreate) {
+	if scheduled := req.GetTiming().GetScheduled(); scheduled != nil {
+		event.TimingMode = "scheduled"
+		start := scheduled.Start
+		event.AssumeStartTime = &start
+		event.MaxDuration = scheduled.Start.Add(scheduled.Duration)
+		event.Expires = req.Expiry()
+	}
 }
 
 // SubmitAccessReview is used to process a review of an Access Request.
@@ -6664,6 +6685,8 @@ func (a *Server) submitAccessReview(
 		MaxDuration:            req.GetMaxDuration(),
 		PromotedAccessListName: req.GetPromotedAccessListName(),
 	}
+
+	updateEventTiming(req, event)
 
 	// Create a notification.
 	if !req.GetState().IsPending() {

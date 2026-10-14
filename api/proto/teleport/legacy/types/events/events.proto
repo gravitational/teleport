@@ -1733,6 +1733,10 @@ message AccessRequestCreate {
   // Reviewer remains the actual Teleport user that performed the review.
   // (only used in the access_request.review event variant).
   string submitted_by = 19;
+
+  // TimingMode identifies the timing semantics used for this operation.
+  // Values are "legacy" and "scheduled"; absent means unknown.
+  string timing_mode = 20;
 }
 
 // AccessRequestExpire is emitted when access request has expired.
