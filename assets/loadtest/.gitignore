@@ -17,6 +17,9 @@ k8s/secrets/**
 
 .secrets
 
+# k6 output. The logs hold SCIM response bodies.
+scim/results/
+
 control-plane/vars.env
 
 # Rendered templates

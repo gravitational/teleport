@@ -1,0 +1,17 @@
+# Keep the name and title in sync with SMOKE_GROUP in the Makefile and
+# SMOKE_GROUP_NAME in lib/fixture.js.
+kind: access_list
+version: v1
+metadata:
+  name: k6-group-0-smoke
+spec:
+  type: scim
+  title: k6-group-0-smoke
+  owners:
+    - name: k6-user-0-smoke@example.com
+  grants:
+    roles: [requester]
+  audit:
+    recurrence:
+      frequency: 3months
+      day_of_month: "15"
