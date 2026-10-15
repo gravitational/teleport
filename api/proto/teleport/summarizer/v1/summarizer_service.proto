@@ -363,6 +363,10 @@ message ListInferencePoliciesResponse {
 message CreateClassifierRequest {
   // Classifier is the Classifier resource to create.
   Classifier classifier = 1;
+  // DisableBuiltIn optionally names a built-in Classifier to disable in the
+  // same atomic write, so that a customized copy replaces the built-in it was
+  // duplicated from. Requires permission to update Classifiers.
+  string disable_built_in = 2;
 }
 
 // CreateClassifierResponse is a response to creating a Classifier.

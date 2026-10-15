@@ -18,9 +18,11 @@ package local
 
 import (
 	"context"
+	"errors"
 	"iter"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -38,6 +40,8 @@ type SummarizerService struct {
 	policyService         *generic.ServiceWrapper[*summarizerv1.InferencePolicy]
 	classifierService     *generic.ServiceWrapper[*summarizerv1.Classifier]
 	retrievalModelService *generic.ServiceWrapper[*summarizerv1.RetrievalModel]
+	// backend is used for writes that span several resources.
+	backend backend.Backend
 }
 
 var _ services.Summarizer = (*SummarizerService)(nil)
@@ -241,6 +245,66 @@ func (s *SummarizerService) CreateClassifier(
 ) (*summarizerv1.Classifier, error) {
 	res, err := s.classifierService.CreateResource(ctx, classifier)
 	return res, trace.Wrap(err)
+}
+
+// CreateClassifierAndDisable creates a new session summarization classifier
+// and disables an existing one in a single atomic write. The write fails if
+// the existing classifier no longer has the revision of the given copy. If
+// that copy is already disabled, the returned disabled classifier is nil.
+func (s *SummarizerService) CreateClassifierAndDisable(
+	ctx context.Context, classifier, disable *summarizerv1.Classifier,
+) (created, disabled *summarizerv1.Classifier, err error) {
+	disabled = proto.CloneOf(disable)
+	disabled.GetSpec().SetDisabled(true)
+
+	var items [2]backend.Item
+	for i, resource := range []*summarizerv1.Classifier{classifier, disabled} {
+		if err := services.ValidateClassifier(resource); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		items[i], err = s.classifierService.MakeBackendItem(resource)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	// An already disabled classifier is not written again, but its revision is still checked so that the new
+	// classifier is not created next to one that was enabled in the meantime.
+	alreadyDisabled := disable.GetSpec().GetDisabled()
+	disableAction := backend.Put(items[1])
+	if alreadyDisabled {
+		disableAction = backend.Nop()
+	}
+
+	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{Key: items[0].Key, Condition: backend.NotExists(), Action: backend.Put(items[0])},
+		{Key: items[1].Key, Condition: backend.Revision(items[1].Revision), Action: disableAction},
+	})
+	if errors.Is(err, backend.ErrConditionFailed) {
+		// The failed write does not say which condition did not hold.
+		name := classifier.GetMetadata().GetName()
+		if _, getErr := s.GetClassifier(ctx, name); getErr == nil {
+			return nil, nil, trace.AlreadyExists("%s %q already exists", types.KindClassifier, name)
+		}
+
+		return nil, nil, trace.CompareFailed(
+			"classifier %q was changed by someone else, so %q was not created, reload and try again",
+			disable.GetMetadata().GetName(), name)
+	}
+
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	classifier.GetMetadata().SetRevision(revision)
+	if alreadyDisabled {
+		return classifier, nil, nil
+	}
+
+	disabled.GetMetadata().SetRevision(revision)
+
+	return classifier, disabled, nil
 }
 
 // DeleteClassifier deletes a session summarization classifier from the
@@ -473,6 +537,7 @@ func NewSummarizerService(cfg SummarizerServiceConfig) (*SummarizerService, erro
 		policyService:         policyService,
 		classifierService:     classifierService,
 		retrievalModelService: retrievalModelService,
+		backend:               cfg.Backend,
 	}, nil
 }
 

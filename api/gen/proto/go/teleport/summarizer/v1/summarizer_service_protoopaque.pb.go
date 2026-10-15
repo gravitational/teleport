@@ -2512,10 +2512,11 @@ func (b0 ListInferencePoliciesResponse_builder) Build() *ListInferencePoliciesRe
 
 // CreateClassifierRequest is a request for creating a Classifier.
 type CreateClassifierRequest struct {
-	state                 protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Classifier *Classifier            `protobuf:"bytes,1,opt,name=classifier,proto3"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state                     protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Classifier     *Classifier            `protobuf:"bytes,1,opt,name=classifier,proto3"`
+	xxx_hidden_DisableBuiltIn string                 `protobuf:"bytes,2,opt,name=disable_built_in,json=disableBuiltIn,proto3"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *CreateClassifierRequest) Reset() {
@@ -2550,8 +2551,19 @@ func (x *CreateClassifierRequest) GetClassifier() *Classifier {
 	return nil
 }
 
+func (x *CreateClassifierRequest) GetDisableBuiltIn() string {
+	if x != nil {
+		return x.xxx_hidden_DisableBuiltIn
+	}
+	return ""
+}
+
 func (x *CreateClassifierRequest) SetClassifier(v *Classifier) {
 	x.xxx_hidden_Classifier = v
+}
+
+func (x *CreateClassifierRequest) SetDisableBuiltIn(v string) {
+	x.xxx_hidden_DisableBuiltIn = v
 }
 
 func (x *CreateClassifierRequest) HasClassifier() bool {
@@ -2570,6 +2582,10 @@ type CreateClassifierRequest_builder struct {
 
 	// Classifier is the Classifier resource to create.
 	Classifier *Classifier
+	// DisableBuiltIn optionally names a built-in Classifier to disable in the
+	// same atomic write, so that a customized copy replaces the built-in it was
+	// duplicated from. Requires permission to update Classifiers.
+	DisableBuiltIn string
 }
 
 func (b0 CreateClassifierRequest_builder) Build() *CreateClassifierRequest {
@@ -2577,6 +2593,7 @@ func (b0 CreateClassifierRequest_builder) Build() *CreateClassifierRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Classifier = b.Classifier
+	x.xxx_hidden_DisableBuiltIn = b.DisableBuiltIn
 	return m0
 }
 
@@ -4869,11 +4886,12 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"\x8c\x01\n" +
 	"\x1dListInferencePoliciesResponse\x12C\n" +
 	"\bpolicies\x18\x01 \x03(\v2'.teleport.summarizer.v1.InferencePolicyR\bpolicies\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"]\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x87\x01\n" +
 	"\x17CreateClassifierRequest\x12B\n" +
 	"\n" +
 	"classifier\x18\x01 \x01(\v2\".teleport.summarizer.v1.ClassifierR\n" +
-	"classifier\"^\n" +
+	"classifier\x12(\n" +
+	"\x10disable_built_in\x18\x02 \x01(\tR\x0edisableBuiltIn\"^\n" +
 	"\x18CreateClassifierResponse\x12B\n" +
 	"\n" +
 	"classifier\x18\x01 \x01(\v2\".teleport.summarizer.v1.ClassifierR\n" +

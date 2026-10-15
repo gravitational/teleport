@@ -83,6 +83,11 @@ type Summarizer interface {
 	// CreateClassifier creates a new session summarization classifier in the
 	// backend.
 	CreateClassifier(ctx context.Context, classifier *summarizerv1.Classifier) (*summarizerv1.Classifier, error)
+	// CreateClassifierAndDisable creates a new session summarization classifier
+	// and disables an existing one in a single atomic write. The write fails if
+	// the existing classifier no longer has the revision of the given copy. If
+	// that copy is already disabled, the returned disabled classifier is nil.
+	CreateClassifierAndDisable(ctx context.Context, classifier, disable *summarizerv1.Classifier) (created, disabled *summarizerv1.Classifier, err error)
 	// UpdateClassifier updates an existing session summarization classifier in
 	// the backend.
 	UpdateClassifier(ctx context.Context, classifier *summarizerv1.Classifier) (*summarizerv1.Classifier, error)
