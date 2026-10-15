@@ -421,6 +421,41 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	}, nil
 }
 
+// AppendPutAppServerActions adds conditional actions to an atomic
+// write to create or update an app server.
+func (s *PresenceService) AppendPutAppServerActions(
+	actions []backend.ConditionalAction,
+	server types.AppServer,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if err := services.CheckAndSetDefaults(server); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	svc, err := appServerServiceForHost(s.appServers, appServerServiceParams{
+		Scope: server.GetScope(),
+		Host:  server.GetHostID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := svc.MakeBackendItem(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(item),
+	}), nil
+}
+
 // AppendPutNodeActions adds conditional actions to an atomic write to create
 // or update a node resource.
 func (s *PresenceService) AppendPutNodeActions(

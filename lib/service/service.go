@@ -3246,7 +3246,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.DiscoveryConfigs = services.DiscoveryConfigs
 	cfg.DynamicAccess = services.DynamicAccessExt
 	cfg.Events = services.Events
-	cfg.Integrations = services.Integrations
+	cfg.Integrations = services.IntegrationsInternal
 	cfg.KubeWaitingContainers = services.KubeWaitingContainer
 	cfg.Kubernetes = services.Kubernetes
 	cfg.Notifications = services.Notifications
@@ -3273,7 +3273,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AutoUpdateService = services.AutoUpdateService
 	cfg.ProvisioningStates = services.ProvisioningStates
 	cfg.IdentityCenter = services.IdentityCenter
-	cfg.PluginStaticCredentials = services.PluginStaticCredentials
+	cfg.PluginStaticCredentials = services.PluginStaticCredentialsInternal
 	cfg.GitServers = services.GitServers
 	cfg.HealthCheckConfig = services.HealthCheckConfig
 	cfg.BotInstance = services.BotInstance

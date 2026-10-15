@@ -297,3 +297,22 @@ func (s *IntegrationsService) ConsumeOAuthProxyAuthRequest(ctx context.Context, 
 
 	return &req, nil
 }
+
+// AppendPutIntegrationActions adds conditional actions to an atomic
+// write to create or update an integration.
+func (s *IntegrationsService) AppendPutIntegrationActions(
+	actions []backend.ConditionalAction,
+	integration types.Integration,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	item, err := s.svc.MakeBackendItem(integration)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(item),
+	}), nil
+}

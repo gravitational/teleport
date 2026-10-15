@@ -113,6 +113,25 @@ func (p *PluginStaticCredentialsService) UpsertPluginStaticCredentials(ctx conte
 	return cred, trace.Wrap(err)
 }
 
+// AppendPutPluginStaticCredentialsActions adds conditional actions to an atomic
+// write to create or update plugin static credential.
+func (p *PluginStaticCredentialsService) AppendPutPluginStaticCredentialsActions(
+	actions []backend.ConditionalAction,
+	cred types.PluginStaticCredentials,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	item, err := p.svc.MakeBackendItem(cred)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(item),
+	}), nil
+}
+
 var _ services.PluginStaticCredentials = (*PluginStaticCredentialsService)(nil)
 
 type pluginStaticCredentialsParser struct {

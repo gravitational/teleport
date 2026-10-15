@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // PluginStaticCredentials is the plugin static credentials service
@@ -47,6 +48,20 @@ type PluginStaticCredentials interface {
 
 	// GetAllPluginStaticCredentials will get all plugin static credentials.
 	GetAllPluginStaticCredentials(ctx context.Context) ([]types.PluginStaticCredentials, error)
+}
+
+// PluginStaticCredentialsInternal extends PluginStaticCredentials with methods that operate directly on
+// the configured backend.
+type PluginStaticCredentialsInternal interface {
+	PluginStaticCredentials
+
+	// AppendPutPluginStaticCredentialsActions adds conditional actions to an atomic
+	// write to create or update plugin static credential.
+	AppendPutPluginStaticCredentialsActions(
+		actions []backend.ConditionalAction,
+		cred types.PluginStaticCredentials,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }
 
 // MarshalPluginStaticCredentials marshals PluginStaticCredentials resource to JSON.

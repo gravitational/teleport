@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -38,6 +39,20 @@ type Integrations interface {
 	DeleteIntegration(ctx context.Context, name string) error
 	// DeleteAllIntegrations removes all integrations.
 	DeleteAllIntegrations(context.Context) error
+}
+
+// IntegrationsInternal extends Integrations with methods that operate directly on
+// the configured backend.
+type IntegrationsInternal interface {
+	Integrations
+
+	// AppendPutIntegrationActions adds conditional actions to an atomic
+	// write to create or update an integration.
+	AppendPutIntegrationActions(
+		actions []backend.ConditionalAction,
+		integration types.Integration,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }
 
 // IntegrationsGetter defines methods for List/Read operations on Integration Resources.

@@ -270,7 +270,7 @@ type InitConfig struct {
 	CrownJewels services.CrownJewels
 
 	// Integrations is a service that manages Integrations.
-	Integrations services.Integrations
+	Integrations services.IntegrationsInternal
 
 	// OAuthProxyAuthRequests is a service that manages in-flight OAuth Proxy auth requests.
 	OAuthProxyAuthRequests services.OAuthProxyAuthRequests
@@ -395,7 +395,7 @@ type InitConfig struct {
 	Plugins *local.PluginsService
 
 	// PluginStaticCredentials handles credentials for integrations and plugins.
-	PluginStaticCredentials services.PluginStaticCredentials
+	PluginStaticCredentials services.PluginStaticCredentialsInternal
 
 	// GitServers manages git servers.
 	GitServers services.GitServers

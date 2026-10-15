@@ -53,7 +53,7 @@ type Services struct {
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.Status
-	services.Integrations
+	services.IntegrationsInternal
 	services.IntegrationsTokenGenerator
 	services.UserTasks
 	services.DiscoveryConfigs
@@ -82,7 +82,7 @@ type Services struct {
 	services.ProvisioningStates
 	services.IdentityCenter
 	services.Plugins
-	services.PluginStaticCredentials
+	services.PluginStaticCredentialsInternal
 	services.GitServers
 	services.WorkloadIdentities
 	services.StableUNIXUsersInternal
