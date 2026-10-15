@@ -22,6 +22,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -37,33 +39,50 @@ func roleNameIndexKeyForName(name string) string {
 	return name + "/params"
 }
 
-func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.Role, roleIndex], error) {
+type cachedRole = cachedGogoResource[*types.RoleV6, types.RoleV6]
+
+func newCachedRole(role *types.RoleV6) (*cachedRole, error) {
+	return newCachedGogoResource(roleNameIndexKeyForName(role.Metadata.Name), role)
+}
+
+func newRoleCollection(a services.Access, w types.WatchKind) (*collection[*cachedRole, roleIndex], error) {
 	if a == nil {
 		return nil, trace.BadParameter("missing parameter Access")
 	}
 
-	return &collection[types.Role, roleIndex]{
+	return &collection[*cachedRole, roleIndex]{
 		store: newStore(
 			types.KindRole,
-			types.Role.Clone,
-			map[roleIndex]func(types.Role) string{
-				roleNameIndex: func(r types.Role) string {
-					return roleNameIndexKeyForName(r.GetName())
-				},
+			(*cachedRole).clone,
+			map[roleIndex]func(*cachedRole) string{
+				roleNameIndex: func(cr *cachedRole) string { return cr.key },
 			}),
-		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Role, error) {
-			return a.GetRoles(ctx)
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*cachedRole, error) {
+			pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*types.RoleV6, string, error) {
+				resp, err := a.ListRoles(ctx, &proto.ListRolesRequest{Limit: int32(pageSize), StartKey: pageToken})
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				return resp.GetRoles(), resp.GetNextKey(), nil
+			}
+			// the default backend page size, which we unfortunately have to
+			// just know on the client side to support page size scaling
+			const pageSize = 100
+			return stream.Collect(stream.TryMap(clientutils.ResourcesWithPageSize(ctx, pageFunc, pageSize), newCachedRole))
 		},
-		headerTransform: func(hdr *types.ResourceHeader) types.Role {
-			return &types.RoleV6{
-				Kind:    hdr.Kind,
-				Version: hdr.Version,
-				Metadata: types.Metadata{
-					Name: hdr.Metadata.Name,
-				},
+		headerTransform: func(hdr *types.ResourceHeader) *cachedRole {
+			return &cachedRole{
+				key: roleNameIndexKeyForName(hdr.Metadata.Name),
 			}
 		},
 		watch: w,
+		resourcePutTransform: func(rsc types.Resource) (*cachedRole, error) {
+			role, _ := rsc.(*types.RoleV6)
+			if role == nil {
+				return nil, trace.BadParameter("unexpected type %T (expected %T, this is a bug)", rsc, role)
+			}
+			return newCachedRole(role)
+		},
 	}, nil
 }
 
@@ -84,8 +103,8 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	}
 
 	roles := make([]types.Role, 0, rg.store.len())
-	for r := range rg.store.resources(roleNameIndex, "", "") {
-		roles = append(roles, r.Clone())
+	for cr := range rg.store.resources(roleNameIndex, "", "") {
+		roles = append(roles, cr.cloneResource())
 	}
 
 	return roles, nil
@@ -123,22 +142,17 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 	if req.StartKey != "" {
 		start = roleNameIndexKeyForName(req.StartKey)
 	}
-	for r := range rg.store.resources(roleNameIndex, start, "") {
-		rv6, ok := r.(*types.RoleV6)
-		if !ok {
-			continue
-		}
-
-		if req.Filter != nil && !req.Filter.Match(rv6) {
+	for cr := range rg.store.resources(roleNameIndex, start, "") {
+		if req.Filter != nil && !req.Filter.Match(cr.rsc) {
 			continue
 		}
 
 		if len(resp.Roles) == pageSize {
-			resp.NextKey = r.GetName()
+			resp.NextKey = cr.rsc.Metadata.Name
 			break
 		}
 
-		resp.Roles = append(resp.Roles, r.Clone().(*types.RoleV6))
+		resp.Roles = append(resp.Roles, cr.cloneResource())
 
 	}
 	return &resp, nil
@@ -160,7 +174,7 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		return role, trace.Wrap(err)
 	}
 
-	r, err := rg.store.get(roleNameIndex, roleNameIndexKeyForName(name))
+	cr, err := rg.store.get(roleNameIndex, roleNameIndexKeyForName(name))
 	if err != nil {
 		// release read lock early
 		rg.Release()
@@ -178,5 +192,5 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return r.Clone(), nil
+	return cr.cloneResource(), nil
 }

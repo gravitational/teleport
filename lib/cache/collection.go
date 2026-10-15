@@ -51,6 +51,10 @@ type collection[T any, I comparable] struct {
 	// TODO(tross|fspmarshall|espadolini) investigate if special singleton
 	// behavior can be removed.
 	singleton bool
+	// resourcePutTransform, if set, is called to convert put events into
+	// collection items. If unset, the resource is expected to implement either
+	// T or interface{ UnwrapT() T }.
+	resourcePutTransform func(types.Resource) (T, error)
 }
 
 func (c collection[_, _]) watchKind() types.WatchKind {
@@ -99,6 +103,20 @@ func (c *collection[T, _]) onDelete(r types.Resource) error {
 //
 // This is a no-op if the configured filter does not return true.
 func (c *collection[T, _]) onPut(r types.Resource) error {
+	if c.resourcePutTransform != nil {
+		tt, err := c.resourcePutTransform(r)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if c.filter != nil && !c.filter(tt) {
+			return nil
+		}
+
+		c.store.put(tt)
+		return nil
+	}
+
 	switch t := r.(type) {
 	case interface{ UnwrapT() T }:
 		tt := t.UnwrapT()
