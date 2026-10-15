@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -40,6 +41,8 @@ type discoveryClient interface {
 	SearchEvents(ctx context.Context, req libevents.SearchEventsRequest) ([]apievents.AuditEvent, string, error)
 	// GetResources lists resources with pagination.
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+	// ListDatabases lists registered databases with pagination.
+	ListDatabases(ctx context.Context, limit int, start string) ([]types.Database, string, error)
 	// UserTasksClient returns a client for managing user tasks.
 	UserTasksClient() services.UserTasks
 	// DiscoveryConfigClient returns a client for accessing discovery config.
@@ -50,8 +53,9 @@ type discoveryClient interface {
 type Command struct {
 	stdout io.Writer
 
-	nodes  nodesArgs
-	status statusArgs
+	nodes     nodesArgs
+	databases databasesArgs
+	status    statusArgs
 }
 
 // Initialize registers the "discovery" command and its subcommands with the CLI parser.
@@ -62,6 +66,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 
 	discovery := app.Command("discovery", "Troubleshoot auto-discovery issues.")
 	c.nodes.initNodes(discovery)
+	c.databases.initDatabases(discovery)
 	c.status.initStatus(discovery)
 }
 
@@ -72,6 +77,8 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 	switch cmd {
 	case c.nodes.cmd.FullCommand():
 		commandFunc = c.nodes.run
+	case c.databases.cmd.FullCommand():
+		commandFunc = c.databases.run
 	case c.status.cmd.FullCommand():
 		commandFunc = c.status.run
 	default:

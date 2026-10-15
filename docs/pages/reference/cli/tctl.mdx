@@ -1564,6 +1564,39 @@ Flags:
 |`--device-id`|*no default*|Device identifier|
 |`--[no-]current-device`|`false`|Removes the current device. Overrides --device-id and --asset-tag.|
 
+## tctl discovery databases
+
+Report the availability of automatically discovered AWS databases registered
+as Teleport database resources. The command correlates these resources with
+Database Service heartbeats and open RDS IAM authentication issue tasks.
+
+A database is Offline if no Database Service heartbeat exists, a matching open
+RDS IAM authentication issue exists, or all serving Database Service instances
+report an unhealthy target. Otherwise, it is Online. The Details column
+describes the issues that cause an Offline status. A database can have multiple
+issues.
+
+The Time column shows the most recent timestamp among discovery syncs from
+matching open RDS issue tasks and target health transitions, in UTC. It is blank
+when neither is available.
+
+Missing or unknown target health information does not by itself mark a database
+as Offline. An Online status does not verify database user provisioning,
+user permissions, or successful authentication.
+
+Usage:
+
+```code
+$ tctl discovery databases [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+|`--[no-]failures-only`|`false`|Only show databases with enrollment failures.|
+
 ## tctl discovery nodes
 
 Report discovered server instances and their enrollment status using Teleport

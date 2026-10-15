@@ -185,6 +185,11 @@ target_health:
 
 ## Troubleshooting
 
+For automatically discovered AWS databases registered with Teleport, use
+[`tctl discovery databases`](../../../reference/cli/tctl.mdx#tctl-discovery-databases)
+with `--failures-only` to check for unhealthy connections, missing Database
+Service heartbeats, and RDS IAM authentication issues.
+
 The Teleport web UI will highlight unhealthy databases.
 You can click on a highlighted database to view some health check failure details or other warnings:
 
