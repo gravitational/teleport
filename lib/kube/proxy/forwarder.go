@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/inflighttracker"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
@@ -415,6 +416,8 @@ type Forwarder struct {
 	rwMutexDetails sync.RWMutex
 	// sessions tracks in-flight sessions
 	sessions map[uuid.UUID]*session
+
+	inflight inflighttracker.Tracker
 	// upgrades connections to websockets
 	upgrader gwebsocket.Upgrader
 	// getKubernetesServersForKubeCluster is a function that returns a list of
@@ -451,7 +454,24 @@ func (f *Forwarder) Close() error {
 }
 
 func (f *Forwarder) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	f.router.ServeHTTP(rw, r)
+	// Register the request so that `Shutdown` will wait for it to complete.
+	// Requests that arrive after the tracker has been closed will get a 503
+	// error.
+	if !f.inflight.Add() {
+		f.formatStatusResponseError(rw, kubeerrors.NewServiceUnavailable("server is shutting down"))
+		return
+	}
+	defer f.inflight.Done()
+
+	// Cancel the request context if either the client drops or the forwarder
+	// is closed.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	// Detach the hook once the request finishes so f.ctx does not accumulate
+	// cancel funcs.
+	stop := context.AfterFunc(f.ctx, cancel)
+	defer stop()
+	f.router.ServeHTTP(rw, r.WithContext(ctx))
 }
 
 // authContext is a context of authenticated user,

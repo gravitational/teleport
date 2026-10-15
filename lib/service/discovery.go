@@ -63,6 +63,8 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	shutdown := process.newEmitterShutdown(asyncEmitter, logger)
+	defer shutdown.Cleanup()
 
 	accessGraphCfg, err := buildAccessGraphFromTAGOrFallbackToAuth(
 		process.ExitContext(),
@@ -101,12 +103,17 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	process.OnExit("discovery.stop", func(payload any) {
 		logger.InfoContext(process.ExitContext(), "Shutting down.")
 		if discoveryService != nil {
-			discoveryService.Stop()
+			if payload == nil {
+				discoveryService.Stop()
+			} else {
+				warnOnErr(process.ExitContext(), discoveryService.Shutdown(payloadContext(payload)), logger)
+			}
 		}
-		shutdownEmitter(process, asyncEmitter, payload, logger)
+		shutdown.Shutdown(payload)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
+	shutdown.HandlerRegistered()
 
 	process.BroadcastEvent(Event{Name: DiscoveryReady, Payload: nil})
 

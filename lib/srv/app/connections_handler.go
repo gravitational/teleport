@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/inflighttracker"
 )
 
 // ConnMonitor monitors authorized connections and terminates them when
@@ -190,7 +191,15 @@ type ConnectionsHandler struct {
 	cfg *ConnectionsHandlerConfig
 	log *slog.Logger
 
+	// closeContext is for the process and it outlives every connection.
 	closeContext context.Context
+	// connsCtx is the parent of every connection context and it is canceled by
+	// calls to Close.
+	connsCtx    context.Context
+	connsCancel context.CancelFunc
+	// conns counts each connection being served so that Shutdown can drain
+	// existing connections and refuse new connections.
+	conns inflighttracker.Tracker
 
 	httpServer *http.Server
 	tlsConfig  *tls.Config
@@ -300,9 +309,12 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	connsCtx, connsCancel := context.WithCancel(closeContext)
 	c := &ConnectionsHandler{
 		cfg:          cfg,
 		closeContext: closeContext,
+		connsCtx:     connsCtx,
+		connsCancel:  connsCancel,
 		awsHandler:   awsHandler,
 		azureHandler: azureHandler,
 		gcpHandler:   gcpHandler,
@@ -403,7 +415,13 @@ func (c *ConnectionsHandler) expireSessions() {
 // HandleConnection takes a connection and wraps it in a listener, so it can
 // be passed to http.Serve to process as a HTTP request.
 func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
-	ctx, cancel := context.WithCancelCause(c.closeContext)
+	if !c.conns.Add() {
+		conn.Close()
+		return
+	}
+	defer c.conns.Done()
+
+	ctx, cancel := context.WithCancelCause(c.connsCtx)
 	// HandleConnection owns the context. handleConnection passes cancel
 	// to TrackingReadConn, which may call it first with io.EOF when the
 	// connection closes. The second cancel call is a no-op.
@@ -511,13 +529,26 @@ func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	}, nil
 }
 
-// Close performs a graceful shutdown.
+func (c *ConnectionsHandler) Shutdown(ctx context.Context) []error {
+	c.conns.Close()
+	var errs []error
+	if err := c.httpServer.Shutdown(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if err := c.conns.Wait(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	return append(errs, c.Close(ctx)...)
+}
+
 func (c *ConnectionsHandler) Close(ctx context.Context) []error {
+	c.conns.Close()
 	var errs []error
 	// Stop HTTP server.
 	if err := c.httpServer.Close(); err != nil {
 		errs = append(errs, err)
 	}
+	c.connsCancel()
 
 	// Close the session cache and its remaining sessions.
 	c.cache.Shutdown(c.closeContext)

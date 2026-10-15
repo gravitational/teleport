@@ -457,7 +457,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	// wait until connections drain off
 	err := s.srv.Shutdown(ctx)
-	return trace.NewAggregate(err, s.Close())
+	closeErr := s.Close()
+	return trace.NewAggregate(err, closeErr, s.reg.Wait(ctx))
 }
 
 // Start starts server

@@ -122,11 +122,8 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer func() {
-		if retErr != nil {
-			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-		}
-	}()
+	shutdown := process.newEmitterShutdown(asyncEmitter, logger)
+	defer shutdown.Cleanup()
 
 	connLimiter, err := limiter.NewLimiter(process.Config.Databases.Limiter)
 	if err != nil {
@@ -233,10 +230,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		if agentPool != nil {
 			agentPool.Stop()
 		}
-		shutdownEmitter(process, asyncEmitter, payload, logger)
+		shutdown.Shutdown(payload)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
+	shutdown.HandlerRegistered()
 
 	process.BroadcastEvent(Event{Name: DatabasesReady, Payload: nil})
 	logger.InfoContext(process.ExitContext(), "Database service has successfully started",

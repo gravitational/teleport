@@ -926,7 +926,14 @@ func (s *leafCluster) dialAndForward(params reversetunnelclient.DialParams) (_ n
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	go forwardingServer.Serve()
+	started := s.srv.forwarders.Go(func() {
+		forwardingServer.Serve()
+		forwardingServer.Wait(context.Background())
+	})
+	if !started {
+		targetConn.Close()
+		return nil, trace.ConnectionProblem(nil, "proxy is shutting down")
+	}
 
 	// Return a connection to the forwarding server.
 	conn, err := forwardingServer.Dial()

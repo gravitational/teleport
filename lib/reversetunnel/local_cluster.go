@@ -503,7 +503,14 @@ func (s *localCluster) dialAndForward(params reversetunnelclient.DialParams) (_ 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	go remoteServer.Serve()
+	started := s.srv.forwarders.Go(func() {
+		remoteServer.Serve()
+		remoteServer.Wait(context.Background())
+	})
+	if !started {
+		targetConn.Close()
+		return nil, trace.ConnectionProblem(nil, "proxy is shutting down")
+	}
 
 	// Return a connection to the forwarding server.
 	conn, err := remoteServer.Dial()

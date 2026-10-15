@@ -91,7 +91,8 @@ func (process *TeleportProcess) runRelayService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer asyncEmitter.Close()
+	shutdown := process.newEmitterShutdown(asyncEmitter, log)
+	defer shutdown.Cleanup()
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -473,7 +474,7 @@ func (process *TeleportProcess) runRelayService() error {
 	})
 	warnOnErr(egCtx, eg.Wait(), log)
 
-	shutdownEmitter(process, asyncEmitter, exitEvent.Payload, log)
+	shutdown.Shutdown(exitEvent.Payload)
 
 	warnOnErr(ctx, hb.Close(), log)
 	warnOnErr(ctx, conn.Close(), log)

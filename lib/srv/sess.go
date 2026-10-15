@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/inflighttracker"
 	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
 
@@ -106,6 +107,7 @@ type SessionRegistry struct {
 	// is closing.
 	sessions    map[rsession.ID]*session
 	sessionsMux sync.Mutex
+	active      inflighttracker.Tracker
 
 	// users is used for automatic user creation when new sessions are
 	// started
@@ -210,9 +212,14 @@ func (s *SessionRegistry) findSession(id rsession.ID) (*session, bool) {
 	return s.findSessionLocked(id)
 }
 
+func (s *SessionRegistry) Wait(ctx context.Context) error {
+	return s.active.Wait(ctx)
+}
+
 func (s *SessionRegistry) Close() {
 	s.sessionsMux.Lock()
 	defer s.sessionsMux.Unlock()
+	s.active.Close()
 
 	// End all sessions and allow session cleanup
 	// goroutines to complete.
@@ -865,6 +872,9 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		policySets = scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
 	}
 
+	if !r.active.Add() {
+		return nil, nil, trace.ConnectionProblem(nil, "session registry is closed")
+	}
 	serverSessions.Inc()
 	access := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
@@ -1047,6 +1057,7 @@ func (s *session) Close() error {
 				s.logger.WarnContext(s.serverCtx, "Failed to close recorder.", "error", err)
 			}
 		}
+		s.registry.active.Done()
 	})
 	return nil
 }

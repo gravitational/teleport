@@ -1285,7 +1285,6 @@ func (c *Client) EmitAuditEvents(ctx context.Context, batch []events.AuditEvent)
 		return trace.BadParameter("audit events batch size is too large: max %d, got %d",
 			defaults.MaxAuditEventsBatchSize, len(batch))
 	}
-	ctx = context.WithoutCancel(ctx)
 	grpcEvents := make([]*events.OneOf, 0, len(batch))
 	for _, event := range batch {
 		grpcEvent, err := events.ToOneOf(event)
@@ -1304,8 +1303,8 @@ func (c *Client) EmitAuditEvents(ctx context.Context, batch []events.AuditEvent)
 
 	// The auth server predates the batch RPC. Fall back to emitting each event
 	// individually so events are still delivered.
-	for _, event := range batch {
-		if err := c.EmitAuditEvent(ctx, event); err != nil {
+	for _, grpcEvent := range grpcEvents {
+		if _, err := c.grpc.EmitAuditEvent(ctx, grpcEvent); err != nil {
 			return trace.Wrap(err)
 		}
 	}

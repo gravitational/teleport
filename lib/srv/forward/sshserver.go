@@ -612,6 +612,7 @@ func (s *Server) Serve() {
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(s.Context())
 	if err != nil {
 		s.logger.ErrorContext(s.Context(), "Unable to fetch cluster config", "error", err)
+		s.closeCancel()
 		return
 	}
 
@@ -633,6 +634,7 @@ func (s *Server) Serve() {
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
+		s.closeCancel()
 	}()
 
 	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
@@ -787,10 +789,21 @@ func (s *Server) Close() error {
 		}
 	}
 
+	s.sessionRegistry.Close()
+
 	// Signal to the outside world that this server is closed
 	s.closeCancel()
 
 	return trace.NewAggregate(errs...)
+}
+
+func (s *Server) Wait(ctx context.Context) error {
+	select {
+	case <-s.closeContext.Done():
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+	return s.sessionRegistry.Wait(ctx)
 }
 
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session

@@ -249,6 +249,8 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	shutdown := process.newEmitterShutdown(asyncEmitter, logger)
+	defer shutdown.Cleanup()
 
 	// Create a health check manager.
 	healthCheckManager, err := healthcheck.NewManager(
@@ -362,7 +364,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		if relayTunnelClient != nil {
 			relayTunnelClient.Close()
 		}
-		shutdownEmitter(process, asyncEmitter, payload, logger)
+		shutdown.Shutdown(payload)
 		if healthCheckManager != nil {
 			warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
 		}
@@ -375,5 +377,6 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
+	shutdown.HandlerRegistered()
 	return nil
 }

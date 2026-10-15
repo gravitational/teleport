@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	"github.com/gravitational/teleport/lib/utils/inflighttracker"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/spreadwork"
@@ -420,6 +421,7 @@ type Server struct {
 	ctx context.Context
 	// cancelfn is used with ctx when stopping the discovery server
 	cancelfn context.CancelFunc
+	wg       inflighttracker.Tracker
 	// nodeWatcher is a node watcher.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
@@ -1525,7 +1527,9 @@ func (s *Server) startAWSServerDiscovery() {
 		return
 	}
 
-	go s.ec2Watcher.Run()
+	if !s.wg.Go(s.ec2Watcher.Run) {
+		return
+	}
 	go s.watchCARotation(s.ctx)
 }
 
@@ -1810,8 +1814,9 @@ func (s *Server) startAzureServerDiscovery() {
 	// refresh dynamic fetchers once at the beginning.
 	refreshFetchers(true)
 
-	s.Log.DebugContext(s.ctx, "Azure VM watcher starting.")
-	go azureWatcher.Run()
+	if s.wg.Go(azureWatcher.Run) {
+		s.Log.DebugContext(s.ctx, "Azure VM watcher starting.")
+	}
 }
 
 func (s *Server) reconcileAzureServers(instances *server.AzureInstances) (discoveryGroupStatus, error) {
@@ -2036,7 +2041,9 @@ func (s *Server) handleGCPDiscovery() {
 		s.Log.ErrorContext(s.ctx, "Failed to initialize nodeWatcher", "error", err)
 		return
 	}
-	go s.gcpWatcher.Run()
+	if !s.wg.Go(s.gcpWatcher.Run) {
+		return
+	}
 	for {
 		select {
 		case instances := <-s.gcpWatcher.InstancesC:
@@ -2124,12 +2131,16 @@ func (s *Server) submitFetchEvent(cloudProvider, resourceType string) {
 // Start starts the discovery service.
 func (s *Server) Start() error {
 	if s.ec2Watcher != nil {
-		go s.startAWSServerDiscovery()
+		if !s.wg.Go(s.startAWSServerDiscovery) {
+			return trace.ConnectionProblem(nil, "discovery server is shutting down")
+		}
 		go s.reconciler.run(s.ctx)
 	}
-	go s.startAzureServerDiscovery()
-	if s.gcpWatcher != nil {
-		go s.handleGCPDiscovery()
+	if !s.wg.Go(s.startAzureServerDiscovery) {
+		return trace.ConnectionProblem(nil, "discovery server is shutting down")
+	}
+	if s.gcpWatcher != nil && !s.wg.Go(s.handleGCPDiscovery) {
+		return trace.ConnectionProblem(nil, "discovery server is shutting down")
 	}
 	if err := s.startKubeWatchers(); err != nil {
 		return trace.Wrap(err)
@@ -2466,6 +2477,11 @@ func (s *Server) Stop() {
 	if s.gcpClients != nil {
 		_ = s.gcpClients.Close()
 	}
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	s.Stop()
+	return s.wg.Wait(ctx)
 }
 
 // Wait will block while the server is running.

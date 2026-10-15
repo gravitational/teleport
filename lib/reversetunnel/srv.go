@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/inflighttracker"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -132,6 +133,11 @@ type server struct {
 
 	// proxyDiscoveryPublisher publishes proxy discovery events to subscribers.
 	proxyDiscoveryPublisher *proxyDiscoveryPublisher
+
+	// forwarders tracks each ssh forwarding server so that during shutdown we
+	// can wait until each connection completes. This ensures we do not lose any
+	// audit log events during shutdown.
+	forwarders inflighttracker.Tracker
 }
 
 // EICESigner is a function that is used to obatin an [ssh.Signer] for an EICE instance. The
@@ -691,11 +697,12 @@ func (s *server) DrainConnections(ctx context.Context) error {
 
 func (s *server) Shutdown(ctx context.Context) error {
 	err := s.srv.Shutdown(ctx)
+	waitErr := s.forwarders.Wait(ctx)
 
 	s.proxyDiscoveryPublisher.Close()
 	s.cancel()
 
-	return trace.Wrap(err)
+	return trace.NewAggregate(err, waitErr)
 }
 
 func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {

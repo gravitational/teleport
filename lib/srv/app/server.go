@@ -597,16 +597,15 @@ func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
 
 // Close will shut the server down and unblock any resources.
 func (s *Server) Close() error {
-	return trace.Wrap(s.close(s.closeContext))
+	return trace.Wrap(s.close(s.closeContext, s.c.ConnectionsHandler.Close))
 }
 
 // Shutdown performs a graceful shutdown.
 func (s *Server) Shutdown(ctx context.Context) error {
-	// TODO wait active connections.
-	return trace.Wrap(s.close(ctx))
+	return trace.Wrap(s.close(ctx, s.c.ConnectionsHandler.Shutdown))
 }
 
-func (s *Server) close(ctx context.Context) error {
+func (s *Server) close(ctx context.Context, closeConns func(context.Context) []error) error {
 	shouldDeleteApps := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -672,7 +671,7 @@ func (s *Server) close(ctx context.Context) error {
 	clear(s.heartbeats)
 	s.mu.Unlock()
 
-	errs := s.c.ConnectionsHandler.Close(ctx)
+	errs := closeConns(ctx)
 
 	// Signal to any blocking go routine that it should exit.
 	s.closeFunc()

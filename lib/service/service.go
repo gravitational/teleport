@@ -3907,7 +3907,8 @@ func (process *TeleportProcess) initSSH() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer func() { warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger) }()
+		shutdown := process.newEmitterShutdown(asyncEmitter, logger)
+		defer shutdown.Cleanup()
 
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -4169,7 +4170,7 @@ func (process *TeleportProcess) initSSH() error {
 			relayTunnelClient.Close()
 		}
 
-		shutdownEmitter(process, asyncEmitter, event.Payload, logger)
+		shutdown.Shutdown(event.Payload)
 
 		logger.InfoContext(process.ExitContext(), "Exited.")
 		return nil
@@ -5381,6 +5382,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	shutdown := process.newEmitterShutdown(asyncEmitter, logger)
+	defer shutdown.Cleanup()
 	streamEmitter := &events.StreamerAndEmitter{
 		Emitter:  asyncEmitter,
 		Streamer: conn.Client,
@@ -5662,10 +5665,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			_ = peerQUICTransport.Close()
 			_ = peerQUICTransport.Conn.Close()
 		}
-		shutdownEmitter(process, asyncEmitter, payload, logger)
+		shutdown.Shutdown(payload)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited")
 	})
+	shutdown.HandlerRegistered()
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
@@ -7376,11 +7380,8 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer func() {
-			if !shouldSkipCleanup {
-				warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-			}
-		}()
+		shutdown := process.newEmitterShutdown(asyncEmitter, logger)
+		defer shutdown.Cleanup()
 
 		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
@@ -7519,10 +7520,11 @@ func (process *TeleportProcess) initApps() {
 				warnOnErr(process.ExitContext(), appServer.Shutdown(payloadContext(payload)), logger)
 			}
 			agentPool.Stop()
-			shutdownEmitter(process, asyncEmitter, payload, logger)
+			shutdown.Shutdown(payload)
 			warnOnErr(process.ExitContext(), conn.Close(), logger)
 			logger.InfoContext(process.ExitContext(), "Exited.")
 		})
+		shutdown.HandlerRegistered()
 
 		// Block and wait while the server and agent pool are running.
 		if err := appServer.Wait(); err != nil && !errors.Is(err, context.Canceled) {
@@ -7551,6 +7553,37 @@ func shutdownEmitter(process *TeleportProcess, emitter processEmitter, payload a
 
 func (process *TeleportProcess) ShutdownEmitter(emitter processEmitter, payload any, logger *slog.Logger) {
 	shutdownEmitter(process, emitter, payload, logger)
+}
+
+// emitterShutdown owns the lifetime of a service's audit log emitter.
+// It is used to ensure that the emitter is unregistered from the process on
+// both success and failure code paths. It also ensures that emitters are shut
+// down only once.
+type emitterShutdown struct {
+	process           *TeleportProcess
+	emitter           processEmitter
+	logger            *slog.Logger
+	once              sync.Once
+	handlerRegistered bool
+}
+
+func (process *TeleportProcess) newEmitterShutdown(emitter processEmitter, logger *slog.Logger) *emitterShutdown {
+	return &emitterShutdown{process: process, emitter: emitter, logger: logger}
+}
+
+func (s *emitterShutdown) Shutdown(payload any) {
+	s.once.Do(func() { shutdownEmitter(s.process, s.emitter, payload, s.logger) })
+}
+
+func (s *emitterShutdown) HandlerRegistered() {
+	s.handlerRegistered = true
+}
+
+func (s *emitterShutdown) Cleanup() {
+	if s.handlerRegistered {
+		return
+	}
+	s.Shutdown(nil)
 }
 
 // TODO(williamo/scopes): Update this validate function when we add support for these features.

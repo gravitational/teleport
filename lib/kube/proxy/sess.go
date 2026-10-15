@@ -606,6 +606,18 @@ func (s *session) checkPresence(ctx context.Context) error {
 	return nil
 }
 
+func (s *session) startLaunch(ephemeralContainerStatus *corev1.ContainerStatus) error {
+	launched := s.forwarder.inflight.Go(func() {
+		if err := s.launch(ephemeralContainerStatus); err != nil {
+			s.log.WarnContext(s.forwarder.ctx, "Failed to launch Kubernetes session", "error", err)
+		}
+	})
+	if !launched {
+		return trace.ConnectionProblem(nil, "server is shutting down")
+	}
+	return nil
+}
+
 // launch waits until the session meets access requirements and then transitions the session
 // to a running state.
 func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (returnErr error) {
@@ -1099,12 +1111,16 @@ func (s *session) join(ctx context.Context, p *party, emitJoinEvent bool) error 
 			// running in one now that the moderated session is approved
 			startedEphemeralCont, err := s.createEphemeralContainer()
 			if err != nil {
+				s.log.WarnContext(s.forwarder.ctx, "Executor failed while creating ephemeral pod", "error", err)
+			} else {
+				err = s.startLaunch(startedEphemeralCont)
+			}
+			if err != nil {
 				// if the ephemeral container creation fails, close the session
 				// and return the error. We need to close the session here because
 				// we must inform all parties that the session is closing.
 				s.setTerminationErrUnlocked(err)
 				s.reportErrorToSessionRecorder(err)
-				s.log.WarnContext(s.forwarder.ctx, "Executor failed while creating ephemeral pod", "error", err)
 				go func() {
 					err := s.Close()
 					if err != nil {
@@ -1113,12 +1129,6 @@ func (s *session) join(ctx context.Context, p *party, emitJoinEvent bool) error 
 				}()
 				return trace.Wrap(err)
 			}
-
-			go func() {
-				if err := s.launch(startedEphemeralCont); err != nil {
-					s.log.WarnContext(s.forwarder.ctx, "Failed to launch Kubernetes session", "error", err)
-				}
-			}()
 		} else if len(s.parties) == 1 {
 			const base = "Waiting for required participants..."
 

@@ -571,7 +571,6 @@ func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Au
 
 // EmitAuditEvents emits a batch of audit events
 func (r *CheckingEmitter) EmitAuditEvents(ctx context.Context, events []apievents.AuditEvent) error {
-	ctx = context.WithoutCancel(ctx)
 	for _, event := range events {
 		auditEmitEvent.Inc()
 		auditEmitEventSizes.Observe(float64(event.Size()))
@@ -785,7 +784,6 @@ func (m *MultiEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 
 // EmitAuditEvents emits a batch of audit events to all emitters.
 func (m *MultiEmitter) EmitAuditEvents(ctx context.Context, events []apievents.AuditEvent) error {
-	ctx = context.WithoutCancel(ctx)
 	var errors []error
 	for i := range m.emitters {
 		if err := EmitAuditEvents(ctx, m.emitters[i], events); err != nil {
