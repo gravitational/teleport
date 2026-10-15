@@ -116,24 +116,21 @@ func buildStringConstraintTransform(
 	}
 }
 
-// BuildResourceConstraintMatchers returns RoleMatchers derived from any
-// ResourceConstraints requested for the given resource, correlating the
-// resource against resourceAccessIDs by kind and name. Entries without
-// constraints contribute no matchers, so resource kinds that cannot carry
-// constraints are unaffected.
-//
-// Correlating by kind and name mirrors how requested resources are looked up
-// from their IDs (see [accessrequest.GetResourcesByResourceIDs]); callers are
-// expected to pass resources and resourceAccessIDs scoped to the same cluster.
+// BuildResourceConstraintMatchers returns constraint matchers for the resource's kind and name.
+// If localCluster is nonempty, only IDs with that cluster name match.
+// An empty localCluster retains all matches to avoid dropping constraints.
 //
 // TODO(kiosion): When constraints extend for Kubernetes support, kube sub-resource
 // IDs need name-only correlation against the kube_cluster resource, like
 // GetKubeResourcesFromResourceIDs
-func BuildResourceConstraintMatchers(resourceAccessIDs []types.ResourceAccessID, resource types.Resource) ([]RoleMatcher, error) {
+func BuildResourceConstraintMatchers(resourceAccessIDs []types.ResourceAccessID, resource types.Resource, localCluster string) ([]RoleMatcher, error) {
 	var matchers []RoleMatcher
 	for _, raid := range resourceAccessIDs {
 		rid := raid.GetResourceID()
 		if rid.Name != resource.GetName() || rid.Kind != resource.GetKind() {
+			continue
+		}
+		if localCluster != "" && rid.ClusterName != localCluster {
 			continue
 		}
 		rm, err := MatcherFromConstraints(raid.GetConstraints())
@@ -203,4 +200,36 @@ func MatcherFromConstraints(rc *types.ResourceConstraints) (RoleMatcher, error) 
 		}
 	}
 	return RoleMatchers(matchers).AnyOf(), nil
+}
+
+// CheckResourceAccessWithConstraints checks access to the resource and each principal requested for it.
+func CheckResourceAccessWithConstraints(checker AccessChecker, resource types.ResourceWithLabels, state AccessState, resourceAccessIDs []types.ResourceAccessID, localCluster string) error {
+	if err := checker.CheckAccess(resource, state); err != nil {
+		return trace.Wrap(err)
+	}
+	for _, raid := range resourceAccessIDs {
+		rid := raid.GetResourceID()
+		if rid.Name != resource.GetName() || rid.Kind != resource.GetKind() {
+			continue
+		}
+		if localCluster != "" && rid.ClusterName != localCluster {
+			continue
+		}
+		if raid.GetConstraints() == nil {
+			continue
+		}
+		dimensions, err := constraintDimensions(raid.GetConstraints())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Separate checks allow different roles to grant different principals.
+		for _, dimension := range dimensions {
+			for _, value := range dimension.values {
+				if err := checker.CheckAccess(resource, state, dimension.matcher(value)); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+	}
+	return nil
 }

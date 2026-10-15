@@ -6512,6 +6512,42 @@ func (a *Server) generateLongTermResourceGrouping(ctx context.Context, req types
 	return a.modules.GenerateLongTermResourceGrouping(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, req)
 }
 
+// GetAccessRequestAllowedPromotions returns allowed Access List promotions for a request.
+func (a *Server) GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
+	resourceAccessIDs := req.GetAllRequestedResourceIDs()
+	if len(resourceAccessIDs) > 0 {
+		clusterName, err := a.GetClusterName(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Older Auth versions may have saved promotion candidates for another cluster's resources.
+		for _, resourceAccessID := range resourceAccessIDs {
+			if resourceAccessID.GetResourceID().ClusterName != clusterName.GetClusterName() {
+				return types.NewAccessRequestAllowedPromotions(nil), nil
+			}
+		}
+	}
+	// TODO(kiosion): Refresh stale promotion candidates without revalidating them on each read.
+	return a.Services.GetAccessRequestAllowedPromotions(ctx, req)
+}
+
+// ValidateAccessRequestPromotion checks current eligibility for a constrained request.
+func (a *Server) ValidateAccessRequestPromotion(ctx context.Context, req types.AccessRequest, list *accesslist.AccessList) error {
+	if !slices.ContainsFunc(req.GetAllRequestedResourceIDs(), func(resourceAccessID types.ResourceAccessID) bool {
+		return resourceAccessID.GetConstraints() != nil
+	}) {
+		return nil
+	}
+	promotions, err := a.modules.GenerateAccessRequestPromotions(ctx, &cacheWithFetchedAccessLists{a.Cache, []*accesslist.AccessList{list}}, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(promotions.Promotions) == 0 {
+		return trace.AccessDenied("access request cannot be promoted to requested access list")
+	}
+	return nil
+}
+
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
 // the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
 func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
