@@ -750,6 +750,15 @@ func validateUserCertsRequest(srv *ScopedServerWithRoles, req *authpb.UserCertsR
 		}
 	}
 
+	if req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY_MULTI {
+		if req.Usage != authpb.UserCertsRequest_App {
+			return trace.BadParameter("requester %s can only request application certificates", req.RequesterName)
+		}
+		if req.MFAResponse != nil && req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("requester %q can only request single use certificates", req.RequesterName)
+		}
+	}
+
 	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 		return nil
 	}
@@ -2958,7 +2967,8 @@ func isInMemoryCertRequest(req *authpb.UserCertsRequest) bool {
 				req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS ||
 				req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI)) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
-			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
+			(req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY ||
+				req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY_MULTI))
 }
 
 // isCredentialsStdoutCertRequest returns whether a cert request is for a flow where the credentials are not written to disk, but are sent to stdout.

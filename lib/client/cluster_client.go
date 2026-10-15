@@ -610,7 +610,7 @@ func (c *ClusterClient) issueUserCertsWithMFA(ctx context.Context, dial dialAuth
 		}
 	}
 
-	mfaRequired, rootAuthClient, releaseRootAuthClient, err := c.mfaRequired(ctx, dial, params)
+	mfaRequired, rootAuthClient, releaseRootAuthClient, err := c.MFARequired(ctx, dial, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -791,6 +791,8 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	switch params.CertsReq.GetRequesterName() {
 	case proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI:
 		scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI
+	case proto.UserCertsRequest_TSH_APP_LOCAL_PROXY_MULTI:
+		scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_APP_LOCAL_PROXY_MULTI
 	default:
 		scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
 	}
@@ -919,9 +921,9 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	}, nil
 }
 
-// mfaRequired reports whether MFA is required for the target.
+// MFARequired reports whether MFA is required for the target.
 // When it dials the root cluster to ask, it hands that client back so the certs can be issued with it.
-func (c *ClusterClient) mfaRequired(ctx context.Context, dial dialAuthClientFunc, params ReissueParams) (bool, authclient.ClientI, func() error, error) {
+func (c *ClusterClient) MFARequired(ctx context.Context, dial dialAuthClientFunc, params ReissueParams) (bool, authclient.ClientI, func() error, error) {
 	if params.MFACheck != nil {
 		return params.MFACheck.Required, nil, noop, nil
 	}

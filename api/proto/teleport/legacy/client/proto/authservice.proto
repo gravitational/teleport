@@ -269,6 +269,10 @@ message UserCertsRequest {
     // MFA session response so one ceremony can authorize per-cluster certificates. Like the other
     // kube local proxy requesters, the in-memory certificates are not limited to the single use TTL.
     TSH_KUBE_LOCAL_PROXY_MULTI = 7;
+    // TSH_APP_LOCAL_PROXY_MULTI is set when the request was sent by a tsh app local proxy
+    // fanning out across multiple applications. It allows reuse of an MFA session response so
+    // one ceremony can authorize the in-memory certificate for each application.
+    TSH_APP_LOCAL_PROXY_MULTI = 8;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];

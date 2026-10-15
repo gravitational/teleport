@@ -4225,6 +4225,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		switch req.RequesterName {
 		case proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI:
 			requiredExt.Scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI
+		case proto.UserCertsRequest_TSH_APP_LOCAL_PROXY_MULTI:
+			requiredExt.Scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_APP_LOCAL_PROXY_MULTI
 		default:
 			requiredExt.Scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
 		}
