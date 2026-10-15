@@ -18,7 +18,17 @@
 
 import styled from 'styled-components';
 
-import { Alert, Box, Flex, Link as ExternalLink, Text } from 'design';
+import {
+  Alert,
+  Box,
+  Flex,
+  H3,
+  Link as ExternalLink,
+  Mark,
+  P2,
+  P3,
+  Text,
+} from 'design';
 import { ArrowSquareOut, Notification, Spinner } from 'design/Icon';
 import { rotate360 } from 'design/keyframes';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
@@ -63,10 +73,15 @@ export function ApplyTerraformSection({
       <Box ml={4}>
         <Flex flexDirection="column" mb={3}>
           <Box mt={1} mb={4}>
-            <Text bold={true} fontSize="14px">
-              1. Add the module generated on the right to your Terraform
-              templates.
-            </Text>
+            <H3>
+              1. Add the configuration generated on the right to your Terraform
+              project.
+            </H3>
+            <P3 color="text.slightlyMuted">
+              If your project already configures the Azure or Teleport
+              providers, skip the <Mark>terraform</Mark> and{' '}
+              <Mark>provider</Mark> blocks.
+            </P3>
             <Box mt={2}>
               <TerraformCopyButton
                 onClick={e => {
@@ -79,17 +94,15 @@ export function ApplyTerraformSection({
                 }}
               />
               {validator.state.validating && !validator.state.valid && (
-                <Text color="error.main" mt={2} fontSize={1}>
+                <Text color="error.main" mt={2} typography="body3">
                   Please complete the required fields
                 </Text>
               )}
             </Box>
           </Box>
           <Box mb={4}>
-            <Text bold={true} fontSize="14px">
-              2. Configure Azure and Teleport providers
-            </Text>
-            <Text color="text.slightlyMuted" fontSize={1}>
+            <H3>2. Set up Azure and Teleport credentials</H3>
+            <Text typography="body3" color="text.slightlyMuted">
               If you need help configuring providers for your environment,
               please reference <br />
               <ExternalLink
@@ -111,9 +124,10 @@ export function ApplyTerraformSection({
                 </Flex>
               </ExternalLink>
             </Text>
-            <Text mt={1}>
-              Generate temporary bot Teleport credentials for Terraform.
-            </Text>
+            <P2 mt={1}>
+              Terraform uses your Azure CLI login. Generate temporary bot
+              Teleport credentials for Terraform.
+            </P2>
             <TextSelectCopyMulti
               lines={[
                 {
@@ -124,9 +138,7 @@ export function ApplyTerraformSection({
             />
           </Box>
           <Box>
-            <Text bold={true} fontSize="14px" mb={2}>
-              3. Initialize and apply the configuration
-            </Text>
+            <H3 mb={2}>3. Initialize and apply the configuration</H3>
             <TextSelectCopyMulti
               lines={[{ text: `terraform init` }, { text: `terraform apply` }]}
             />

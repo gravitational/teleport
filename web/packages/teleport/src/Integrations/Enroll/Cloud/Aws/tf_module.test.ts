@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import cfg from 'teleport/config';
+
 import {
   buildTerraformConfig,
   AwsDiscoverTerraformModuleConfig,
@@ -23,6 +25,14 @@ import {
 import type { AwsMatcher } from './types';
 
 describe('buildTerraformConfig', () => {
+  beforeEach(() => {
+    jest.replaceProperty(cfg, 'proxyCluster', 'example.teleport.sh');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   const ec2WithRegionAndTags: AwsMatcher = {
     type: 'ec2',
     regions: ['us-east-1'],
@@ -34,6 +44,64 @@ describe('buildTerraformConfig', () => {
     matchers: [ec2WithRegionAndTags],
     version: '19.0.0',
   };
+
+  test('renders a complete root configuration', () => {
+    const result = buildTerraformConfig(baseConfig);
+
+    expect(result).toBe(`terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> 19.0"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = "example.teleport.sh:443"
+}
+
+# The module only creates IAM resources, which are global.
+provider "aws" {
+  region = "us-east-1"
+}
+
+# Terraform Module
+module "aws_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/aws"
+  version = "19.0.0"
+
+  teleport_integration_use_name_prefix = false
+
+  teleport_proxy_public_addr    = "example.teleport.sh:443"
+  teleport_discovery_group_name = "cloud-discovery-group"
+  teleport_integration_name     = "my-integration"
+
+  aws_matchers = [
+    {
+      types   = ["ec2"]
+      regions = ["us-east-1"]
+      tags = {
+        env = ["prod"]
+      }
+    }
+  ]
+}
+`);
+  });
+
+  test('leaves the provider version unpinned for prerelease versions', () => {
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      version: '19.0.0-rc.1',
+    });
+
+    expect(result).toContain(
+      'teleport = {\n' +
+        '      source = "terraform.releases.teleport.dev/gravitational/teleport"\n' +
+        '    }'
+    );
+  });
 
   test('uses production registry for release versions', () => {
     const result = buildTerraformConfig(baseConfig);

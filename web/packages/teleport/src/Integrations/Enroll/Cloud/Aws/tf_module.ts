@@ -20,7 +20,7 @@ import { parse as parseVersion } from 'shared/utils/semVer';
 
 import cfg from 'teleport/config';
 
-import { hcl, TFObject } from '../terraform';
+import { hcl, teleportProviderConfig, TFObject } from '../terraform';
 import { AwsLabel, AwsMatcher, AwsOrganizationalUnits } from './types';
 
 export type AwsDiscoverTerraformModuleConfig = {
@@ -31,6 +31,14 @@ export type AwsDiscoverTerraformModuleConfig = {
 };
 
 const TF_MODULE = '/teleport/discovery/aws';
+
+const AWS_PROVIDER = `
+# The module only creates IAM resources, which are global.
+provider "aws" {
+  region = "us-east-1"
+}
+
+`;
 
 const isStaging = (version: string): boolean => {
   const parsed = parseVersion(version);
@@ -120,6 +128,8 @@ output "aws_child_account_iam_role_template" {
 `
     : '';
 
+  const proxyAddr = cfg.proxyCluster + ':443';
+
   const tfModule = hcl`# Terraform Module
 module "aws_discovery" {
   source  = ${moduleSrc}
@@ -127,9 +137,9 @@ module "aws_discovery" {
 
   teleport_integration_use_name_prefix = ${integrationNameOrNull ? false : null}
 
-  teleport_proxy_public_addr    = ${cfg.proxyCluster + ':443'}
+  teleport_proxy_public_addr    = ${proxyAddr}
   teleport_discovery_group_name = "cloud-discovery-group"
-  teleport_integration_name	    = ${integrationNameOrNull}
+  teleport_integration_name     = ${integrationNameOrNull}
 
   # Discover resources across all accounts in the AWS Organization,
   # filtered by Organizational Units.
@@ -139,5 +149,10 @@ module "aws_discovery" {
 }
 `;
 
-  return tfModule + orgOutput;
+  return (
+    teleportProviderConfig({ proxyAddr, clusterVersion: version }) +
+    AWS_PROVIDER +
+    tfModule +
+    orgOutput
+  );
 };

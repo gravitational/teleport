@@ -18,7 +18,17 @@
 
 import styled from 'styled-components';
 
-import { Alert, Box, Flex, Link as ExternalLink, Text } from 'design';
+import {
+  Alert,
+  Box,
+  Flex,
+  H3,
+  Link as ExternalLink,
+  Mark,
+  P2,
+  P3,
+  Text,
+} from 'design';
 import { ArrowSquareOut, Notification, Spinner } from 'design/Icon';
 import { rotate360 } from 'design/keyframes';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
@@ -66,10 +76,14 @@ export function DeploymentMethodSection({
       <Box ml={4}>
         <Flex flexDirection="column" mb={3}>
           <Box mt={1} mb={4}>
-            <Text bold={true} fontSize="14px">
-              1. Add the module generated on the right to your Terraform
-              templates.
-            </Text>
+            <H3>
+              1. Add the configuration generated on the right to your Terraform
+              project.
+            </H3>
+            <P3 color="text.slightlyMuted">
+              If your project already configures the AWS or Teleport providers,
+              skip the <Mark>terraform</Mark> and <Mark>provider</Mark> blocks.
+            </P3>
             <Box mt={2}>
               <TerraformCopyButton
                 onClick={e => {
@@ -82,17 +96,15 @@ export function DeploymentMethodSection({
                 }}
               />
               {validator.state.validating && !validator.state.valid && (
-                <Text color="error.main" mt={2} fontSize={1}>
+                <Text color="error.main" mt={2} typography="body3">
                   Please complete the required fields
                 </Text>
               )}
             </Box>
           </Box>
           <Box mb={4}>
-            <Text bold={true} fontSize="14px">
-              2. Configure AWS and Teleport providers
-            </Text>
-            <Text color="text.slightlyMuted" fontSize={1}>
+            <H3>2. Set up AWS and Teleport credentials</H3>
+            <Text typography="body3" color="text.slightlyMuted">
               If you need help configuring providers for your environment,
               please reference{' '}
               <ExternalLink
@@ -115,9 +127,10 @@ export function DeploymentMethodSection({
                 </Flex>
               </ExternalLink>
             </Text>
-            <Text mt={1}>
-              Generate temporary bot Teleport credentials for Terraform.
-            </Text>
+            <P2 mt={1}>
+              Terraform uses your default AWS credentials. Generate temporary
+              bot Teleport credentials for Terraform.
+            </P2>
             <TextSelectCopyMulti
               lines={[
                 {
@@ -128,24 +141,20 @@ export function DeploymentMethodSection({
             />
           </Box>
           <Box>
-            <Text bold={true} fontSize="14px" mb={2}>
-              3. Initialize and apply the configuration
-            </Text>
+            <H3 mb={2}>3. Initialize and apply the configuration</H3>
             <TextSelectCopyMulti
               lines={[{ text: `terraform init` }, { text: `terraform apply` }]}
             />
           </Box>
           {isOrganization && (
             <Box mt={4}>
-              <Text bold={true} fontSize="14px" mb={2}>
-                4. Create IAM role in each target account
-              </Text>
-              <Text color="text.slightlyMuted" fontSize={1} mb={2}>
+              <H3 mb={2}>4. Create IAM role in each target account</H3>
+              <P3 color="text.slightlyMuted" mb={2}>
                 Create an IAM role in each target account using the role name,
                 trust policy, and permissions from the module output. This role
                 allows the Discovery Service to assume credentials in child
                 accounts to discover resources.
-              </Text>
+              </P3>
               <TextSelectCopyMulti
                 lines={[
                   {
