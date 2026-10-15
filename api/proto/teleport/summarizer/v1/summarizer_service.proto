@@ -427,6 +427,21 @@ message ListClassifiersRequest {
   // PageToken is the next_page_token value returned from a previous List
   // request, if any.
   string page_token = 2;
+  // Source restricts the list to built-in or custom Classifiers. If
+  // unspecified, both are returned.
+  ClassifierSource source = 3;
+}
+
+// ClassifierSource distinguishes the Classifiers that ship with Teleport from
+// the ones created by users.
+enum ClassifierSource {
+  // ClassifierSourceUnspecified matches every Classifier.
+  CLASSIFIER_SOURCE_UNSPECIFIED = 0;
+  // ClassifierSourceBuiltIn matches only the Classifiers that ship with
+  // Teleport.
+  CLASSIFIER_SOURCE_BUILT_IN = 1;
+  // ClassifierSourceCustom matches only the Classifiers created by users.
+  CLASSIFIER_SOURCE_CUSTOM = 2;
 }
 
 // ListClassifiersResponse is the response for listing Classifiers.

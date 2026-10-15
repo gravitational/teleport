@@ -36,6 +36,56 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ClassifierSource distinguishes the Classifiers that ship with Teleport from
+// the ones created by users.
+type ClassifierSource int32
+
+const (
+	// ClassifierSourceUnspecified matches every Classifier.
+	ClassifierSource_CLASSIFIER_SOURCE_UNSPECIFIED ClassifierSource = 0
+	// ClassifierSourceBuiltIn matches only the Classifiers that ship with
+	// Teleport.
+	ClassifierSource_CLASSIFIER_SOURCE_BUILT_IN ClassifierSource = 1
+	// ClassifierSourceCustom matches only the Classifiers created by users.
+	ClassifierSource_CLASSIFIER_SOURCE_CUSTOM ClassifierSource = 2
+)
+
+// Enum value maps for ClassifierSource.
+var (
+	ClassifierSource_name = map[int32]string{
+		0: "CLASSIFIER_SOURCE_UNSPECIFIED",
+		1: "CLASSIFIER_SOURCE_BUILT_IN",
+		2: "CLASSIFIER_SOURCE_CUSTOM",
+	}
+	ClassifierSource_value = map[string]int32{
+		"CLASSIFIER_SOURCE_UNSPECIFIED": 0,
+		"CLASSIFIER_SOURCE_BUILT_IN":    1,
+		"CLASSIFIER_SOURCE_CUSTOM":      2,
+	}
+)
+
+func (x ClassifierSource) Enum() *ClassifierSource {
+	p := new(ClassifierSource)
+	*p = x
+	return p
+}
+
+func (x ClassifierSource) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ClassifierSource) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_summarizer_v1_summarizer_service_proto_enumTypes[0].Descriptor()
+}
+
+func (ClassifierSource) Type() protoreflect.EnumType {
+	return &file_teleport_summarizer_v1_summarizer_service_proto_enumTypes[0]
+}
+
+func (x ClassifierSource) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 // CreateInferenceModelRequest is a request for creating an InferenceModel.
 type CreateInferenceModelRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -3191,7 +3241,10 @@ type ListClassifiersRequest struct {
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// PageToken is the next_page_token value returned from a previous List
 	// request, if any.
-	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// Source restricts the list to built-in or custom Classifiers. If
+	// unspecified, both are returned.
+	Source        ClassifierSource `protobuf:"varint,3,opt,name=source,proto3,enum=teleport.summarizer.v1.ClassifierSource" json:"source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3235,12 +3288,23 @@ func (x *ListClassifiersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListClassifiersRequest) GetSource() ClassifierSource {
+	if x != nil {
+		return x.Source
+	}
+	return ClassifierSource_CLASSIFIER_SOURCE_UNSPECIFIED
+}
+
 func (x *ListClassifiersRequest) SetPageSize(v int32) {
 	x.PageSize = v
 }
 
 func (x *ListClassifiersRequest) SetPageToken(v string) {
 	x.PageToken = v
+}
+
+func (x *ListClassifiersRequest) SetSource(v ClassifierSource) {
+	x.Source = v
 }
 
 type ListClassifiersRequest_builder struct {
@@ -3252,6 +3316,9 @@ type ListClassifiersRequest_builder struct {
 	// PageToken is the next_page_token value returned from a previous List
 	// request, if any.
 	PageToken string
+	// Source restricts the list to built-in or custom Classifiers. If
+	// unspecified, both are returned.
+	Source ClassifierSource
 }
 
 func (b0 ListClassifiersRequest_builder) Build() *ListClassifiersRequest {
@@ -3260,6 +3327,7 @@ func (b0 ListClassifiersRequest_builder) Build() *ListClassifiersRequest {
 	_, _ = b, x
 	x.PageSize = b.PageSize
 	x.PageToken = b.PageToken
+	x.Source = b.Source
 	return m0
 }
 
@@ -4932,11 +5000,12 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x17DeleteClassifierRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\"\x1a\n" +
-	"\x18DeleteClassifierResponse\"T\n" +
+	"\x18DeleteClassifierResponse\"\x96\x01\n" +
 	"\x16ListClassifiersRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"\x87\x01\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12@\n" +
+	"\x06source\x18\x03 \x01(\x0e2(.teleport.summarizer.v1.ClassifierSourceR\x06source\"\x87\x01\n" +
 	"\x17ListClassifiersResponse\x12D\n" +
 	"\vclassifiers\x18\x01 \x03(\v2\".teleport.summarizer.v1.ClassifierR\vclassifiers\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"2\n" +
@@ -4988,7 +5057,11 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x1cUpsertRetrievalModelResponse\x12<\n" +
 	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.RetrievalModelR\x05model\"\x1d\n" +
 	"\x1bDeleteRetrievalModelRequest\"\x1e\n" +
-	"\x1cDeleteRetrievalModelResponse2\xf0!\n" +
+	"\x1cDeleteRetrievalModelResponse*s\n" +
+	"\x10ClassifierSource\x12!\n" +
+	"\x1dCLASSIFIER_SOURCE_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aCLASSIFIER_SOURCE_BUILT_IN\x10\x01\x12\x1c\n" +
+	"\x18CLASSIFIER_SOURCE_CUSTOM\x10\x022\xf0!\n" +
 	"\x11SummarizerService\x12\x81\x01\n" +
 	"\x14CreateInferenceModel\x123.teleport.summarizer.v1.CreateInferenceModelRequest\x1a4.teleport.summarizer.v1.CreateInferenceModelResponse\x12x\n" +
 	"\x11GetInferenceModel\x120.teleport.summarizer.v1.GetInferenceModelRequest\x1a1.teleport.summarizer.v1.GetInferenceModelResponse\x12\x81\x01\n" +
@@ -5026,212 +5099,215 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x14DeleteRetrievalModel\x123.teleport.summarizer.v1.DeleteRetrievalModelRequest\x1a4.teleport.summarizer.v1.DeleteRetrievalModelResponse\x12{\n" +
 	"\x12TestRetrievalModel\x121.teleport.summarizer.v1.TestRetrievalModelRequest\x1a2.teleport.summarizer.v1.TestRetrievalModelResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
+var file_teleport_summarizer_v1_summarizer_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_summarizer_v1_summarizer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 69)
 var file_teleport_summarizer_v1_summarizer_service_proto_goTypes = []any{
-	(*CreateInferenceModelRequest)(nil),     // 0: teleport.summarizer.v1.CreateInferenceModelRequest
-	(*CreateInferenceModelResponse)(nil),    // 1: teleport.summarizer.v1.CreateInferenceModelResponse
-	(*GetInferenceModelRequest)(nil),        // 2: teleport.summarizer.v1.GetInferenceModelRequest
-	(*GetInferenceModelResponse)(nil),       // 3: teleport.summarizer.v1.GetInferenceModelResponse
-	(*UpdateInferenceModelRequest)(nil),     // 4: teleport.summarizer.v1.UpdateInferenceModelRequest
-	(*UpdateInferenceModelResponse)(nil),    // 5: teleport.summarizer.v1.UpdateInferenceModelResponse
-	(*UpsertInferenceModelRequest)(nil),     // 6: teleport.summarizer.v1.UpsertInferenceModelRequest
-	(*UpsertInferenceModelResponse)(nil),    // 7: teleport.summarizer.v1.UpsertInferenceModelResponse
-	(*DeleteInferenceModelRequest)(nil),     // 8: teleport.summarizer.v1.DeleteInferenceModelRequest
-	(*DeleteInferenceModelResponse)(nil),    // 9: teleport.summarizer.v1.DeleteInferenceModelResponse
-	(*ListInferenceModelsRequest)(nil),      // 10: teleport.summarizer.v1.ListInferenceModelsRequest
-	(*ListInferenceModelsResponse)(nil),     // 11: teleport.summarizer.v1.ListInferenceModelsResponse
-	(*CreateInferenceSecretRequest)(nil),    // 12: teleport.summarizer.v1.CreateInferenceSecretRequest
-	(*CreateInferenceSecretResponse)(nil),   // 13: teleport.summarizer.v1.CreateInferenceSecretResponse
-	(*GetInferenceSecretRequest)(nil),       // 14: teleport.summarizer.v1.GetInferenceSecretRequest
-	(*GetInferenceSecretResponse)(nil),      // 15: teleport.summarizer.v1.GetInferenceSecretResponse
-	(*UpdateInferenceSecretRequest)(nil),    // 16: teleport.summarizer.v1.UpdateInferenceSecretRequest
-	(*UpdateInferenceSecretResponse)(nil),   // 17: teleport.summarizer.v1.UpdateInferenceSecretResponse
-	(*UpsertInferenceSecretRequest)(nil),    // 18: teleport.summarizer.v1.UpsertInferenceSecretRequest
-	(*UpsertInferenceSecretResponse)(nil),   // 19: teleport.summarizer.v1.UpsertInferenceSecretResponse
-	(*DeleteInferenceSecretRequest)(nil),    // 20: teleport.summarizer.v1.DeleteInferenceSecretRequest
-	(*DeleteInferenceSecretResponse)(nil),   // 21: teleport.summarizer.v1.DeleteInferenceSecretResponse
-	(*ListInferenceSecretsRequest)(nil),     // 22: teleport.summarizer.v1.ListInferenceSecretsRequest
-	(*ListInferenceSecretsResponse)(nil),    // 23: teleport.summarizer.v1.ListInferenceSecretsResponse
-	(*CreateInferencePolicyRequest)(nil),    // 24: teleport.summarizer.v1.CreateInferencePolicyRequest
-	(*CreateInferencePolicyResponse)(nil),   // 25: teleport.summarizer.v1.CreateInferencePolicyResponse
-	(*GetInferencePolicyRequest)(nil),       // 26: teleport.summarizer.v1.GetInferencePolicyRequest
-	(*GetInferencePolicyResponse)(nil),      // 27: teleport.summarizer.v1.GetInferencePolicyResponse
-	(*UpdateInferencePolicyRequest)(nil),    // 28: teleport.summarizer.v1.UpdateInferencePolicyRequest
-	(*UpdateInferencePolicyResponse)(nil),   // 29: teleport.summarizer.v1.UpdateInferencePolicyResponse
-	(*UpsertInferencePolicyRequest)(nil),    // 30: teleport.summarizer.v1.UpsertInferencePolicyRequest
-	(*UpsertInferencePolicyResponse)(nil),   // 31: teleport.summarizer.v1.UpsertInferencePolicyResponse
-	(*DeleteInferencePolicyRequest)(nil),    // 32: teleport.summarizer.v1.DeleteInferencePolicyRequest
-	(*DeleteInferencePolicyResponse)(nil),   // 33: teleport.summarizer.v1.DeleteInferencePolicyResponse
-	(*ListInferencePoliciesRequest)(nil),    // 34: teleport.summarizer.v1.ListInferencePoliciesRequest
-	(*ListInferencePoliciesResponse)(nil),   // 35: teleport.summarizer.v1.ListInferencePoliciesResponse
-	(*CreateClassifierRequest)(nil),         // 36: teleport.summarizer.v1.CreateClassifierRequest
-	(*CreateClassifierResponse)(nil),        // 37: teleport.summarizer.v1.CreateClassifierResponse
-	(*GetClassifierRequest)(nil),            // 38: teleport.summarizer.v1.GetClassifierRequest
-	(*GetClassifierResponse)(nil),           // 39: teleport.summarizer.v1.GetClassifierResponse
-	(*UpdateClassifierRequest)(nil),         // 40: teleport.summarizer.v1.UpdateClassifierRequest
-	(*UpdateClassifierResponse)(nil),        // 41: teleport.summarizer.v1.UpdateClassifierResponse
-	(*UpsertClassifierRequest)(nil),         // 42: teleport.summarizer.v1.UpsertClassifierRequest
-	(*UpsertClassifierResponse)(nil),        // 43: teleport.summarizer.v1.UpsertClassifierResponse
-	(*DeleteClassifierRequest)(nil),         // 44: teleport.summarizer.v1.DeleteClassifierRequest
-	(*DeleteClassifierResponse)(nil),        // 45: teleport.summarizer.v1.DeleteClassifierResponse
-	(*ListClassifiersRequest)(nil),          // 46: teleport.summarizer.v1.ListClassifiersRequest
-	(*ListClassifiersResponse)(nil),         // 47: teleport.summarizer.v1.ListClassifiersResponse
-	(*GetSummaryRequest)(nil),               // 48: teleport.summarizer.v1.GetSummaryRequest
-	(*GetSummaryResponse)(nil),              // 49: teleport.summarizer.v1.GetSummaryResponse
-	(*BatchGetSummaryMetadataRequest)(nil),  // 50: teleport.summarizer.v1.BatchGetSummaryMetadataRequest
-	(*BatchGetSummaryMetadataResponse)(nil), // 51: teleport.summarizer.v1.BatchGetSummaryMetadataResponse
-	(*SummaryMetadata)(nil),                 // 52: teleport.summarizer.v1.SummaryMetadata
-	(*IsEnabledRequest)(nil),                // 53: teleport.summarizer.v1.IsEnabledRequest
-	(*IsEnabledResponse)(nil),               // 54: teleport.summarizer.v1.IsEnabledResponse
-	(*TestInferenceModelRequest)(nil),       // 55: teleport.summarizer.v1.TestInferenceModelRequest
-	(*TestInferenceModelResponse)(nil),      // 56: teleport.summarizer.v1.TestInferenceModelResponse
-	(*TestRetrievalModelRequest)(nil),       // 57: teleport.summarizer.v1.TestRetrievalModelRequest
-	(*TestRetrievalModelResponse)(nil),      // 58: teleport.summarizer.v1.TestRetrievalModelResponse
-	(*CreateRetrievalModelRequest)(nil),     // 59: teleport.summarizer.v1.CreateRetrievalModelRequest
-	(*CreateRetrievalModelResponse)(nil),    // 60: teleport.summarizer.v1.CreateRetrievalModelResponse
-	(*GetRetrievalModelRequest)(nil),        // 61: teleport.summarizer.v1.GetRetrievalModelRequest
-	(*GetRetrievalModelResponse)(nil),       // 62: teleport.summarizer.v1.GetRetrievalModelResponse
-	(*UpdateRetrievalModelRequest)(nil),     // 63: teleport.summarizer.v1.UpdateRetrievalModelRequest
-	(*UpdateRetrievalModelResponse)(nil),    // 64: teleport.summarizer.v1.UpdateRetrievalModelResponse
-	(*UpsertRetrievalModelRequest)(nil),     // 65: teleport.summarizer.v1.UpsertRetrievalModelRequest
-	(*UpsertRetrievalModelResponse)(nil),    // 66: teleport.summarizer.v1.UpsertRetrievalModelResponse
-	(*DeleteRetrievalModelRequest)(nil),     // 67: teleport.summarizer.v1.DeleteRetrievalModelRequest
-	(*DeleteRetrievalModelResponse)(nil),    // 68: teleport.summarizer.v1.DeleteRetrievalModelResponse
-	(*InferenceModel)(nil),                  // 69: teleport.summarizer.v1.InferenceModel
-	(*InferenceSecret)(nil),                 // 70: teleport.summarizer.v1.InferenceSecret
-	(*InferencePolicy)(nil),                 // 71: teleport.summarizer.v1.InferencePolicy
-	(*Classifier)(nil),                      // 72: teleport.summarizer.v1.Classifier
-	(*Summary)(nil),                         // 73: teleport.summarizer.v1.Summary
-	(SummaryState)(0),                       // 74: teleport.summarizer.v1.SummaryState
-	(RiskLevel)(0),                          // 75: teleport.summarizer.v1.RiskLevel
-	(NeedsReviewReason)(0),                  // 76: teleport.summarizer.v1.NeedsReviewReason
-	(*InferenceModelSpec)(nil),              // 77: teleport.summarizer.v1.InferenceModelSpec
-	(*InferenceSecretSpec)(nil),             // 78: teleport.summarizer.v1.InferenceSecretSpec
-	(*RetrievalModelSpec)(nil),              // 79: teleport.summarizer.v1.RetrievalModelSpec
-	(*RetrievalModel)(nil),                  // 80: teleport.summarizer.v1.RetrievalModel
+	(ClassifierSource)(0),                   // 0: teleport.summarizer.v1.ClassifierSource
+	(*CreateInferenceModelRequest)(nil),     // 1: teleport.summarizer.v1.CreateInferenceModelRequest
+	(*CreateInferenceModelResponse)(nil),    // 2: teleport.summarizer.v1.CreateInferenceModelResponse
+	(*GetInferenceModelRequest)(nil),        // 3: teleport.summarizer.v1.GetInferenceModelRequest
+	(*GetInferenceModelResponse)(nil),       // 4: teleport.summarizer.v1.GetInferenceModelResponse
+	(*UpdateInferenceModelRequest)(nil),     // 5: teleport.summarizer.v1.UpdateInferenceModelRequest
+	(*UpdateInferenceModelResponse)(nil),    // 6: teleport.summarizer.v1.UpdateInferenceModelResponse
+	(*UpsertInferenceModelRequest)(nil),     // 7: teleport.summarizer.v1.UpsertInferenceModelRequest
+	(*UpsertInferenceModelResponse)(nil),    // 8: teleport.summarizer.v1.UpsertInferenceModelResponse
+	(*DeleteInferenceModelRequest)(nil),     // 9: teleport.summarizer.v1.DeleteInferenceModelRequest
+	(*DeleteInferenceModelResponse)(nil),    // 10: teleport.summarizer.v1.DeleteInferenceModelResponse
+	(*ListInferenceModelsRequest)(nil),      // 11: teleport.summarizer.v1.ListInferenceModelsRequest
+	(*ListInferenceModelsResponse)(nil),     // 12: teleport.summarizer.v1.ListInferenceModelsResponse
+	(*CreateInferenceSecretRequest)(nil),    // 13: teleport.summarizer.v1.CreateInferenceSecretRequest
+	(*CreateInferenceSecretResponse)(nil),   // 14: teleport.summarizer.v1.CreateInferenceSecretResponse
+	(*GetInferenceSecretRequest)(nil),       // 15: teleport.summarizer.v1.GetInferenceSecretRequest
+	(*GetInferenceSecretResponse)(nil),      // 16: teleport.summarizer.v1.GetInferenceSecretResponse
+	(*UpdateInferenceSecretRequest)(nil),    // 17: teleport.summarizer.v1.UpdateInferenceSecretRequest
+	(*UpdateInferenceSecretResponse)(nil),   // 18: teleport.summarizer.v1.UpdateInferenceSecretResponse
+	(*UpsertInferenceSecretRequest)(nil),    // 19: teleport.summarizer.v1.UpsertInferenceSecretRequest
+	(*UpsertInferenceSecretResponse)(nil),   // 20: teleport.summarizer.v1.UpsertInferenceSecretResponse
+	(*DeleteInferenceSecretRequest)(nil),    // 21: teleport.summarizer.v1.DeleteInferenceSecretRequest
+	(*DeleteInferenceSecretResponse)(nil),   // 22: teleport.summarizer.v1.DeleteInferenceSecretResponse
+	(*ListInferenceSecretsRequest)(nil),     // 23: teleport.summarizer.v1.ListInferenceSecretsRequest
+	(*ListInferenceSecretsResponse)(nil),    // 24: teleport.summarizer.v1.ListInferenceSecretsResponse
+	(*CreateInferencePolicyRequest)(nil),    // 25: teleport.summarizer.v1.CreateInferencePolicyRequest
+	(*CreateInferencePolicyResponse)(nil),   // 26: teleport.summarizer.v1.CreateInferencePolicyResponse
+	(*GetInferencePolicyRequest)(nil),       // 27: teleport.summarizer.v1.GetInferencePolicyRequest
+	(*GetInferencePolicyResponse)(nil),      // 28: teleport.summarizer.v1.GetInferencePolicyResponse
+	(*UpdateInferencePolicyRequest)(nil),    // 29: teleport.summarizer.v1.UpdateInferencePolicyRequest
+	(*UpdateInferencePolicyResponse)(nil),   // 30: teleport.summarizer.v1.UpdateInferencePolicyResponse
+	(*UpsertInferencePolicyRequest)(nil),    // 31: teleport.summarizer.v1.UpsertInferencePolicyRequest
+	(*UpsertInferencePolicyResponse)(nil),   // 32: teleport.summarizer.v1.UpsertInferencePolicyResponse
+	(*DeleteInferencePolicyRequest)(nil),    // 33: teleport.summarizer.v1.DeleteInferencePolicyRequest
+	(*DeleteInferencePolicyResponse)(nil),   // 34: teleport.summarizer.v1.DeleteInferencePolicyResponse
+	(*ListInferencePoliciesRequest)(nil),    // 35: teleport.summarizer.v1.ListInferencePoliciesRequest
+	(*ListInferencePoliciesResponse)(nil),   // 36: teleport.summarizer.v1.ListInferencePoliciesResponse
+	(*CreateClassifierRequest)(nil),         // 37: teleport.summarizer.v1.CreateClassifierRequest
+	(*CreateClassifierResponse)(nil),        // 38: teleport.summarizer.v1.CreateClassifierResponse
+	(*GetClassifierRequest)(nil),            // 39: teleport.summarizer.v1.GetClassifierRequest
+	(*GetClassifierResponse)(nil),           // 40: teleport.summarizer.v1.GetClassifierResponse
+	(*UpdateClassifierRequest)(nil),         // 41: teleport.summarizer.v1.UpdateClassifierRequest
+	(*UpdateClassifierResponse)(nil),        // 42: teleport.summarizer.v1.UpdateClassifierResponse
+	(*UpsertClassifierRequest)(nil),         // 43: teleport.summarizer.v1.UpsertClassifierRequest
+	(*UpsertClassifierResponse)(nil),        // 44: teleport.summarizer.v1.UpsertClassifierResponse
+	(*DeleteClassifierRequest)(nil),         // 45: teleport.summarizer.v1.DeleteClassifierRequest
+	(*DeleteClassifierResponse)(nil),        // 46: teleport.summarizer.v1.DeleteClassifierResponse
+	(*ListClassifiersRequest)(nil),          // 47: teleport.summarizer.v1.ListClassifiersRequest
+	(*ListClassifiersResponse)(nil),         // 48: teleport.summarizer.v1.ListClassifiersResponse
+	(*GetSummaryRequest)(nil),               // 49: teleport.summarizer.v1.GetSummaryRequest
+	(*GetSummaryResponse)(nil),              // 50: teleport.summarizer.v1.GetSummaryResponse
+	(*BatchGetSummaryMetadataRequest)(nil),  // 51: teleport.summarizer.v1.BatchGetSummaryMetadataRequest
+	(*BatchGetSummaryMetadataResponse)(nil), // 52: teleport.summarizer.v1.BatchGetSummaryMetadataResponse
+	(*SummaryMetadata)(nil),                 // 53: teleport.summarizer.v1.SummaryMetadata
+	(*IsEnabledRequest)(nil),                // 54: teleport.summarizer.v1.IsEnabledRequest
+	(*IsEnabledResponse)(nil),               // 55: teleport.summarizer.v1.IsEnabledResponse
+	(*TestInferenceModelRequest)(nil),       // 56: teleport.summarizer.v1.TestInferenceModelRequest
+	(*TestInferenceModelResponse)(nil),      // 57: teleport.summarizer.v1.TestInferenceModelResponse
+	(*TestRetrievalModelRequest)(nil),       // 58: teleport.summarizer.v1.TestRetrievalModelRequest
+	(*TestRetrievalModelResponse)(nil),      // 59: teleport.summarizer.v1.TestRetrievalModelResponse
+	(*CreateRetrievalModelRequest)(nil),     // 60: teleport.summarizer.v1.CreateRetrievalModelRequest
+	(*CreateRetrievalModelResponse)(nil),    // 61: teleport.summarizer.v1.CreateRetrievalModelResponse
+	(*GetRetrievalModelRequest)(nil),        // 62: teleport.summarizer.v1.GetRetrievalModelRequest
+	(*GetRetrievalModelResponse)(nil),       // 63: teleport.summarizer.v1.GetRetrievalModelResponse
+	(*UpdateRetrievalModelRequest)(nil),     // 64: teleport.summarizer.v1.UpdateRetrievalModelRequest
+	(*UpdateRetrievalModelResponse)(nil),    // 65: teleport.summarizer.v1.UpdateRetrievalModelResponse
+	(*UpsertRetrievalModelRequest)(nil),     // 66: teleport.summarizer.v1.UpsertRetrievalModelRequest
+	(*UpsertRetrievalModelResponse)(nil),    // 67: teleport.summarizer.v1.UpsertRetrievalModelResponse
+	(*DeleteRetrievalModelRequest)(nil),     // 68: teleport.summarizer.v1.DeleteRetrievalModelRequest
+	(*DeleteRetrievalModelResponse)(nil),    // 69: teleport.summarizer.v1.DeleteRetrievalModelResponse
+	(*InferenceModel)(nil),                  // 70: teleport.summarizer.v1.InferenceModel
+	(*InferenceSecret)(nil),                 // 71: teleport.summarizer.v1.InferenceSecret
+	(*InferencePolicy)(nil),                 // 72: teleport.summarizer.v1.InferencePolicy
+	(*Classifier)(nil),                      // 73: teleport.summarizer.v1.Classifier
+	(*Summary)(nil),                         // 74: teleport.summarizer.v1.Summary
+	(SummaryState)(0),                       // 75: teleport.summarizer.v1.SummaryState
+	(RiskLevel)(0),                          // 76: teleport.summarizer.v1.RiskLevel
+	(NeedsReviewReason)(0),                  // 77: teleport.summarizer.v1.NeedsReviewReason
+	(*InferenceModelSpec)(nil),              // 78: teleport.summarizer.v1.InferenceModelSpec
+	(*InferenceSecretSpec)(nil),             // 79: teleport.summarizer.v1.InferenceSecretSpec
+	(*RetrievalModelSpec)(nil),              // 80: teleport.summarizer.v1.RetrievalModelSpec
+	(*RetrievalModel)(nil),                  // 81: teleport.summarizer.v1.RetrievalModel
 }
 var file_teleport_summarizer_v1_summarizer_service_proto_depIdxs = []int32{
-	69, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 1: teleport.summarizer.v1.CreateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 2: teleport.summarizer.v1.GetInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 3: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 4: teleport.summarizer.v1.UpdateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 5: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 6: teleport.summarizer.v1.UpsertInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 7: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
-	70, // 8: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 9: teleport.summarizer.v1.CreateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 10: teleport.summarizer.v1.GetInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 11: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 12: teleport.summarizer.v1.UpdateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 13: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 14: teleport.summarizer.v1.UpsertInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 15: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
-	71, // 16: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 17: teleport.summarizer.v1.CreateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 18: teleport.summarizer.v1.GetInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 19: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 20: teleport.summarizer.v1.UpdateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 21: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 22: teleport.summarizer.v1.UpsertInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 23: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
-	72, // 24: teleport.summarizer.v1.CreateClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 25: teleport.summarizer.v1.CreateClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 26: teleport.summarizer.v1.GetClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 27: teleport.summarizer.v1.UpdateClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 28: teleport.summarizer.v1.UpdateClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 29: teleport.summarizer.v1.UpsertClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 30: teleport.summarizer.v1.UpsertClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 31: teleport.summarizer.v1.ListClassifiersResponse.classifiers:type_name -> teleport.summarizer.v1.Classifier
-	73, // 32: teleport.summarizer.v1.GetSummaryResponse.summary:type_name -> teleport.summarizer.v1.Summary
-	52, // 33: teleport.summarizer.v1.BatchGetSummaryMetadataResponse.metadata:type_name -> teleport.summarizer.v1.SummaryMetadata
-	74, // 34: teleport.summarizer.v1.SummaryMetadata.state:type_name -> teleport.summarizer.v1.SummaryState
-	75, // 35: teleport.summarizer.v1.SummaryMetadata.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	76, // 36: teleport.summarizer.v1.SummaryMetadata.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	77, // 37: teleport.summarizer.v1.TestInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModelSpec
-	78, // 38: teleport.summarizer.v1.TestInferenceModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	79, // 39: teleport.summarizer.v1.TestRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModelSpec
-	78, // 40: teleport.summarizer.v1.TestRetrievalModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	80, // 41: teleport.summarizer.v1.CreateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 42: teleport.summarizer.v1.CreateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 43: teleport.summarizer.v1.GetRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 44: teleport.summarizer.v1.UpdateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 45: teleport.summarizer.v1.UpdateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 46: teleport.summarizer.v1.UpsertRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 47: teleport.summarizer.v1.UpsertRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	0,  // 48: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
-	2,  // 49: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
-	4,  // 50: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
-	6,  // 51: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
-	8,  // 52: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
-	10, // 53: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
-	12, // 54: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
-	14, // 55: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
-	16, // 56: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
-	18, // 57: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
-	20, // 58: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
-	22, // 59: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
-	24, // 60: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
-	26, // 61: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
-	28, // 62: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
-	30, // 63: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
-	32, // 64: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
-	34, // 65: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
-	36, // 66: teleport.summarizer.v1.SummarizerService.CreateClassifier:input_type -> teleport.summarizer.v1.CreateClassifierRequest
-	38, // 67: teleport.summarizer.v1.SummarizerService.GetClassifier:input_type -> teleport.summarizer.v1.GetClassifierRequest
-	40, // 68: teleport.summarizer.v1.SummarizerService.UpdateClassifier:input_type -> teleport.summarizer.v1.UpdateClassifierRequest
-	42, // 69: teleport.summarizer.v1.SummarizerService.UpsertClassifier:input_type -> teleport.summarizer.v1.UpsertClassifierRequest
-	44, // 70: teleport.summarizer.v1.SummarizerService.DeleteClassifier:input_type -> teleport.summarizer.v1.DeleteClassifierRequest
-	46, // 71: teleport.summarizer.v1.SummarizerService.ListClassifiers:input_type -> teleport.summarizer.v1.ListClassifiersRequest
-	48, // 72: teleport.summarizer.v1.SummarizerService.GetSummary:input_type -> teleport.summarizer.v1.GetSummaryRequest
-	50, // 73: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:input_type -> teleport.summarizer.v1.BatchGetSummaryMetadataRequest
-	53, // 74: teleport.summarizer.v1.SummarizerService.IsEnabled:input_type -> teleport.summarizer.v1.IsEnabledRequest
-	55, // 75: teleport.summarizer.v1.SummarizerService.TestInferenceModel:input_type -> teleport.summarizer.v1.TestInferenceModelRequest
-	59, // 76: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:input_type -> teleport.summarizer.v1.CreateRetrievalModelRequest
-	61, // 77: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:input_type -> teleport.summarizer.v1.GetRetrievalModelRequest
-	63, // 78: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:input_type -> teleport.summarizer.v1.UpdateRetrievalModelRequest
-	65, // 79: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:input_type -> teleport.summarizer.v1.UpsertRetrievalModelRequest
-	67, // 80: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:input_type -> teleport.summarizer.v1.DeleteRetrievalModelRequest
-	57, // 81: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:input_type -> teleport.summarizer.v1.TestRetrievalModelRequest
-	1,  // 82: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.CreateInferenceModelResponse
-	3,  // 83: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.GetInferenceModelResponse
-	5,  // 84: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.UpdateInferenceModelResponse
-	7,  // 85: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.UpsertInferenceModelResponse
-	9,  // 86: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> teleport.summarizer.v1.DeleteInferenceModelResponse
-	11, // 87: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
-	13, // 88: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.CreateInferenceSecretResponse
-	15, // 89: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.GetInferenceSecretResponse
-	17, // 90: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.UpdateInferenceSecretResponse
-	19, // 91: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.UpsertInferenceSecretResponse
-	21, // 92: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> teleport.summarizer.v1.DeleteInferenceSecretResponse
-	23, // 93: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
-	25, // 94: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.CreateInferencePolicyResponse
-	27, // 95: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.GetInferencePolicyResponse
-	29, // 96: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.UpdateInferencePolicyResponse
-	31, // 97: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.UpsertInferencePolicyResponse
-	33, // 98: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> teleport.summarizer.v1.DeleteInferencePolicyResponse
-	35, // 99: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
-	37, // 100: teleport.summarizer.v1.SummarizerService.CreateClassifier:output_type -> teleport.summarizer.v1.CreateClassifierResponse
-	39, // 101: teleport.summarizer.v1.SummarizerService.GetClassifier:output_type -> teleport.summarizer.v1.GetClassifierResponse
-	41, // 102: teleport.summarizer.v1.SummarizerService.UpdateClassifier:output_type -> teleport.summarizer.v1.UpdateClassifierResponse
-	43, // 103: teleport.summarizer.v1.SummarizerService.UpsertClassifier:output_type -> teleport.summarizer.v1.UpsertClassifierResponse
-	45, // 104: teleport.summarizer.v1.SummarizerService.DeleteClassifier:output_type -> teleport.summarizer.v1.DeleteClassifierResponse
-	47, // 105: teleport.summarizer.v1.SummarizerService.ListClassifiers:output_type -> teleport.summarizer.v1.ListClassifiersResponse
-	49, // 106: teleport.summarizer.v1.SummarizerService.GetSummary:output_type -> teleport.summarizer.v1.GetSummaryResponse
-	51, // 107: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:output_type -> teleport.summarizer.v1.BatchGetSummaryMetadataResponse
-	54, // 108: teleport.summarizer.v1.SummarizerService.IsEnabled:output_type -> teleport.summarizer.v1.IsEnabledResponse
-	56, // 109: teleport.summarizer.v1.SummarizerService.TestInferenceModel:output_type -> teleport.summarizer.v1.TestInferenceModelResponse
-	60, // 110: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:output_type -> teleport.summarizer.v1.CreateRetrievalModelResponse
-	62, // 111: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:output_type -> teleport.summarizer.v1.GetRetrievalModelResponse
-	64, // 112: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:output_type -> teleport.summarizer.v1.UpdateRetrievalModelResponse
-	66, // 113: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:output_type -> teleport.summarizer.v1.UpsertRetrievalModelResponse
-	68, // 114: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:output_type -> teleport.summarizer.v1.DeleteRetrievalModelResponse
-	58, // 115: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:output_type -> teleport.summarizer.v1.TestRetrievalModelResponse
-	82, // [82:116] is the sub-list for method output_type
-	48, // [48:82] is the sub-list for method input_type
-	48, // [48:48] is the sub-list for extension type_name
-	48, // [48:48] is the sub-list for extension extendee
-	0,  // [0:48] is the sub-list for field type_name
+	70, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	70, // 1: teleport.summarizer.v1.CreateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	70, // 2: teleport.summarizer.v1.GetInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	70, // 3: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	70, // 4: teleport.summarizer.v1.UpdateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	70, // 5: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	70, // 6: teleport.summarizer.v1.UpsertInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	70, // 7: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
+	71, // 8: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	71, // 9: teleport.summarizer.v1.CreateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	71, // 10: teleport.summarizer.v1.GetInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	71, // 11: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	71, // 12: teleport.summarizer.v1.UpdateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	71, // 13: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	71, // 14: teleport.summarizer.v1.UpsertInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	71, // 15: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
+	72, // 16: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	72, // 17: teleport.summarizer.v1.CreateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	72, // 18: teleport.summarizer.v1.GetInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	72, // 19: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	72, // 20: teleport.summarizer.v1.UpdateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	72, // 21: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	72, // 22: teleport.summarizer.v1.UpsertInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	72, // 23: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
+	73, // 24: teleport.summarizer.v1.CreateClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
+	73, // 25: teleport.summarizer.v1.CreateClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	73, // 26: teleport.summarizer.v1.GetClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	73, // 27: teleport.summarizer.v1.UpdateClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
+	73, // 28: teleport.summarizer.v1.UpdateClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	73, // 29: teleport.summarizer.v1.UpsertClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
+	73, // 30: teleport.summarizer.v1.UpsertClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	0,  // 31: teleport.summarizer.v1.ListClassifiersRequest.source:type_name -> teleport.summarizer.v1.ClassifierSource
+	73, // 32: teleport.summarizer.v1.ListClassifiersResponse.classifiers:type_name -> teleport.summarizer.v1.Classifier
+	74, // 33: teleport.summarizer.v1.GetSummaryResponse.summary:type_name -> teleport.summarizer.v1.Summary
+	53, // 34: teleport.summarizer.v1.BatchGetSummaryMetadataResponse.metadata:type_name -> teleport.summarizer.v1.SummaryMetadata
+	75, // 35: teleport.summarizer.v1.SummaryMetadata.state:type_name -> teleport.summarizer.v1.SummaryState
+	76, // 36: teleport.summarizer.v1.SummaryMetadata.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	77, // 37: teleport.summarizer.v1.SummaryMetadata.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	78, // 38: teleport.summarizer.v1.TestInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModelSpec
+	79, // 39: teleport.summarizer.v1.TestInferenceModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	80, // 40: teleport.summarizer.v1.TestRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModelSpec
+	79, // 41: teleport.summarizer.v1.TestRetrievalModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	81, // 42: teleport.summarizer.v1.CreateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	81, // 43: teleport.summarizer.v1.CreateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	81, // 44: teleport.summarizer.v1.GetRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	81, // 45: teleport.summarizer.v1.UpdateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	81, // 46: teleport.summarizer.v1.UpdateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	81, // 47: teleport.summarizer.v1.UpsertRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	81, // 48: teleport.summarizer.v1.UpsertRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	1,  // 49: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
+	3,  // 50: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
+	5,  // 51: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
+	7,  // 52: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
+	9,  // 53: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
+	11, // 54: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
+	13, // 55: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
+	15, // 56: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
+	17, // 57: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
+	19, // 58: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
+	21, // 59: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
+	23, // 60: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
+	25, // 61: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
+	27, // 62: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
+	29, // 63: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
+	31, // 64: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
+	33, // 65: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
+	35, // 66: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
+	37, // 67: teleport.summarizer.v1.SummarizerService.CreateClassifier:input_type -> teleport.summarizer.v1.CreateClassifierRequest
+	39, // 68: teleport.summarizer.v1.SummarizerService.GetClassifier:input_type -> teleport.summarizer.v1.GetClassifierRequest
+	41, // 69: teleport.summarizer.v1.SummarizerService.UpdateClassifier:input_type -> teleport.summarizer.v1.UpdateClassifierRequest
+	43, // 70: teleport.summarizer.v1.SummarizerService.UpsertClassifier:input_type -> teleport.summarizer.v1.UpsertClassifierRequest
+	45, // 71: teleport.summarizer.v1.SummarizerService.DeleteClassifier:input_type -> teleport.summarizer.v1.DeleteClassifierRequest
+	47, // 72: teleport.summarizer.v1.SummarizerService.ListClassifiers:input_type -> teleport.summarizer.v1.ListClassifiersRequest
+	49, // 73: teleport.summarizer.v1.SummarizerService.GetSummary:input_type -> teleport.summarizer.v1.GetSummaryRequest
+	51, // 74: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:input_type -> teleport.summarizer.v1.BatchGetSummaryMetadataRequest
+	54, // 75: teleport.summarizer.v1.SummarizerService.IsEnabled:input_type -> teleport.summarizer.v1.IsEnabledRequest
+	56, // 76: teleport.summarizer.v1.SummarizerService.TestInferenceModel:input_type -> teleport.summarizer.v1.TestInferenceModelRequest
+	60, // 77: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:input_type -> teleport.summarizer.v1.CreateRetrievalModelRequest
+	62, // 78: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:input_type -> teleport.summarizer.v1.GetRetrievalModelRequest
+	64, // 79: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:input_type -> teleport.summarizer.v1.UpdateRetrievalModelRequest
+	66, // 80: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:input_type -> teleport.summarizer.v1.UpsertRetrievalModelRequest
+	68, // 81: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:input_type -> teleport.summarizer.v1.DeleteRetrievalModelRequest
+	58, // 82: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:input_type -> teleport.summarizer.v1.TestRetrievalModelRequest
+	2,  // 83: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.CreateInferenceModelResponse
+	4,  // 84: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.GetInferenceModelResponse
+	6,  // 85: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.UpdateInferenceModelResponse
+	8,  // 86: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.UpsertInferenceModelResponse
+	10, // 87: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> teleport.summarizer.v1.DeleteInferenceModelResponse
+	12, // 88: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
+	14, // 89: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.CreateInferenceSecretResponse
+	16, // 90: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.GetInferenceSecretResponse
+	18, // 91: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.UpdateInferenceSecretResponse
+	20, // 92: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.UpsertInferenceSecretResponse
+	22, // 93: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> teleport.summarizer.v1.DeleteInferenceSecretResponse
+	24, // 94: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
+	26, // 95: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.CreateInferencePolicyResponse
+	28, // 96: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.GetInferencePolicyResponse
+	30, // 97: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.UpdateInferencePolicyResponse
+	32, // 98: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.UpsertInferencePolicyResponse
+	34, // 99: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> teleport.summarizer.v1.DeleteInferencePolicyResponse
+	36, // 100: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
+	38, // 101: teleport.summarizer.v1.SummarizerService.CreateClassifier:output_type -> teleport.summarizer.v1.CreateClassifierResponse
+	40, // 102: teleport.summarizer.v1.SummarizerService.GetClassifier:output_type -> teleport.summarizer.v1.GetClassifierResponse
+	42, // 103: teleport.summarizer.v1.SummarizerService.UpdateClassifier:output_type -> teleport.summarizer.v1.UpdateClassifierResponse
+	44, // 104: teleport.summarizer.v1.SummarizerService.UpsertClassifier:output_type -> teleport.summarizer.v1.UpsertClassifierResponse
+	46, // 105: teleport.summarizer.v1.SummarizerService.DeleteClassifier:output_type -> teleport.summarizer.v1.DeleteClassifierResponse
+	48, // 106: teleport.summarizer.v1.SummarizerService.ListClassifiers:output_type -> teleport.summarizer.v1.ListClassifiersResponse
+	50, // 107: teleport.summarizer.v1.SummarizerService.GetSummary:output_type -> teleport.summarizer.v1.GetSummaryResponse
+	52, // 108: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:output_type -> teleport.summarizer.v1.BatchGetSummaryMetadataResponse
+	55, // 109: teleport.summarizer.v1.SummarizerService.IsEnabled:output_type -> teleport.summarizer.v1.IsEnabledResponse
+	57, // 110: teleport.summarizer.v1.SummarizerService.TestInferenceModel:output_type -> teleport.summarizer.v1.TestInferenceModelResponse
+	61, // 111: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:output_type -> teleport.summarizer.v1.CreateRetrievalModelResponse
+	63, // 112: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:output_type -> teleport.summarizer.v1.GetRetrievalModelResponse
+	65, // 113: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:output_type -> teleport.summarizer.v1.UpdateRetrievalModelResponse
+	67, // 114: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:output_type -> teleport.summarizer.v1.UpsertRetrievalModelResponse
+	69, // 115: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:output_type -> teleport.summarizer.v1.DeleteRetrievalModelResponse
+	59, // 116: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:output_type -> teleport.summarizer.v1.TestRetrievalModelResponse
+	83, // [83:117] is the sub-list for method output_type
+	49, // [49:83] is the sub-list for method input_type
+	49, // [49:49] is the sub-list for extension type_name
+	49, // [49:49] is the sub-list for extension extendee
+	0,  // [0:49] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_service_proto_init() }
@@ -5245,13 +5321,14 @@ func file_teleport_summarizer_v1_summarizer_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   69,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_teleport_summarizer_v1_summarizer_service_proto_goTypes,
 		DependencyIndexes: file_teleport_summarizer_v1_summarizer_service_proto_depIdxs,
+		EnumInfos:         file_teleport_summarizer_v1_summarizer_service_proto_enumTypes,
 		MessageInfos:      file_teleport_summarizer_v1_summarizer_service_proto_msgTypes,
 	}.Build()
 	File_teleport_summarizer_v1_summarizer_service_proto = out.File
