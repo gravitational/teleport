@@ -25,6 +25,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -82,6 +83,84 @@ const (
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
 	return validateAccessRequest(ar, false)
+}
+
+// ValidateNewAccessRequest validates requests at creation, including conflicting
+// constraints on repeated resources. Use [ValidateAccessRequest] for stored requests.
+func ValidateNewAccessRequest(ar types.AccessRequest) error {
+	if err := ValidateAccessRequest(ar); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(checkConstraintConflicts(ar))
+}
+
+// checkConstraintConflicts rejects a resource requested twice with different constraints.
+func checkConstraintConflicts(ar types.AccessRequest) error {
+	seen := make(map[string]types.ResourceAccessID)
+	for _, r := range ar.GetAllRequestedResourceIDs() {
+		key := types.ResourceIDToString(r.GetResourceID())
+		first, duplicate := seen[key]
+		if !duplicate {
+			seen[key] = r
+			continue
+		}
+		if constraintsEqual(first.GetConstraints(), r.GetConstraints()) {
+			continue
+		}
+		return trace.BadParameter(
+			"resource %q has conflicting constraints (%q and %q). Request the resource once",
+			key, canonicalConstraints(first), canonicalConstraints(r))
+	}
+	return nil
+}
+
+func constraintsEqual(a, b *types.ResourceConstraints) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if a.Version != b.Version {
+		return false
+	}
+	left, err := constraintDimensions(a)
+	if err != nil {
+		return false
+	}
+	right, err := constraintDimensions(b)
+	if err != nil {
+		return false
+	}
+	return slices.EqualFunc(left, right, func(a, b constraintDimension) bool {
+		return a.key == b.key && apiutils.ContainSameUniqueElements(a.values, b.values)
+	})
+}
+
+// canonicalConstraints returns constraints as a string with sorted, unique principal values.
+func canonicalConstraints(r types.ResourceAccessID) string {
+	rc := r.GetConstraints()
+	if rc == nil {
+		return "unconstrained"
+	}
+	dimensions, err := constraintDimensions(rc)
+	if err != nil {
+		return "constraints of version " + rc.Version
+	}
+	parts := make([]string, 0, len(dimensions))
+	for _, dimension := range dimensions {
+		if len(dimension.values) == 0 {
+			continue
+		}
+		values := slices.Clone(dimension.values)
+		slices.Sort(values)
+		values = slices.Compact(values)
+		for i, value := range values {
+			if strings.ContainsAny(value, ", \"\\") {
+				values[i] = strconv.Quote(value)
+			}
+		}
+		parts = append(parts, dimension.key+"="+strings.Join(values, ","))
+	}
+	slices.Sort(parts)
+	return strings.Join(parts, " ")
 }
 
 // validateAccessRequest implements [ValidateAccessRequest]. With
@@ -187,7 +266,7 @@ func NewAccessRequestWithResources(user string, roles []string, resourceIDs []ty
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := ValidateAccessRequest(req); err != nil {
+	if err := ValidateNewAccessRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return req, nil
@@ -1946,7 +2025,13 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 
 		roleAllowsAccess := true
 		for i, resource := range filteredResources {
-			access, err := m.roleAllowsResource(role, resource, loginHint, constraintMatchers[i]...)
+			resourceLoginHint := loginHint
+			if resource.GetKind() == types.KindNode && slices.ContainsFunc(resourceAccessIDs, func(r types.ResourceAccessID) bool {
+				return r.GetResourceID().Kind == types.KindNode && r.GetResourceID().Name == resource.GetName() && r.GetConstraints().GetSsh() != nil
+			}) {
+				resourceLoginHint = ""
+			}
+			access, err := m.roleAllowsResource(role, resource, resourceLoginHint, constraintMatchers[i]...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2089,27 +2174,56 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 		// already been set and we are just validating the request.
 		return nil
 	}
-	if req.GetRequestKind().IsLongTerm() {
-		// Don't set roles on LongTerm requests; they are only allowed
-		// to be search-based resource requests.
-		return nil
-	}
 	if len(req.GetAllRequestedResourceIDs()) == 0 {
 		// This is not a resource request.
 		return nil
 	}
-	if len(req.GetRoles()) > 0 {
-		// Roles were explicitly requested, don't change them.
+	hasConstraints := slices.ContainsFunc(req.GetAllRequestedResourceIDs(), func(r types.ResourceAccessID) bool { return r.GetConstraints() != nil })
+	if req.GetRequestKind().IsLongTerm() && !hasConstraints {
 		return nil
 	}
+	validationRoles := req.GetRoles()
+	if len(validationRoles) == 0 {
+		loginHint := req.GetLoginHint()
+		if req.GetRequestKind().IsLongTerm() {
+			loginHint = ""
+		}
+		rolesToRequest, err := m.applicableSearchAsRoles(ctx, req.GetAllRequestedResourceIDs(), loginHint)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		validationRoles = rolesToRequest
+		if !req.GetRequestKind().IsLongTerm() {
+			req.SetRoles(rolesToRequest)
+		}
+	}
 
-	rolesToRequest, err := m.applicableSearchAsRoles(ctx, req.GetAllRequestedResourceIDs(), req.GetLoginHint())
+	if !hasConstraints {
+		return nil
+	}
+	cluster, err := m.getter.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	req.SetRoles(rolesToRequest)
-	return nil
+	var constrainedIDs []types.ResourceAccessID
+	for _, r := range req.GetAllRequestedResourceIDs() {
+		if r.GetResourceID().ClusterName == cluster.GetClusterName() && r.GetConstraints() != nil {
+			constrainedIDs = append(constrainedIDs, r)
+		}
+	}
+	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, types.RiskyExtractResourceIDs(constrainedIDs))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var constrained []constrainedResource
+	for _, resource := range resources {
+		for _, r := range constrainedIDs {
+			if r.GetResourceID().Kind == resource.GetKind() && r.GetResourceID().Name == resource.GetName() {
+				constrained = append(constrained, constrainedResource{resource: resource, constraints: r.GetConstraints()})
+			}
+		}
+	}
+	return trace.Wrap(m.validateSelectedConstraintValues(constrained, validationRoles))
 }
 
 // requestResourcesToStrings formats the resource list as <kind>.<apiGroup>.
@@ -2584,9 +2698,8 @@ func getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds ma
 // Candidate roles are *always* pruned when the user is not allowed to
 // request the role with all requested resources.
 //
-// A best-effort attempt is made to prune roles that would not allow
-// access to any of the requested resources, this is skipped when any
-// resource is in a leaf cluster.
+// Resource-based pruning applies only to local requests. Access to a leaf resource
+// may require roles that grant no local access.
 //
 // If loginHint is provided, it will attempt to prune the list to a single role.
 func (m *RequestValidator) pruneResourceRequestRoles(
@@ -2611,32 +2724,48 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	}
 	localClusterName := clusterNameResource.GetClusterName()
 
+	localResourceAccessIDs := make([]types.ResourceAccessID, 0, len(requestedResourceAccessIDs))
+	hasForeignResources := false
 	for _, resource := range requestedResourceAccessIDs {
 		resourceID := resource.GetResourceID()
-		if resourceID.ClusterName != localClusterName {
-			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
-				slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
-			)
-			return roles, nil
+		if resourceID.ClusterName == localClusterName {
+			localResourceAccessIDs = append(localResourceAccessIDs, resource)
+			continue
 		}
+		hasForeignResources = true
+		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Retaining search_as_roles for a leaf resource",
+			slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
+		)
+	}
+	if len(localResourceAccessIDs) == 0 || (hasForeignResources && !m.opts.expandVars) {
+		return roles, nil
 	}
 
 	allRoles, err := FetchRolesWithContext(roles, m.getter, m.roleTemplateContext())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	coverageRoles := allRoles
+	if slices.ContainsFunc(localResourceAccessIDs, func(r types.ResourceAccessID) bool { return r.GetConstraints() != nil }) {
+		standingRoles, err := FetchRoleListWithContext(m.userState.GetRoles(), m.getter, m.roleTemplateContext())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		coverageRoles = slices.Concat(allRoles, standingRoles)
+	}
 
 	// For fetching the underling resources, we can safely discard additional info carried on the ResourceAccessID.
-	requestedResourceIDs := types.RiskyExtractResourceIDs(requestedResourceAccessIDs)
+	requestedResourceIDs := types.RiskyExtractResourceIDs(localResourceAccessIDs)
 	underlyingResources, err := m.getUnderlyingResourcesByResourceIDs(ctx, requestedResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	necessaryRoles := make(map[string]struct{})
+	var constraintFailure error
 	for _, resource := range underlyingResources {
 		var constraints *types.ResourceConstraints
-		for _, r := range requestedResourceAccessIDs {
+		for _, r := range localResourceAccessIDs {
 			if rid := r.GetResourceID(); rid.Kind != resource.GetKind() || rid.Name != resource.GetName() {
 				continue
 			}
@@ -2644,6 +2773,10 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				constraints = c
 				break
 			}
+		}
+		resourceLoginHint := loginHint
+		if resource.GetKind() == types.KindNode && constraints.GetSsh() != nil {
+			resourceLoginHint = ""
 		}
 
 		var (
@@ -2688,7 +2821,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 
 		for _, role := range allRoles {
-			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, matchers...)
+			roleAllowsAccess, err := m.roleAllowsResource(role, resource, resourceLoginHint, matchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2698,6 +2831,23 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				continue
 			}
 			rolesForResource = append(rolesForResource, role)
+		}
+		if constraints != nil {
+			ungranted, reachable, err := m.ungrantedConstraintValues(coverageRoles, resource, resourceLoginHint, constraints)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if len(ungranted) > 0 && reachable {
+				failure := constraintValuesError(resource, ungranted)
+				// Apply this check only at creation to preserve certificate renewal
+				// for stored requests.
+				if m.opts.expandVars {
+					return nil, failure
+				}
+				if len(rolesForResource) == 0 && constraintFailure == nil {
+					constraintFailure = failure
+				}
+			}
 		}
 		// If any of the requested resources didn't match with the provided roles,
 		// we deny the request because the user is trying to request more access
@@ -2713,7 +2863,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 					`resources: %s roles: %v unmatched resources: %v`,
 				resourcesStr, roles, kubeResourceMatcher.Unmatched())
 		}
-		if len(loginHint) > 0 {
+		if len(resourceLoginHint) > 0 {
 			// If we have a login hint, request the single role with the fewest
 			// allowed logins. All roles at this point have already matched the
 			// requested login and will include it.
@@ -2725,6 +2875,9 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	}
 
 	if len(necessaryRoles) == 0 {
+		if constraintFailure != nil {
+			return nil, constraintFailure
+		}
 		resourcesStr, err := types.ResourceIDsToString(requestedResourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2736,11 +2889,74 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				`resources: %s roles: %v login: %q`,
 			resourcesStr, roles, loginHint)
 	}
-	prunedRoles := make([]string, 0, len(necessaryRoles))
+	result := make([]string, 0, len(necessaryRoles))
 	for role := range necessaryRoles {
-		prunedRoles = append(prunedRoles, role)
+		result = append(result, role)
 	}
-	return prunedRoles, nil
+	if hasForeignResources {
+		result = roles
+	}
+
+	return result, nil
+}
+
+type constrainedResource struct {
+	resource    types.ResourceWithLabels
+	constraints *types.ResourceConstraints
+}
+
+func (m *RequestValidator) validateSelectedConstraintValues(resources []constrainedResource, requestRoles []string) error {
+	if len(resources) == 0 {
+		return nil
+	}
+
+	names := apiutils.Deduplicate(append(slices.Clone(m.userState.GetRoles()), requestRoles...))
+	roles, err := FetchRoleListWithContext(names, m.getter, m.roleTemplateContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, c := range resources {
+		ungranted, _, err := m.ungrantedConstraintValues(roles, c.resource, "", c.constraints)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(ungranted) > 0 {
+			return constraintValuesError(c.resource, ungranted)
+		}
+		dimensions, err := constraintDimensions(c.constraints)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, dimension := range dimensions {
+			for _, value := range dimension.values {
+				_, err := roles.checkAccess(c.resource, m.userState.GetName(), m.userState.GetTraits(),
+					AccessState{MFAVerified: true}, dimension.matcher(value))
+				if err == nil {
+					continue
+				}
+				if !trace.IsAccessDenied(err) {
+					return trace.Wrap(err)
+				}
+				for _, role := range roles {
+					denied, err := dimension.matcher(value).Match(role, types.Deny)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					if denied {
+						return trace.BadParameter(
+							`role %q denies %s=%s on %s %q. Remove the denied principal from the request`,
+							role.GetName(), dimension.key, value,
+							c.resource.GetKind(), c.resource.GetName())
+					}
+				}
+				return trace.BadParameter(
+					`access denied for %s=%s on %s %q. Check role permissions`,
+					dimension.key, value, c.resource.GetKind(), c.resource.GetName())
+			}
+		}
+	}
+	return nil
 }
 
 func fewestLogins(roles []types.Role) []types.Role {
@@ -2790,6 +3006,67 @@ func (m *RequestValidator) roleAllowsResource(
 	}
 	// Role allows access to this resource.
 	return true, nil
+}
+
+func (m *RequestValidator) anyRoleAllowsResource(
+	roles []types.Role,
+	resource types.ResourceWithLabels,
+	loginHint string,
+	extraMatchers ...RoleMatcher,
+) (bool, error) {
+	for _, role := range roles {
+		allowed, err := m.roleAllowsResource(role, resource, loginHint, extraMatchers...)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if allowed {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// ungrantedConstraintValues returns ungranted principals and whether any role
+// allows the resource.
+func (m *RequestValidator) ungrantedConstraintValues(
+	roles []types.Role,
+	resource types.ResourceWithLabels,
+	loginHint string,
+	constraints *types.ResourceConstraints,
+) (ungranted []string, reachable bool, err error) {
+	dimensions, err := constraintDimensions(constraints)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+
+	for _, dimension := range dimensions {
+		for _, value := range dimension.values {
+			granted, err := m.anyRoleAllowsResource(roles, resource, "", dimension.matcher(value))
+			if err != nil {
+				return nil, false, trace.Wrap(err)
+			}
+			if !granted {
+				ungranted = append(ungranted, dimension.key+"="+value)
+			}
+		}
+	}
+	if len(ungranted) == 0 {
+		return nil, true, nil
+	}
+
+	reachable, err = m.anyRoleAllowsResource(roles, resource, loginHint)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+	return ungranted, reachable, nil
+}
+
+// constraintValuesError returns a BadParameter error for ungranted principals.
+func constraintValuesError(resource types.ResourceWithLabels, ungranted []string) error {
+	return trace.BadParameter(
+		`no applicable role grants %s on %s %q. `+
+			`Remove the ungranted principals from the request`,
+		strings.Join(ungranted, ", "), resource.GetKind(), resource.GetName())
 }
 
 // getUnderlyingResourcesByResourceIDs gets the underlying resources the user

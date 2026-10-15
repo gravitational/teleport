@@ -1236,7 +1236,7 @@ func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.Acces
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := services.ValidateAccessRequest(req); err != nil {
+	if err := services.ValidateNewAccessRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

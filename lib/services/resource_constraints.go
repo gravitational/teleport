@@ -78,7 +78,7 @@ func WithConstraints(rc *types.ResourceConstraints) MatcherTransform {
 	default:
 		return func(m RoleMatcher) RoleMatcher {
 			return RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
-				return false, trace.BadParameter("unsupported constraint details type %T", d)
+				return false, trace.BadParameter("unrecognized constraint type %T. Request the resource without constraints", d)
 			})
 		}
 	}
@@ -147,6 +147,38 @@ func BuildResourceConstraintMatchers(resourceAccessIDs []types.ResourceAccessID,
 	return matchers, nil
 }
 
+type constraintDimension struct {
+	key     string
+	values  []string
+	matcher func(value string) RoleMatcher
+}
+
+// constraintDimensions returns constraint values and matchers grouped by principal type.
+func constraintDimensions(rc *types.ResourceConstraints) ([]constraintDimension, error) {
+	switch d := rc.Details.(type) {
+	case *types.ResourceConstraints_AwsConsole:
+		if err := d.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []constraintDimension{{
+			key:     types.PrincipalTypeRoleARNs,
+			values:  d.AwsConsole.RoleArns,
+			matcher: func(value string) RoleMatcher { return &AWSRoleARNMatcher{RoleARN: value} },
+		}}, nil
+	case *types.ResourceConstraints_Ssh:
+		if err := d.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []constraintDimension{{
+			key:     types.PrincipalTypeLogins,
+			values:  d.Ssh.Logins,
+			matcher: NewLoginMatcher,
+		}}, nil
+	default:
+		return nil, trace.BadParameter("unrecognized constraint type %T. Request the resource without constraints", d)
+	}
+}
+
 // MatcherFromConstraints constructs a RoleMatcher encoding the requested
 // ResourceConstraints for role resolution/validation time.
 //
@@ -160,26 +192,15 @@ func MatcherFromConstraints(rc *types.ResourceConstraints) (RoleMatcher, error) 
 		return nil, nil
 	}
 
-	switch d := rc.Details.(type) {
-	case *types.ResourceConstraints_AwsConsole:
-		if err := d.Validate(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		matchers := make([]RoleMatcher, 0, len(d.AwsConsole.RoleArns))
-		for _, arn := range d.AwsConsole.RoleArns {
-			matchers = append(matchers, &AWSRoleARNMatcher{RoleARN: arn})
-		}
-		return RoleMatchers(matchers).AnyOf(), nil
-	case *types.ResourceConstraints_Ssh:
-		if err := d.Validate(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		matchers := make([]RoleMatcher, 0, len(d.Ssh.Logins))
-		for _, login := range d.Ssh.Logins {
-			matchers = append(matchers, NewLoginMatcher(login))
-		}
-		return RoleMatchers(matchers).AnyOf(), nil
-	default:
-		return nil, trace.BadParameter("unsupported constraint details type %T", d)
+	dimensions, err := constraintDimensions(rc)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	var matchers []RoleMatcher
+	for _, dimension := range dimensions {
+		for _, value := range dimension.values {
+			matchers = append(matchers, dimension.matcher(value))
+		}
+	}
+	return RoleMatchers(matchers).AnyOf(), nil
 }
