@@ -19,7 +19,6 @@ package cache
 import (
 	"context"
 	"iter"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -43,59 +42,52 @@ func userNameIndexKeyForName(name string) string {
 	return name + "/params"
 }
 
-func newUserCollection(upstream services.UsersService, w types.WatchKind) (*collection[types.User, userIndex], error) {
+type cachedUser = cachedGogoResource[*types.UserV2, types.UserV2]
+
+func newCachedUser(user *types.UserV2) (*cachedUser, error) {
+	return newCachedGogoResource(userNameIndexKeyForName(user.Metadata.Name), user)
+}
+
+func newUserCollection(upstream services.UsersService, w types.WatchKind) (*collection[*cachedUser, userIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter UsersService")
 	}
 
-	return &collection[types.User, userIndex]{
+	return &collection[*cachedUser, userIndex]{
 		store: newStore(
 			types.KindUser,
-			types.User.Clone,
-			map[userIndex]func(types.User) string{
-				userNameIndex: func(u types.User) string {
-					return userNameIndexKeyForName(u.GetName())
-				},
+			(*cachedUser).clone,
+			map[userIndex]func(*cachedUser) string{
+				userNameIndex: func(cu *cachedUser) string { return cu.key },
 			}),
-		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
-			fn := func(ctx context.Context, pageSize int, token string) ([]types.User, string, error) {
-				return listUsersPage(ctx, upstream, loadSecrets, pageSize, token)
-			}
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*cachedUser, error) {
+			// the cache never holds secrets
+			_ = loadSecrets
 
-			// Use clientutils for auto pagesize backoff.
-			out, err := stream.Collect(clientutils.Resources(ctx, fn))
-			return out, trace.Wrap(err)
-		},
-		headerTransform: func(hdr *types.ResourceHeader) types.User {
-			return &types.UserV2{
-				Kind:    hdr.Kind,
-				Version: hdr.Version,
-				Metadata: types.Metadata{
-					Name: hdr.Metadata.Name,
-				},
+			pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*types.UserV2, string, error) {
+				resp, err := upstream.ListUsers(ctx, userspb.ListUsersRequest_builder{
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
+				}.Build())
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				return resp.GetUsers(), resp.GetNextPageToken(), nil
 			}
+			return stream.Collect(stream.TryMap(clientutils.Resources(ctx, pageFunc), newCachedUser))
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *cachedUser {
+			return &cachedUser{key: userNameIndexKeyForName(hdr.Metadata.Name)}
 		},
 		watch: w,
+		resourcePutTransform: func(rsc types.Resource) (*cachedUser, error) {
+			user, _ := rsc.(*types.UserV2)
+			if user == nil {
+				return nil, trace.BadParameter("unexpected type %T (expected %T, this is a bug)", rsc, user)
+			}
+			return newCachedUser(user)
+		},
 	}, nil
-}
-
-func listUsersPage(
-	ctx context.Context, upstream services.UsersService, withSecrets bool, pageSize int, token string,
-) ([]types.User, string, error) {
-	rsp, err := upstream.ListUsers(ctx, &userspb.ListUsersRequest{
-		WithSecrets: withSecrets,
-		PageSize:    int32(pageSize),
-		PageToken:   token,
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	out := make([]types.User, 0, len(rsp.GetUsers()))
-	for _, u := range rsp.GetUsers() {
-		out = append(out, u)
-	}
-	return out, rsp.GetNextPageToken(), nil
 }
 
 // GetUser is a part of auth.Cache implementation.
@@ -114,11 +106,10 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		user, err := c.Config.Users.GetUser(ctx, name, withSecrets)
-		return user, trace.Wrap(err)
+		return c.Config.Users.GetUser(ctx, name, withSecrets)
 	}
 
-	u, err := rg.store.get(userNameIndex, userNameIndexKeyForName(name))
+	cu, err := rg.store.get(userNameIndex, userNameIndexKeyForName(name))
 	if err != nil {
 		// release read lock early
 		rg.Release()
@@ -132,12 +123,7 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 		}
 		return nil, trace.Wrap(err)
 	}
-
-	if withSecrets {
-		return u.Clone(), nil
-	}
-
-	return u.WithoutSecrets().(types.User), nil
+	return cu.cloneResource(), nil
 }
 
 // GetUsers is a part of auth.Cache implementation
@@ -161,12 +147,8 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 	}
 
 	users := make([]types.User, 0, rg.store.len())
-	for u := range rg.store.resources(userNameIndex, "", "") {
-		if withSecrets {
-			users = append(users, u.Clone())
-		} else {
-			users = append(users, u.WithoutSecrets().(types.User))
-		}
+	for cu := range rg.store.resources(userNameIndex, "", "") {
+		users = append(users, cu.cloneResource())
 	}
 
 	return users, nil
@@ -194,7 +176,7 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 	}
 
 	// Adjust page size, so it can't be too large.
-	pageSize := int(req.PageSize)
+	pageSize := int(req.GetPageSize())
 	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
 		pageSize = apidefaults.DefaultChunkSize
 	}
@@ -204,73 +186,45 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 	if pageToken := req.GetPageToken(); pageToken != "" {
 		start = userNameIndexKeyForName(pageToken)
 	}
-	for u := range rg.store.resources(userNameIndex, start, "") {
-		uv2, ok := u.(*types.UserV2)
-		if !ok {
+	for cu := range rg.store.resources(userNameIndex, start, "") {
+		if req.HasFilter() && !req.GetFilter().Match(cu.rsc) {
 			continue
 		}
 
-		if req.Filter != nil && !req.Filter.Match(uv2) {
-			continue
-		}
-
-		if len(resp.Users) == pageSize {
-			resp.NextPageToken = u.GetName()
+		if len(resp.GetUsers()) == pageSize {
+			resp.SetNextPageToken(cu.rsc.Metadata.Name)
 			break
 		}
 
-		if req.WithSecrets {
-			resp.Users = append(resp.Users, u.Clone().(*types.UserV2))
-		} else {
-			resp.Users = append(resp.Users, u.WithoutSecrets().(*types.UserV2))
-		}
+		resp.SetUsers(append(resp.GetUsers(), cu.cloneResource()))
 	}
 	return &resp, nil
 }
 
 // RangeUsers returns users within the range [start, end), without secrets.
 func (c *Cache) RangeUsers(ctx context.Context, start, end string) iter.Seq2[types.User, error] {
-	lister := genericLister[types.User, userIndex]{
-		cache:      c,
-		collection: c.collections.users,
-		index:      userNameIndex,
-		// Tokens move through the lister as index keys, while the upstream
-		// takes and returns bare user names.
-		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
-			users, next, err := listUsersPage(ctx, c.Config.Users, false, pageSize, strings.TrimSuffix(pageToken, "/params"))
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-			if next != "" {
-				next = userNameIndexKeyForName(next)
-			}
-			return users, next, nil
-		},
-		nextToken: func(u types.User) string {
-			return userNameIndexKeyForName(u.GetName())
-		},
+	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*types.UserV2, string, error) {
+		resp, err := c.ListUsers(ctx, userspb.ListUsersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+		}.Build())
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return resp.GetUsers(), resp.GetNextPageToken(), nil
 	}
-	if start != "" {
-		start = userNameIndexKeyForName(start)
-	}
+
+	// users are sorted by userNameIndexKeyForName, so to check the end we have
+	// to tweak the end parameter and provide the appropriate keyFunc
 	if end != "" {
 		end = userNameIndexKeyForName(end)
 	}
-
-	return func(yield func(types.User, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/RangeUsers")
-		defer span.End()
-
-		for u, err := range lister.Range(ctx, start, end) {
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			// The auth cache stores users with secrets.
-			if !yield(u.WithoutSecrets().(types.User), nil) {
-				return
-			}
-		}
+	keyFunc := func(user *types.UserV2) string {
+		return userNameIndexKeyForName(user.Metadata.Name)
 	}
+
+	return stream.Map(
+		clientutils.RangeResources(ctx, start, end, pageFunc, keyFunc),
+		func(user *types.UserV2) types.User { return user },
+	)
 }

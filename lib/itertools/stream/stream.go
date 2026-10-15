@@ -85,6 +85,22 @@ func CollectPages[T any, S ~[]T](stream Stream[S]) ([]T, error) {
 	return c, nil
 }
 
+// Map maps a stream of type A into a stream of type B.
+func Map[A, B any](stream Stream[A], fn func(A) B) Stream[B] {
+	return func(yield func(B, error) bool) {
+		for item, err := range stream {
+			if err != nil {
+				yield(*new(B), trace.Wrap(err))
+				return
+			}
+
+			if !yield(fn(item), nil) {
+				return
+			}
+		}
+	}
+}
+
 // FilterMap maps a stream of type A into a stream of type B, filtering out
 // items when fn returns false.
 func FilterMap[A, B any](stream Stream[A], fn func(A) (B, bool)) Stream[B] {
@@ -98,6 +114,29 @@ func FilterMap[A, B any](stream Stream[A], fn func(A) (B, bool)) Stream[B] {
 			mapped, ok := fn(item)
 			if !ok {
 				continue
+			}
+
+			if !yield(mapped, nil) {
+				return
+			}
+		}
+	}
+}
+
+// TryMap maps a stream of type A into a stream of type B, erroring out if fn
+// returns an error.
+func TryMap[A, B any](stream Stream[A], fn func(A) (B, error)) Stream[B] {
+	return func(yield func(B, error) bool) {
+		for item, err := range stream {
+			if err != nil {
+				yield(*new(B), trace.Wrap(err))
+				return
+			}
+
+			mapped, err := fn(item)
+			if err != nil {
+				yield(*new(B), trace.Wrap(err))
+				return
 			}
 
 			if !yield(mapped, nil) {
