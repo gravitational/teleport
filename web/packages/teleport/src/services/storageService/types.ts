@@ -49,6 +49,8 @@ export const KeysEnum = {
     'grv_teleport_session_recordings_dismissed_cta',
   SESSION_RECORDINGS_DISMISSED_SETUP:
     'grv_teleport_session_recordings_dismissed_setup',
+  SESSION_SUMMARIES_COLLAPSED_CLASSIFIER_SECTIONS:
+    'grv_teleport_session_summaries_collapsed_classifier_sections',
   SESSION_RECORDING_SIDEBAR_HIDDEN:
     'grv_teleport_session_recording_sidebar_hidden',
   SESSION_RECORDING_SIDEBAR_WIDTH:

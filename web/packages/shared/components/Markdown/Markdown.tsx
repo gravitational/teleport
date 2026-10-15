@@ -94,12 +94,15 @@ const StyledTable = styled.table`
   }
 `;
 
+// Chakra's preflight resets list markers globally, so they are restored here.
 const StyledUl = styled.ul<{ root?: boolean }>`
+  list-style: disc;
   padding-left: ${p => p.theme.space[3]}px;
   margin-bottom: ${p => (p.root ? `${p.theme.space[3]}px` : '0')};
 `;
 
 const StyledOl = styled.ol<{ root?: boolean }>`
+  list-style: decimal;
   padding-left: ${p => p.theme.space[3]}px;
   margin-bottom: ${p => (p.root ? `${p.theme.space[3]}px` : '0')};
 `;
