@@ -1,5 +1,11 @@
 # Changelog
 
+## 18.11.4 (10/14/26)
+
+This is a follow up to the 18.11.3 private security release that includes an additional non-security improvement:
+
+* Fixed Linux desktops not being visible in the Web UI.
+
 ## 18.11.3 (10/02/26)
 
 This is a private security release. The changelog will be publicly announced in a later version.
