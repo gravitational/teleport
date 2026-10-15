@@ -29,6 +29,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -67,9 +68,27 @@ const (
 
 	// maxUniqueDaysInSingleBatch defines how many days are allowed in single batch.
 	// Typically during normal operation there will be only one unique day,
-	// but during a migration from another events backend, there could be a lot and using over 100 can result in huge
-	// memory consumption, due to how s3 manager uploader works: https://github.com/aws/aws-sdk-go-v2/issues/1302.
-	maxUniqueDaysInSingleBatch = 100
+	// but during a migration from another events backend, there could be a lot and using over 20 can result in
+	// excessive memory consumption due to concurrent S3 multipart upload buffers (25MB each by default):
+	// https://github.com/aws/aws-sdk-go-v2/issues/1302.
+	maxUniqueDaysInSingleBatch = 20
+
+	// parquetMaxRowsPerRowGroup bounds how many rows a parquet writer buffers
+	// before it flushes a row group. Without it the writer buffers the entire file.
+	parquetMaxRowsPerRowGroup = 2000
+	// parquetPageBufferSize is the uncompressed buffer parquet-go keeps per column
+	// while building a page. The library default is 256KB per column, and the
+	// consumer keeps one writer open per date for the whole batch.
+	parquetPageBufferSize = 64 * 1024
+	// parquetWriteBatchSize is how many rows are accumulated before being handed
+	// to the parquet writer, to avoid a write call per row. Kept small because
+	// every open writer holds a partial batch.
+	parquetWriteBatchSize = 64
+	// parquetRowGroupMaxBytes is how large a row group may grow before it is
+	// flushed. Row count alone is a poor bound because event_data is a JSON blob
+	// of wildly varying size, and buffered pages, the column indexer and any
+	// dictionaries are all held until the row group ends.
+	parquetRowGroupMaxBytes = 32 * 1024 * 1024
 )
 
 // consumer is responsible for receiving messages from SQS, batching them up to
@@ -152,6 +171,8 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		payloadBucket:     cfg.largeEventsBucket,
 		visibilityTimeout: int32(cfg.BatchMaxInterval.Seconds()),
 		batchMaxItems:     cfg.BatchMaxItems,
+		batchMaxBytes:     cfg.BatchMaxBytes,
+		noOfWorkers:       cfg.ConsumerWorkers,
 		errHandlingFn:     errHandlingFnFromSQS(&cfg),
 		logger:            cfg.Logger,
 		metrics:           cfg.metrics,
@@ -337,12 +358,13 @@ func runWithMinInterval(ctx context.Context, fn func(context.Context) bool, minI
 	}
 }
 
-// processBatchOfEvents creates single batch of events. It waits either up to BatchMaxInterval
-// or BatchMaxItems while reading events from queue. Batch is sent to s3 as
-// parquet file and at the end events are deleted from queue.
+// processBatchOfEvents creates single batch of events. It waits either up to
+// BatchMaxInterval or until one of the batch limits (BatchMaxItems, BatchMaxBytes
+// or the maximum number of unique days) is reached while reading events from
+// queue. Batch is sent to s3 as parquet file and at the end events are deleted
+// from queue.
 func (c *consumer) processBatchOfEvents(ctx context.Context) (reachedMaxSize bool, e error) {
 	start := time.Now()
-	var size int
 	defer func() {
 		c.collectConfig.metrics.consumerLastProcessedTimestamp.SetToCurrentTime()
 		c.collectConfig.metrics.consumerBatchProcessingDuration.Observe(time.Since(start).Seconds())
@@ -363,8 +385,9 @@ func (c *consumer) processBatchOfEvents(ctx context.Context) (reachedMaxSize boo
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	size = len(toDelete)
-	return size >= c.batchMaxItems, trace.Wrap(c.deleteMessagesFromQueue(ctx, toDelete))
+	// A batch cut short by a limit means more work is likely waiting on the
+	// queue, so the caller starts the next batch right away.
+	return msgsCollector.reachedBatchLimit(), trace.Wrap(c.deleteMessagesFromQueue(ctx, toDelete))
 }
 
 type sqsCollectConfig struct {
@@ -388,6 +411,9 @@ type sqsCollectConfig struct {
 	waitOnReceiveError time.Duration
 
 	batchMaxItems int
+
+	// batchMaxBytes is the max total bytes of events in a single batch.
+	batchMaxBytes uint64
 
 	// noOfWorkers defines how many workers are processing messages from queue.
 	noOfWorkers int
@@ -429,8 +455,11 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 	if cfg.batchMaxItems == 0 {
 		cfg.batchMaxItems = defaultBatchItems
 	}
+	if cfg.batchMaxBytes == 0 {
+		cfg.batchMaxBytes = defaultBatchMaxBytes
+	}
 	if cfg.noOfWorkers == 0 {
-		cfg.noOfWorkers = 5
+		cfg.noOfWorkers = defaultConsumerWorkers
 	}
 	if cfg.logger == nil {
 		cfg.logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
@@ -447,16 +476,25 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 // sqsMessagesCollector is responsible for collecting messages from SQS and
 // writing to on channel.
 type sqsMessagesCollector struct {
-	cfg        sqsCollectConfig
-	eventsChan chan eventAndAckID
+	cfg               sqsCollectConfig
+	eventsChan        chan eventAndAckID
+	batchLimitReached atomic.Bool
 }
 
 // newSqsMessagesCollector returns message collector.
 // Collector sends collected messages from SQS on events channel.
 func newSqsMessagesCollector(cfg sqsCollectConfig) *sqsMessagesCollector {
+	// receivesInFlightPerWorker is how many receiveMessages results each worker
+	// may run ahead of the parquet writer. Sizing the channel after batchMaxItems
+	// instead would let the whole batch sit in memory twice: once in the channel
+	// and once in the writers. This was an empirically defined value based on
+	// tests with different environments (flush ~ 800ms, receive ~ 25ms).
+	const receivesInFlightPerWorker = 32
+
+	eventsChannelSize := cfg.noOfWorkers * maxNumberOfMessagesFromReceive * receivesInFlightPerWorker
 	return &sqsMessagesCollector{
 		cfg:        cfg,
-		eventsChan: make(chan eventAndAckID, cfg.batchMaxItems),
+		eventsChan: make(chan eventAndAckID, eventsChannelSize),
 	}
 }
 
@@ -464,6 +502,13 @@ func newSqsMessagesCollector(cfg sqsCollectConfig) *sqsMessagesCollector {
 // When collector finishes, channel will be closed.
 func (s *sqsMessagesCollector) getEventsChan() <-chan eventAndAckID {
 	return s.eventsChan
+}
+
+// reachedBatchLimit reports whether collection stopped early because a batch
+// limit (items, bytes or unique days) was hit rather than because the batch
+// interval elapsed. Only meaningful after the events channel is closed.
+func (s *sqsMessagesCollector) reachedBatchLimit() bool {
+	return s.batchLimitReached.Load()
 }
 
 // fromSQS receives messages from SQS and sends it on eventsC channel.
@@ -514,10 +559,12 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 				fullBatchMetadata.Merge(singleReceiveMetadata)
 				isOverBatch := fullBatchMetadata.Count >= s.cfg.batchMaxItems
 				isOverMaximumUniqueDays := len(fullBatchMetadata.UniqueDays) > maxUniqueDaysInSingleBatch
-				if isOverBatch || isOverMaximumUniqueDays {
+				isOverBatchBytes := fullBatchMetadata.Size >= s.cfg.batchMaxBytes
+				if isOverBatch || isOverMaximumUniqueDays || isOverBatchBytes {
 					fullBatchMetadataMu.Unlock()
+					s.batchLimitReached.Store(true)
 					cancel()
-					s.cfg.logger.DebugContext(ctx, "Batcher aborting early", "max_size", isOverBatch, "max_unique_days", isOverMaximumUniqueDays)
+					s.cfg.logger.DebugContext(ctx, "Batcher aborting early", "max_size", isOverBatch, "max_unique_days", isOverMaximumUniqueDays, "max_bytes", isOverBatchBytes)
 					return
 				}
 				fullBatchMetadataMu.Unlock()
@@ -538,7 +585,7 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 
 type collectedEventsMetadata struct {
 	// Size is total size of events.
-	Size int
+	Size uint64
 	// Count is number of events.
 	Count int
 	// OldestTimestamp is timestamp of oldest event.
@@ -575,11 +622,11 @@ func (c *collectedEventsMetadata) mergeUniqueDays(mapToMerge map[string]struct{}
 }
 
 // MergeWithEvent combines collectedEventsMetadata with metadata of single event.
-func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent, publishedToQueueTimestamp time.Time) {
+func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent, publishedToQueueTimestamp time.Time, size int) {
 	c.Merge(collectedEventsMetadata{
 		// 1 because we are merging single event
 		Count:           1,
-		Size:            in.Size(),
+		Size:            uint64(size),
 		OldestTimestamp: publishedToQueueTimestamp,
 		UniqueDays: map[string]struct{}{
 			in.GetTime().Format(time.DateOnly): {},
@@ -625,7 +672,14 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 	}
 	var singleReceiveMetadata collectedEventsMetadata
 	for _, msg := range sqsOut.Messages {
-		event, err := s.auditEventFromSQSorS3(ctx, msg)
+		// size is used to track the total size of events in a batch to prevent creating
+		// batches that are too large, which can cause the parquet file to grow beyond
+		// Athena's recommended file size of 128MB-1GB.
+		// The size is calculated from the protobuf-marshaled event, so it is not the
+		// exact parquet file size. Since parquet compression is enabled, it should be a
+		// better estimate of the final parquet file size than the size of the event
+		// after JSON conversion.
+		event, size, err := s.auditEventFromSQSorS3(ctx, msg)
 		if err != nil {
 			select {
 			case errorsC <- trace.Wrap(err):
@@ -633,15 +687,28 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 			}
 			continue
 		}
-		eventsC <- eventAndAckID{
-			event:         event,
-			receiptHandle: aws.ToString(msg.ReceiptHandle),
+		pqtEvent, err := auditEventToParquet(event)
+		if err != nil {
+			select {
+			case errorsC <- trace.Wrap(err, "could not convert event to parquet format"):
+			case <-ctx.Done():
+			}
+			continue
 		}
+		select {
+		case eventsC <- eventAndAckID{
+			event:         pqtEvent,
+			receiptHandle: aws.ToString(msg.ReceiptHandle),
+		}:
+		case <-ctx.Done():
+			return singleReceiveMetadata
+		}
+
 		messageSentTimestamp, err := getMessageSentTimestamp(msg)
 		if err != nil {
 			s.cfg.logger.DebugContext(ctx, "Failed to get sentTimestamp", "error", err)
 		}
-		singleReceiveMetadata.MergeWithEvent(event, messageSentTimestamp)
+		singleReceiveMetadata.MergeWithEvent(event, messageSentTimestamp, size)
 	}
 	return singleReceiveMetadata
 }
@@ -663,10 +730,10 @@ func getMessageSentTimestamp(msg sqsTypes.Message) (time.Time, error) {
 
 // auditEventFromSQSorS3 returns events either directly from SQS message payload
 // or from s3, if event was very large.
-func (s *sqsMessagesCollector) auditEventFromSQSorS3(ctx context.Context, msg sqsTypes.Message) (apievents.AuditEvent, error) {
+func (s *sqsMessagesCollector) auditEventFromSQSorS3(ctx context.Context, msg sqsTypes.Message) (apievents.AuditEvent, int, error) {
 	payloadType, err := validateSQSMessage(msg)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, 0, trace.Wrap(err)
 	}
 
 	var protoMarshaledOneOf []byte
@@ -675,21 +742,21 @@ func (s *sqsMessagesCollector) auditEventFromSQSorS3(ctx context.Context, msg sq
 	case payloadTypeS3Based:
 		protoMarshaledOneOf, err = s.downloadEventFromS3(ctx, *msg.Body)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, 0, trace.Wrap(err)
 		}
 	case payloadTypeRawProtoEvent:
 		protoMarshaledOneOf, err = base64.StdEncoding.DecodeString(*msg.Body)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, 0, trace.Wrap(err)
 		}
 	}
 
 	var oneOf apievents.OneOf
 	if err := oneOf.Unmarshal(protoMarshaledOneOf); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, 0, trace.Wrap(err)
 	}
 	event, err := apievents.FromOneOf(oneOf)
-	return event, trace.Wrap(err)
+	return event, len(protoMarshaledOneOf), trace.Wrap(err)
 }
 
 func validateSQSMessage(msg sqsTypes.Message) (string, error) {
@@ -715,7 +782,7 @@ func validateSQSMessage(msg sqsTypes.Message) (string, error) {
 }
 
 type eventAndAckID struct {
-	event         apievents.AuditEvent
+	event         *eventParquet
 	receiptHandle string
 }
 
@@ -801,11 +868,7 @@ eventLoop:
 			if !ok {
 				break eventLoop
 			}
-			pqtEvent, err := auditEventToParquet(eventAndAckID.event)
-			if err != nil {
-				c.logger.ErrorContext(ctx, "Could not convert event to parquet format", "error", err)
-				continue
-			}
+			pqtEvent := eventAndAckID.event
 			date := pqtEvent.EventTime.Format(time.DateOnly)
 			pw := perDateWriter[date]
 			if pw == nil {
@@ -815,12 +878,7 @@ eventLoop:
 					// when creating file writer.
 					return nil, trace.Wrap(err)
 				}
-				pw, err = newParquetWriter(ctx, fw)
-				if err != nil {
-					// Error here means that probably something is wrong with
-					// parquet schema. Returning from fn with error make sense.
-					return nil, trace.Wrap(err)
-				}
+				pw = newParquetWriter(fw)
 				perDateWriter[date] = pw
 			}
 			if err := pw.Write(ctx, *pqtEvent); err != nil {
@@ -858,25 +916,76 @@ eventLoop:
 	return toDelete, nil
 }
 
-func newParquetWriter(ctx context.Context, fw io.WriteCloser) (*parquetWriter, error) {
-	pw := parquet.NewGenericWriter[eventParquet](fw, parquet.Compression(&parquet.Snappy))
+// newParquetWriter returns a writer for a single parquet file.
+func newParquetWriter(fw io.WriteCloser) *parquetWriter {
+	pw := parquet.NewGenericWriter[eventParquet](
+		fw,
+		parquet.Compression(&parquet.Snappy),
+		parquet.MaxRowsPerRowGroup(parquetMaxRowsPerRowGroup),
+		parquet.PageBufferSize(parquetPageBufferSize),
+		// The column indexer keeps every page's full min and max value until the
+		// row group is flushed, and page statistics embed two more copies of each
+		// in every page header. For a JSON blob that is pure overhead, and
+		// nothing queries event_data by range.
+		parquet.SkipPageBounds("event_data"),
+		parquet.SkipPageStatistics("event_data"),
+	)
 	return &parquetWriter{
-		closer: fw,
-		writer: pw,
-	}, nil
+		closer:  fw,
+		writer:  pw,
+		pending: make([]eventParquet, 0, parquetWriteBatchSize),
+	}
 }
 
 type parquetWriter struct {
 	closer io.Closer
 	writer *parquet.GenericWriter[eventParquet]
+	// pending holds rows not yet handed to writer.
+	pending []eventParquet
+	// sizeAtLastFlush is the writer size when the current row group started.
+	sizeAtLastFlush int64
 }
 
 func (pw *parquetWriter) Write(ctx context.Context, in eventParquet) error {
-	_, err := pw.writer.Write([]eventParquet{in})
-	return trace.Wrap(err)
+	pw.pending = append(pw.pending, in)
+	if len(pw.pending) < parquetWriteBatchSize {
+		return nil
+	}
+	return trace.Wrap(pw.flushPending())
+}
+
+func (pw *parquetWriter) flushPending() error {
+	if len(pw.pending) == 0 {
+		return nil
+	}
+	_, err := pw.writer.Write(pw.pending)
+	// Drop references to the serialized event data before reslicing.
+	clear(pw.pending)
+	pw.pending = pw.pending[:0]
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(pw.flushRowGroupIfLarge())
+}
+
+// flushRowGroupIfLarge ends the current row group once it grows past
+// parquetRowGroupMaxBytes.
+func (pw *parquetWriter) flushRowGroupIfLarge() error {
+	if pw.writer.Size()-pw.sizeAtLastFlush < parquetRowGroupMaxBytes {
+		return nil
+	}
+	if err := pw.writer.Flush(); err != nil {
+		return trace.Wrap(err)
+	}
+	// Flush changes what Size reports, so re-read it.
+	pw.sizeAtLastFlush = pw.writer.Size()
+	return nil
 }
 
 func (pw *parquetWriter) Close() error {
+	if err := pw.flushPending(); err != nil {
+		return trace.NewAggregate(err, pw.writer.Close(), pw.closer.Close())
+	}
 	if err := pw.writer.Close(); err != nil {
 		return trace.NewAggregate(err, pw.closer.Close())
 	}
