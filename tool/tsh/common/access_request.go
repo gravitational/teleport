@@ -294,6 +294,46 @@ func onRequestCreate(cf *CLIConf) error {
 	return nil
 }
 
+// parseGrantedTraits parses the --grant-trait flag values, each of which
+// must be of the form "key=value1,value2,...". Each key may only be
+// specified once across all occurrences of the flag.
+func parseGrantedTraits(raw []string) ([]*types.GrantedTrait, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+
+	seen := make(map[string]struct{}, len(raw))
+	traits := make([]*types.GrantedTrait, 0, len(raw))
+	for _, entry := range raw {
+		key, rawValues, ok := strings.Cut(entry, "=")
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			return nil, trace.BadParameter("invalid --grant-trait %q, expected format key=value1,value2", entry)
+		}
+
+		if _, exists := seen[key]; exists {
+			return nil, trace.BadParameter("trait %q specified multiple times in --grant-trait", key)
+		}
+
+		var values []string
+		for _, v := range strings.Split(rawValues, ",") {
+			v = strings.TrimSpace(v)
+			if v == "" {
+				continue
+			}
+			values = append(values, v)
+		}
+		if len(values) == 0 {
+			return nil, trace.BadParameter("invalid --grant-trait %q, expected at least one value for trait %q", entry, key)
+		}
+
+		seen[key] = struct{}{}
+		traits = append(traits, &types.GrantedTrait{Name: key, Values: values})
+	}
+
+	return traits, nil
+}
+
 func onRequestReview(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
@@ -306,6 +346,15 @@ func onRequestReview(cf *CLIConf) error {
 
 	if cf.Approve == cf.Deny {
 		return trace.BadParameter("must supply exactly one of '--approve' or '--deny'")
+	}
+
+	if len(cf.GrantTraits) > 0 && cf.Deny {
+		return trace.BadParameter("--grant-trait can only be used with --approve")
+	}
+
+	grantedTraits, err := parseGrantedTraits(cf.GrantTraits)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	var parsedAssumeStartTime *time.Time
@@ -334,6 +383,7 @@ func onRequestReview(cf *CLIConf) error {
 				ProposedState:   state,
 				Reason:          cf.ReviewReason,
 				AssumeStartTime: parsedAssumeStartTime,
+				GrantedTraits:   grantedTraits,
 			},
 		})
 		return trace.Wrap(err)

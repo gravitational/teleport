@@ -2279,7 +2279,8 @@ func (a AccessReviewConditions) IsEmpty() bool {
 		len(a.PreviewAsRoles) == 0 &&
 		len(a.Roles) == 0 &&
 		len(a.Where) == 0 &&
-		len(a.SubmitForUsers) == 0
+		len(a.SubmitForUsers) == 0 &&
+		len(a.GrantableTraits) == 0
 }
 
 // LabelMatchers holds the role label matchers and label expression that are

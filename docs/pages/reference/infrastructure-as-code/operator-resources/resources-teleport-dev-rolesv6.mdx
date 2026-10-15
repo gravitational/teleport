@@ -274,6 +274,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |claims_to_roles|[][object](#specallowreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
+|grantable_traits|[]string|GrantableTraits is an allowlist of traits a reviewer holding this role may grant to the requester when approving. Empty means no traits may be granted. Has no effect in deny rules. UNSTABLE: This field is experimental and might be subject to breaking changes in the future. This has no effect unless the experimental flag TELEPORT_UNSTABLE_REVIEW_TRAITS is set.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
 |submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
@@ -562,6 +563,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |claims_to_roles|[][object](#specdenyreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
+|grantable_traits|[]string|GrantableTraits is an allowlist of traits a reviewer holding this role may grant to the requester when approving. Empty means no traits may be granted. Has no effect in deny rules. UNSTABLE: This field is experimental and might be subject to breaking changes in the future. This has no effect unless the experimental flag TELEPORT_UNSTABLE_REVIEW_TRAITS is set.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
 |submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|

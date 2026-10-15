@@ -195,6 +195,9 @@ type CLIConf struct {
 	MyRequests bool
 	// Approve/Deny indicates the desired review kind.
 	Approve, Deny bool
+	// GrantTraits specifies traits to grant to the requester upon approval, in
+	// key=value1,value2 form. May be specified multiple times, once per trait key.
+	GrantTraits []string
 	// AssumeStartTimeRaw format is RFC3339
 	AssumeStartTimeRaw string
 	// ResourceKind is the resource kind to search for
@@ -1511,6 +1514,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqReview.Flag("deny", "Review proposes denial.").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message.").StringVar(&cf.ReviewReason)
 	reqReview.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
+	reqReview.Flag("grant-trait", "Trait to grant to the requester upon approval, in the form key=value1,value2. May be specified multiple times.").AllowDuplicate().Hidden().StringsVar(&cf.GrantTraits)
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).  Mutually exclusive with --roles.", strings.Join(types.RequestableResourceKinds, ", "))).StringVar(&cf.ResourceKind)

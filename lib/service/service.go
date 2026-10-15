@@ -2456,12 +2456,23 @@ func (process *TeleportProcess) initAuthService() error {
 	// latest known version in backend.
 	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
 
+	var unstableFeatures auth.UnstableFeatures
+	const envUnstableReviewTraits = "TELEPORT_UNSTABLE_REVIEW_TRAITS"
+	if featureFlag := os.Getenv(envUnstableReviewTraits); featureFlag != "" {
+		reviewTraits, err := strconv.ParseBool(featureFlag)
+		if err != nil {
+			return trace.Wrap(err, "parsing env var: "+envUnstableReviewTraits)
+		}
+		unstableFeatures.ReviewTraits = reviewTraits
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(
 		process.ExitContext(),
 		auth.InitConfig{
 			Backend:                   b,
 			ScopesFeatures:            process.scopesFeatures,
+			UnstableFeatures:          unstableFeatures,
 			VersionStorage:            process.storage,
 			SkipVersionCheck:          cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:                 cfg.Keygen,

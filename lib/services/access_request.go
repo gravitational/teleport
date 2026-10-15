@@ -871,23 +871,40 @@ func AppendRoleMatchers(matchers []parse.Matcher, roles []string, cms []types.Cl
 	return append(matchers, ms...), nil
 }
 
+// allowReviewEntry pairs the role matchers derived from a single role's
+// allow.review_requests condition with that same role's grantable traits.
+// Keeping these together (rather than merging matchers from multiple roles)
+// ensures that a role's GrantableTraits can only be used when that role's
+// own matchers are the ones that actually matched the reviewed request.
+type allowReviewEntry struct {
+	matchers        []parse.Matcher
+	grantableTraits []string
+}
+
 // ReviewPermissionChecker is a helper for validating whether a user
 // is allowed to review specific access requests.
 type ReviewPermissionChecker struct {
 	UserState UserState
 	Roles     struct {
-		// allow/deny mappings sort role matches into lists based on their
+		// AllowReview maps allow directives, keyed by their constraining predicate
+		// (where) expression, to the list of per-role entries that contributed to
+		// that bucket. Each entry retains the matchers and grantable traits of the
+		// single role that produced it.
+		AllowReview map[string][]allowReviewEntry
+		// DenyReview mappings sort role matches into lists based on their
 		// constraining predicate (where) expression.
-		AllowReview, DenyReview map[string][]parse.Matcher
+		DenyReview map[string][]parse.Matcher
 	}
 }
 
 // HasAllowDirectives checks if any allow directives exist.  A user with
 // no allow directives will never be able to review any requests.
 func (c *ReviewPermissionChecker) HasAllowDirectives() bool {
-	for _, allowMatchers := range c.Roles.AllowReview {
-		if len(allowMatchers) > 0 {
-			return true
+	for _, entries := range c.Roles.AllowReview {
+		for _, entry := range entries {
+			if len(entry.matchers) > 0 {
+				return true
+			}
 		}
 	}
 	return false
@@ -897,13 +914,18 @@ func (c *ReviewPermissionChecker) HasAllowDirectives() bool {
 // Note that the ability to review a request does not necessarily imply that any specific
 // approval/denial thresholds will actually match the user's review.  Matching one or more
 // thresholds is not a pre-requisite for review submission.
-func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (bool, error) {
+// CanReviewRequest also returns the union of GrantableTraits declared by
+// the allow entries whose matchers actually matched the requested roles.
+// Only entries that contributed to satisfying this specific request are
+// considered: a role's GrantableTraits can never be used based on another,
+// unrelated role's matchers matching the request.
+func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (bool, map[string]struct{}, error) {
 	// TODO(fspmarshall): Refactor this to improve readability when
 	// adding role subselection support.
 
 	// user cannot review their own request
 	if c.UserState.GetName() == req.GetUser() {
-		return false, nil
+		return false, nil, nil
 	}
 
 	// method allocates a new array if an override has already been
@@ -928,11 +950,11 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 		if expr != "" {
 			parsed, err := parseReviewPermissionExpression(expr)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return false, nil, trace.Wrap(err)
 			}
 			match, err := parsed.Evaluate(rpc)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return false, nil, trace.Wrap(err)
 			}
 			if !match {
 				continue
@@ -943,7 +965,7 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 			for _, deny := range denyMatchers {
 				if deny.Match(role) {
 					// short-circuit on first denial
-					return false, nil
+					return false, nil, nil
 				}
 			}
 		}
@@ -955,51 +977,98 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 	needsAllow := make([]string, len(requestedRoles))
 	copy(needsAllow, requestedRoles)
 
+	// grantableTraits accumulates the union of GrantableTraits from allow
+	// entries whose own matchers actually matched one of the requested roles.
+	// Entries that never match any requested role (e.g. because they belong to
+	// an unrelated role held by the same user) never contribute here. Unlike
+	// the needsAllow matching below, this evaluation is not allowed to
+	// short-circuit once the request is satisfied: every allow entry whose
+	// predicate matches must be checked against the full set of requested
+	// roles, so that all roles contributing to the review decision also
+	// contribute their grantable traits (e.g. a reviewer holding two roles
+	// that each separately cover the requested role(s) should be able to
+	// grant the union of both roles' grantable traits).
+	grantableTraits := set.New[string]()
+
+	allowed := false
+
 Outer:
-	for expr, allowMatchers := range c.Roles.AllowReview {
+	for expr, entries := range c.Roles.AllowReview {
 		// if predicate is non-empty, it must match.
 		if expr != "" {
 			parsed, err := parseReviewPermissionExpression(expr)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return false, nil, trace.Wrap(err)
 			}
 			match, err := parsed.Evaluate(rpc)
 			if err != nil {
-				return false, trace.Wrap(err)
+				return false, nil, trace.Wrap(err)
 			}
 			if !match {
 				continue Outer
 			}
 		}
 
-		// unmatched collects unmatched roles for our filter-in-place operation.
-		unmatched := needsAllow[:0]
-
-	MatchRoles:
-		for _, role := range needsAllow {
-			for _, allow := range allowMatchers {
-				if allow.Match(role) {
-					// role matched this allow directive, and will be filtered out
-					continue MatchRoles
+		// each entry corresponds to a single role's allow directive. we evaluate
+		// them individually (rather than merging their matchers together) so that
+		// a given entry's GrantableTraits are only unioned in when that same
+		// entry's matchers are the ones that matched a requested role.
+		for _, entry := range entries {
+			// first, check if this entry matches any of the originally requested
+			// roles (independently of whether that role has already been satisfied
+			// by a different entry) so that its grantable traits are never dropped
+			// due to another entry having matched first.
+			for _, role := range requestedRoles {
+				for _, allow := range entry.matchers {
+					if allow.Match(role) {
+						grantableTraits.Add(entry.grantableTraits...)
+						break
+					}
 				}
 			}
 
-			// still unmatched, this role will continue to be part of
-			// the needsAllow list next iteration.
-			unmatched = append(unmatched, role)
-		}
+			if allowed {
+				// permission to review has already been established; we still need
+				// to keep iterating (see above) to collect grantable traits from the
+				// remaining entries, but there's no need to keep shrinking needsAllow.
+				continue
+			}
 
-		// finalize our filter-in-place
-		needsAllow = unmatched
+			// unmatched collects unmatched roles for our filter-in-place operation.
+			unmatched := needsAllow[:0]
 
-		if len(needsAllow) == 0 {
-			// all roles have matched an allow directive, no further
-			// processing is required.
-			break Outer
+		MatchRoles:
+			for _, role := range needsAllow {
+				for _, allow := range entry.matchers {
+					if allow.Match(role) {
+						// role matched this allow directive, and will be filtered out.
+						continue MatchRoles
+					}
+				}
+
+				// still unmatched, this role will continue to be part of
+				// the needsAllow list next iteration.
+				unmatched = append(unmatched, role)
+			}
+
+			// finalize our filter-in-place
+			needsAllow = unmatched
+
+			if len(needsAllow) == 0 {
+				// all roles have matched an allow directive. we can stop shrinking
+				// needsAllow, but must keep iterating remaining entries to collect
+				// any additional grantable traits they may contribute.
+				allowed = true
+			}
 		}
 	}
 
-	return len(needsAllow) == 0, nil
+	if !allowed {
+		// request is not reviewable, do not leak any grantable traits.
+		return false, nil, nil
+	}
+
+	return true, grantableTraits, nil
 }
 
 type userStateRoleOverride struct {
@@ -1078,7 +1147,7 @@ func NewReviewPermissionChecker(
 		UserState: uls,
 	}
 
-	c.Roles.AllowReview = make(map[string][]parse.Matcher)
+	c.Roles.AllowReview = make(map[string][]allowReviewEntry)
 	c.Roles.DenyReview = make(map[string][]parse.Matcher)
 
 	// load all statically assigned roles for the user and
@@ -1106,10 +1175,19 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 		return trace.Wrap(err)
 	}
 
-	c.Roles.AllowReview[allow.Where], err = AppendRoleMatchers(c.Roles.AllowReview[allow.Where], allow.Roles, allow.ClaimsToRoles, c.UserState.GetTraits())
+	allowMatchers, err := AppendRoleMatchers(nil, allow.Roles, allow.ClaimsToRoles, c.UserState.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// keep this role's matchers and grantable traits paired together in their
+	// own entry rather than merging them with other roles' matchers. this
+	// prevents a role's GrantableTraits from being usable based on another
+	// role's matchers matching the reviewed request.
+	c.Roles.AllowReview[allow.Where] = append(c.Roles.AllowReview[allow.Where], allowReviewEntry{
+		matchers:        allowMatchers,
+		grantableTraits: allow.GrantableTraits,
+	})
 
 	return nil
 }

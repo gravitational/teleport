@@ -558,6 +558,18 @@ spec:
                               type: string
                           type: object
                         type: array
+                      grantable_traits:
+                        description: 'GrantableTraits is an allowlist of traits a
+                          reviewer holding this role may grant to the requester when
+                          approving. Empty means no traits may be granted. Has no
+                          effect in deny rules. UNSTABLE: This field is experimental
+                          and might be subject to breaking changes in the future.
+                          This has no effect unless the experimental flag TELEPORT_UNSTABLE_REVIEW_TRAITS
+                          is set.'
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       preview_as_roles:
                         description: PreviewAsRoles is a list of extra roles which
                           should apply to a reviewer while they are viewing a Resource
@@ -1210,6 +1222,18 @@ spec:
                               description: Value is a claim value to match.
                               type: string
                           type: object
+                        type: array
+                      grantable_traits:
+                        description: 'GrantableTraits is an allowlist of traits a
+                          reviewer holding this role may grant to the requester when
+                          approving. Empty means no traits may be granted. Has no
+                          effect in deny rules. UNSTABLE: This field is experimental
+                          and might be subject to breaking changes in the future.
+                          This has no effect unless the experimental flag TELEPORT_UNSTABLE_REVIEW_TRAITS
+                          is set.'
+                        items:
+                          type: string
+                        nullable: true
                         type: array
                       preview_as_roles:
                         description: PreviewAsRoles is a list of extra roles which

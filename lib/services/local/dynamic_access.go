@@ -155,6 +155,22 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 	return nil, trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
 }
 
+// checkGrantedTraitsAllowed verifies that every trait key/value the reviewer
+// wishes to grant is permitted by grantableTraits (the union of GrantableTraits
+// from the role(s) whose allow directives actually permitted this review).
+// A trait key is only grantable if it is present in grantableTraits, and the
+// requested values must either be covered by a wildcard ("*") or be a subset
+// of the explicitly allowed values.
+func checkGrantedTraitsAllowed(grantedTraits []*types.GrantedTrait, grantableTraits map[string]struct{}) error {
+	// func checkGrantedTraitsAllowed(granted, grantableTraits wrappers.Traits) error {
+	for _, grantedTrait := range grantedTraits {
+		if _, ok := grantableTraits[grantedTrait.Name]; !ok {
+			return trace.AccessDenied("reviewer is not permitted to grant trait %q", grantedTrait.Name)
+		}
+	}
+	return nil
+}
+
 // ApplyAccessReview applies a review to a request and returns the post-application state.
 func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params types.AccessReviewSubmission, checker services.ReviewPermissionChecker) (types.AccessRequest, error) {
 	if err := params.Check(); err != nil {
@@ -182,11 +198,23 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		}
 
 		// verify review permissions against request details
-		if ok, err := checker.CanReviewRequest(req); err != nil || !ok {
+		ok, grantableTraits, err := checker.CanReviewRequest(req)
+		if err != nil || !ok {
 			if err == nil {
 				err = trace.AccessDenied("user %q cannot review request %q", params.Review.Author, params.RequestID)
 			}
 			return nil, trace.Wrap(err)
+		}
+
+		// verify that any traits the reviewer wishes to grant are permitted by
+		// the grantable traits of the roles that allowed this review. this check
+		// is performed here, under optimistic locking, rather than earlier, as
+		// the set of grantable traits is a function of the (possibly concurrently
+		// modified) access request state.
+		if len(params.Review.GrantedTraits) > 0 {
+			if err := checkGrantedTraitsAllowed(params.Review.GrantedTraits, grantableTraits); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
 		// run the application logic

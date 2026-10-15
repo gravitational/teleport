@@ -3400,6 +3400,20 @@ message AccessReview {
   // Determines if the review was submitted by a Teleport identity (eg. plugin) on behalf of
   // the Author.
   bool submitted_on_behalf_of_author = 12;
+
+  // GrantedTraits are the traits the reviewer grants to the requester as part
+  // of this approval. Validated against the reviewer's grantable_traits.
+  repeated GrantedTrait granted_traits = 14;
+}
+
+// GrantedTrait is a trait granted by an access review.
+// UNSTABLE: This message is experimental and might be subject to breaking changes in the future.
+// This has no effect unless the experimental flag TELEPORT_UNSTABLE_REVIEW_TRAITS is set.
+message GrantedTrait {
+  // name of the granted trait.
+  string name = 1;
+  // values granted for this trait.
+  repeated string values = 2;
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -4627,6 +4641,13 @@ message AccessReviewConditions {
   // Reviews submitted for a user are evaluated against that user's own RBAC permissions.
   // Supports wildcard (*).
   repeated string SubmitForUsers = 5 [(gogoproto.jsontag) = "submit_for_users,omitempty"];
+
+  // GrantableTraits is an allowlist of traits a reviewer holding this role may
+  // grant to the requester when approving. Empty means no traits may be
+  // granted. Has no effect in deny rules.
+  // UNSTABLE: This field is experimental and might be subject to breaking changes in the future.
+  // This has no effect unless the experimental flag TELEPORT_UNSTABLE_REVIEW_TRAITS is set.
+  repeated string grantable_traits = 6;
 }
 
 // AccessRequestAllowedPromotion describes an allowed promotion to an Access List.

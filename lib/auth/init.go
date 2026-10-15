@@ -475,6 +475,15 @@ type InitConfig struct {
 
 	// ScopesFeatures dictate which scoped components are enabled.
 	ScopesFeatures scopes.Features
+
+	// UnstableFeatures contains feature-flags for unstable auth features.
+	UnstableFeatures UnstableFeatures
+}
+
+// UnstableFeatures contains feature-flags for unstable auth features.
+type UnstableFeatures struct {
+	// ReviewTraits allows the access_request reviewers to specify traits to grant to the user.
+	ReviewTraits bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -539,7 +548,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.BootstrapResources) > 0 {
 		if firstStart {
 			asrv.logger.InfoContext(ctx, "Applying bootstrap resources (first initialization)", "resource_count", len(cfg.BootstrapResources))
-			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
+			if err := checkResourceConsistency(ctx, asrv.unstableFeatures, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
 				return trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.BootstrapResources...); err != nil {
@@ -1592,7 +1601,7 @@ func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
+func checkResourceConsistency(ctx context.Context, unbstableFeatures UnstableFeatures, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
 		case types.CertAuthority:
@@ -1648,7 +1657,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			}
 		case types.Role:
 			// Some options are only available with enterprise subscription
-			if err := checkRoleFeatureSupport(r); err != nil {
+			if err := checkRoleFeatureSupport(unbstableFeatures, r); err != nil {
 				return trace.Wrap(err)
 			}
 		default:

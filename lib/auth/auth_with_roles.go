@@ -56,6 +56,7 @@ import (
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -3612,7 +3613,7 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 			return true
 		}
 
-		canReview, err := checker.CanReviewRequest(accessRequest)
+		canReview, _, err := checker.CanReviewRequest(accessRequest)
 		if err != nil {
 			a.authServer.logger.WarnContext(ctx, "Failed to evaluate review permissions for user against access request",
 				"user", a.context.User.GetName(),
@@ -3777,6 +3778,10 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 		// submitter defaults to username of caller.
 		if submission.Review.SubmittedBy == "" {
 			submission.Review.SubmittedBy = a.context.User.GetName()
+		}
+
+		if submission.Review.GrantedTraits != nil {
+			return nil, trace.AccessDenied("granted_traits is not allowed when submitting on behalf of another user")
 		}
 
 		if err := a.AuthorizeAccessReviewRequestSubmittedForUser(ctx, submission); err != nil {
@@ -4129,7 +4134,9 @@ func (a *ScopedServerWithRoles) desiredAccessInfoForUser(ctx context.Context, re
 	// requests below, if there are any resource requests this will be set.
 	accessInfo.AllowedResourceAccessIDs = nil
 
-	for _, reqID := range finalRequestIDs {
+	reviewTraits := make([][]*types.GrantedTrait, len(finalRequestIDs))
+
+	for i, reqID := range finalRequestIDs {
 		// Fetch and validate the access request for this user.
 		accessRequest, err := a.authServer.getValidatedAccessRequest(ctx, currentIdentity, req.Username, reqID)
 		if err != nil {
@@ -4153,10 +4160,119 @@ func (a *ScopedServerWithRoles) desiredAccessInfoForUser(ctx context.Context, re
 			}
 			accessInfo.AllowedResourceAccessIDs = requestedResourceIDs
 		}
+
+		if a.authServer.unstableFeatures.ReviewTraits {
+			reviewTraits[i] = grantedTraits(accessRequest)
+		}
 	}
 	accessInfo.Roles = apiutils.Deduplicate(accessInfo.Roles)
 
+	if a.authServer.unstableFeatures.ReviewTraits {
+		// request-granted traits are the intersection of traits granted for every role
+		requestGrantedTraits := unionGrantedTraits(reviewTraits...)
+		// cert traits are the union of the standing user traits, and the request-granted ones
+		accessInfo.Traits = unionTraits(accessInfo.Traits, wrappers.Traits(grantedTraitsToMap(requestGrantedTraits)))
+	}
+
 	return accessInfo, nil
+}
+
+func grantedTraits(ar types.AccessRequest) []*types.GrantedTrait {
+	reviews := ar.GetReviews()
+	reviewTraits := make([][]*types.GrantedTrait, 0, len(reviews))
+	for _, review := range ar.GetReviews() {
+		// Only approved reviews grant traits.
+		// Other reviews should be rejected by the auth but we double-check.
+		if review.ProposedState == types.RequestState_APPROVED {
+			reviewTraits = append(reviewTraits, review.GrantedTraits)
+		}
+	}
+
+	return intersectGrantedTraits(reviewTraits...)
+}
+
+// grantedTraitsToMap deduplicates and indexes granted traits by name.
+func grantedTraitsToMap(traits []*types.GrantedTrait) map[string][]string {
+	m := make(map[string][]string, len(traits))
+	for _, trait := range traits {
+		if trait == nil {
+			continue
+		}
+		m[trait.Name] = apiutils.Deduplicate(append(m[trait.Name], trait.Values...))
+	}
+	return m
+}
+
+// intersectGrantedTraits computes the intersection of all traits: a trait
+// name is kept only if present in every supplied set, and its values are
+// the intersection of the values for that name across all sets. Ordering of
+// the result is not guaranteed.
+func intersectGrantedTraits(allRoleTraits ...[]*types.GrantedTrait) []*types.GrantedTrait {
+	if len(allRoleTraits) == 0 {
+		return nil
+	}
+
+	// fast path: nothing to intersect against, avoid rebuilding the slice.
+	if len(allRoleTraits) == 1 {
+		return allRoleTraits[0]
+	}
+
+	intersected := grantedTraitsToMap(allRoleTraits[0])
+	for _, roleTraits := range allRoleTraits[1:] {
+		roleValues := grantedTraitsToMap(roleTraits)
+
+		maps.DeleteFunc(intersected, func(name string, values []string) bool {
+			common := slices.DeleteFunc(values, func(v string) bool {
+				return !slices.Contains(roleValues[name], v)
+			})
+			intersected[name] = common
+			return len(common) == 0
+		})
+	}
+
+	result := make([]*types.GrantedTrait, 0, len(intersected))
+	for name, values := range intersected {
+		result = append(result, &types.GrantedTrait{Name: name, Values: values})
+	}
+
+	return result
+}
+
+// unionGrantedTraits computes the union of all granted traits.
+func unionGrantedTraits(allTraits ...[]*types.GrantedTrait) []*types.GrantedTrait {
+	var order []string
+	valuesByName := make(map[string][]string)
+
+	for _, traits := range allTraits {
+		for _, trait := range traits {
+			if trait == nil {
+				continue
+			}
+			if _, ok := valuesByName[trait.Name]; !ok {
+				order = append(order, trait.Name)
+			}
+			valuesByName[trait.Name] = apiutils.Deduplicate(append(valuesByName[trait.Name], trait.Values...))
+		}
+	}
+
+	result := make([]*types.GrantedTrait, 0, len(order))
+	for _, name := range order {
+		result = append(result, &types.GrantedTrait{Name: name, Values: valuesByName[name]})
+	}
+	return result
+}
+
+// unionTraits computes the union of all traits.
+func unionTraits(allTraits ...wrappers.Traits) wrappers.Traits {
+	unionedTraits := make(wrappers.Traits)
+
+	for _, traits := range allTraits {
+		for key, values := range traits {
+			unionedTraits[key] = apiutils.Deduplicate(append(unionedTraits[key], values...))
+		}
+	}
+
+	return unionedTraits
 }
 
 // GenerateUserCerts generates users certificates
@@ -5814,7 +5930,7 @@ func (a *ServerWithRoles) validateRole(role types.Role) error {
 	}
 
 	// Some options are only available with enterprise subscription
-	if err := checkRoleFeatureSupport(role); err != nil {
+	if err := checkRoleFeatureSupport(a.authServer.unstableFeatures, role); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5932,7 +6048,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 	return upserted, trace.Wrap(err)
 }
 
-func checkRoleFeatureSupport(role types.Role) error {
+func checkRoleFeatureSupport(unstableFeatures UnstableFeatures, role types.Role) error {
 	features := modules.GetModules().Features()
 	options := role.GetOptions()
 	allowReq, allowRev := role.GetAccessRequestConditions(types.Allow), role.GetAccessReviewConditions(types.Allow)
@@ -5960,6 +6076,9 @@ func checkRoleFeatureSupport(role types.Role) error {
 	case modules.GetModules().BuildType() != modules.BuildEnterprise && len(allowReq.SearchAsRoles) != 0:
 		return trace.AccessDenied(
 			"role field allow.search_as_roles is only available in enterprise subscriptions")
+	case !unstableFeatures.ReviewTraits && len(allowRev.GrantableTraits) != 0:
+		return trace.AccessDenied(
+			"review traits unstable feature is disabled")
 	default:
 		return nil
 	}
