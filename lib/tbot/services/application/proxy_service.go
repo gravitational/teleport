@@ -400,6 +400,12 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	httpClient := &http.Client{
 		Timeout:   s.cfg.HTTP.UpstreamRequestTimeout,
 		Transport: transport,
+		// Per RFC 9110, our proxy is an intermediary and redirects should be
+		// handled by the user agent, so forward them on to the client rather than
+		// handling them on their behalf.
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
 	// Build the Application Request
