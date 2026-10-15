@@ -1504,6 +1504,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.tf' \
 		-ignore '**/*.tftest.hcl' \
 		-ignore '**/*.tfmock.hcl' \
+		-ignore '**/*.xml' \
 		-ignore '**/*.yaml' \
 		-ignore '**/*.yml' \
 		-ignore '**/.terraform.lock.hcl' \
