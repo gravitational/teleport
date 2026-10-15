@@ -1608,7 +1608,7 @@ func newRecorder(s *session, ctx *ServerContext, sessType sessionType) (events.S
 
 	// Don't record non-interactive sessions when enhanced recording is disabled.
 	if sessType == sessionTypeNonInteractive && !ctx.srv.GetBPF().Enabled() {
-		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
+		return newDiscardingRecorder(s, ctx)
 	}
 
 	rec, err := recorder.New(recorder.Config{
@@ -1634,13 +1634,27 @@ func newRecorder(s *session, ctx *ServerContext, sessType sessionType) (events.S
 			)
 
 			s.BroadcastSystemMessage(sessionRecordingWarningMessage)
-			return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
+			return newDiscardingRecorder(s, ctx)
 		}
 
 		return nil, trace.ConnectionProblem(err, sessionRecordingErrorMessage)
 	}
 
 	return rec, nil
+}
+
+func newDiscardingRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder, error) {
+	preparer, err := events.NewPreparer(events.PreparerConfig{
+		SessionID:   s.id,
+		ServerID:    s.serverMeta.ServerID,
+		Namespace:   s.serverMeta.ServerNamespace,
+		Clock:       s.registry.clock,
+		ClusterName: ctx.ClusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events.NewSessionPreparerRecorder(preparer, events.NewDiscardRecorder()), nil
 }
 
 func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext, p *party) error {
