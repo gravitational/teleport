@@ -473,7 +473,13 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 				scpEvent.Code = events.SCPDownloadCode
 			}
 		}
-		if err := ctx.party.s.emitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
+		// Ensure the event gets the session's next index instead of a zero value.
+		preparedEvent, err := ctx.party.s.Recorder().PrepareSessionEvent(scpEvent)
+		if err != nil {
+			ctx.Logger.WarnContext(ctx.srv.Context(), "Failed to set up scp event", "error", err)
+			return
+		}
+		if err := ctx.party.s.emitAuditEvent(ctx.srv.Context(), preparedEvent.GetAuditEvent()); err != nil {
 			ctx.Logger.WarnContext(ctx.srv.Context(), "Failed to emit scp event", "error", err)
 		}
 	} else {
@@ -493,7 +499,13 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		} else {
 			execEvent.Code = events.ExecCode
 		}
-		if err := ctx.party.s.emitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
+		// Ensure the event gets the session's next index instead of a zero value.
+		preparedEvent, err := ctx.party.s.Recorder().PrepareSessionEvent(execEvent)
+		if err != nil {
+			ctx.Logger.WarnContext(ctx.srv.Context(), "Failed to set up exec event", "error", err)
+			return
+		}
+		if err := ctx.party.s.emitAuditEvent(ctx.srv.Context(), preparedEvent.GetAuditEvent()); err != nil {
 			ctx.Logger.WarnContext(ctx.srv.Context(), "Failed to emit exec event", "error", err)
 		}
 	}
