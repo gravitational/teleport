@@ -159,6 +159,7 @@ func (s *Service) GetGenerator() (*identity.Generator, error) {
 		BotIdentity: s.facade,
 		FIPS:        s.cfg.FIPS,
 		Insecure:    s.cfg.Connection.Insecure,
+		Scoped:      s.cfg.Scoped,
 		Logger: s.log.With(
 			teleport.ComponentKey,
 			teleport.Component(teleport.ComponentTBot, "identity-generator"),

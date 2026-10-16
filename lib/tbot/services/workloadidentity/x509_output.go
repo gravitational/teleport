@@ -70,7 +70,6 @@ func X509OutputServiceBuilder(
 			crlCache:                  crlCache,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
-			scoped:                    deps.Scoped,
 		}
 		return svc, nil
 	}
@@ -92,8 +91,6 @@ type X509OutputService struct {
 	crlCache          CRLGetter
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
-	// scoped indicates whether the bot is running in scoped mode.
-	scoped bool
 }
 
 // String returns a human-readable description of the service.
@@ -225,22 +222,6 @@ func (s *X509OutputService) Run(ctx context.Context) error {
 	}
 }
 
-// generateIdentity returns the identity facade used to issue SVIDs. In scoped
-// mode this is the bot's internal scoped identity; otherwise it is a role-
-// impersonated identity.
-func (s *X509OutputService) generateIdentity(ctx context.Context) (*identity.Facade, error) {
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	if s.scoped {
-		return s.identityGenerator.GenerateScopedFacade(
-			ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageIdentity(),
-		)
-	}
-	return s.identityGenerator.GenerateFacade(ctx,
-		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
-		identity.WithLogger(s.log),
-	)
-}
-
 func (s *X509OutputService) requestSVID(
 	ctx context.Context,
 ) (
@@ -254,7 +235,11 @@ func (s *X509OutputService) requestSVID(
 	)
 	defer span.End()
 
-	id, err := s.generateIdentity(ctx)
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+	id, err := s.identityGenerator.GenerateFacade(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
@@ -272,7 +257,7 @@ func (s *X509OutputService) requestSVID(
 		s.log,
 		issuingClient,
 		s.cfg.Selector,
-		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL,
+		effectiveLifetime.TTL,
 		nil,
 	)
 	if err != nil {
