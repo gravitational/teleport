@@ -269,11 +269,16 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 	switch {
 	case err != nil:
 		logger.DebugContext(ctx, "Failed to probe the MCP server for an OAuth challenge", "error", err)
-	case status >= http.StatusOK && status < http.StatusMultipleChoices && appOAuth.Mode != types.MCPOAuthModeRequired:
-		// An app configured as requiring OAuth always logs in, even when
-		// initialize works without a token.
-		fmt.Fprintf(cfg.Stdout, "MCP server %q accepted an unauthenticated request, so OAuth login is not required.\n", cfg.App.GetName())
-		return nil
+	case status >= http.StatusOK && status < http.StatusMultipleChoices && cfg.ClientID == "" && appOAuth.Mode != types.MCPOAuthModeRequired:
+		// Some servers, such as Gmail's, answer an unauthenticated initialize
+		// request and require auth only for tool calls. Their protected resource
+		// metadata shows they still use OAuth. An app configured as requiring
+		// OAuth always logs in.
+		if _, err := fetchAdvertisedMCPOAuthScopes(ctx, httpClient, oauthBaseURL); err != nil {
+			logger.DebugContext(ctx, "Failed to fetch OAuth protected resource metadata", "error", err)
+			fmt.Fprintf(cfg.Stdout, "MCP server %q accepted an unauthenticated request and publishes no OAuth protected resource metadata, so OAuth login is not required.\n", cfg.App.GetName())
+			return nil
+		}
 	}
 	scopes := cfg.OAuthScopes
 	if len(scopes) == 0 && len(required) > 0 {
@@ -785,6 +790,12 @@ var mcpOAuthNetworkGuard = ssrf.New(ssrf.WithAnyPort())
 
 type mcpOAuthDiscoveryState struct {
 	advertisedAuthorizationServer string
+	// discoveredIssuer is the issuer of the authorization server metadata
+	// document that passed validation, if any.
+	discoveredIssuer string
+	// protectedResourceErrorStatus is the status of a protected resource
+	// metadata response that failed with anything other than 404 Not Found.
+	protectedResourceErrorStatus int
 }
 
 type mcpOAuthDiscoveryStateKey struct{}
@@ -802,6 +813,12 @@ func getMCPOAuthServerMetadata(ctx context.Context, handler *mcpclienttransport.
 	// bound to the authorization server selected by the protected resource.
 	if advertised := discovery.advertisedAuthorizationServer; advertised != "" && strings.TrimSuffix(metadata.Issuer, "/") != strings.TrimSuffix(advertised, "/") {
 		return nil, trace.BadParameter("OAuth authorization server metadata identifies issuer %q, but protected resource metadata advertised %q", metadata.Issuer, advertised)
+	}
+	// mcp-go guessed this metadata after the protected resource metadata
+	// request failed. Its guessed endpoints would fail later with an error
+	// that hides the real one.
+	if status := discovery.protectedResourceErrorStatus; status != 0 && metadata.Issuer != discovery.discoveredIssuer {
+		return nil, trace.Errorf("MCP server answered its OAuth protected resource metadata request with status %d %s", status, http.StatusText(status))
 	}
 	for _, endpoint := range []struct {
 		name     string
@@ -887,6 +904,8 @@ func newMCPOAuthHTTPClient(dialer *client.MCPServerDialer, appURI, authServerMet
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Every request goes through the Teleport tunnel, never an HTTP proxy.
+	tunneled.Proxy = nil
 	tunneled.DialContext = dialer.DialContext
 	direct, err := defaults.Transport()
 	if err != nil {
@@ -969,6 +988,16 @@ func (t *hostRoutingTransport) RoundTrip(r *http.Request) (*http.Response, error
 		}
 	}
 
+	// mcp-go only tries /.well-known/openid-configuration/<issuer path>, but some
+	// providers only serve <issuer path>/.well-known/openid-configuration.
+	if retry := openIDConfigurationAppendedRequest(r, resp); retry != nil {
+		retryResp, retryErr := t.roundTrip(retry)
+		if retryErr == nil && retryResp != nil {
+			closeOAuthResponse(resp)
+			resp = retryResp
+		}
+	}
+
 	if err := validateMCPOAuthMetadataResponse(r, resp, t.mcpServerOrigin.String(), t.authServerMetadataURL); err != nil {
 		closeOAuthResponse(resp)
 		return nil, trace.Wrap(err)
@@ -1003,13 +1032,33 @@ func (t *hostRoutingTransport) configuredAuthServerMetadata(r *http.Request) (*h
 		closeOAuthResponse(resp)
 		return nil, trace.BadParameter("OAuth authorization server metadata URL %q redirected; configure the final URL", t.authServerMetadataURL)
 	}
+	if resp.StatusCode != http.StatusOK {
+		closeOAuthResponse(resp)
+		return nil, trace.BadParameter("OAuth authorization server metadata URL %q returned status %d %s", t.authServerMetadataURL, resp.StatusCode, http.StatusText(resp.StatusCode))
+	}
 	resp.Request = r
+	// Records the document's issuer for the protected resource error check.
+	if err := validateMCPOAuthMetadataResponse(r, resp, t.mcpServerOrigin.String(), t.authServerMetadataURL); err != nil {
+		closeOAuthResponse(resp)
+		return nil, trace.Wrap(err)
+	}
 	return resp, nil
 }
 
 func validateMCPOAuthMetadataResponse(req *http.Request, resp *http.Response, expectedResource, authServerMetadataURL string) error {
 	metadataURL, rootPath, ok := oauthMetadataChainOrigin(req)
-	if !ok || resp == nil || resp.StatusCode != http.StatusOK {
+	if !ok || resp == nil {
+		return nil
+	}
+	discovery, _ := req.Context().Value(mcpOAuthDiscoveryStateKey{}).(*mcpOAuthDiscoveryState)
+	// mcp-go guesses default endpoints whenever this request fails. That's fine
+	// for a 404, but for errors like a 403 we record the status so login can
+	// fail with a clear error instead.
+	if resp.StatusCode != http.StatusOK {
+		if discovery != nil && rootPath == mcputils.OAuthProtectedResourceMetadataPath &&
+			resp.StatusCode >= http.StatusBadRequest && resp.StatusCode != http.StatusNotFound {
+			discovery.protectedResourceErrorStatus = resp.StatusCode
+		}
 		return nil
 	}
 
@@ -1035,21 +1084,27 @@ func validateMCPOAuthMetadataResponse(req *http.Request, resp *http.Response, ex
 			return trace.BadParameter("OAuth protected resource metadata identifies resource %q, expected %q or a parent of it", metadata.Resource, expectedResource)
 		}
 		// A configured metadata document replaces the advertised server.
-		if discovery, ok := req.Context().Value(mcpOAuthDiscoveryStateKey{}).(*mcpOAuthDiscoveryState); ok && authServerMetadataURL == "" && len(metadata.AuthorizationServers) > 0 {
+		if discovery != nil && authServerMetadataURL == "" && len(metadata.AuthorizationServers) > 0 {
 			discovery.advertisedAuthorizationServer = metadata.AuthorizationServers[0]
 		}
 		return nil
 	}
 	// The admin chose this document, so its issuer may differ from its URL.
 	if authServerMetadataURL != "" {
+		if discovery != nil {
+			discovery.discoveredIssuer = metadata.Issuer
+		}
 		return nil
 	}
 	// RFC 8414 section 3.3: the issuer must match the URL the metadata was
 	// discovered from, so a document cannot impersonate another provider.
 	// https://www.rfc-editor.org/rfc/rfc8414.html#section-3.3
-	expectedIssuer := metadataURL.Scheme + "://" + metadataURL.Host + strings.TrimPrefix(metadataURL.EscapedPath(), rootPath)
+	expectedIssuer := metadataURL.Scheme + "://" + metadataURL.Host + oauthMetadataIssuerPath(metadataURL.EscapedPath(), rootPath)
 	if strings.TrimSuffix(metadata.Issuer, "/") != strings.TrimSuffix(expectedIssuer, "/") {
 		return trace.BadParameter("OAuth authorization server metadata identifies issuer %q, expected %q", metadata.Issuer, expectedIssuer)
+	}
+	if discovery != nil {
+		discovery.discoveredIssuer = metadata.Issuer
 	}
 	return nil
 }
@@ -1091,8 +1146,6 @@ func (t *hostRoutingTransport) roundTrip(r *http.Request) (*http.Response, error
 			"host", r.URL.Host, "path", r.URL.EscapedPath())
 		tunneledRequest := r.Clone(r.Context())
 		tunneledRequest.URL.Scheme = "http"
-		tunneledRequest.URL.Host = "localhost"
-		tunneledRequest.Host = ""
 		resp, err := t.tunneled.RoundTrip(tunneledRequest)
 		if resp != nil {
 			resp.Request = r
@@ -1191,10 +1244,32 @@ func closeOAuthResponse(resp *http.Response) {
 	_ = resp.Body.Close()
 }
 
+const openIDConfigurationPath = "/.well-known/openid-configuration"
+
 var oauthMetadataPaths = []string{
 	mcputils.OAuthProtectedResourceMetadataPath,
 	"/.well-known/oauth-authorization-server",
-	"/.well-known/openid-configuration",
+	openIDConfigurationPath,
+}
+
+// openIDConfigurationAppendedRequest turns a 404 on
+// /.well-known/openid-configuration/<issuer path> into a retry of
+// <issuer path>/.well-known/openid-configuration. The MCP spec requires
+// clients to try both.
+// https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery
+func openIDConfigurationAppendedRequest(r *http.Request, resp *http.Response) *http.Request {
+	if r.Method != http.MethodGet || resp == nil || resp.StatusCode != http.StatusNotFound {
+		return nil
+	}
+	issuerPath, ok := strings.CutPrefix(r.URL.Path, openIDConfigurationPath+"/")
+	if !ok || strings.Trim(issuerPath, "/") == "" {
+		return nil
+	}
+	retry := r.Clone(r.Context())
+	retry.Response = nil
+	retry.URL.Path = "/" + strings.TrimSuffix(issuerPath, "/") + openIDConfigurationPath
+	retry.URL.RawPath = ""
+	return retry
 }
 
 // oauthMetadataChainOrigin returns the metadata request URL that started a
@@ -1225,11 +1300,26 @@ func oauthMetadataRequestChain(r *http.Request) iter.Seq2[*http.Request, string]
 	}
 }
 
+// oauthMetadataRootPath returns the well-known path in a metadata request
+// path. OpenID's well-known path can also come at the end.
 func oauthMetadataRootPath(path string) (string, bool) {
 	for _, root := range oauthMetadataPaths {
 		if path == root || strings.HasPrefix(path, root+"/") {
 			return root, true
 		}
 	}
+	if strings.HasSuffix(path, openIDConfigurationPath) {
+		return openIDConfigurationPath, true
+	}
 	return "", false
+}
+
+// oauthMetadataIssuerPath strips the well-known path, so both
+// /.well-known/openid-configuration/<issuer path> and
+// <issuer path>/.well-known/openid-configuration give <issuer path>.
+func oauthMetadataIssuerPath(path, rootPath string) string {
+	if issuerPath, ok := strings.CutPrefix(path, rootPath); ok {
+		return issuerPath
+	}
+	return strings.TrimSuffix(path, rootPath)
 }
