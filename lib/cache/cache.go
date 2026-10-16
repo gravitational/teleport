@@ -1290,6 +1290,18 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 		return trace.Wrap(err)
 	}
 
+	// if the watcher signals that it's already done there's no point in
+	// proceeding with apply and OpInit broadcasting; at the time of writing
+	// this is not detectable for grpc watchers but it's detectable in the auth
+	// for its backend watcher
+	select {
+	case <-watcher.Done():
+		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
+	case <-c.ctx.Done():
+		return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
+	default:
+	}
+
 	// apply will mutate cache, and possibly leave it in an invalid state
 	// if an error occurs, so ensure that cache is not read.
 	c.setReadStatus(false, nil)
