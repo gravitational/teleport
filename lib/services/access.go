@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/services/forproto"
 )
 
 // LockGetter is a service that gets locks.
@@ -86,6 +87,10 @@ type AccessInternal interface {
 		name string,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
+
+	// ListRolesForProto is like [Access.ListRoles] but the returned roles might
+	// be pre-marshaled in protobuf wire format.
+	ListRolesForProto(ctx context.Context, req *proto.ListRolesRequest) (_ []forproto.Role, nextPageToken string, _ error)
 }
 
 var dynamicLabelsErrorMessage = fmt.Sprintf("labels with %q prefix are not allowed in deny rules", types.TeleportDynamicLabelPrefix)

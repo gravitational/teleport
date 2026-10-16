@@ -166,6 +166,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	_ "github.com/gravitational/teleport/lib/performantgogoprotocodec"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/forproto"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
@@ -616,6 +617,11 @@ func WatchEvents(
 	auth Watcher,
 	mods modules.Modules,
 ) error {
+	clientVersion, err := clientVersionForDowngrade(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// KindNamespace is being removed but v17 agents will still try to include
 	// it in their cache and they will occasionally do a GetNamespace, so we
 	// pretend to support it as a resource kind here; it's sound to do so
@@ -676,12 +682,15 @@ func WatchEvents(
 			// to keep checking
 			removedNamespaceWatch = false
 		}
-		if role, ok := event.Resource.(*types.RoleV6); ok {
-			downgraded, err := maybeDowngradeRole(stream.Context(), role)
-			if err != nil {
-				return trace.Wrap(err)
+		if clientVersion != nil {
+			if role, ok := event.Resource.(*types.RoleV6); ok {
+				// resources in events are shared between watchers, so we have
+				// to use the variant that clones the resource before
+				// downgrading
+				//
+				// TODO(espadolini): figure out a sensible way to propagate pre-downgraded roles in fanout and cache
+				event.Resource = getDowngradedRoleForClientVersion(role, clientVersion)
 			}
-			event.Resource = downgraded
 		}
 		if dc, ok := event.Resource.(*discoveryconfig.DiscoveryConfig); ok {
 			downgraded, err := discoveryconfigv1.MaybeDowngradeDiscoveryConfig(stream.Context(), dc)
@@ -1158,6 +1167,11 @@ func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *authpb.ClearAlertA
 }
 
 func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthService_GetCurrentUserRolesServer) error {
+	clientVersion, err := clientVersionForDowngrade(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
@@ -1177,11 +1191,8 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthSer
 		}
 		// Send each role at a version the client understands. A client that
 		// does not know app_resources would read a v9 role as unrestricted.
-		downgraded, err := maybeDowngradeRole(stream.Context(), v6)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := stream.Send(downgraded); err != nil {
+		downgradeRoleForClientVersion(v6, clientVersion)
+		if err := stream.Send(v6); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2386,85 +2397,131 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *authpb
 	return &emptypb.Empty{}, nil
 }
 
-// maybeDowngradeRole tests the client version passed through the gRPC metadata,
-// and if the client version is unknown or less than the minimum supported
-// version for some features of the role returns a shallow copy of the given
-// role downgraded for compatibility with the older version.
-func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6, error) {
-	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+func clientVersionForDowngrade(ctx context.Context) (*semver.Version, error) {
+	versionString, ok := metadata.ClientVersionFromContext(ctx)
 	if !ok {
 		// This client is not reporting its version via gRPC metadata. Teleport
 		// clients have been reporting their version for long enough that older
 		// clients won't even support v6 roles at all, so this is likely a
 		// third-party client, and we shouldn't assume that downgrading the role
 		// will do more good than harm.
-		return role, nil
+		return nil, nil
 	}
 
-	clientVersion, err := semver.NewVersion(clientVersionString)
+	version, err := semver.NewVersion(versionString)
 	if err != nil {
-		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+		return nil, trace.BadParameter("unrecognized client version: %+q is not a valid semver", versionString)
 	}
 
-	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
-	// A v18 client supports v8 roles at most, a v17 client v7.
-	// Downgrade in order, v9 to v8 to v7.
-	// App label stripping from the v9 to v8 persists down to v7.
-	// Only the last step is captured in TeleportDowngradedLabel.
-	role = maybeDowngradeRoleVersionToV8(ctx, role, clientVersion)
-	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
-	return role, nil
+	return version, nil
 }
 
-var minSupportedRoleV9Version = &semver.Version{Major: 19, Minor: 0, Patch: 0}
+func roleNeedsDowngrade(role *types.RoleV6, version *semver.Version) bool {
+	var roleForProto forproto.Role
+	roleForProto.SetActual(role)
+	return roleForProtoNeedsDowngrade(roleForProto, version)
+}
 
-// maybeDowngradeRoleVersionToV8 downgrades a v9 role to v8 for agents below
-// minSupportedRoleV9Version (v19), which cannot enforce the v9 app
-// restriction. A plain v8 copy would grant unrestricted app access, so unless
-// the role already grants that (an allow_all rule), the copy moves its allow
-// app selector to the deny side. A pre-v19 agent cannot apply the finer v9
-// restriction, so it denies these apps outright, never granting more than v9
-// would, and no other v8 role can grant them either. Composing with
-// maybeDowngradeRoleVersionToV7 lets a v9 role reach a pre-v18 agent as v7.
+func roleForProtoNeedsDowngrade(role forproto.Role, version *semver.Version) bool {
+	if version == nil {
+		return false
+	}
+	if version.Major < 19 {
+		switch role.Extra.Version {
+		case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
+		default:
+			return true
+		}
+	}
+	if version.Major < 18 {
+		switch role.Extra.Version {
+		case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7:
+		default:
+			return true
+		}
+	}
+	if version.Major < 17 || (version.Major == 17 && version.Minor < 1) {
+		if role.Extra.GranularSSHPortForwarding {
+			return true
+		}
+	}
+
+	return false
+}
+
+func downgradeRoleForClientVersion(role *types.RoleV6, version *semver.Version) {
+	if version == nil {
+		return
+	}
+	if version.Major < 19 {
+		switch role.Version {
+		case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
+		default:
+			downgradeRoleV9ToV8(role, *version)
+		}
+	}
+	if version.Major < 18 {
+		switch role.Version {
+		case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7:
+		default:
+			downgradeRoleV8ToV7(role)
+		}
+	}
+	if version.Major < 17 || (version.Major == 17 && version.Minor < 1) {
+		// should be kept in sync with the downgrade logic in lib/services/forproto/role.go
+		sshPortForwarding := role.Spec.Options.SSHPortForwarding
+		if sshPortForwarding != nil && (sshPortForwarding.Remote != nil || sshPortForwarding.Local != nil) {
+			downgradeRoleV7ForSimplePortForwarding(role)
+		}
+	}
+}
+
+func getDowngradedRoleForClientVersion(role *types.RoleV6, version *semver.Version) *types.RoleV6 {
+	if version == nil {
+		return role
+	}
+
+	if roleNeedsDowngrade(role, version) {
+		role = apiutils.CloneProtoMsg(role)
+		downgradeRoleForClientVersion(role, version)
+	}
+
+	return role
+}
+
+// downgradeRoleV9ToV8 downgrades a v9 role to v8 for agents below v19, which
+// cannot enforce the v9 app restriction. A plain v8 copy would grant
+// unrestricted app access, so unless the role already grants that (an allow_all
+// rule), the copy moves its allow app selector to the deny side. A pre-v19
+// agent cannot apply the finer v9 restriction, so it denies these apps
+// outright, never granting more than v9 would, and no other v8 role can grant
+// them either.
 //
-// TODO(@juliaogris): Delete in v20.0.0 when pre-19 client support ends.
-func maybeDowngradeRoleVersionToV8(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
-	if role.GetVersion() != types.V9 {
-		return role
-	}
-	supported, err := utils.MinVerWithoutPreRelease(clientVersion.String(), minSupportedRoleV9Version.String())
-	if supported || err != nil {
-		return role
-	}
-
-	// Deep-copy the role before mutating it. The same role is shared
-	// across client sessions when watchers notify about changes. Mutating
-	// the original races other readers.
-	role = apiutils.CloneProtoMsg(role)
+// TODO(@juliaogris): Delete in v21.0.0 when we can be reasonably sure that we
+// can drop support for pre-v19 clients.
+func downgradeRoleV9ToV8(role *types.RoleV6, clientVersionForLogging semver.Version) {
 	role.Version = types.V8
 
-	detail := "The allow_all rule grants exactly the v8 app access, so app access is unchanged."
+	const reasonPrefix = "Role v9 is only supported in client version 19 and later. "
+	reason := reasonPrefix + "The allow_all rule grants exactly the v8 app access, so app access is unchanged."
 	if !types.AppResourcesAllowAll(role.Spec.Allow.AppResources, role.Spec.Deny.AppResources) ||
 		len(role.Spec.Allow.AppResourcesExpressions) > 0 || len(role.Spec.Deny.AppResourcesExpressions) > 0 {
 		if denyDowngradedAppAccess(role) {
-			slog.WarnContext(ctx,
+			slog.WarnContext(context.Background(),
 				"Downgraded v9 role already denied apps by label, so its app access was denied with a wildcard on this pre-v9 client; this also denies apps the role did not govern",
-				"role", role.GetName(), "client_version", clientVersion)
+				"role", role.GetName(), "client_version", clientVersionForLogging)
 		}
-		detail = "Allow app_labels are stripped and the role denies its own apps so it grants no app access on this client."
+		reason = reasonPrefix + "Allow app_labels are stripped and the role denies its own apps so it grants no app access on this client."
 	}
 	role.Spec.Allow.AppResources = nil
 	role.Spec.Deny.AppResources = nil
 	role.Spec.Allow.AppResourcesExpressions = nil
 	role.Spec.Deny.AppResourcesExpressions = nil
 
-	reason := fmt.Sprintf("Role v9 is only supported from client version %q and above. %s", minSupportedRoleV9Version, detail)
 	if role.Metadata.Labels == nil {
 		role.Metadata.Labels = make(map[string]string, 1)
 	}
 	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
-
-	return role
 }
 
 // denyDowngradedAppAccess moves the role's allow app labels and expression to
@@ -2502,43 +2559,22 @@ func denyDowngradedAppAccess(role *types.RoleV6) (wildcardFallback bool) {
 	return wildcardFallback
 }
 
-var minSupportedRoleV8Version = &semver.Version{Major: 18, Minor: 0, Patch: 0}
-
-// maybeDowngradeRoleVersionToV7 downgrades the role version to V7 if
-// the client version passed through the gRPC metadata is below the version
-// specified in minSupportedRoleV8Version.
+// downgradeRoleV8ToV7 downgrades a v8 role to v7 for the sake of clients before
+// v18.
 //
-// TODO(@creack): Delete in v19.0.0.
-func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
-	switch role.GetVersion() {
-	case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7:
-		return role
-	}
-	if supported, err := utils.MinVerWithoutPreRelease(
-		clientVersion.String(),
-		minSupportedRoleV8Version.String()); supported || err != nil {
-		return role
-	}
-
-	// Make a shallow copy of the role so that we don't mutate the original.
-	// This is necessary because the role is shared
-	// between multiple clients sessions when notifying about changes in watchers.
-	// If we mutate the original role, it will be mutated for all clients
-	// which can cause panics since it causes a race condition.
-	role = apiutils.CloneProtoMsg(role)
+// TODO(@creack): Delete in v20.0.0 when we can be reasonably sure that we
+// can drop support for pre-v18 clients.
+func downgradeRoleV8ToV7(role *types.RoleV6) {
 	role.Version = types.V7
-	role = downgradeSAMLIdPRBAC(role)
 
-	reason := fmt.Sprintf(`Role V8 is only supported from the client version %q and above.`+
-		`Access to SAML IdP will be disabled.`, minSupportedRoleV8Version)
+	reason := "Role v8 is only supported in client version v18 and later. Access to SAML IdP will be disabled."
 	if role.Metadata.Labels == nil {
 		role.Metadata.Labels = make(map[string]string, 1)
 	}
 	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
 
-	role = maybeDowngradeRoleK8sAPIGroupToV7(role)
-
-	return role
+	downgradeSAMLIdPRBAC(role)
+	downgradeRoleK8sAPIGroupToV7(role)
 }
 
 // downgradeSAMLIdPRBAC disables access to all saml_idp_service_provider
@@ -2546,16 +2582,12 @@ func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Ver
 // is a blanket allow/deny rule. Since the saml resource can now be
 // scoped per resource labels, disabling access on downgraded role is
 // a simpler and safer option.
-func downgradeSAMLIdPRBAC(downgradedRole *types.RoleV6) *types.RoleV6 {
-	options := downgradedRole.GetOptions()
-	options.IDP = &types.IdPOptions{
+func downgradeSAMLIdPRBAC(role *types.RoleV6) {
+	role.Spec.Options.IDP = &types.IdPOptions{
 		SAML: &types.IdPSAMLOptions{
 			Enabled: types.NewBoolOption(false),
 		},
 	}
-	downgradedRole.SetOptions(options)
-
-	return downgradedRole
 }
 
 func downgradeKubeResources[T types.KubeResource](role *types.RoleV6, resources []T) []T {
@@ -2599,13 +2631,14 @@ func downgradeKubeResources[T types.KubeResource](role *types.RoleV6, resources 
 	return out
 }
 
-// maybeDowngradeRoleK8sAPIGroupToV7 downgrades the role to kubernetes resources to role v7 if the client
+// downgradeRoleK8sAPIGroupToV7 downgrades the role to kubernetes resources to role v7 if the client
 // is below the minimum supported version.
 //
-// If there is an unsupported resource, clear them and inject deny all at the label level as well as setting the resource to be a wildcard deny.
+// If there is an unsupported resource, clear them and inject deny all at the
+// label level as well as setting the resource to be a wildcard deny.
 //
 // In the case of access requests, if there is a deny, also inject a wildcard deny in the request level.
-func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
+func downgradeRoleK8sAPIGroupToV7(role *types.RoleV6) {
 	role.Spec.Allow.KubernetesResources = slices.FromPointers(downgradeKubeResources(role, slices.ToPointers(role.Spec.Allow.KubernetesResources)))
 	role.Spec.Deny.KubernetesResources = slices.FromPointers(downgradeKubeResources(role, slices.ToPointers(role.Spec.Deny.KubernetesResources)))
 
@@ -2627,8 +2660,6 @@ func maybeDowngradeRoleK8sAPIGroupToV7(role *types.RoleV6) *types.RoleV6 {
 			role.Spec.Deny.Request.KubernetesResources = append(role.Spec.Deny.Request.KubernetesResources, types.RequestKubernetesResource{Kind: types.Wildcard})
 		}
 	}
-
-	return role
 }
 
 // allowedResourcesKey is a key used to identify a resource in the allowedResources map.
@@ -2680,38 +2711,22 @@ func init() {
 	}
 }
 
-var minSupportedSSHPortForwardingVersion = semver.Version{Major: 17, Minor: 1, Patch: 0}
-
-func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
-	sshPortForwarding := role.GetOptions().SSHPortForwarding
-	if sshPortForwarding == nil || (sshPortForwarding.Remote == nil && sshPortForwarding.Local == nil) {
-		return role
-	}
-
-	if supported, err := utils.MinVerWithoutPreRelease(
-		clientVersion.String(),
-		minSupportedSSHPortForwardingVersion.String()); supported || err != nil {
-		return role
-	}
-
-	role = apiutils.CloneProtoMsg(role)
-	options := role.GetOptions()
-
+func downgradeRoleV7ForSimplePortForwarding(role *types.RoleV6) {
 	//nolint:staticcheck // this field is preserved for backwards compatibility
-	options.PortForwarding = types.NewBoolOption(services.RoleSet{role}.CanPortForward())
-	role.SetOptions(options)
-	reason := fmt.Sprintf(`Client version %q does not support granular SSH port forwarding. Role %q will be downgraded `+
-		`to simple port forwarding rules instead. In order to support granular SSH port forwarding, all clients must be `+
-		`updated to version %q or higher.`, clientVersion, role.GetName(), minSupportedSSHPortForwardingVersion)
+	role.Spec.Options.PortForwarding = types.NewBoolOption(services.RoleSet{role}.CanPortForward())
+	reason := "Granular SSH port forwarding options are only supported in client version v17.1 and later, so this role was converted to use simple port forwarding rules instead."
 	if role.Metadata.Labels == nil {
 		role.Metadata.Labels = make(map[string]string, 1)
 	}
 	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
-	return role
 }
 
 // GetRole retrieves a role by name.
 func (g *GRPCServer) GetRole(ctx context.Context, req *authpb.GetRoleRequest) (*types.RoleV6, error) {
+	clientVersion, err := clientVersionForDowngrade(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2725,15 +2740,16 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *authpb.GetRoleRequest) (*
 		return nil, trace.Errorf("encountered unexpected role type: %T", role)
 	}
 
-	downgraded, err := maybeDowngradeRole(ctx, role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return downgraded, nil
+	downgradeRoleForClientVersion(role, clientVersion)
+	return role, nil
 }
 
 // GetRoles retrieves all roles.
 func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*authpb.GetRolesResponse, error) {
+	clientVersion, err := clientVersionForDowngrade(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2748,11 +2764,8 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*authpb.Ge
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", r)
 		}
-		downgraded, err := maybeDowngradeRole(ctx, role)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		roles = append(roles, downgraded)
+		downgradeRoleForClientVersion(role, clientVersion)
+		roles = append(roles, role)
 	}
 	return &authpb.GetRolesResponse{
 		Roles: roles,
@@ -2761,31 +2774,31 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*authpb.Ge
 
 // ListRoles is a paginated role getter.
 func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest) (*authpb.ListRolesResponse, error) {
+	clientVersion, err := clientVersionForDowngrade(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := auth.ServerWithRoles.ListRoles(ctx, req)
+	roles, nextPageToken, err := auth.ServerWithRoles.ListRolesForProto(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	downgradedRoles := rsp.Roles[:0]
-	for _, role := range rsp.Roles {
-		downgraded, err := maybeDowngradeRole(ctx, role)
-		if err != nil {
-			g.logger.WarnContext(ctx, "Failed to downgrade role, this is a bug and may result in spurious access denied errors",
-				"role", role.GetName(),
-				"error", err,
-			)
-			continue
+	for i := range roles {
+		role := &roles[i]
+		if roleForProtoNeedsDowngrade(*role, clientVersion) {
+			if err := role.ToActual(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			downgradeRoleForClientVersion(role.Actual, clientVersion)
 		}
-		downgradedRoles = append(downgradedRoles, downgraded)
 	}
-	rsp.Roles = downgradedRoles
 
-	return rsp, nil
+	return forproto.ToListRolesResponse(roles, nextPageToken, nil)
 }
 
 // ListRequestableRoles is a paginated requestable role getter.

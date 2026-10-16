@@ -33,7 +33,17 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/forproto"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+)
+
+// should be kept in sync with the consts in lib/cache/role.go
+const (
+	// it can take a lot of effort to parse roles and until a page is done
+	// parsing, it will be held in memory - so keep this reasonably small
+	roleDefaultPageSize = 100
+
+	roleMaxPageSize = 16_000
 )
 
 // AccessService manages roles
@@ -85,19 +95,20 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
+// ListRolesForProto implements [services.AccessInternal].
+func (s *AccessService) ListRolesForProto(ctx context.Context, req *proto.ListRolesRequest) (_ []forproto.Role, nextPageToken string, _ error) {
+	return forproto.FromListRoles(s.ListRoles(ctx, req))
+}
+
 // ListRoles is a paginated role getter.
 func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-	const maxPageSize = 16_000
-
 	limit := int(req.Limit)
 
 	if limit == 0 {
-		// it can take a lot of effort to parse roles and until a page is done
-		// parsing, it will be held in memory - so keep this reasonably small
-		limit = 100
+		limit = roleDefaultPageSize
 	}
 
-	if limit > maxPageSize {
+	if limit > roleMaxPageSize {
 		return nil, trace.BadParameter("page size of %d is too large", limit)
 	}
 

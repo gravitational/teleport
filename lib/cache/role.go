@@ -25,6 +25,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/forproto"
+)
+
+// should be kept in sync with the consts in lib/services/local/access.go
+const (
+	roleDefaultPageSize = 100
+	roleMaxPageSize     = 16_000
 )
 
 type roleIndex struct{}
@@ -65,10 +72,7 @@ func newRoleCollection(a services.Access, w types.WatchKind) (*collection[*cache
 				}
 				return resp.GetRoles(), resp.GetNextKey(), nil
 			}
-			// the default backend page size, which we unfortunately have to
-			// just know on the client side to support page size scaling
-			const pageSize = 100
-			return stream.Collect(stream.TryMap(clientutils.ResourcesWithPageSize(ctx, pageFunc, pageSize), newCachedRole))
+			return stream.Collect(stream.TryMap(clientutils.ResourcesWithPageSize(ctx, pageFunc, roleDefaultPageSize), newCachedRole))
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *cachedRole {
 			return &cachedRole{
@@ -129,11 +133,10 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 	// Match the page sizing behavior from backend reads.
 	pageSize := int(req.Limit)
 	if pageSize == 0 {
-		pageSize = 100
+		pageSize = roleDefaultPageSize
 	}
 
-	const maxPageSize = 16_000
-	if pageSize > maxPageSize {
+	if pageSize > roleMaxPageSize {
 		return nil, trace.BadParameter("page size of %d is too large", pageSize)
 	}
 
@@ -156,6 +159,54 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 
 	}
 	return &resp, nil
+}
+
+// ListRolesForProto implements [authclient.Cache].
+func (c *Cache) ListRolesForProto(ctx context.Context, req *proto.ListRolesRequest) (_ []forproto.Role, nextPageToken string, _ error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListRolesForProto")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.roles)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		return forproto.FromListRoles(c.Config.Access.ListRoles(ctx, req))
+	}
+
+	// Match the page sizing behavior from backend reads.
+	pageSize := int(req.Limit)
+	if pageSize == 0 {
+		pageSize = roleDefaultPageSize
+	}
+
+	if pageSize > roleMaxPageSize {
+		return nil, "", trace.BadParameter("page size of %d is too large", pageSize)
+	}
+
+	var start string
+	if req.StartKey != "" {
+		start = roleNameIndexKeyForName(req.StartKey)
+	}
+
+	var roles []forproto.Role
+	for cr := range rg.store.resources(roleNameIndex, start, "") {
+		if req.Filter != nil && !req.Filter.Match(cr.rsc) {
+			continue
+		}
+
+		if len(roles) >= pageSize {
+			return roles, cr.rsc.Metadata.Name, nil
+		}
+
+		var role forproto.Role
+		role.SetWire(cr.rsc, cr.wire)
+		roles = append(roles, role)
+	}
+
+	return roles, "", nil
 }
 
 // GetRole is a part of auth.Cache implementation

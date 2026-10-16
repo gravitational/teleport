@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/forproto"
 )
 
 type userIndex struct{}
@@ -201,17 +202,62 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 	return &resp, nil
 }
 
+// ListUsersForProto implements [authclient.Cache].
+func (c *Cache) ListUsersForProto(ctx context.Context, req *userspb.ListUsersRequest) (_ []forproto.User, nextPageToken string, _ error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUsersForProto")
+	defer span.End()
+
+	if req.GetWithSecrets() {
+		// cache never tracks user secrets
+		return forproto.FromListUsers(c.Config.Users.ListUsers(ctx, req))
+	}
+
+	rg, err := acquireReadGuard(c, c.collections.users)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		return forproto.FromListUsers(c.Config.Users.ListUsers(ctx, req))
+	}
+
+	// Adjust page size, so it can't be too large.
+	pageSize := int(req.GetPageSize())
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	var start string
+	if pageToken := req.GetPageToken(); pageToken != "" {
+		start = userNameIndexKeyForName(pageToken)
+	}
+
+	var users []forproto.User
+	for cu := range rg.store.resources(userNameIndex, start, "") {
+		if req.HasFilter() && !req.GetFilter().Match(cu.rsc) {
+			continue
+		}
+
+		if len(users) >= pageSize {
+			return users, cu.rsc.Metadata.Name, nil
+		}
+
+		var user forproto.User
+		user.SetWire(cu.rsc, cu.wire)
+		users = append(users, user)
+	}
+
+	return users, "", nil
+}
+
 // RangeUsers returns users within the range [start, end), without secrets.
 func (c *Cache) RangeUsers(ctx context.Context, start, end string) iter.Seq2[types.User, error] {
-	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*types.UserV2, string, error) {
-		resp, err := c.ListUsers(ctx, userspb.ListUsersRequest_builder{
+	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]forproto.User, string, error) {
+		return c.ListUsersForProto(ctx, userspb.ListUsersRequest_builder{
 			PageSize:  int32(pageSize),
 			PageToken: pageToken,
 		}.Build())
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		return resp.GetUsers(), resp.GetNextPageToken(), nil
 	}
 
 	// users are sorted by userNameIndexKeyForName, so to check the end we have
@@ -219,12 +265,21 @@ func (c *Cache) RangeUsers(ctx context.Context, start, end string) iter.Seq2[typ
 	if end != "" {
 		end = userNameIndexKeyForName(end)
 	}
-	keyFunc := func(user *types.UserV2) string {
-		return userNameIndexKeyForName(user.Metadata.Name)
+	keyFunc := func(user forproto.User) string {
+		return userNameIndexKeyForName(user.Extra.Name)
 	}
 
-	return stream.Map(
+	// if the chunks from the pageFunc are from a healthy cache then they are
+	// very cheap to copy out, and the unmarshaling will happen right before
+	// yielding the user from the iterator, so we only have one unmarshaled user
+	// in memory at a time
+	return stream.TryMap(
 		clientutils.RangeResources(ctx, start, end, pageFunc, keyFunc),
-		func(user *types.UserV2) types.User { return user },
+		func(user forproto.User) (types.User, error) {
+			if err := user.ToActual(); err != nil {
+				return nil, err
+			}
+			return user.Actual, nil
+		},
 	)
 }
