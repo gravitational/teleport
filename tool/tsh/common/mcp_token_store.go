@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/scopes"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
@@ -194,11 +195,12 @@ func newMCPOAuthHeaderSource(dialer *client.MCPServerDialer, credsPath, mutation
 				return nil, trace.Wrap(err)
 			}
 			resourceURI := app.GetURI()
+			authServerMetadataURL := appMCPOAuthConfig(app).AuthServerMetadataUrl
 			oauthBaseURL, err := mcpOAuthDiscoveryBaseURL(resourceURI)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			httpClient, err := newMCPOAuthHTTPClient(dialer, resourceURI)
+			httpClient, err := newMCPOAuthHTTPClient(dialer, resourceURI, authServerMetadataURL)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -266,7 +268,22 @@ func (s *mcpOAuthHeaderSource) loadCredentials(ctx context.Context) (*mcpOAuthCr
 	return creds, nil
 }
 
+// oauthEnabled reports whether stored credentials may be sent for the app.
+// They are not when the app is configured as not using OAuth.
+func (s *mcpOAuthHeaderSource) oauthEnabled(ctx context.Context) (bool, error) {
+	app, err := s.dialer.GetApp(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return appMCPOAuthConfig(app).Mode != types.MCPOAuthModeNotRequired, nil
+}
+
 func (s *mcpOAuthHeaderSource) GetAuthHeader(ctx context.Context) (string, error) {
+	if enabled, err := s.oauthEnabled(ctx); err != nil {
+		return "", trace.Wrap(err)
+	} else if !enabled {
+		return "", nil
+	}
 	creds, err := s.loadCredentials(ctx)
 	if _, ok := errors.AsType[*mcpOAuthLoginRequiredError](err); ok {
 		// Nothing usable is stored: send the request without a token and let
@@ -283,6 +300,11 @@ func (s *mcpOAuthHeaderSource) GetAuthHeader(ctx context.Context) (string, error
 }
 
 func (s *mcpOAuthHeaderSource) RefreshAuthHeader(ctx context.Context, rejectedHeader string) (string, error) {
+	if enabled, err := s.oauthEnabled(ctx); err != nil {
+		return "", trace.Wrap(err)
+	} else if !enabled {
+		return "", nil
+	}
 	return s.refreshAuthHeader(ctx, rejectedHeader)
 }
 

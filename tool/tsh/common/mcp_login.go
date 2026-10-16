@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -135,6 +136,9 @@ func (c *mcpLoginCommand) run() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if c.applyAppOAuthDefaults(ctx, app) {
+		fmt.Fprintf(c.cf.Stdout(), "Using OAuth settings configured for MCP server %q.\n", app.GetName())
+	}
 	credsPath, err := mcpOAuthTokenPath(c.cf.HomePath, tc.WebProxyHost(), tc.Username, tc.SiteName, c.cf.AppSQN)
 	if err != nil {
 		return trace.Wrap(err)
@@ -215,6 +219,13 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 	if types.GetMCPServerTransportType(cfg.App.GetURI()) != types.MCPTransportHTTP {
 		return trace.BadParameter("MCP server %q does not use HTTP transport; OAuth login only applies to HTTP MCP servers", cfg.App.GetName())
 	}
+	appOAuth := appMCPOAuthConfig(cfg.App)
+	if appOAuth.Mode == types.MCPOAuthModeNotRequired {
+		// because oauth_mode defaults to "not specified", this means that an admin has specifically set
+		// to "not required" here, which would mean they are preventing oauth from happening so we can stop trying from here
+		fmt.Fprintf(cfg.Stdout, "MCP server %q is configured as not using OAuth, so OAuth login is not required.\n", cfg.App.GetName())
+		return nil
+	}
 	resourceURI := cfg.App.GetURI()
 	if cfg.Automatic {
 		if cfg.StoredCredentials == nil {
@@ -237,7 +248,7 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 		defer unlock()
 	}
 
-	httpClient, err := newMCPOAuthHTTPClient(cfg.Dialer, resourceURI)
+	httpClient, err := newMCPOAuthHTTPClient(cfg.Dialer, resourceURI, appOAuth.AuthServerMetadataUrl)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -258,7 +269,9 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 	switch {
 	case err != nil:
 		logger.DebugContext(ctx, "Failed to probe the MCP server for an OAuth challenge", "error", err)
-	case status >= http.StatusOK && status < http.StatusMultipleChoices:
+	case status >= http.StatusOK && status < http.StatusMultipleChoices && appOAuth.Mode != types.MCPOAuthModeRequired:
+		// An app configured as requiring OAuth always logs in, even when
+		// initialize works without a token.
 		fmt.Fprintf(cfg.Stdout, "MCP server %q accepted an unauthenticated request, so OAuth login is not required.\n", cfg.App.GetName())
 		return nil
 	}
@@ -690,6 +703,47 @@ func isMCPClientRegistrationRejected(err error) bool {
 	return trace.IsAccessDenied(err)
 }
 
+// applyAppOAuthDefaults fills the OAuth settings that were not set with flags
+// from the app's mcp.oauth configuration, and reports whether it used any.
+func (c *mcpLoginCommand) applyAppOAuthDefaults(ctx context.Context, app types.Application) bool {
+	appOAuth := appMCPOAuthConfig(app)
+	var applied []slog.Attr
+	if c.clientID == "" && appOAuth.ClientId != "" {
+		c.clientID = appOAuth.ClientId
+		applied = append(applied, slog.String("client_id", c.clientID))
+	}
+	// Both flags set the callback address, so either one replaces the app's.
+	// this gives the user the option to override these with one or the other
+	// instead of hitting the mututally exclusive error, if they choose.
+	if c.callbackPort == 0 && c.redirectURI == "" {
+		if appOAuth.CallbackPort != 0 {
+			c.callbackPort = uint16(appOAuth.CallbackPort)
+			applied = append(applied, slog.Int("callback_port", int(c.callbackPort)))
+		}
+		if appOAuth.RedirectUri != "" {
+			c.redirectURI = appOAuth.RedirectUri
+			applied = append(applied, slog.String("redirect_uri", c.redirectURI))
+		}
+	}
+	if len(c.scopes) == 0 && len(appOAuth.Scopes) > 0 {
+		c.scopes = appOAuth.Scopes
+		applied = append(applied, slog.String("scopes", strings.Join(c.scopes, " ")))
+	}
+	if len(applied) > 0 {
+		logger.LogAttrs(ctx, slog.LevelDebug, "Using OAuth settings from the MCP server's app configuration", applied...)
+	}
+	return len(applied) > 0
+}
+
+// appMCPOAuthConfig returns the app's mcp.oauth configuration, or an empty one
+// when the app has none.
+func appMCPOAuthConfig(app types.Application) *types.MCPOAuth {
+	if mcp := app.GetMCP(); mcp != nil && mcp.Oauth != nil {
+		return mcp.Oauth
+	}
+	return &types.MCPOAuth{}
+}
+
 func (c *mcpLoginCommand) getOAuthClientCredentials() (string, string, error) {
 	clientID := strings.TrimSpace(c.clientID)
 	if !c.promptSecret {
@@ -819,7 +873,7 @@ func validateMCPOAuthDirectURL(ctx context.Context, rawURL, name string) error {
 	}
 	return nil
 }
-func newMCPOAuthHTTPClient(dialer *client.MCPServerDialer, appURI string) (*http.Client, error) {
+func newMCPOAuthHTTPClient(dialer *client.MCPServerDialer, appURI, authServerMetadataURL string) (*http.Client, error) {
 	oauthBaseURL, err := mcpOAuthDiscoveryBaseURL(appURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -853,11 +907,12 @@ func newMCPOAuthHTTPClient(dialer *client.MCPServerDialer, appURI string) (*http
 	proxied.Proxy = proxyFromEnvironment
 	return &http.Client{
 		Transport: &hostRoutingTransport{
-			tunneled:        tunneled,
-			direct:          direct,
-			proxied:         proxied,
-			proxy:           proxyFromEnvironment,
-			mcpServerOrigin: parsedBaseURL,
+			tunneled:              tunneled,
+			direct:                direct,
+			proxied:               proxied,
+			proxy:                 proxyFromEnvironment,
+			mcpServerOrigin:       parsedBaseURL,
+			authServerMetadataURL: authServerMetadataURL,
 		},
 		// Token and registration requests carry credentials in their bodies,
 		// which a 307 or 308 would replay to the redirect target.
@@ -884,9 +939,16 @@ type hostRoutingTransport struct {
 	proxied         http.RoundTripper
 	proxy           func(*http.Request) (*url.URL, error)
 	mcpServerOrigin *url.URL
+	// authServerMetadataURL is the authorization server metadata URL configured
+	// for the MCP server. When set, it answers every authorization server
+	// metadata request, and its issuer is not checked against the URL.
+	authServerMetadataURL string
 }
 
 func (t *hostRoutingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if t.authServerMetadataURL != "" && isAuthServerMetadataRequest(r) {
+		return t.configuredAuthServerMetadata(r)
+	}
 	resp, err := t.roundTrip(r)
 	if err != nil {
 		return resp, err
@@ -907,14 +969,45 @@ func (t *hostRoutingTransport) RoundTrip(r *http.Request) (*http.Response, error
 		}
 	}
 
-	if err := validateMCPOAuthMetadataResponse(r, resp, t.mcpServerOrigin.String()); err != nil {
+	if err := validateMCPOAuthMetadataResponse(r, resp, t.mcpServerOrigin.String(), t.authServerMetadataURL); err != nil {
 		closeOAuthResponse(resp)
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
 }
 
-func validateMCPOAuthMetadataResponse(req *http.Request, resp *http.Response, expectedResource string) error {
+// isAuthServerMetadataRequest reports whether r starts a request for
+// authorization server or OpenID Connect metadata.
+func isAuthServerMetadataRequest(r *http.Request) bool {
+	root, ok := oauthMetadataRootPath(r.URL.Path)
+	return ok && r.Method == http.MethodGet && r.Response == nil && root != mcputils.OAuthProtectedResourceMetadataPath
+}
+
+// configuredAuthServerMetadata answers an authorization server metadata
+// request with the configured document. mcp-go still discovers protected
+// resource metadata, which sets the RFC 8707 resource indicator.
+func (t *hostRoutingTransport) configuredAuthServerMetadata(r *http.Request) (*http.Response, error) {
+	logger.DebugContext(r.Context(), "Using the configured OAuth authorization server metadata URL", "requested", r.URL.String(), "configured", t.authServerMetadataURL)
+	metadataURL, err := url.Parse(t.authServerMetadataURL)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing OAuth authorization server metadata URL")
+	}
+	configured := r.Clone(r.Context())
+	configured.URL = metadataURL
+	configured.Host = ""
+	resp, err := t.roundTrip(configured)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if isHTTPRedirect(resp.StatusCode) {
+		closeOAuthResponse(resp)
+		return nil, trace.BadParameter("OAuth authorization server metadata URL %q redirected; configure the final URL", t.authServerMetadataURL)
+	}
+	resp.Request = r
+	return resp, nil
+}
+
+func validateMCPOAuthMetadataResponse(req *http.Request, resp *http.Response, expectedResource, authServerMetadataURL string) error {
 	metadataURL, rootPath, ok := oauthMetadataChainOrigin(req)
 	if !ok || resp == nil || resp.StatusCode != http.StatusOK {
 		return nil
@@ -941,9 +1034,14 @@ func validateMCPOAuthMetadataResponse(req *http.Request, resp *http.Response, ex
 		if !mcpOAuthResourceCoversServer(metadata.Resource, expectedResource) {
 			return trace.BadParameter("OAuth protected resource metadata identifies resource %q, expected %q or a parent of it", metadata.Resource, expectedResource)
 		}
-		if discovery, ok := req.Context().Value(mcpOAuthDiscoveryStateKey{}).(*mcpOAuthDiscoveryState); ok && len(metadata.AuthorizationServers) > 0 {
+		// A configured metadata document replaces the advertised server.
+		if discovery, ok := req.Context().Value(mcpOAuthDiscoveryStateKey{}).(*mcpOAuthDiscoveryState); ok && authServerMetadataURL == "" && len(metadata.AuthorizationServers) > 0 {
 			discovery.advertisedAuthorizationServer = metadata.AuthorizationServers[0]
 		}
+		return nil
+	}
+	// The admin chose this document, so its issuer may differ from its URL.
+	if authServerMetadataURL != "" {
 		return nil
 	}
 	// RFC 8414 section 3.3: the issuer must match the URL the metadata was
