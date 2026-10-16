@@ -243,6 +243,47 @@ spec:
                   command:
                     description: Command to launch stdio-based MCP servers.
                     type: string
+                  oauth:
+                    description: Oauth contains the OAuth settings clients use to
+                      log in to the MCP server. Only supported for MCP servers using
+                      streamable HTTP transport.
+                    nullable: true
+                    properties:
+                      auth_server_metadata_url:
+                        description: AuthServerMetadataUrl is the URL of the OAuth
+                          authorization server metadata document, such as "https://auth.example.com/.well-known/oauth-authorization-server".
+                          When set, clients fetch the metadata from it instead of
+                          discovering it from the MCP server, and do not check its
+                          issuer against the URL.
+                        type: string
+                      callback_port:
+                        description: CallbackPort is the local port of the OAuth callback
+                          registered with the OAuth provider. Mutually exclusive with
+                          redirect_uri.
+                        format: int32
+                        type: integer
+                      client_id:
+                        description: ClientId is the OAuth client ID of a pre-registered
+                          client. When set, clients skip dynamic client registration.
+                        type: string
+                      mode:
+                        description: 'Mode declares whether the MCP server requires
+                          OAuth. When empty, it is unspecified. Supported values:
+                          "required" (the MCP server requires OAuth), "not_required"
+                          (the MCP server does not use OAuth)'
+                        type: string
+                      redirect_uri:
+                        description: RedirectUri is the loopback OAuth redirect URI
+                          registered with the OAuth provider, such as "http://localhost:3118/callback".
+                          Mutually exclusive with callback_port.
+                        type: string
+                      scopes:
+                        description: Scopes is the list of OAuth scopes to request.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   run_as_host_user:
                     description: RunAsHostUser is the host user account under which
                       the command will be executed. Required for stdio-based MCP servers.

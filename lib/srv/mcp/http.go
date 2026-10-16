@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -241,6 +242,22 @@ func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.
 	if err := t.rewriteHTTPRequestHeaders(r); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Local MCP clients such as tsh, Teleport Connect and tsh proxy mcp reach
+	// the proxy at a loopback address, which the proxy forwards as
+	// X-Forwarded-Host. Some MCP servers build URLs such as OAuth protected
+	// resource metadata from it, or reject the request outright.
+	forwardedHost := (&url.URL{Host: r.Header.Get(reverseproxy.XForwardedHost)}).Hostname()
+	if forwardedHost != "" && utils.IsLocalhost(forwardedHost) {
+		r.Header.Set(reverseproxy.XForwardedHost, t.targetURI.Host)
+	}
+	// Clients always reach the proxy over TLS, but the upstream is reached with
+	// the app's scheme and port.
+	defaultPort := "443"
+	if t.targetURI.Scheme == "http" {
+		defaultPort = "80"
+	}
+	r.Header.Set(reverseproxy.XForwardedProto, t.targetURI.Scheme)
+	r.Header.Set(reverseproxy.XForwardedPort, cmp.Or(t.targetURI.Port(), defaultPort))
 
 	if r.Method == http.MethodGet && (r.URL.Path == mcputils.OAuthProtectedResourceMetadataPath ||
 		strings.HasPrefix(r.URL.Path, mcputils.OAuthProtectedResourceMetadataPath+"/")) {

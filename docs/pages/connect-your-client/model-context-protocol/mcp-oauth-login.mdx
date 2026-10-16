@@ -24,13 +24,15 @@ tools you can call. The OAuth token only satisfies the MCP server itself.
 
 When you run `tsh mcp login`, `tsh` first sends an unauthenticated MCP
 `initialize` request to the server through Teleport. If the server accepts it,
-no login is needed and the command exits. If the server answers with HTTP `401`,
-`tsh` continues:
+no login is needed and the command exits. If your Teleport administrator
+configured the MCP server as not using OAuth, `tsh` exits without sending the
+request. If the server answers with HTTP `401`, `tsh` continues:
 
 - It finds the authorization server named in the MCP server's OAuth protected
   resource metadata, then reads that authorization server's metadata.
 - It registers an OAuth client named `Teleport tsh` using dynamic client
-  registration, unless you supply a pre-registered client with `--client-id`.
+  registration, unless you supply a pre-registered client with `--client-id` or
+  your Teleport administrator configured one for the MCP server.
 - It opens your browser to the provider's authorization page and listens on a
   loopback callback address, `http://127.0.0.1:<port>/callback` by default,
   for the result. You have three minutes to finish authorizing.
@@ -53,7 +55,9 @@ using the same client and redirect URI as your original login.
 
 Stored credentials are bound to the MCP server's URI and to the authorization
 server that issued them. If your Teleport administrator changes the URI of the
-MCP server, run `tsh mcp login` again.
+MCP server, run `tsh mcp login` again. Do the same if your administrator changes
+the OAuth settings configured for the MCP server, because automatic logins keep
+using the client and redirect URI from your original login.
 
 ## Prerequisites
 
@@ -133,16 +137,21 @@ Teleport credentials.
 
 ## `tsh mcp login` flags
 
-By default, `tsh mcp login` needs no flags. Use them when the OAuth provider
-does not support dynamic client registration or expects particular values.
+By default, `tsh mcp login` needs no flags. Your Teleport administrator can
+[configure](../../enroll-resources/mcp-access/reference.mdx#configuration) a
+client ID, callback address, and scopes for the MCP server, and `tsh` uses them
+for any flag you don't set. `--callback-port` or `--redirect-uri` replaces the
+configured callback address. Use flags when the
+OAuth provider does not support dynamic client registration or expects
+particular values.
 
 |Flag|Purpose|
 |---|---|
 |`--client-id`|Uses an OAuth client that is already registered with the provider instead of registering a new one.|
-|`--client-secret`|Prompts for the secret of a confidential pre-registered client. Requires `--client-id`. The secret is stored with the tokens so `tsh` can refresh them.|
+|`--client-secret`|Prompts for the secret of a confidential pre-registered client. Requires `--client-id` or a client ID configured for the MCP server. The secret is stored with the tokens so `tsh` can refresh them.|
 |`--callback-port`|Listens on a fixed port, making the redirect URI `http://127.0.0.1:<port>/callback`. Set it to match the redirect URI registered for your client.|
 |`--redirect-uri`|Sets the exact loopback redirect URI, such as `http://localhost:3118/callback`. Use it when the registered redirect URI uses `localhost` or another loopback address instead of `127.0.0.1`. Cannot be combined with `--callback-port`.|
-|`--oauth-scope`|Sets the OAuth scopes to request. Separate scopes with commas or spaces, or repeat the flag. Without it, `tsh` requests the scopes named in the server's `401` challenge, then the scopes listed in its protected resource metadata.|
+|`--oauth-scope`|Sets the OAuth scopes to request. Separate scopes with commas or spaces, or repeat the flag. Without it, `tsh` requests the scopes configured for the MCP server, then the scopes named in the server's `401` challenge, then the scopes listed in its protected resource metadata.|
 |`--browser`|Set to `none` to print the authorization URL instead of opening a browser.|
 
 To log in with a pre-registered client, register
@@ -262,6 +271,14 @@ MCP server "my-mcp-server" accepted an unauthenticated request, so OAuth login i
 The MCP server accepted an `initialize` request without a token, so `tsh` did
 not start an OAuth flow. Connect to the server without logging in.
 
+```text
+MCP server "my-mcp-server" is configured as not using OAuth, so OAuth login is not required.
+```
+
+Your Teleport administrator configured the MCP server as not using OAuth. If the
+MCP server does require a login, ask your administrator to change its
+configuration.
+
 ### The MCP server does not use HTTP transport
 
 ```text
@@ -276,4 +293,5 @@ MCP servers do not use MCP OAuth.
 
 - [Access MCP Servers with Teleport](./mcp-access.mdx)
 - [MCP Access Control](../../enroll-resources/mcp-access/rbac.mdx)
+- [MCP access reference](../../enroll-resources/mcp-access/reference.mdx), including the OAuth settings for MCP servers
 - [`tsh` CLI reference](../../reference/cli/tsh.mdx)

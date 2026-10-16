@@ -1203,6 +1203,39 @@ message MCP {
   // RunAsHostUser is the host user account under which the command will be
   // executed. Required for stdio-based MCP servers.
   string run_as_host_user = 3;
+  // Oauth contains the OAuth settings clients use to log in to the MCP
+  // server. Only supported for MCP servers using streamable HTTP transport.
+  MCPOAuth oauth = 4;
+}
+
+// MCPOAuth contains the OAuth settings clients such as tsh use to log in to an
+// OAuth-protected MCP server. These are defaults for clients and are not
+// enforced by Teleport.
+message MCPOAuth {
+  // Mode declares whether the MCP server requires OAuth. When empty, it is
+  // unspecified.
+  // Supported values:
+  //   "required" (the MCP server requires OAuth),
+  //   "not_required" (the MCP server does not use OAuth)
+  string mode = 1;
+  // ClientId is the OAuth client ID of a pre-registered client. When set,
+  // clients skip dynamic client registration.
+  string client_id = 2;
+  // CallbackPort is the local port of the OAuth callback registered with the
+  // OAuth provider. Mutually exclusive with redirect_uri.
+  uint32 callback_port = 3;
+  // RedirectUri is the loopback OAuth redirect URI registered with the OAuth
+  // provider, such as "http://localhost:3118/callback". Mutually exclusive
+  // with callback_port.
+  string redirect_uri = 4;
+  // Scopes is the list of OAuth scopes to request.
+  repeated string scopes = 5;
+  // AuthServerMetadataUrl is the URL of the OAuth authorization server
+  // metadata document, such as
+  // "https://auth.example.com/.well-known/oauth-authorization-server". When
+  // set, clients fetch the metadata from it instead of discovering it from the
+  // MCP server, and do not check its issuer against the URL.
+  string auth_server_metadata_url = 6;
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

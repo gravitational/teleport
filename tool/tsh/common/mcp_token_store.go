@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/scopes"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/client"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
@@ -50,31 +51,38 @@ const (
 
 // mcpOAuthCredentials is what `tsh mcp login` stores for one MCP server: the
 // OAuth token plus the client registration needed to refresh it or repeat the
-// login without registering again. ResourceURI and Issuer bind the
-// credentials to the server and authorization server they were issued for,
-// so they cannot follow an app name to a replacement upstream.
+// login without registering again. ResourceURI, AuthServerMetadataURL and
+// Issuer bind the credentials to the server and authorization server they
+// were issued for, so they cannot follow an app name to a replacement upstream.
 type mcpOAuthCredentials struct {
-	ResourceURI  string                   `json:"resource_uri"`
-	Issuer       string                   `json:"issuer"`
-	ClientID     string                   `json:"client_id"`
-	ClientSecret string                   `json:"client_secret,omitempty"`
-	RedirectURI  string                   `json:"redirect_uri,omitempty"`
-	Scopes       []string                 `json:"scopes,omitempty"`
-	Token        mcpclienttransport.Token `json:"token"`
+	ResourceURI string `json:"resource_uri"`
+	// AuthServerMetadataURL is the app's configured authorization server
+	// metadata URL at login. That document's issuer is not checked against
+	// its URL, so the URL itself must stay bound to the credentials.
+	AuthServerMetadataURL string                   `json:"auth_server_metadata_url,omitempty"`
+	Issuer                string                   `json:"issuer"`
+	ClientID              string                   `json:"client_id"`
+	ClientSecret          string                   `json:"client_secret,omitempty"`
+	RedirectURI           string                   `json:"redirect_uri,omitempty"`
+	Scopes                []string                 `json:"scopes,omitempty"`
+	Token                 mcpclienttransport.Token `json:"token"`
 }
 
-func (c *mcpOAuthCredentials) checkResource(resourceURI string) error {
+func (c *mcpOAuthCredentials) checkResource(resourceURI, authServerMetadataURL string) error {
 	if c.ResourceURI == "" || c.Issuer == "" {
 		return trace.BadParameter("stored MCP OAuth credentials are missing their resource or issuer binding")
 	}
 	if c.ResourceURI != resourceURI {
 		return trace.BadParameter("stored MCP OAuth credentials are bound to a different resource")
 	}
+	if c.AuthServerMetadataURL != authServerMetadataURL {
+		return trace.BadParameter("stored MCP OAuth credentials are bound to a different authorization server metadata URL")
+	}
 	return nil
 }
 
-func (c *mcpOAuthCredentials) checkBinding(resourceURI, issuer string) error {
-	if err := c.checkResource(resourceURI); err != nil {
+func (c *mcpOAuthCredentials) checkBinding(resourceURI, authServerMetadataURL, issuer string) error {
+	if err := c.checkResource(resourceURI, authServerMetadataURL); err != nil {
 		return err
 	}
 	if c.Issuer != issuer {
@@ -126,10 +134,11 @@ func loadMCPOAuthCredentials(path string) (*mcpOAuthCredentials, error) {
 }
 
 type fileTokenStore struct {
-	path             string
-	mutationLockPath string
-	resourceURI      string
-	issuer           string
+	path                  string
+	mutationLockPath      string
+	resourceURI           string
+	authServerMetadataURL string
+	issuer                string
 }
 
 func (s *fileTokenStore) GetToken(ctx context.Context) (*mcpclienttransport.Token, error) {
@@ -143,7 +152,7 @@ func (s *fileTokenStore) GetToken(ctx context.Context) (*mcpclienttransport.Toke
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := creds.checkBinding(s.resourceURI, s.issuer); err != nil {
+	if err := creds.checkBinding(s.resourceURI, s.authServerMetadataURL, s.issuer); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &creds.Token, nil
@@ -159,7 +168,7 @@ func (s *fileTokenStore) SaveToken(ctx context.Context, token *mcpclienttranspor
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := creds.checkBinding(s.resourceURI, s.issuer); err != nil {
+		if err := creds.checkBinding(s.resourceURI, s.authServerMetadataURL, s.issuer); err != nil {
 			return trace.Wrap(err)
 		}
 		creds.Token = *token
@@ -194,11 +203,12 @@ func newMCPOAuthHeaderSource(dialer *client.MCPServerDialer, credsPath, mutation
 				return nil, trace.Wrap(err)
 			}
 			resourceURI := app.GetURI()
+			authServerMetadataURL := appMCPOAuthConfig(app).AuthServerMetadataUrl
 			oauthBaseURL, err := mcpOAuthDiscoveryBaseURL(resourceURI)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			httpClient, err := newMCPOAuthHTTPClient(dialer, resourceURI)
+			httpClient, err := newMCPOAuthHTTPClient(dialer, resourceURI, authServerMetadataURL)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -208,10 +218,11 @@ func newMCPOAuthHeaderSource(dialer *client.MCPServerDialer, credsPath, mutation
 				PKCEEnabled:  true,
 				HTTPClient:   httpClient,
 				TokenStore: &fileTokenStore{
-					path:             credsPath,
-					mutationLockPath: mutationLockPath,
-					resourceURI:      resourceURI,
-					issuer:           creds.Issuer,
+					path:                  credsPath,
+					mutationLockPath:      mutationLockPath,
+					resourceURI:           resourceURI,
+					authServerMetadataURL: authServerMetadataURL,
+					issuer:                creds.Issuer,
 				},
 			})
 			oauthHandler.SetBaseURL(oauthBaseURL)
@@ -219,7 +230,7 @@ func newMCPOAuthHeaderSource(dialer *client.MCPServerDialer, credsPath, mutation
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if err := creds.checkBinding(resourceURI, metadata.Issuer); err != nil {
+			if err := creds.checkBinding(resourceURI, authServerMetadataURL, metadata.Issuer); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return oauthHandler.RefreshToken(ctx, creds.Token.RefreshToken)
@@ -260,13 +271,28 @@ func (s *mcpOAuthHeaderSource) loadCredentials(ctx context.Context) (*mcpOAuthCr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := creds.checkResource(app.GetURI()); err != nil {
+	if err := creds.checkResource(app.GetURI(), appMCPOAuthConfig(app).AuthServerMetadataUrl); err != nil {
 		return nil, trace.Wrap(&mcpOAuthLoginRequiredError{appName: s.appName, reason: err})
 	}
 	return creds, nil
 }
 
+// oauthEnabled reports whether stored credentials may be sent for the app.
+// They are not when the app is configured as not using OAuth.
+func (s *mcpOAuthHeaderSource) oauthEnabled(ctx context.Context) (bool, error) {
+	app, err := s.dialer.GetApp(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return appMCPOAuthConfig(app).Mode != types.MCPOAuthModeNotRequired, nil
+}
+
 func (s *mcpOAuthHeaderSource) GetAuthHeader(ctx context.Context) (string, error) {
+	if enabled, err := s.oauthEnabled(ctx); err != nil {
+		return "", trace.Wrap(err)
+	} else if !enabled {
+		return "", nil
+	}
 	creds, err := s.loadCredentials(ctx)
 	var loginRequired *mcpOAuthLoginRequiredError
 	if errors.As(err, &loginRequired) {
@@ -284,6 +310,11 @@ func (s *mcpOAuthHeaderSource) GetAuthHeader(ctx context.Context) (string, error
 }
 
 func (s *mcpOAuthHeaderSource) RefreshAuthHeader(ctx context.Context, rejectedHeader string) (string, error) {
+	if enabled, err := s.oauthEnabled(ctx); err != nil {
+		return "", trace.Wrap(err)
+	} else if !enabled {
+		return "", nil
+	}
 	return s.refreshAuthHeader(ctx, rejectedHeader)
 }
 

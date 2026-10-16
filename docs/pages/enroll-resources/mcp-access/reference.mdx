@@ -56,6 +56,37 @@ app_service:
       # Name of the host user account under which the command will be
       # executed. Required for stdio-based MCP servers.
       run_as_host_user: "docker"
+      # OAuth settings for streamable HTTP MCP servers that require their own
+      # OAuth login. "tsh mcp login" uses these values when the user does not
+      # set the matching flags. Teleport does not enforce them.
+      oauth:
+        # Whether the MCP server requires OAuth.
+        # Options:
+        # - required: the MCP server requires OAuth
+        # - not_required: the MCP server does not use OAuth, and
+        #   "tsh mcp login" stops without logging in. Cannot be combined with
+        #   the other OAuth settings.
+        # Default: unset, "tsh mcp login" checks the MCP server
+        mode: required
+        # Client ID of an OAuth client registered with the provider. When set,
+        # tsh skips dynamic client registration. Users of a confidential
+        # client pass "--client-secret" to "tsh mcp login".
+        client_id: "1234.5678"
+        # Local port of the redirect URI registered for the client, making it
+        # "http://127.0.0.1:<port>/callback". Mutually exclusive with
+        # redirect_uri, so set only one of them.
+        callback_port: 3118
+        # Exact loopback redirect URI registered for the client. Use it instead
+        # of callback_port when the registered URI uses "localhost". Mutually
+        # exclusive with callback_port, so set only one of them.
+        redirect_uri: "http://localhost:3118/callback"
+        # OAuth scopes to request.
+        scopes: ["read", "write"]
+        # URL of the OAuth authorization server metadata document. When set, tsh
+        # fetches the metadata from it instead of discovering it from the MCP
+        # server, and does not check its issuer against the URL. Use it for MCP
+        # servers whose OAuth discovery fails.
+        auth_server_metadata_url: "https://mcp.example.com/.well-known/oauth-authorization-server"
 
     # Disable TLS validation for SSE and streamable HTTP MCP servers.
     insecure_skip_verify: true
@@ -110,6 +141,37 @@ spec:
     # Name of the host user account under which the command will be
     # executed. Required for stdio-based MCP servers.
     run_as_host_user: "docker"
+    # OAuth settings for streamable HTTP MCP servers that require their own
+    # OAuth login. "tsh mcp login" uses these values when the user does not
+    # set the matching flags. Teleport does not enforce them.
+    oauth:
+      # Whether the MCP server requires OAuth.
+      # Options:
+      # - required: the MCP server requires OAuth
+      # - not_required: the MCP server does not use OAuth, and
+      #   "tsh mcp login" stops without logging in. Cannot be combined with
+      #   the other OAuth settings.
+      # Default: unset, "tsh mcp login" checks the MCP server
+      mode: required
+      # Client ID of an OAuth client registered with the provider. When set,
+      # tsh skips dynamic client registration. Users of a confidential
+      # client pass "--client-secret" to "tsh mcp login".
+      client_id: "1234.5678"
+      # Local port of the redirect URI registered for the client, making it
+      # "http://127.0.0.1:<port>/callback". Mutually exclusive with
+      # redirect_uri, so set only one of them.
+      callback_port: 3118
+      # Exact loopback redirect URI registered for the client. Use it instead
+      # of callback_port when the registered URI uses "localhost". Mutually
+      # exclusive with callback_port, so set only one of them.
+      redirect_uri: "http://localhost:3118/callback"
+      # OAuth scopes to request.
+      scopes: ["read", "write"]
+      # URL of the OAuth authorization server metadata document. When set, tsh
+      # fetches the metadata from it instead of discovering it from the MCP
+      # server, and does not check its issuer against the URL. Use it for MCP
+      # servers whose OAuth discovery fails.
+      auth_server_metadata_url: "https://mcp.example.com/.well-known/oauth-authorization-server"
 
   # Disable TLS validation for SSE and streamable HTTP MCP servers.
   insecure_skip_verify: true

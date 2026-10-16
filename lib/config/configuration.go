@@ -2160,6 +2160,16 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Args:          application.MCP.Args,
 				RunAsHostUser: application.MCP.RunAsHostUser,
 			}
+			if application.MCP.OAuth != nil {
+				app.MCP.Oauth = &types.MCPOAuth{
+					Mode:                  application.MCP.OAuth.Mode,
+					ClientId:              application.MCP.OAuth.ClientID,
+					CallbackPort:          application.MCP.OAuth.CallbackPort,
+					RedirectUri:           application.MCP.OAuth.RedirectURI,
+					Scopes:                application.MCP.OAuth.Scopes,
+					AuthServerMetadataUrl: application.MCP.OAuth.AuthServerMetadataURL,
+				}
+			}
 		}
 
 		if application.LLM != nil {

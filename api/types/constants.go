@@ -1080,6 +1080,10 @@ const (
 	SchemeMCPHTTPS = "mcp+https"
 	// MCPTransportHTTP indicates the MCP server uses SSE transport.
 	MCPTransportHTTP = "Streamable HTTP"
+	// MCPOAuthModeRequired indicates the MCP server requires OAuth.
+	MCPOAuthModeRequired = "required"
+	// MCPOAuthModeNotRequired indicates the MCP server does not use OAuth.
+	MCPOAuthModeNotRequired = "not_required"
 
 	// SchemeLLMEndpoint is a URI scheme for LLM inference endpoints.
 	SchemeLLMEndpoint = "llm"

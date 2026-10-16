@@ -1114,6 +1114,42 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"oauth": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"auth_server_metadata_url": {
+									Description: "AuthServerMetadataUrl is the URL of the OAuth authorization server metadata document, such as \"https://auth.example.com/.well-known/oauth-authorization-server\". When set, clients fetch the metadata from it instead of discovering it from the MCP server, and do not check its issuer against the URL.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"callback_port": {
+									Description: "CallbackPort is the local port of the OAuth callback registered with the OAuth provider. Mutually exclusive with redirect_uri.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"client_id": {
+									Description: "ClientId is the OAuth client ID of a pre-registered client. When set, clients skip dynamic client registration.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"mode": {
+									Description: "Mode declares whether the MCP server requires OAuth. When empty, it is unspecified. Supported values: \"required\" (the MCP server requires OAuth), \"not_required\" (the MCP server does not use OAuth)",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"redirect_uri": {
+									Description: "RedirectUri is the loopback OAuth redirect URI registered with the OAuth provider, such as \"http://localhost:3118/callback\". Mutually exclusive with callback_port.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"scopes": {
+									Description: "Scopes is the list of OAuth scopes to request.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+							}),
+							Description: "Oauth contains the OAuth settings clients use to log in to the MCP server. Only supported for MCP servers using streamable HTTP transport.",
+							Optional:    true,
+						},
 						"run_as_host_user": {
 							Description: "RunAsHostUser is the host user account under which the command will be executed. Required for stdio-based MCP servers.",
 							Optional:    true,
@@ -14141,6 +14177,136 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["oauth"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Oauth = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.Oauth = &github_com_gravitational_teleport_api_types.MCPOAuth{}
+													obj := obj.Oauth
+													{
+														a, ok := tf.Attrs["mode"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.mode"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.Mode = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["client_id"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.client_id"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.ClientId = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["callback_port"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.callback_port"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.callback_port", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+															} else {
+																var t uint32
+																if !v.Null && !v.Unknown {
+																	t = uint32(v.Value)
+																}
+																obj.CallbackPort = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["redirect_uri"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.redirect_uri"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.redirect_uri", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.RedirectUri = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["scopes"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.scopes"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.scopes", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.Scopes = make([]string, len(v.Elems))
+																if !v.Null && !v.Unknown {
+																	for k, a := range v.Elems {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.scopes", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Scopes[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["auth_server_metadata_url"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.MCP.oauth.auth_server_metadata_url"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.MCP.oauth.auth_server_metadata_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.AuthServerMetadataUrl = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -16145,6 +16311,201 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 											v.Value = string(obj.RunAsHostUser)
 											v.Unknown = false
 											tf.Attrs["run_as_host_user"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["oauth"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.oauth"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.oauth", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["oauth"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.Oauth == nil {
+													v.Null = true
+												} else {
+													obj := obj.Oauth
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["mode"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.oauth.mode"})
+														} else {
+															v, ok := tf.Attrs["mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.oauth.mode", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.oauth.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.Mode) == ""
+															}
+															v.Value = string(obj.Mode)
+															v.Unknown = false
+															tf.Attrs["mode"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["client_id"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.oauth.client_id"})
+														} else {
+															v, ok := tf.Attrs["client_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.oauth.client_id", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.oauth.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.ClientId) == ""
+															}
+															v.Value = string(obj.ClientId)
+															v.Unknown = false
+															tf.Attrs["client_id"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["callback_port"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.oauth.callback_port"})
+														} else {
+															v, ok := tf.Attrs["callback_port"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.oauth.callback_port", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.oauth.callback_port", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																}
+																v.Null = int64(obj.CallbackPort) == 0
+															}
+															v.Value = int64(obj.CallbackPort)
+															v.Unknown = false
+															tf.Attrs["callback_port"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["redirect_uri"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.oauth.redirect_uri"})
+														} else {
+															v, ok := tf.Attrs["redirect_uri"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.oauth.redirect_uri", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.oauth.redirect_uri", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.RedirectUri) == ""
+															}
+															v.Value = string(obj.RedirectUri)
+															v.Unknown = false
+															tf.Attrs["redirect_uri"] = v
+														}
+													}
+													{
+														a, ok := tf.AttrTypes["scopes"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.oauth.scopes"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.oauth.scopes", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																c, ok := tf.Attrs["scopes"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																if !ok {
+																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																		ElemType: o.ElemType,
+																		Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Scopes)),
+																		Null:     true,
+																	}
+																} else {
+																	if c.Elems == nil {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Scopes))
+																	}
+																}
+																if obj.Scopes != nil {
+																	t := o.ElemType
+																	if len(obj.Scopes) != len(c.Elems) {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Scopes))
+																	}
+																	for k, a := range obj.Scopes {
+																		v, ok := tf.Attrs["scopes"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																			if err != nil {
+																				diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.oauth.scopes", err})
+																			}
+																			v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.oauth.scopes", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			}
+																			v.Null = string(a) == ""
+																		}
+																		v.Value = string(a)
+																		v.Unknown = false
+																		c.Elems[k] = v
+																	}
+																	if len(obj.Scopes) > 0 {
+																		c.Null = false
+																	}
+																}
+																c.Unknown = false
+																tf.Attrs["scopes"] = c
+															}
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["auth_server_metadata_url"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.MCP.oauth.auth_server_metadata_url"})
+														} else {
+															v, ok := tf.Attrs["auth_server_metadata_url"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"AppV3.Spec.MCP.oauth.auth_server_metadata_url", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.MCP.oauth.auth_server_metadata_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.AuthServerMetadataUrl) == ""
+															}
+															v.Value = string(obj.AuthServerMetadataUrl)
+															v.Unknown = false
+															tf.Attrs["auth_server_metadata_url"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["oauth"] = v
+											}
 										}
 									}
 								}

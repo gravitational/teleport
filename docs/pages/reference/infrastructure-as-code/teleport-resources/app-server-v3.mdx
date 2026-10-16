@@ -431,13 +431,43 @@ args:
   - "string"
   - "string"
 run_as_host_user: "string"
+oauth: # [...]
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |args|To execute with the command.|[]string|
 |command|To launch stdio-based MCP servers.|string|
+|oauth|Contains the OAuth settings clients use to log in to the MCP server. Only supported for MCP servers using streamable HTTP transport.|[MCPOAuth](#mcpoauth)|
 |run_as_host_user|The host user account under which the command will be executed. Required for stdio-based MCP servers.|string|
+
+## MCPOAuth
+
+Contains the OAuth settings clients such as tsh use to log in to an OAuth-protected MCP server. These are defaults for clients and are not enforced by Teleport.
+
+
+Example:
+
+```yaml
+mode: "string"
+client_id: "string"
+callback_port: 1
+redirect_uri: "string"
+scopes: 
+  - "string"
+  - "string"
+  - "string"
+auth_server_metadata_url: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|auth_server_metadata_url|The URL of the OAuth authorization server metadata document, such as "https://auth.example.com/.well-known/oauth-authorization-server". When set, clients fetch the metadata from it instead of discovering it from the MCP server, and do not check its issuer against the URL.|string|
+|callback_port|The local port of the OAuth callback registered with the OAuth provider. Mutually exclusive with redirect_uri.|number|
+|client_id|The OAuth client ID of a pre-registered client. When set, clients skip dynamic client registration.|string|
+|mode|Declares whether the MCP server requires OAuth. When empty, it is unspecified. Supported values:   "required" (the MCP server requires OAuth),   "not_required" (the MCP server does not use OAuth)|string|
+|redirect_uri|The loopback OAuth redirect URI registered with the OAuth provider, such as "http://localhost:3118/callback". Mutually exclusive with callback_port.|string|
+|scopes|The list of OAuth scopes to request.|[]string|
 
 ## Metadata
 

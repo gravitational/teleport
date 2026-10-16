@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -243,10 +244,16 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 
 	switch types.GetMCPServerTransportType(app.GetURI()) {
 	case types.MCPTransportHTTP:
+		appURI, err := url.Parse(app.GetURI())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 		transport, err := defaults.Transport()
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		// Every request goes through the Teleport tunnel, never an HTTP proxy.
+		transport.Proxy = nil
 		transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return r.DialServer(ctx)
 		}
@@ -266,7 +273,10 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 		roundTripper = &httpServerErrorRoundTripper{base: roundTripper}
 		httpReaderWriter, err := mcputils.NewHTTPReaderWriter(
 			r.closeCtx,
-			"http://localhost", // does not matter with the custom transport.
+			// The tunnel ignores the URL host, but the proxy copies the Host
+			// header into X-Forwarded-Host, and some MCP servers build URLs
+			// from it or reject unknown hosts.
+			"http://"+appURI.Host,
 			mcpclienttransport.WithHTTPBasicClient(&http.Client{
 				Transport: roundTripper,
 			}),

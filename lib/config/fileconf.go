@@ -2652,6 +2652,30 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
+	// OAuth contains the OAuth settings clients use to log in to the MCP
+	// server. Only supported for MCP servers using streamable HTTP transport.
+	OAuth *MCPOAuth `yaml:"oauth,omitempty"`
+}
+
+// MCPOAuth contains the OAuth settings clients use to log in to an
+// OAuth-protected MCP server.
+type MCPOAuth struct {
+	// Mode declares whether the MCP server requires OAuth.
+	Mode string `yaml:"mode,omitempty"`
+	// ClientID is the OAuth client ID of a pre-registered client.
+	ClientID string `yaml:"client_id,omitempty"`
+	// CallbackPort is the local port of the OAuth callback registered with the
+	// OAuth provider. Mutually exclusive with RedirectURI.
+	CallbackPort uint32 `yaml:"callback_port,omitempty"`
+	// RedirectURI is the loopback OAuth redirect URI registered with the OAuth
+	// provider. Mutually exclusive with CallbackPort.
+	RedirectURI string `yaml:"redirect_uri,omitempty"`
+	// Scopes is the list of OAuth scopes to request.
+	Scopes []string `yaml:"scopes,omitempty"`
+	// AuthServerMetadataURL is the URL of the OAuth authorization server
+	// metadata document. When set, clients fetch the metadata from it instead
+	// of discovering it from the MCP server.
+	AuthServerMetadataURL string `yaml:"auth_server_metadata_url,omitempty"`
 }
 
 // LLM contains LLM inference endpoint related configurations.
