@@ -2470,18 +2470,19 @@ func (process *TeleportProcess) initAuthService() error {
 	var sealer auditqueue.Sealer
 	var opener events.SealedBatchOpener
 	if !cfg.AuditQueue.Disabled {
-		sealer, err = recordingencryption.NewLazyAuditQueueSealer(process.ExitContext(), authSRCWatcher{
+		lazySealer, err := recordingencryption.NewLazyAuditQueueSealer(process.ExitContext(), authSRCWatcher{
 			SessionRecordingConfigGetter: clusterConfig,
 			Events:                       local.NewEventsService(b),
 		})
 		if err != nil {
 			return trace.Wrap(err, "initializing audit queue encryption for the auth fallback queue")
 		}
-		opener, err = recordingencryption.NewAuditQueueOpener(recordingEncryptionManager)
+		opener, err = recordingencryption.NewAuditQueueOpener(recordingEncryptionManager, lazySealer.LocalIdentity())
 		if err != nil {
-			_ = sealer.Close()
+			_ = lazySealer.Close()
 			return trace.Wrap(err)
 		}
+		sealer = lazySealer
 	}
 	fallbackEmitter, err := process.newAuthFallbackEmitter(emitter, sealer, opener)
 	if err != nil {
@@ -3570,7 +3571,13 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter, srcWatche
 		if err != nil {
 			return nil, trace.Wrap(err, "initializing audit queue encryption")
 		}
+		opener, err := recordingencryption.NewAuditQueueOpener(nil, sealer.LocalIdentity())
+		if err != nil {
+			_ = sealer.Close()
+			return nil, trace.Wrap(err)
+		}
 		asyncCfg.Sealer = sealer
+		asyncCfg.Opener = opener
 		asyncCfg.SealedSubmitter = submitter
 	}
 

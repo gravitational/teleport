@@ -75,8 +75,10 @@ type FallbackEmitterConfig struct {
 	// disk. The FallbackEmitter owns the Sealer and closes it.
 	Sealer auditqueue.Sealer
 	// Opener decrypts sealed batches at delivery time so their events can be
-	// emitted to Primary. The auth server holds its own decryption keys, which
-	// is why local decryption is possible here but not on agents.
+	// emitted to Primary. It tries the process identity shared with Sealer
+	// first, so rows this process wrote can be decrypted locally, and falls
+	// back to the auth server's keystore for rows adopted from an orphaned
+	// queue left behind by a previous auth process.
 	Opener SealedBatchOpener
 }
 
@@ -199,52 +201,35 @@ func (f *FallbackEmitter) fallbackToQueue(ctx context.Context, primaryErr error,
 // deliver is the queue.Run handler. It emits queued batches to the primary
 // backend and returns the subset that were fully delivered.
 func (f *FallbackEmitter) deliver(ctx context.Context, items []auditqueue.Item) ([]auditqueue.Item, error) {
-	items, sealedItems := splitSealedItems(items)
-
-	var delivered []auditqueue.Item
-
 	ctx, cancel := context.WithTimeout(ctx, f.deliveryTimeout)
 	defer cancel()
 
+	var delivered []auditqueue.Item
 	for _, item := range items {
 		if ctx.Err() != nil {
 			return delivered, nil
+		}
+		if item.Sealed() {
+			if f.cfg.Opener == nil {
+				f.sealedWarnOnce.Do(func() {
+					slog.WarnContext(ctx,
+						"Sealed audit event batches cannot be delivered because no opener is configured. They will be retried.",
+					)
+				})
+				continue
+			}
+			opened, err := openSealedItem(ctx, f.cfg.Opener, item)
+			if err != nil {
+				slog.ErrorContext(ctx, "Failed to decrypt sealed audit event batch from the fallback queue.", "error", err)
+				continue
+			}
+			item = opened
 		}
 		if f.emitBatch(ctx, item.Events) {
 			delivered = append(delivered, item)
 		}
 	}
-	return append(delivered, f.deliverSealed(ctx, sealedItems)...), nil
-}
-
-func (f *FallbackEmitter) deliverSealed(ctx context.Context, sealed []auditqueue.Item) []auditqueue.Item {
-	if len(sealed) == 0 {
-		return nil
-	}
-	if f.cfg.Opener == nil {
-		f.sealedWarnOnce.Do(func() {
-			slog.WarnContext(ctx,
-				"Sealed audit event batches cannot be delivered because no opener is configured. They will be retried.",
-			)
-		})
-		return nil
-	}
-
-	var delivered []auditqueue.Item
-	for _, item := range sealed {
-		if ctx.Err() != nil {
-			return delivered
-		}
-		batch, err := f.cfg.Opener.DecryptBatch(ctx, item.Payload)
-		if err != nil {
-			slog.ErrorContext(ctx, "Failed to decrypt sealed audit event batch from the fallback queue.", "error", err)
-			continue
-		}
-		if f.emitBatch(ctx, batch) {
-			delivered = append(delivered, item)
-		}
-	}
-	return delivered
+	return delivered, nil
 }
 
 func (f *FallbackEmitter) emitBatch(ctx context.Context, batch []apievents.AuditEvent) bool {

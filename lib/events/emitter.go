@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -39,6 +40,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log"
@@ -52,6 +54,19 @@ const (
 	// Matches the audit queue dequeue batch size so one delivery cycle is one round of requests.
 	sealedSubmitConcurrency = 25
 	maxEmitRequestBytes     = 3 * 1024 * 1024
+)
+
+var (
+	auditQueueSealedBatchesOpened = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_sealed_batches_opened_total",
+		Help:      "Total number of sealed audit event batches opened locally by the process that wrote them.",
+	})
+	auditQueueSealedBatchesForwarded = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_sealed_batches_forwarded_total",
+		Help:      "Total number of sealed audit event batches forwarded to the auth server for decryption and accepted by it.",
+	})
 )
 
 // AsyncEmitterConfig provides parameters for emitter
@@ -72,6 +87,10 @@ type AsyncEmitterConfig struct {
 	AuditQueueBackends []auditqueue.Kind
 	// Sealer is used to encrypt audit log events before writing them to disk.
 	Sealer auditqueue.Sealer
+	// Opener opens sealed batches that this process wrote using its own
+	// in-memory identity. It offloads decryption from the auth server by doing
+	// the decryption itself.
+	Opener SealedBatchOpener
 	// SealedSubmitter delivers sealed audit event batches to the auth server.
 	SealedSubmitter SealedBatchSubmitter
 }
@@ -99,6 +118,12 @@ func (c *AsyncEmitterConfig) CheckAndSetDefaults() error {
 // when the queue is full.
 func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := metrics.RegisterPrometheusCollectors(
+		auditQueueSealedBatchesOpened,
+		auditQueueSealedBatchesForwarded,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -245,15 +270,38 @@ func (a *AsyncEmitter) forwardWithoutQueue() {
 	}
 }
 
-func splitSealedItems(items []auditqueue.Item) (plain, sealed []auditqueue.Item) {
+func openSealedItem(ctx context.Context, opener SealedBatchOpener, item auditqueue.Item) (auditqueue.Item, error) {
+	events, err := opener.DecryptBatch(ctx, item.Payload)
+	if err != nil {
+		return auditqueue.Item{}, trace.Wrap(err)
+	}
+	item.Events = events
+	item.Payload = nil
+	item.Format = auditqueue.FormatPlaintext
+	return item, nil
+}
+
+func (a *AsyncEmitter) partitionItems(ctx context.Context, items []auditqueue.Item) (plaintext, ciphertext []auditqueue.Item) {
 	for _, item := range items {
-		if item.Sealed() {
-			sealed = append(sealed, item)
+		if !item.Sealed() {
+			plaintext = append(plaintext, item)
 			continue
 		}
-		plain = append(plain, item)
+		if a.cfg.Opener == nil {
+			ciphertext = append(ciphertext, item)
+			continue
+		}
+		opened, err := openSealedItem(ctx, a.cfg.Opener, item)
+		if err != nil {
+			// Failed to decrypt with the agent's local key pair. Forward to
+			// auth to try to decrypt with the auth server's key pair.
+			ciphertext = append(ciphertext, item)
+			continue
+		}
+		auditQueueSealedBatchesOpened.Inc()
+		plaintext = append(plaintext, opened)
 	}
-	return plain, sealed
+	return plaintext, ciphertext
 }
 
 func itemSize(item auditqueue.Item) int {
@@ -291,15 +339,15 @@ func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) ([]
 	ctx, cancel := context.WithTimeout(ctx, a.deliveryTimeout)
 	defer cancel()
 
-	items, sealedItems := splitSealedItems(items)
-	sealedDelivered, sealedErr := a.deliverSealed(ctx, sealedItems)
+	plaintext, ciphertext := a.partitionItems(ctx, items)
+	sealedDelivered, sealedErr := a.deliverSealed(ctx, ciphertext)
 
 	batchEmitter, _ := a.cfg.Inner.(apievents.BatchEmitter)
 
 	var delivered []auditqueue.Item
 	if batchEmitter != nil {
 		var fallback []auditqueue.Item
-		for _, chunk := range chunkItems(items, maxEmitRequestBytes, apidefaults.MaxAuditEventsBatchSize) {
+		for _, chunk := range chunkItems(plaintext, maxEmitRequestBytes, apidefaults.MaxAuditEventsBatchSize) {
 			var events []apievents.AuditEvent
 			for _, item := range chunk {
 				events = append(events, item.Events...)
@@ -318,12 +366,12 @@ func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) ([]
 			slog.WarnContext(ctx, "Failed to emit audit events as a single request, falling back to per-batch delivery.", "error", err)
 			fallback = append(fallback, chunk...)
 		}
-		items = fallback
+		plaintext = fallback
 	}
 
 	var failed int
 	var plainErr error
-	for _, item := range items {
+	for _, item := range plaintext {
 		if ctx.Err() != nil {
 			break
 		}
@@ -416,6 +464,7 @@ func (a *AsyncEmitter) deliverSealed(ctx context.Context, sealed []auditqueue.It
 			)
 		}
 	}
+	auditQueueSealedBatchesForwarded.Add(float64(len(delivered)))
 	if throttleErr != nil {
 		return delivered, throttleErr
 	}

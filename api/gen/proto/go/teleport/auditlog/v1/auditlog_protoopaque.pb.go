@@ -911,7 +911,7 @@ func (b0 EventExportChunk_builder) Build() *EventExportChunk {
 	return m0
 }
 
-// One sealed audit event batch from an agent's local audit queue.
+// One sealed audit event batch adopted from an orphaned local audit queue.
 type AuditQueueSealedBatch struct {
 	state                 protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Payload    []byte                 `protobuf:"bytes,1,opt,name=payload,proto3"`
@@ -985,8 +985,10 @@ func (x *AuditQueueSealedBatch) SetEventCount(v int64) {
 type AuditQueueSealedBatch_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// The sealed batch payload, encoded as described by format. Only the auth
-	// server holds the private keys to decrypt it.
+	// The sealed batch payload, encoded as described by format. The process
+	// that wrote the batch could have opened it with an in-memory identity, but
+	// that process no longer exists, so only the auth server holds keys able to
+	// decrypt it.
 	Payload []byte
 	// The payload encoding.
 	Format AuditQueueBatchFormat

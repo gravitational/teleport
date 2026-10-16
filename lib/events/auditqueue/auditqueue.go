@@ -125,8 +125,9 @@ const (
 	// message.
 	FormatPlaintext = 0
 	// FormatAgeV1 marks a row whose payload is an age encrypted
-	// AuditQueueBatch message. Such rows cannot be decrypted by the agent
-	// process because the private keys live on the auth server.
+	// AuditQueueBatch message. Such a row can be opened by the process that
+	// wrote it by using the identity that exists only in that process's memory,
+	// or by the auth server, which holds the cluster private keys.
 	FormatAgeV1 = 1
 )
 
@@ -135,8 +136,10 @@ type Item struct {
 	id int64
 	// Events is the decoded batch. It is populated only for plaintext items.
 	Events []apievents.AuditEvent
-	// Payload is the raw sealed batch. It is populated only for sealed items,
-	// which cannot be decoded by this process.
+	// Payload is the raw sealed batch. It is populated only for sealed items.
+	// This process will decode only the payloads that were encrypted with this
+	// process's identity. I.e., orphans will not be decoded by the agent and
+	// will be forwarded to the auth server for decoding.
 	Payload []byte
 	// Format identifies the payload encoding (FormatPlaintext or FormatAgeV1).
 	Format int

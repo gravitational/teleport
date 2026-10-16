@@ -69,7 +69,7 @@ func NewAuditQueueService(cfg AuditQueueServiceConfig) (*AuditQueueService, erro
 
 	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentAuditLog))
 
-	opener, err := recordingencryption.NewAuditQueueOpener(cfg.KeyUnwrapper)
+	opener, err := recordingencryption.NewAuditQueueOpener(cfg.KeyUnwrapper, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

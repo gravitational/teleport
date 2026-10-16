@@ -59,6 +59,7 @@ type AuditQueueSealer struct {
 	wg           sync.WaitGroup
 	state        atomic.Pointer[encryptionState]
 	fetchFailing bool
+	local        *age.X25519Identity
 }
 
 // NewAuditQueueSealer returns an AuditQueueSealer.
@@ -87,9 +88,15 @@ func newAuditQueueSealer(ctx context.Context, client SessionRecordingConfigWatch
 		return nil, trace.Wrap(err)
 	}
 
+	local, err := age.GenerateX25519Identity()
+	if err != nil {
+		return nil, trace.Wrap(err, "generating audit queue process identity")
+	}
+
 	sealer := &AuditQueueSealer{
 		client: client,
 		retry:  retry,
+		local:  local,
 	}
 	sealer.loopCtx, sealer.cancel = context.WithCancel(context.Background())
 
@@ -138,8 +145,12 @@ func (s *AuditQueueSealer) Seal(ctx context.Context, plaintext []byte) ([]byte, 
 		return plaintext, false, nil
 	}
 
+	recipients := make([]age.Recipient, 0, len(state.recipients)+1)
+	recipients = append(recipients, s.local.Recipient())
+	recipients = append(recipients, state.recipients...)
+
 	var sealed bytes.Buffer
-	w, err := age.Encrypt(&sealed, state.recipients...)
+	w, err := age.Encrypt(&sealed, recipients...)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -150,6 +161,21 @@ func (s *AuditQueueSealer) Seal(ctx context.Context, plaintext []byte) ([]byte, 
 		return nil, false, trace.Wrap(err)
 	}
 	return sealed.Bytes(), true, nil
+}
+
+type localIdentity struct {
+	id *age.X25519Identity
+}
+
+// Unwrap implements age.Identity.
+func (l localIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
+	return l.id.Unwrap(stanzas)
+}
+
+// LocalIdentity returns the in-memory identity that can open batches sealed by
+// this sealer. It goes away when the process exits.
+func (s *AuditQueueSealer) LocalIdentity() age.Identity {
+	return localIdentity{id: s.local}
 }
 
 func (s *AuditQueueSealer) watchLoop() {
@@ -288,21 +314,39 @@ func parseRecipients(config types.SessionRecordingConfig) (*encryptionState, err
 
 // AuditQueueOpener decrypts audit queue event batches.
 type AuditQueueOpener struct {
+	// local is the identity of this process. It is used to decrypt events using
+	// the in-memory key pair rather than the keystore. The local identity
+	// supports Elliptic Curve cryptography, which is much more efficient than
+	// RSA, which is used by the default session recording keys.
+	local age.Identity
+	// unwrapper unwraps file keys through the keystore. The auth server uses it
+	// for batches written by other processes.
 	unwrapper KeyUnwrapper
 }
 
-// NewAuditQueueOpener returns an AuditQueueOpener.
-func NewAuditQueueOpener(unwrapper KeyUnwrapper) (*AuditQueueOpener, error) {
-	if unwrapper == nil {
-		return nil, trace.BadParameter("KeyUnwrapper is required for AuditQueueOpener")
+// NewAuditQueueOpener returns an AuditQueueOpener. unwrapper is the
+// keystore-backed unwrapper for the cluster recording encryption keys and
+// local is the process identity returned by AuditQueueSealer.LocalIdentity.
+// Either may be nil, but not both. Agents only have a local identity, and the
+// auth server's gRPC service only has the keystore.
+func NewAuditQueueOpener(unwrapper KeyUnwrapper, local age.Identity) (*AuditQueueOpener, error) {
+	if unwrapper == nil && local == nil {
+		return nil, trace.BadParameter("a KeyUnwrapper or a local identity is required for AuditQueueOpener")
 	}
-	return &AuditQueueOpener{unwrapper: unwrapper}, nil
+	return &AuditQueueOpener{local: local, unwrapper: unwrapper}, nil
 }
 
 // DecryptBatch decrypts a sealed audit event batch and returns the events it
 // contains.
 func (o *AuditQueueOpener) DecryptBatch(ctx context.Context, payload []byte) ([]apievents.AuditEvent, error) {
-	reader, err := age.Decrypt(bytes.NewReader(payload), NewAuditQueueIdentity(ctx, o.unwrapper))
+	identities := make([]age.Identity, 0, 2)
+	if o.local != nil {
+		identities = append(identities, o.local)
+	}
+	if o.unwrapper != nil {
+		identities = append(identities, NewAuditQueueIdentity(ctx, o.unwrapper))
+	}
+	reader, err := age.Decrypt(bytes.NewReader(payload), identities...)
 	if err != nil {
 		return nil, trace.Wrap(err, "decrypting audit event batch")
 	}

@@ -144,10 +144,12 @@ enum AuditQueueBatchFormat {
   AUDIT_QUEUE_BATCH_FORMAT_AGE_V1 = 1;
 }
 
-// One sealed audit event batch from an agent's local audit queue.
+// One sealed audit event batch adopted from an orphaned local audit queue.
 message AuditQueueSealedBatch {
-  // The sealed batch payload, encoded as described by format. Only the auth
-  // server holds the private keys to decrypt it.
+  // The sealed batch payload, encoded as described by format. The process
+  // that wrote the batch could have opened it with an in-memory identity, but
+  // that process no longer exists, so only the auth server holds keys able to
+  // decrypt it.
   bytes payload = 1;
   // The payload encoding.
   AuditQueueBatchFormat format = 2;
