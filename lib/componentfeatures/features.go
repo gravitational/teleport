@@ -20,6 +20,7 @@ package componentfeatures
 
 import (
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // FeatureID is used to wrap [componentfeaturesv1.ComponentFeatureID] for convenience methods.
@@ -37,9 +38,9 @@ const (
 )
 
 var featureIDToName = map[FeatureID]string{
-	FeatureUnspecified:              "UNSPECIFIED",
-	FeatureResourceConstraintsV1:    "RESOURCE_CONSTRAINTS_V1",
-	FeatureResourceConstraintsSSHV1: "RESOURCE_CONSTRAINTS_SSH_V1",
+	FeatureUnspecified:              "unspecified feature",
+	FeatureResourceConstraintsV1:    "AWS constraints",
+	FeatureResourceConstraintsSSHV1: "SSH constraints",
 }
 
 // String returns a short name for the FeatureID, falling back to the
@@ -57,4 +58,16 @@ func (f FeatureID) String() string {
 // ToProto converts the FeatureID to its corresponding [componentfeaturesv1.ComponentFeatureID].
 func (f FeatureID) ToProto() componentfeaturesv1.ComponentFeatureID {
 	return componentfeaturesv1.ComponentFeatureID(f)
+}
+
+// RequiredFeatureForConstraints returns the component feature required to support rc.
+// It returns false for unrecognized constraints.
+func RequiredFeatureForConstraints(rc *types.ResourceConstraints) (id FeatureID, ok bool) {
+	switch rc.GetDetails().(type) {
+	case *types.ResourceConstraints_Ssh:
+		return FeatureResourceConstraintsSSHV1, true
+	case *types.ResourceConstraints_AwsConsole:
+		return FeatureResourceConstraintsV1, true
+	}
+	return FeatureUnspecified, false
 }

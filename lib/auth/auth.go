@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
@@ -110,6 +111,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -6230,6 +6232,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.checkConstraintSupport(ctx, requestedResourceAccessIDs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Fetch all Access Lists from the Cache, for use in generating Request promotions and validating long-term grouping
 	allAccessLists, err := a.Cache.GetAccessLists(ctx)
 	if err != nil {
@@ -6486,6 +6492,85 @@ func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []ty
 		return trace.Wrap(err)
 	} else if err != nil {
 		return trace.Wrap(err, "checking if Okta-originated resources are requestable")
+	}
+
+	return nil
+}
+
+type constrainedResource struct {
+	id       types.ResourceID
+	required componentfeatures.FeatureID
+}
+
+func (a *Server) checkConstraintSupport(ctx context.Context, raids []types.ResourceAccessID) error {
+	var constrained []constrainedResource
+	for _, r := range raids {
+		rc := r.GetConstraints()
+		if rc == nil {
+			continue
+		}
+		id := r.GetResourceID()
+		if err := id.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		required, ok := componentfeatures.RequiredFeatureForConstraints(rc)
+		if !ok {
+			return trace.BadParameter("unrecognized constraints on resource %q. Request the resource without constraints",
+				types.ResourceIDToString(id))
+		}
+		constrained = append(constrained, constrainedResource{
+			id:       id,
+			required: required,
+		})
+	}
+	if len(constrained) == 0 {
+		return nil
+	}
+
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Local Auth and Proxy servers also process access to leaf resources.
+	clusterFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(ctx, a, a.logger)
+	for _, c := range constrained {
+		if !componentfeatures.InAllSets(c.required, clusterFeatures) {
+			return trace.BadParameter("cannot verify support for %s on all Auth and Proxy services for resource %q. Check service versions or request without constraints",
+				c.required, types.ResourceIDToString(c.id))
+		}
+	}
+
+	for _, c := range constrained {
+		// Leaf presence is unavailable to this Auth; only local agents are checked.
+		if c.id.ClusterName != clusterName.GetClusterName() {
+			continue
+		}
+		var agents []*componentfeaturesv1.ComponentFeatures
+		switch c.id.Kind {
+		case types.KindNode:
+			node, err := a.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+				Name: c.id.Name,
+			}.Build())
+			if err != nil {
+				return trace.Wrap(err, "cannot read resource %q to verify constraint support", types.ResourceIDToString(c.id))
+			}
+			agents = append(agents, componentfeatures.GetEffectiveServerFeatures(node))
+		case types.KindApp:
+			for server, err := range a.RangeApplicationServersWithName(ctx, c.id.Name) {
+				if err != nil {
+					return trace.Wrap(err, "cannot read resource %q to verify constraint support", types.ResourceIDToString(c.id))
+				}
+				agents = append(agents, componentfeatures.GetEffectiveServerFeatures(server))
+			}
+			if len(agents) == 0 {
+				return trace.NotFound("resource %q not found. Check the resource name and cluster", types.ResourceIDToString(c.id))
+			}
+		}
+		if !componentfeatures.InAllSets(c.required, agents...) {
+			return trace.BadParameter("cannot verify support for %s on all agents for resource %q. Check agent versions or request without constraints",
+				c.required, types.ResourceIDToString(c.id))
+		}
 	}
 
 	return nil
