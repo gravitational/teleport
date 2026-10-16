@@ -20,6 +20,7 @@ package client
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"io/fs"
 	"os"
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
+	"github.com/gravitational/teleport/lib/client/credentialencryption"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -112,4 +114,59 @@ func deleteUserExternalCredentialsCache(ctx context.Context, path string) error 
 		return trace.ConvertSystemError(err)
 	}
 	return nil
+}
+
+// ReencryptUserExternalCredentials returns the credentials (e.g. GitHub tokens)
+// of ownCreds, decrypted with ownKey and encrypted with targetKey. It is
+// expected to be called when ownCreds has credentials.
+func ReencryptUserExternalCredentials(ctx context.Context, ownCreds *usercredpb.UserExternalCredentials, ownKey *ecdsa.PrivateKey, targetKey *ecdsa.PublicKey) ([]*usercredpb.Credential, error) {
+	credentials := make([]*usercredpb.Credential, 0, len(ownCreds.GetSpec().GetCredentials()))
+	for _, credential := range ownCreds.GetSpec().GetCredentials() {
+		switch {
+		case credential.GetOauth() != nil:
+			reencrypted, err := reencryptOAuthCredential(credential, ownKey, targetKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			credentials = append(credentials, reencrypted)
+		default:
+			// Should not happen.
+			log.DebugContext(ctx, "Skipping unsupported user external credential",
+				"resource_kind", credential.GetResourceKind(),
+				"resource_name", credential.GetResourceName(),
+			)
+		}
+	}
+
+	return credentials, nil
+}
+
+func reencryptOAuthCredential(credential *usercredpb.Credential, ownKey *ecdsa.PrivateKey, targetKey *ecdsa.PublicKey) (*usercredpb.Credential, error) {
+	reencrypt := func(ciphertext []byte) ([]byte, error) {
+		plaintext, err := credentialencryption.Decrypt(ownKey, ciphertext)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return credentialencryption.Encrypt(targetKey, plaintext)
+	}
+
+	oauth := credential.GetOauth()
+	tokens := usercredpb.OAuthTokens_builder{
+		AccessTokenExpiry:  oauth.GetAccessTokenExpiry(),
+		RefreshTokenExpiry: oauth.GetRefreshTokenExpiry(),
+	}
+	var err error
+	if tokens.AccessTokenBlob, err = reencrypt(oauth.GetAccessTokenBlob()); err != nil {
+		return nil, trace.Wrap(err, "re-encrypting access token of %s %q", credential.GetResourceKind(), credential.GetResourceName())
+	}
+	if len(oauth.GetRefreshTokenBlob()) > 0 {
+		if tokens.RefreshTokenBlob, err = reencrypt(oauth.GetRefreshTokenBlob()); err != nil {
+			return nil, trace.Wrap(err, "re-encrypting refresh token of %s %q", credential.GetResourceKind(), credential.GetResourceName())
+		}
+	}
+	return usercredpb.Credential_builder{
+		ResourceKind: credential.GetResourceKind(),
+		ResourceName: credential.GetResourceName(),
+		Oauth:        tokens.Build(),
+	}.Build(), nil
 }

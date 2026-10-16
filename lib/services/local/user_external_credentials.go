@@ -76,11 +76,17 @@ func validateUserExternalCredentials(resource *pb.UserExternalCredentials) error
 	return nil
 }
 
-// TODO(greedy52) support delegated sessions for Delegation V2 (RFD 0329), e.g.
-// <delegator>/delegation/<delegate>/<key_id>.
+// backendKeyForUserExternalCredentials returns <user>/user/<key_id> for the
+// user's own sessions, or <user>/delegation/<delegate>/<key_id> for sessions of
+// a delegate of the user. Without key_id, it returns the prefix for listing.
 func backendKeyForUserExternalCredentials(keyID *pb.EncryptionKeyID) backend.Key {
 	components := []string{keyID.GetUser()}
-	if keyID.GetKeyId() != "" {
+	if keyID.GetDelegate() != "" {
+		components = append(components, "delegation", keyID.GetDelegate())
+		if keyID.GetKeyId() != "" {
+			components = append(components, keyID.GetKeyId())
+		}
+	} else if keyID.GetKeyId() != "" {
 		components = append(components, "user", keyID.GetKeyId())
 	}
 	return backend.NewKey(components...)

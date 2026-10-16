@@ -46,10 +46,9 @@ const (
 // personal access tokens. This resource is not supported by Infrastructure as
 // Code as it is managed internally by Auth and tied to user session lifecycles.
 //
-// Backend path: user_external_credentials/<user>/user/<key_id>
-//
-// TODO(greedy52) support delegated sessions for Delegation V2 (RFD 0329), e.g.
-// user_external_credentials/<delegator>/delegation/<delegate>/<key_id>.
+// Backend path: user_external_credentials/<user>/user/<key_id>, or
+// user_external_credentials/<user>/delegation/<delegate>/<key_id> for sessions
+// of a delegate of the user.
 type UserExternalCredentials struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// kind is the resource kind, always "user_external_credentials".
@@ -312,7 +311,11 @@ type EncryptionKeyID struct {
 	// user is the Teleport username.
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// key_id is the unique identifier for the encryption key for user sessions.
-	KeyId         string `protobuf:"bytes,2,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
+	KeyId string `protobuf:"bytes,2,opt,name=key_id,json=keyId,proto3" json:"key_id,omitempty"`
+	// delegate is the Teleport username of the delegate (e.g. the bot of a beam)
+	// when the session belongs to a delegate of the user. Empty for the user's
+	// own sessions.
+	Delegate      string `protobuf:"bytes,3,opt,name=delegate,proto3" json:"delegate,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -356,12 +359,23 @@ func (x *EncryptionKeyID) GetKeyId() string {
 	return ""
 }
 
+func (x *EncryptionKeyID) GetDelegate() string {
+	if x != nil {
+		return x.Delegate
+	}
+	return ""
+}
+
 func (x *EncryptionKeyID) SetUser(v string) {
 	x.User = v
 }
 
 func (x *EncryptionKeyID) SetKeyId(v string) {
 	x.KeyId = v
+}
+
+func (x *EncryptionKeyID) SetDelegate(v string) {
+	x.Delegate = v
 }
 
 type EncryptionKeyID_builder struct {
@@ -371,6 +385,10 @@ type EncryptionKeyID_builder struct {
 	User string
 	// key_id is the unique identifier for the encryption key for user sessions.
 	KeyId string
+	// delegate is the Teleport username of the delegate (e.g. the bot of a beam)
+	// when the session belongs to a delegate of the user. Empty for the user's
+	// own sessions.
+	Delegate string
 }
 
 func (b0 EncryptionKeyID_builder) Build() *EncryptionKeyID {
@@ -379,6 +397,7 @@ func (b0 EncryptionKeyID_builder) Build() *EncryptionKeyID {
 	_, _ = b, x
 	x.User = b.User
 	x.KeyId = b.KeyId
+	x.Delegate = b.Delegate
 	return m0
 }
 
@@ -706,10 +725,11 @@ const file_teleport_userexternalcredentials_v1_user_external_credentials_proto_r
 	"\x1bUserExternalCredentialsSpec\x12`\n" +
 	"\x11encryption_key_id\x18\x01 \x01(\v24.teleport.userexternalcredentials.v1.EncryptionKeyIDR\x0fencryptionKeyId\x122\n" +
 	"\x15encryption_public_key\x18\x02 \x01(\fR\x13encryptionPublicKey\x12Q\n" +
-	"\vcredentials\x18\x03 \x03(\v2/.teleport.userexternalcredentials.v1.CredentialR\vcredentials\"<\n" +
+	"\vcredentials\x18\x03 \x03(\v2/.teleport.userexternalcredentials.v1.CredentialR\vcredentials\"X\n" +
 	"\x0fEncryptionKeyID\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x15\n" +
-	"\x06key_id\x18\x02 \x01(\tR\x05keyId\"\xae\x01\n" +
+	"\x06key_id\x18\x02 \x01(\tR\x05keyId\x12\x1a\n" +
+	"\bdelegate\x18\x03 \x01(\tR\bdelegate\"\xae\x01\n" +
 	"\n" +
 	"Credential\x12#\n" +
 	"\rresource_kind\x18\x01 \x01(\tR\fresourceKind\x12#\n" +

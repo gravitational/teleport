@@ -4088,6 +4088,12 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.GetScope(), "assignments", pinning.AssignmentTreeIntoMap(ident.ScopePin.GetAssignmentTree()))
 	}
 
+	// Auth without user external credentials support ignores the encryption
+	// public key.
+	if ident.EncryptionKeyID == "" {
+		keyRing.EncryptionPrivateKey = nil
+	}
+
 	return keyRing, nil
 }
 
