@@ -387,7 +387,12 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.maybeUpdateStaticCredentials(ctx, req.GetIntegration()); err != nil {
+	oldIg, err := s.backend.GetIntegration(ctx, req.GetIntegration().GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.maybeUpdateStaticCredentials(ctx, req.GetIntegration(), oldIg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

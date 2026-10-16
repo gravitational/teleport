@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -838,4 +839,33 @@ func (ig *IntegrationV1) WithoutCredentials() Integration {
 // IsOAuthProxy returns true when the integration is an OAuth Proxy.
 func (ig *IntegrationV1) IsOAuthProxy() bool {
 	return ig != nil && ig.GetSubKind() == IntegrationSubKindOAuthProxy
+}
+
+// CanUpdateWithoutSecret returns an error when the existing spec cannot be updated to the new spec without providing client credentials.
+// Changes are only allowed to fields that cannot affect how or where the client secret is sent.
+func (s *OAuthProxyIntegrationSpecV1) CanUpdateWithoutSecret(newSpec *OAuthProxyIntegrationSpecV1) error {
+	if s == nil {
+		return trace.BadParameter("missing existing spec")
+	}
+
+	if newSpec == nil {
+		return trace.BadParameter("missing new spec")
+	}
+
+	a := utils.CloneProtoMsg(s)
+	b := utils.CloneProtoMsg(newSpec)
+
+	// Zero out 'safe' fields to exclude from comparison.
+	a.UpstreamUrl = ""
+	b.UpstreamUrl = ""
+	a.Scopes = nil
+	b.Scopes = nil
+	a.ExtraParams = nil
+	b.ExtraParams = nil
+
+	if !proto.Equal(protoadapt.MessageV2Of(a), protoadapt.MessageV2Of(b)) {
+		return trace.BadParameter("only upstream_url, scopes, and extra_params may be changed without providing client credentials")
+	}
+
+	return nil
 }
