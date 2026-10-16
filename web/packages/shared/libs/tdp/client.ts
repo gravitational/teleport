@@ -642,11 +642,9 @@ export class TdpClient extends EventEmitter<EventMap> {
     const req = this.codec.decodeSharedDirectoryWriteRequest(buffer);
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
-    const bytesWritten = await sharedDirectory.write(
-      req.path,
-      req.offset,
-      req.writeData
-    );
+    const bytesWritten = await sharedDirectory
+      .serialized()
+      .write(req.path, req.offset, req.writeData);
 
     this.sendSharedDirectoryWriteResponse({
       completionId: req.completionId,
@@ -688,7 +686,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     const req = this.codec.decodeSharedDirectoryTruncateRequest(buffer);
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
-    await sharedDirectory.truncate(req.path, req.endOfFile);
+    await sharedDirectory.serialized().truncate(req.path, req.endOfFile);
     this.sendSharedDirectoryTruncateResponse({
       completionId: req.completionId,
       errCode: SharedDirectoryErrCode.Nil,

@@ -35,6 +35,10 @@ export interface SharedDirectoryAccess {
   create(path: string, fileType: FileType): Promise<void>;
   /** Deletes a file or directory at the given path. */
   delete(path: string): Promise<void>;
+  /** Returns a proxy SharedDirectoryAccess instance which
+   * serializes execution of any methods called on it.
+   */
+  serialized(): SharedDirectoryAccess;
 }
 
 /**
@@ -66,10 +70,30 @@ and selecting "Enable". If you\'re not already, please switch to a supported bro
  * where file system events are handled for Connect.
  */
 class BrowserFileSystem implements SharedDirectoryAccess {
-  constructor(private dir: FileSystemDirectoryHandle) {}
+  private serialQueue: (asyncFn: any) => Promise<any>;
+  constructor(private dir: FileSystemDirectoryHandle) {
+    this.serialQueue = createSerialQueue();
+  }
 
   getDirectoryName(): string {
     return this.dir.name;
+  }
+
+  // Return a proxy object which serializes execution of this instance's methods.
+  serialized(): SharedDirectoryAccess {
+    return new Proxy(this, {
+      get(target, prop) {
+        const targetProperty = target[prop];
+        if (typeof targetProperty === 'function') {
+          return (...args) => {
+            return target.serialQueue(() =>
+              Reflect.apply(targetProperty, target, args)
+            );
+          };
+        }
+        return targetProperty;
+      },
+    });
   }
 
   /**
@@ -298,4 +322,13 @@ export type FileOrDirInfo = {
   kind: 'file' | 'directory';
   isEmpty: boolean;
   path: string;
+};
+
+const createSerialQueue = () => {
+  let queue = Promise.resolve();
+  return asyncFn => {
+    const resultPromise = queue.then(() => asyncFn());
+    queue = resultPromise.catch(() => {});
+    return resultPromise;
+  };
 };
