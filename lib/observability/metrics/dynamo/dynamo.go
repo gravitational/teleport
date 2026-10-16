@@ -20,9 +20,11 @@ package dynamo
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/smithy-go/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -40,7 +42,7 @@ var (
 	apiRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dynamo_requests",
-			Help: "Number of requests to the DynamoDB API by result",
+			Help: "Number of requests to the DynamoDB API by result: success, error, or conflict for a failed conditional check",
 		},
 		[]string{"type", "operation", "result"},
 	)
@@ -92,6 +94,9 @@ func MetricsMiddleware(tableType TableType) []func(stack *middleware.Stack) erro
 					result := "success"
 					if err != nil {
 						result = "error"
+						if _, ok := errors.AsType[*dynamodbtypes.ConditionalCheckFailedException](err); ok {
+							result = "conflict"
+						}
 					}
 
 					then := ctx.Value(timestampKey{}).(time.Time)

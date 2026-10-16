@@ -20,7 +20,7 @@
 | `backend_write_seconds`                                  | histogram | cache               | Latency for backend write operations.                                                              |
 | `cluster_name_not_found_total`                           | counter   | Teleport Auth       | Number of times a cluster was not found.                                                           |
 | `dynamo_requests_total`                                  | counter   | DynamoDB            | Total number of requests to the DynamoDB API.                                                      |
-| `dynamo_requests`                                        | counter   | DynamoDB            | Total number of requests to the DynamoDB API grouped by result.                                    |
+| `dynamo_requests`                                        | counter   | DynamoDB            | Total number of requests to the DynamoDB API grouped by result (`success`, `error`, or `conflict`). |
 | `dynamo_requests_seconds`                                | histogram | DynamoDB            | Latency of DynamoDB API requests.                                                                  |
 | `etcd_backend_batch_read_requests`                       | counter   | etcd                | Number of read requests to the etcd database.                                                      |
 | `etcd_backend_batch_read_seconds`                        | histogram | etcd                | Latency for etcd read operations.                                                                  |
