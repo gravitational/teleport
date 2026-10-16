@@ -2971,6 +2971,8 @@ func validateRoles(roles string) error {
 			defaults.RoleDatabase,
 			defaults.RoleWindowsDesktop,
 			defaults.RoleDiscovery:
+		case "openssh":
+			return trace.BadParameter("invalid role %q; to register an agentless server, use \"teleport join openssh\"", role)
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}

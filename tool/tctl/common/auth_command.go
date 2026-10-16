@@ -606,8 +606,11 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 		NodeName:    "",
 		Principals:  principals,
 		ClusterName: clusterName,
-		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(0),
+		// TODO(Joerger): DELETE IN v20.0.0 - role is ignored by up-to-date auth servers,
+		// which always mint a minimal [types.RoleSSHHost] host cert. It is still sent here
+		// so that older auth servers, which require it, continue to work.
+		Role: string(types.RoleNode), //nolint:staticcheck // SA1019. Setting deprecated field for backwards compatibility.
+		Ttl:  durationpb.New(0),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -619,7 +622,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	}
 	keyRing := &client.KeyRing{
 		SSHPrivateKey: key,
-		Cert:          res.SshCertificate,
+		Cert:          res.GetSshCertificate(),
 		TrustedCerts:  authclient.AuthoritiesToTrustedCerts(hostCAs),
 	}
 

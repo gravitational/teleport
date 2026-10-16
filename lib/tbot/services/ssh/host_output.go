@@ -160,8 +160,11 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 		NodeName:    "",
 		Principals:  s.cfg.Principals,
 		ClusterName: clusterName,
-		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL),
+		// TODO(Joerger): DELETE IN v20.0.0 - role is ignored by up-to-date auth servers,
+		// which always mint a minimal [types.RoleSSHHost] host cert. It is still sent here
+		// so that older auth servers, which require it, continue to work.
+		Role: string(types.RoleNode), //nolint:staticcheck // SA1019. Setting deprecated field for backwards compatibility.
+		Ttl:  durationpb.New(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL),
 	},
 	)
 	if err != nil {
@@ -169,7 +172,7 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 	}
 	keyRing := &libclient.KeyRing{
 		SSHPrivateKey: privKey,
-		Cert:          res.SshCertificate,
+		Cert:          res.GetSshCertificate(),
 	}
 
 	cfg := identityfile.WriteConfig{

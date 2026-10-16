@@ -913,6 +913,10 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		}
 		clusterName = ident.ClusterName
 
+		if ident.SystemRole == types.RoleSSHHost {
+			return nil, trace.BadParameter("agentless hosts are not permitted to register reverse tunnels")
+		}
+
 		// The reverse tunnel routing identity must be the certificate's
 		// authoritative host principal, not the SSH username the client chose to
 		// present (conn.User()). The auth server always issues host certificates
