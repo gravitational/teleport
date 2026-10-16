@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/forproto"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -1188,6 +1189,10 @@ type Cache interface {
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 
+	// ListUsersForProto is like [Cache.ListUsers] but the returned roles might
+	// be pre-marshaled in protobuf wire format.
+	ListUsersForProto(ctx context.Context, req *userspb.ListUsersRequest) (_ []forproto.User, nextPageToken string, _ error)
+
 	// RangeUsers returns users within the range [start, end), without secrets.
 	RangeUsers(ctx context.Context, start, end string) iter.Seq2[types.User, error]
 
@@ -1199,6 +1204,10 @@ type Cache interface {
 
 	// ListRoles is a paginated role getter.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+
+	// ListRolesForProto is like [Cache.ListRoles] but the returned roles might
+	// be pre-marshaled in protobuf wire format.
+	ListRolesForProto(ctx context.Context, req *proto.ListRolesRequest) (_ []forproto.Role, nextPageToken string, _ error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)

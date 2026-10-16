@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/forproto"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -151,6 +152,11 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		resp.Users = append(resp.Users, user)
 	}
 	return &resp, nil
+}
+
+// ListUsersForProto implements [services.IdentityInternal].
+func (s *IdentityService) ListUsersForProto(ctx context.Context, req *userspb.ListUsersRequest) (_ []forproto.User, nextPageToken string, _ error) {
+	return forproto.FromListUsers(s.ListUsers(ctx, req))
 }
 
 // RangeUsers returns users within the range [start, end) in backend key

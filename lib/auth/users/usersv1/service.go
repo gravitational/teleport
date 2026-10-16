@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/forproto"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -45,8 +46,8 @@ import (
 type Cache interface {
 	// GetUser returns a user by name.
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
-	// ListUsers returns a page of users.
-	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+	// ListUsersForProto is from [authclient.Cache].
+	ListUsersForProto(ctx context.Context, req *userspb.ListUsersRequest) (_ []forproto.User, nextPageToken string, _ error)
 	// GetRole returns a role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
@@ -627,8 +628,7 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 		}
 	}
 
-	rsp, err := s.cache.ListUsers(ctx, req)
-	return rsp, trace.Wrap(err)
+	return forproto.ToListUsersResponse(s.cache.ListUsersForProto(ctx, req))
 }
 
 func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {

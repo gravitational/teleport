@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/forproto"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
@@ -5822,12 +5823,33 @@ func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
+func (a *ServerWithRoles) authorizeListRoles() error {
+	return a.authorizeAction(types.KindRole, types.VerbList, types.VerbRead)
+}
+
+func (a *ServerWithRoles) ListRolesForProto(ctx context.Context, req *proto.ListRolesRequest) (_ []forproto.Role, nextPageToken string, _ error) {
+	authErr := a.authorizeListRoles()
+	if authErr == nil {
+		return a.authServer.ListRolesForProto(ctx, req)
+	}
+
+	return forproto.FromListRoles(a.listRoles(ctx, req, authErr))
+}
+
 // ListRoles is a paginated role getter.
 func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-	authErr := a.authorizeAction(types.KindRole, types.VerbList, types.VerbRead)
+	authErr := a.authorizeListRoles()
 	if authErr == nil {
 		rsp, err := a.authServer.ListRoles(ctx, req)
 		return rsp, trace.Wrap(err)
+	}
+
+	return a.listRoles(ctx, req, authErr)
+}
+
+func (a *ServerWithRoles) listRoles(ctx context.Context, req *proto.ListRolesRequest, authErr error) (*proto.ListRolesResponse, error) {
+	if authErr == nil {
+		return nil, trace.Errorf("nil authErr in listRoles (this is a bug)")
 	}
 
 	firstPage := req.StartKey == ""

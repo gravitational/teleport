@@ -38,6 +38,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services/forproto"
 )
 
 // UserGetter is responsible for getting users
@@ -75,6 +76,10 @@ type IdentityInternal interface {
 
 	// RangeUsers returns users within the range [start, end), without secrets.
 	RangeUsers(ctx context.Context, start, end string) iter.Seq2[types.User, error]
+
+	// ListUsersForProto is like [UsersService.ListUsers] but the returned roles
+	// might be pre-marshaled in protobuf wire format.
+	ListUsersForProto(ctx context.Context, req *userspb.ListUsersRequest) (_ []forproto.User, nextPageToken string, _ error)
 
 	// AppendPutUserParamsActions adds conditional actions to an atomic write to
 	// create or update the user params resource (without secrets, mfa devices).
