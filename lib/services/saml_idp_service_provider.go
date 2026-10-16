@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	libsamlidp "github.com/gravitational/teleport/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -233,6 +234,35 @@ func ValidateSAMLIdPACSURLAndRelayStateInputs(sp types.SAMLIdPServiceProvider) e
 
 	if strings.ContainsAny(sp.GetRelayState(), invalidSAMLIdPACSURLChars) {
 		return trace.BadParameter("relay state contains an unsupported character")
+	}
+
+	return nil
+}
+
+// ValidateAttributeMapping checks predicate variable and expression syntax.
+func ValidateAttributeMapping(m []*types.SAMLAttributeMapping) error {
+	return ValidateAttributeMappingUpdate(m, nil /* old */)
+}
+
+// ValidateAttributeMappingUpdate checks predicate variable and expression syntax
+// for the changed mappings. If the old mapping is nil, then all new mappings are validated.
+func ValidateAttributeMappingUpdate(new, old []*types.SAMLAttributeMapping) error {
+	oldMap := make(map[string]string, len(old))
+	for _, attr := range old {
+		oldMap[attr.Name] = attr.Value
+	}
+
+	for _, v := range new {
+		if v == nil {
+			continue
+		}
+		if oldValue, ok := oldMap[v.Name]; ok && oldValue == v.Value {
+			// Existing attributes should be preserved even if they define an unsupported predicate.
+			continue
+		}
+		if _, err := libsamlidp.AttributeMappingParser.Parse(v.Value); err != nil {
+			return trace.BadParameter("unsupported attribute value for attribute %q: %v", v.Name, err)
+		}
 	}
 
 	return nil

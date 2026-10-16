@@ -9128,6 +9128,10 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		}
 	}
 
+	if err := services.ValidateAttributeMapping(sp.GetAttributeMapping()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
 }
@@ -9183,6 +9187,10 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 	}
 
 	if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateAttributeMappingUpdate(sp.GetAttributeMapping(), existingSP.GetAttributeMapping()); err != nil {
 		return trace.Wrap(err)
 	}
 
