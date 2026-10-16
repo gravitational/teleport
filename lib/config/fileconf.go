@@ -1162,6 +1162,9 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 			"Role 'Bot' is not supported in static token configurations and will not function as expected. In Teleport V19.0.0, this will become an error.",
 		)
 	}
+	if roles.Include(types.RoleSSHHost) {
+		return nil, trace.BadParameter("role %q is not allowed in static token configuration", types.RoleSSHHost)
+	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
 	if err != nil {

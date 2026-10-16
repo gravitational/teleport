@@ -113,19 +113,22 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := c.authClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+	res, err := c.authClient.TrustClient().GenerateHostCert(ctx, trustpb.GenerateHostCertRequest_builder{
 		Key:         pubBytes,
 		HostId:      principals[0],
 		NodeName:    principals[0],
 		Principals:  principals,
 		ClusterName: clusterName,
-		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(0),
-	})
+		// TODO(Joerger): DELETE IN v20.0.0 - role is ignored by up-to-date auth servers,
+		// which always mint a minimal [types.RoleSSHHost] host cert. It is still sent here
+		// so that older auth servers, which require it, continue to work.
+		Role: string(types.RoleNode), //nolint:staticcheck // SA1019. Setting field for backwards compatibility.
+		Ttl:  durationpb.New(0),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certBytes := res.SshCertificate
+	certBytes := res.GetSshCertificate()
 
 	// create a *ssh.Certificate
 	sshSigner, err := ssh.NewSignerFromSigner(hostKey)
