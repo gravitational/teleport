@@ -58,11 +58,13 @@ func (p *PluginsCommand) initInstallIntune(parent *kingpin.CmdClause) {
 		StringVar(&p.install.intune.clientID)
 
 	cmd.
-		Flag("login-endpoint", "Microsoft Entra ID login endpoint. Defaults to "+types.MSGraphDefaultLoginEndpoint+".").
+		Flag("login-endpoint", "Microsoft Entra ID login endpoint.").
+		Default(types.MSGraphDefaultLoginEndpoint).
 		StringVar(&p.install.intune.loginEndpoint)
 
 	cmd.
-		Flag("graph-endpoint", "Microsoft Graph endpoint. Defaults to "+types.MSGraphDefaultEndpoint+".").
+		Flag("graph-endpoint", "Microsoft Graph endpoint.").
+		Default(types.MSGraphDefaultEndpoint).
 		StringVar(&p.install.intune.graphEndpoint)
 }
 
