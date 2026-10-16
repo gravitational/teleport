@@ -52,3 +52,29 @@ func ForAppServer(g appServerInfoGetter) *componentfeaturesv1.ComponentFeatures 
 
 	return New(FeatureResourceConstraintsV1)
 }
+
+// SupportsAppForwardedIdentityV1 reports whether app can be served with a Proxy-forwarded client identity, which is the
+// set of applications [FeatureAppForwardedIdentityV1] covers. It supports LLM apps and apps with no subkind that the
+// Application Service serves as HTTP, unless an exclusion matches. Any other subkind or protocol is unsupported until it
+// is added here.
+func SupportsAppForwardedIdentityV1(app types.Application) bool {
+	switch {
+	case app.GetCloud() != "" || app.IsAWSConsole():
+		// Cloud apps need the upstream identity carried in a route-bound certificate, such as the AWS role ARN.
+		return false
+	case app.GetIntegration() != "":
+		// The Proxy serves integration-backed apps itself, using the integration's credentials.
+		return false
+	case app.GetClientCertMode() != types.AppClientCertModeDisabled:
+		// Managed upstream client certificates are issued from the original route-bound user certificate.
+		return false
+	case app.Origin() == types.OriginOkta:
+		// The Proxy redirects Okta apps to Okta instead of forwarding them.
+		return false
+	default:
+		// Plain HTTP apps have no marker of their own, so the excluded apps above look like them, and so would a new
+		// kind of app with no subkind that is served as HTTP. Exclude such an app above, or it is supported.
+		plainHTTP := app.GetSubKind() == "" && app.GetProtocol() == types.ApplicationProtocolHTTP
+		return plainHTTP || app.GetSubKind() == types.SubKindLLM
+	}
+}

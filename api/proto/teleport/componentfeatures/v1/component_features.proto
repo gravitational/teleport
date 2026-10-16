@@ -25,6 +25,10 @@ enum ComponentFeatureID {
   COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_V1 = 1;
   // ResourceConstraintsSSHV1 indicates support for enforcing SSH login constraints on nodes.
   COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_SSH_V1 = 2;
+  // AppForwardedIdentityV1 indicates that an Application Service replica accepts requests for the application in its
+  // App Server record over the Proxy's shared transport, with the client identity forwarded per request, as defined in
+  // RFD 0341.
+  COMPONENT_FEATURE_ID_APP_FORWARDED_IDENTITY_V1 = 3;
 }
 
 // ComponentFeatures represents a set of features supported by a given Teleport component.

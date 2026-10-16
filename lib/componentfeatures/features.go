@@ -35,12 +35,16 @@ const (
 	// FeatureResourceConstraintsSSHV1 indicates support for enforcing SSH login
 	// constraints on nodes.
 	FeatureResourceConstraintsSSHV1
+	// FeatureAppForwardedIdentityV1 indicates that an Application Service replica accepts a Proxy-forwarded client
+	// identity for the application in its App Server record. See [SupportsAppForwardedIdentityV1].
+	FeatureAppForwardedIdentityV1
 )
 
 var featureIDToName = map[FeatureID]string{
 	FeatureUnspecified:              "unspecified feature",
 	FeatureResourceConstraintsV1:    "AWS constraints",
 	FeatureResourceConstraintsSSHV1: "SSH constraints",
+	FeatureAppForwardedIdentityV1:   "forwarded app identities",
 }
 
 // String returns a short name for the FeatureID, falling back to the
