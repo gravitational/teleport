@@ -113,6 +113,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |format|string|Defines the LLM inference API format.|
 |models|[][object](#specinferencemodels-items)|Defines the list of supported models, and optionally their name on the inference provider.|
 |provider|string|Defines which inference provider will be used to serve the requests.|
+|quota|[object](#specinferencequota)|Defines usage quota for the inference endpoint.|
 
 ### spec.inference.models items
 
@@ -120,6 +121,35 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |name|string|Name defines the model name. This is the requested value.|
 |provider_name|string|Represents the model name in the configured provider.|
+
+### spec.inference.quota
+
+|Field|Type|Description|
+|---|---|---|
+|intervals|[][object](#specinferencequotaintervals-items)|Intervals defines a list of quota settings per time interval.|
+|requests|[object](#specinferencequotarequests)|Requests specifies quota-related settings for LLM requests.|
+
+### spec.inference.quota.intervals items
+
+|Field|Type|Description|
+|---|---|---|
+|input_tokens|integer|Defines the number of input tokens available for the interval. At least one of `input_tokens` or `output_tokens` is required. If not specified, defaults to unlimited input tokens.|
+|interval|string|Interval defines the interval type being. Supported values: "daily" (reset at the configured time each day), "weekly" (reset on Sunday), "monthly" (reset on the first day of each month), "yearly" (reset at January 1st), "lifetime" (never reset automatically)|
+|output_tokens|integer|Defines the number of output tokens available for the interval. At least one of `input_tokens` or `output_tokens` is required. If not specified, defaults to unlimited output tokens.|
+|reset_options|[object](#specinferencequotaintervals-itemsreset_options)|ResetOptions defines the reset settings for the interval. Not applicable when interval type is "lifetime".|
+
+### spec.inference.quota.intervals items.reset_options
+
+|Field|Type|Description|
+|---|---|---|
+|time|string|Defines at which time the interval resets in `HH:MM` format. Defaults to `00:00` (midnight).|
+|timezone|string|Defines which timezone, in IANA format (such as `America/Los_Angeles`), the interval resets. Defaults to `UTC`.|
+
+### spec.inference.quota.requests
+
+|Field|Type|Description|
+|---|---|---|
+|default_max_tokens|integer|Defines the default max tokens value to set when a request doesn't include it.|
 
 ### spec.mcp
 

@@ -653,6 +653,14 @@ validators:
     - UseVersionBetween(1,1)
   IntegrationV1.Version:
     - UseVersionBetween(1,1)
+  # uint64 fields are represented as Int64, prevent negative values from
+  # wrapping around to large numbers.
+  AppV3.Spec.LLM.quota.requests.default_max_tokens:
+    - UseInt64AtLeast(0)
+  AppV3.Spec.LLM.quota.intervals.input_tokens:
+    - UseInt64AtLeast(0)
+  AppV3.Spec.LLM.quota.intervals.output_tokens:
+    - UseInt64AtLeast(0)
 
 time_type:
     type: "TimeType"

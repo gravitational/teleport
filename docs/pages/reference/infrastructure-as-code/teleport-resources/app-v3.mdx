@@ -304,6 +304,7 @@ models:
   - # [...]
   - # [...]
 fallback_model: "string"
+quota: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -312,6 +313,7 @@ fallback_model: "string"
 |format|Defines the LLM inference API format.|string|
 |models|Defines the list of supported models, and optionally their name on the inference provider.|[][LLM_Model](#llm_model)|
 |provider|Defines which inference provider will be used to serve the requests.|string|
+|quota|Defines usage quota for the inference endpoint.|[LLM_Quota](#llm_quota)|
 
 ## LLM_Model
 
@@ -329,6 +331,79 @@ provider_name: "string"
 |---|---|---|
 |name|Defines the model name. This is the requested value.|string|
 |provider_name|Represents the model name in the configured provider.|string|
+
+## LLM_Quota
+
+Quota contains LLM inference usage quota settings.
+
+
+Example:
+
+```yaml
+requests: # [...]
+intervals: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|intervals|Defines a list of quota settings per time interval.|[][LLM_Quota_Interval](#llm_quota_interval)|
+|requests|Specifies quota-related settings for LLM requests.|[LLM_Quota_Requests](#llm_quota_requests)|
+
+## LLM_Quota_Interval
+
+Interval contans information about a quota interval.
+
+
+Example:
+
+```yaml
+interval: "string"
+input_tokens: 1
+output_tokens: 1
+reset_options: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|input_tokens|Defines the number of input tokens available for the interval. At least one of `input_tokens` or `output_tokens` is required. If not specified, defaults to unlimited input tokens.|number|
+|interval|Defines the interval type being. Supported values:   "daily" (reset at the configured time each day),   "weekly" (reset on Sunday),   "monthly" (reset on the first day of each month),   "yearly" (reset at January 1st),   "lifetime" (never reset automatically)|string|
+|output_tokens|Defines the number of output tokens available for the interval. At least one of `input_tokens` or `output_tokens` is required. If not specified, defaults to unlimited output tokens.|number|
+|reset_options|Defines the reset settings for the interval. Not applicable when interval type is "lifetime".|[LLM_Quota_Interval_Reset](#llm_quota_interval_reset)|
+
+## LLM_Quota_Interval_Reset
+
+Reset cotains the interval reset settings.
+
+
+Example:
+
+```yaml
+timezone: "string"
+time: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|time|Defines at which time the interval resets in `HH:MM` format. Defaults to `00:00` (midnight).|string|
+|timezone|Defines which timezone, in IANA format (such as `America/Los_Angeles`), the interval resets. Defaults to `UTC`.|string|
+
+## LLM_Quota_Requests
+
+Requests contains quota settings for LLM requests.
+
+
+Example:
+
+```yaml
+default_max_tokens: 1
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|default_max_tokens|Defines the default max tokens value to set when a request doesn't include it.|number|
 
 ## MCP
 

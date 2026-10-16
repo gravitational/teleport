@@ -17,8 +17,10 @@ limitations under the License.
 package types
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
+	"math"
 	"net/url"
 	"slices"
 	"strconv"
@@ -1035,3 +1037,76 @@ const (
 func AppSupportedInternalCAs() []string {
 	return []string{AppTLSInternalCAWorkloadIdentity}
 }
+
+// AppLLMQuotaInterval specifies the type of time interval used on a quota usage
+// definition.
+//
+// Friendly reminder: When adding or modifying a interval, also check the
+// LLMQuota protobuf fields comments for updates. This will keep docs and IaC
+// reference up-to-date.
+type AppLLMQuotaInterval = string
+
+const (
+	// AppLLMQuotaIntervalLifetime indicates the quota usage never resets.
+	AppLLMQuotaIntervalLifetime = "lifetime"
+	// AppLLMQuotaIntervalYearly indicates the quota usage resets yearly.
+	AppLLMQuotaIntervalYearly = "yearly"
+	// AppLLMQuotaIntervalMonthly indicates the quota usage resets monthly.
+	AppLLMQuotaIntervalMonthly = "monthly"
+	// AppLLMQuotaIntervalWeekly indicates the quota usage resets weekly.
+	AppLLMQuotaIntervalWeekly = "weekly"
+	// AppLLMQuotaIntervalDaily indicates the quota usage resets daily.
+	AppLLMQuotaIntervalDaily = "daily"
+)
+
+// SupportedAppLLMQuotaIntervals returns a list the LLM quota intervals
+// supported.
+func SupportedAppLLMQuotaIntervals() []string {
+	return []string{
+		AppLLMQuotaIntervalLifetime,
+		AppLLMQuotaIntervalYearly,
+		AppLLMQuotaIntervalMonthly,
+		AppLLMQuotaIntervalWeekly,
+		AppLLMQuotaIntervalDaily,
+	}
+}
+
+// CompareAppLLMQuotaInterval compares two intervals.
+// Quota interval follows the "size definition":
+//
+//	`lifetime > yearly > monthly > weekly > daily`
+//
+// Compare returns:
+// -1 if a is less than b,
+//
+//	0 if a equals b,
+//
+// +1 if a is greater than b.
+func CompareAppLLMQuotaInterval(a AppLLMQuotaInterval, b AppLLMQuotaInterval) int {
+	intervalValue := func(interval AppLLMQuotaInterval) int {
+		switch interval {
+		case AppLLMQuotaIntervalLifetime:
+			return 4
+		case AppLLMQuotaIntervalYearly:
+			return 3
+		case AppLLMQuotaIntervalMonthly:
+			return 2
+		case AppLLMQuotaIntervalWeekly:
+			return 1
+		case AppLLMQuotaIntervalDaily:
+			return 0
+		default:
+			return math.MinInt
+		}
+	}
+
+	return cmp.Compare(intervalValue(a), intervalValue(b))
+}
+
+// AppLLMQuotaResetTimeFormat defines the reset time format used for LLM quota.
+// Currently using 24-hour HH:MM format.
+//
+// Friendly reminder: When chaning this value, also update the LLMQuota message
+// protobuf fields comments for updates and the validation error messages. This
+// will keep docs, IaC reference and error messages up-to-date.
+const AppLLMQuotaResetTimeFormat = "15:04"

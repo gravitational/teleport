@@ -33,6 +33,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -145,6 +146,14 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 
 	if app.GetTLS() != nil {
 		if err := validateAppTLS(app); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// TODO(gabrielcorado): move other LLM validation from [CheckAndSetDefaults]
+	// to here.
+	if app.GetLLM() != nil {
+		if err := validateLLMQuota(app); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -321,6 +330,137 @@ func validateAppTLS(a types.Application) error {
 				err,
 			)
 		}
+	}
+
+	return nil
+}
+
+// validateLLMQuota validates LLM quota options.
+func validateLLMQuota(a types.Application) error {
+	if a.GetLLM() == nil || a.GetLLM().Quota == nil {
+		return nil
+	}
+
+	name := a.GetName()
+	quota := a.GetLLM().Quota
+	if len(quota.Intervals) == 0 {
+		return trace.BadParameter("App %q 'inference.quota.intervals' must not be empty", name)
+	}
+
+	if slices.Contains(quota.Intervals, nil) {
+		return trace.BadParameter("App %q 'inference.quota.intervals' entries must not be empty or nil.", name)
+	}
+
+	type quotaDef struct {
+		interval     types.AppLLMQuotaInterval
+		inputTokens  uint64
+		outputTokens uint64
+	}
+	var seen []quotaDef
+
+	// Sort the intervals based on the size of interval (see
+	// [CompareAppLLMQuotaInterval] for the definition). Since we want the
+	// largest interval first, we need to reverse the list.
+	intervals := slices.Clone(quota.Intervals)
+	slices.SortFunc(intervals, func(a *types.LLM_Quota_Interval, b *types.LLM_Quota_Interval) int {
+		return types.CompareAppLLMQuotaInterval(b.Interval, a.Interval)
+	})
+
+	supportedIntervals := types.SupportedAppLLMQuotaIntervals()
+	for _, interval := range intervals {
+		switch {
+		case !slices.Contains(supportedIntervals, interval.Interval):
+			return trace.BadParameter(
+				"App %q 'inference.quota.intervals' contains invalid interval %q. Supported intervals are: %s",
+				name,
+				interval.Interval,
+				quoteAndJoin(supportedIntervals),
+			)
+		case interval.InputTokens == 0 && interval.OutputTokens == 0:
+			return trace.BadParameter(
+				"App %q 'inference.quota.intervals' interval %q must define at least one token limit 'input_tokens' or 'output_tokens'",
+				name,
+				interval.Interval,
+			)
+		}
+
+		if interval.ResetOptions != nil {
+			tz := interval.ResetOptions.Timezone
+			if tz == "Local" {
+				return trace.BadParameter(
+					"App %q 'inference.quota.intervals' %q interval 'reset_options.timezone' cannot be \"Local\": use an IANA timezone name",
+					name, interval.Interval,
+				)
+			}
+			// An empty value resolves to UTC.
+			if _, err := time.LoadLocation(tz); err != nil {
+				return trace.BadParameter(
+					"App %q 'inference.quota.intervals' %q interval 'reset_options.timezone' is invalid. Refer to the IANA Time Zone Database for valid options: %s",
+					name, interval.Interval,
+					err.Error(),
+				)
+			}
+
+			if interval.ResetOptions.Time != "" {
+				if _, err := time.Parse(types.AppLLMQuotaResetTimeFormat, interval.ResetOptions.Time); err != nil {
+					return trace.BadParameter(
+						"App %q 'inference.quota.intervals' interval %q has invalid 'reset.time' format. Update the field to use \"HH:MM\" format",
+						name,
+						interval.Interval,
+					)
+				}
+			}
+		}
+
+		for _, seenInterval := range seen {
+			if interval.Interval == seenInterval.interval {
+				return trace.BadParameter(
+					"App %q 'inference.quota.intervals' has duplicate %q interval. Review the intervals list and ensure %q has only one entry",
+					name,
+					interval.Interval,
+					interval.Interval,
+				)
+			}
+
+			// Since we sorted the intervals based on time window, it can only
+			// decrease.
+			//
+			// When the interval we're currently validating uses a smaller
+			// time window, it must not set greater limits, otherwise other
+			// intervals become ineffective.
+
+			if (interval.InputTokens > 0 && seenInterval.inputTokens > 0) && interval.InputTokens > seenInterval.inputTokens {
+				return trace.BadParameter(
+					"App %q 'inference.quota.intervals' interval %q cannot define 'input_tokens' greater than %q interval,"+
+						" otherwise %q becomes ineffective. Either decrease 'input_tokens' from %q or increase 'input_tokens' from %q",
+					name,
+					interval.Interval,
+					seenInterval.interval,
+					seenInterval.interval,
+					interval.Interval,
+					seenInterval.interval,
+				)
+			}
+
+			if (interval.OutputTokens > 0 && seenInterval.outputTokens > 0) && interval.OutputTokens > seenInterval.outputTokens {
+				return trace.BadParameter(
+					"App %q 'inference.quota.intervals' interval %q cannot define 'output_tokens' greater than %q interval,"+
+						" otherwise %q becomes ineffective. Either decrease 'output_tokens' from %q or increase 'output_tokens' from %q",
+					name,
+					interval.Interval,
+					seenInterval.interval,
+					seenInterval.interval,
+					interval.Interval,
+					seenInterval.interval,
+				)
+			}
+		}
+
+		seen = append(seen, quotaDef{
+			interval:     interval.Interval,
+			inputTokens:  interval.InputTokens,
+			outputTokens: interval.OutputTokens,
+		})
 	}
 
 	return nil

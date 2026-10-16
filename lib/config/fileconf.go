@@ -2757,6 +2757,8 @@ type LLM struct {
 	// FallbackModel is a model that will be used if the model requested is not
 	// on the list.
 	FallbackModel string `yaml:"fallback_model,omitempty"`
+	// Defines usage quota for the inference endpoint.
+	Quota *LLMQuota `yaml:"quota,omitempty"`
 }
 
 // LLMModel is a provider model definition.
@@ -2765,6 +2767,42 @@ type LLMModel struct {
 	Name string `yaml:"name"`
 	// ProviderName is the model name in the configured provider.
 	ProviderName string `yaml:"provider_name,omitempty"`
+}
+
+// LLMQuota contains LLM inference usage quota settings.
+type LLMQuota struct {
+	// Requests specifies quota-related settings for LLM requests.
+	Requests LLMQuotaRequests `yaml:"requests,omitempty"`
+	// Intervals defines a list of quota settings per time interval.
+	Intervals []LLMQuotaInterval `yaml:"intervals"`
+}
+
+// LLMQuotaRequests contains quota settings for LLM requests.
+type LLMQuotaRequests struct {
+	// DefaultMaxTokens defines the default max tokens value to set when a
+	// request doesn't include it.
+	DefaultMaxTokens uint64 `yaml:"default_max_tokens"`
+}
+
+// LLMQuotaInterval contans information about a quota interval.
+type LLMQuotaInterval struct {
+	// Interval defines the interval type being.
+	Interval string `yaml:"interval"`
+	// Defines the number of input tokens available for the interval.
+	InputTokens uint64 `yaml:"input_tokens,omitempty"`
+	// Defines the number of output tokens available for the interval.
+	OutputTokens uint64 `yaml:"output_tokens,omitempty"`
+	// Reset defines the reset settings for the interval. Not applicable when
+	// interval type is "lifetime".
+	Reset LLMQuotaIntervalReset `yaml:"reset,omitempty"`
+}
+
+// LLMQuotaIntervalReset cotains the interval reset settings.
+type LLMQuotaIntervalReset struct {
+	// Timezone defines which timezone in IANA format.
+	Timezone string `yaml:"timezone,omitempty"`
+	// Time defines at which time the interval resets in `HH:MM` format.
+	Time string `yaml:"time,omitempty"`
 }
 
 // AppTLS contains the app TLS configuration.

@@ -2206,6 +2206,25 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					ProviderName: model.ProviderName,
 				})
 			}
+			if application.LLM.Quota != nil {
+				app.LLM.Quota = &types.LLM_Quota{
+					Requests: &types.LLM_Quota_Requests{
+						DefaultMaxTokens: application.LLM.Quota.Requests.DefaultMaxTokens,
+					},
+					Intervals: make([]*types.LLM_Quota_Interval, 0, len(application.LLM.Quota.Intervals)),
+				}
+				for _, interval := range application.LLM.Quota.Intervals {
+					app.LLM.Quota.Intervals = append(app.LLM.Quota.Intervals, &types.LLM_Quota_Interval{
+						Interval:     interval.Interval,
+						InputTokens:  interval.InputTokens,
+						OutputTokens: interval.OutputTokens,
+						ResetOptions: &types.LLM_Quota_Interval_Reset{
+							Timezone: interval.Reset.Timezone,
+							Time:     interval.Reset.Time,
+						},
+					})
+				}
+			}
 		}
 
 		if application.TLS != nil {

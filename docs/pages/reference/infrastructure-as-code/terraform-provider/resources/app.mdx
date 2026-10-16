@@ -150,6 +150,7 @@ Optional:
 - `format` (String) Defines the LLM inference API format.
 - `models` (Attributes List) Defines the list of supported models, and optionally their name on the inference provider. (see [below for nested schema](#nested-schema-for-specinferencemodels))
 - `provider` (String) Defines which inference provider will be used to serve the requests.
+- `quota` (Attributes) Defines usage quota for the inference endpoint. (see [below for nested schema](#nested-schema-for-specinferencequota))
 
 ### Nested Schema for `spec.inference.models`
 
@@ -157,6 +158,39 @@ Optional:
 
 - `name` (String) Name defines the model name. This is the requested value.
 - `provider_name` (String) Represents the model name in the configured provider.
+
+
+### Nested Schema for `spec.inference.quota`
+
+Optional:
+
+- `intervals` (Attributes List) Intervals defines a list of quota settings per time interval. (see [below for nested schema](#nested-schema-for-specinferencequotaintervals))
+- `requests` (Attributes) Requests specifies quota-related settings for LLM requests. (see [below for nested schema](#nested-schema-for-specinferencequotarequests))
+
+### Nested Schema for `spec.inference.quota.intervals`
+
+Optional:
+
+- `input_tokens` (Number) Defines the number of input tokens available for the interval. At least one of `input_tokens` or `output_tokens` is required. If not specified, defaults to unlimited input tokens.
+- `interval` (String) Interval defines the interval type being. Supported values: "daily" (reset at the configured time each day), "weekly" (reset on Sunday), "monthly" (reset on the first day of each month), "yearly" (reset at January 1st), "lifetime" (never reset automatically)
+- `output_tokens` (Number) Defines the number of output tokens available for the interval. At least one of `input_tokens` or `output_tokens` is required. If not specified, defaults to unlimited output tokens.
+- `reset_options` (Attributes) ResetOptions defines the reset settings for the interval. Not applicable when interval type is "lifetime". (see [below for nested schema](#nested-schema-for-specinferencequotaintervalsreset_options))
+
+### Nested Schema for `spec.inference.quota.intervals.reset_options`
+
+Optional:
+
+- `time` (String) Defines at which time the interval resets in `HH:MM` format. Defaults to `00:00` (midnight).
+- `timezone` (String) Defines which timezone, in IANA format (such as `America/Los_Angeles`), the interval resets. Defaults to `UTC`.
+
+
+
+### Nested Schema for `spec.inference.quota.requests`
+
+Optional:
+
+- `default_max_tokens` (Number) Defines the default max tokens value to set when a request doesn't include it.
+
 
 
 

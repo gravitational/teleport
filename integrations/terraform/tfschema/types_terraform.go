@@ -2120,6 +2120,69 @@ func GenSchemaAppV3Resource(ctx context.Context) (github_com_hashicorp_terraform
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
+						"quota": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+								"intervals": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+									Computed:    true,
+									Description: "Intervals defines a list of quota settings per time interval.",
+									NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+										"input_tokens": github_com_hashicorp_terraform_plugin_framework_resource_schema.Int64Attribute{
+											Computed:      true,
+											Description:   "Defines the number of input tokens available for the interval. At least one of `input_tokens` or `output_tokens` is required. If not specified, defaults to unlimited input tokens.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Int64{github_com_hashicorp_terraform_plugin_framework_resource_schema_int64planmodifier.UseStateForUnknown()},
+											Validators:    []github_com_hashicorp_terraform_plugin_framework_schema_validator.Int64{UseInt64AtLeast(0)},
+										},
+										"interval": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+											Computed:      true,
+											Description:   "Interval defines the interval type being. Supported values: \"daily\" (reset at the configured time each day), \"weekly\" (reset on Sunday), \"monthly\" (reset on the first day of each month), \"yearly\" (reset at January 1st), \"lifetime\" (never reset automatically)",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+										},
+										"output_tokens": github_com_hashicorp_terraform_plugin_framework_resource_schema.Int64Attribute{
+											Computed:      true,
+											Description:   "Defines the number of output tokens available for the interval. At least one of `input_tokens` or `output_tokens` is required. If not specified, defaults to unlimited output tokens.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Int64{github_com_hashicorp_terraform_plugin_framework_resource_schema_int64planmodifier.UseStateForUnknown()},
+											Validators:    []github_com_hashicorp_terraform_plugin_framework_schema_validator.Int64{UseInt64AtLeast(0)},
+										},
+										"reset_options": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+											Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+												"time": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+													Computed:      true,
+													Description:   "Defines at which time the interval resets in `HH:MM` format. Defaults to `00:00` (midnight).",
+													Optional:      true,
+													PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+												},
+												"timezone": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+													Computed:      true,
+													Description:   "Defines which timezone, in IANA format (such as `America/Los_Angeles`), the interval resets. Defaults to `UTC`.",
+													Optional:      true,
+													PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+												},
+											},
+											Description: "ResetOptions defines the reset settings for the interval. Not applicable when interval type is \"lifetime\".",
+											Optional:    true,
+										},
+									}},
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+								},
+								"requests": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+									Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"default_max_tokens": github_com_hashicorp_terraform_plugin_framework_resource_schema.Int64Attribute{
+										Computed:      true,
+										Description:   "Defines the default max tokens value to set when a request doesn't include it.",
+										Optional:      true,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Int64{github_com_hashicorp_terraform_plugin_framework_resource_schema_int64planmodifier.UseStateForUnknown()},
+										Validators:    []github_com_hashicorp_terraform_plugin_framework_schema_validator.Int64{UseInt64AtLeast(0)},
+									}},
+									Description: "Requests specifies quota-related settings for LLM requests.",
+									Optional:    true,
+								},
+							},
+							Description: "Defines usage quota for the inference endpoint.",
+							Optional:    true,
+						},
 					},
 					Description: "LLM contains LLM inference endpoint related configurations.",
 					Optional:    true,
@@ -2570,6 +2633,62 @@ func GenSchemaAppV3DataSource(ctx context.Context) (github_com_hashicorp_terrafo
 						"provider": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
 							Description: "Defines which inference provider will be used to serve the requests.",
+							Optional:    true,
+						},
+						"quota": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+								"intervals": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+									Computed:    true,
+									Description: "Intervals defines a list of quota settings per time interval.",
+									NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+										"input_tokens": github_com_hashicorp_terraform_plugin_framework_datasource_schema.Int64Attribute{
+											Computed:    true,
+											Description: "Defines the number of input tokens available for the interval. At least one of `input_tokens` or `output_tokens` is required. If not specified, defaults to unlimited input tokens.",
+											Optional:    true,
+											Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.Int64{UseInt64AtLeast(0)},
+										},
+										"interval": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+											Computed:    true,
+											Description: "Interval defines the interval type being. Supported values: \"daily\" (reset at the configured time each day), \"weekly\" (reset on Sunday), \"monthly\" (reset on the first day of each month), \"yearly\" (reset at January 1st), \"lifetime\" (never reset automatically)",
+											Optional:    true,
+										},
+										"output_tokens": github_com_hashicorp_terraform_plugin_framework_datasource_schema.Int64Attribute{
+											Computed:    true,
+											Description: "Defines the number of output tokens available for the interval. At least one of `input_tokens` or `output_tokens` is required. If not specified, defaults to unlimited output tokens.",
+											Optional:    true,
+											Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.Int64{UseInt64AtLeast(0)},
+										},
+										"reset_options": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+											Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+												"time": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+													Computed:    true,
+													Description: "Defines at which time the interval resets in `HH:MM` format. Defaults to `00:00` (midnight).",
+													Optional:    true,
+												},
+												"timezone": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+													Computed:    true,
+													Description: "Defines which timezone, in IANA format (such as `America/Los_Angeles`), the interval resets. Defaults to `UTC`.",
+													Optional:    true,
+												},
+											},
+											Description: "ResetOptions defines the reset settings for the interval. Not applicable when interval type is \"lifetime\".",
+											Optional:    true,
+										},
+									}},
+									Optional: true,
+								},
+								"requests": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+									Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"default_max_tokens": github_com_hashicorp_terraform_plugin_framework_datasource_schema.Int64Attribute{
+										Computed:    true,
+										Description: "Defines the default max tokens value to set when a request doesn't include it.",
+										Optional:    true,
+										Validators:  []github_com_hashicorp_terraform_plugin_framework_schema_validator.Int64{UseInt64AtLeast(0)},
+									}},
+									Description: "Requests specifies quota-related settings for LLM requests.",
+									Optional:    true,
+								},
+							},
+							Description: "Defines usage quota for the inference endpoint.",
 							Optional:    true,
 						},
 					},
@@ -20744,6 +20863,191 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 											}
 										}
 									}
+									{
+										a, ok := tf.Attributes()["quota"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.quota"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Quota = nil
+												if !v.IsNull() && !v.IsUnknown() {
+													tf := v
+													obj.Quota = &github_com_gravitational_teleport_api_types.LLM_Quota{}
+													obj := obj.Quota
+													{
+														a, ok := tf.Attributes()["requests"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.quota.requests"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota.requests", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+															} else {
+																obj.Requests = nil
+																if !v.IsNull() && !v.IsUnknown() {
+																	tf := v
+																	obj.Requests = &github_com_gravitational_teleport_api_types.LLM_Quota_Requests{}
+																	obj := obj.Requests
+																	{
+																		a, ok := tf.Attributes()["default_max_tokens"]
+																		if !ok {
+																			diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.quota.requests.default_max_tokens"})
+																		} else {
+																			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																			if !ok {
+																				diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota.requests.default_max_tokens", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																			} else {
+																				var t uint64
+																				if !v.IsNull() && !v.IsUnknown() {
+																					t = uint64(v.ValueInt64())
+																				}
+																				obj.DefaultMaxTokens = t
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+													{
+														a, ok := tf.Attributes()["intervals"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.quota.intervals"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota.intervals", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.Intervals = make([]*github_com_gravitational_teleport_api_types.LLM_Quota_Interval, len(v.Elements()))
+																if !v.IsNull() && !v.IsUnknown() {
+																	for k, a := range v.Elements() {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota.intervals", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+																		} else {
+																			var t *github_com_gravitational_teleport_api_types.LLM_Quota_Interval
+																			if !v.IsNull() && !v.IsUnknown() {
+																				tf := v
+																				t = &github_com_gravitational_teleport_api_types.LLM_Quota_Interval{}
+																				obj := t
+																				{
+																					a, ok := tf.Attributes()["interval"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.quota.intervals.interval"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota.intervals.interval", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.IsNull() && !v.IsUnknown() {
+																								t = (v.ValueString())
+																							}
+																							obj.Interval = t
+																						}
+																					}
+																				}
+																				{
+																					a, ok := tf.Attributes()["input_tokens"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.quota.intervals.input_tokens"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota.intervals.input_tokens", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																						} else {
+																							var t uint64
+																							if !v.IsNull() && !v.IsUnknown() {
+																								t = uint64(v.ValueInt64())
+																							}
+																							obj.InputTokens = t
+																						}
+																					}
+																				}
+																				{
+																					a, ok := tf.Attributes()["output_tokens"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.quota.intervals.output_tokens"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota.intervals.output_tokens", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																						} else {
+																							var t uint64
+																							if !v.IsNull() && !v.IsUnknown() {
+																								t = uint64(v.ValueInt64())
+																							}
+																							obj.OutputTokens = t
+																						}
+																					}
+																				}
+																				{
+																					a, ok := tf.Attributes()["reset_options"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.quota.intervals.reset_options"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota.intervals.reset_options", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+																						} else {
+																							obj.ResetOptions = nil
+																							if !v.IsNull() && !v.IsUnknown() {
+																								tf := v
+																								obj.ResetOptions = &github_com_gravitational_teleport_api_types.LLM_Quota_Interval_Reset{}
+																								obj := obj.ResetOptions
+																								{
+																									a, ok := tf.Attributes()["timezone"]
+																									if !ok {
+																										diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.quota.intervals.reset_options.timezone"})
+																									} else {
+																										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																										if !ok {
+																											diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota.intervals.reset_options.timezone", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																										} else {
+																											var t string
+																											if !v.IsNull() && !v.IsUnknown() {
+																												t = (v.ValueString())
+																											}
+																											obj.Timezone = t
+																										}
+																									}
+																								}
+																								{
+																									a, ok := tf.Attributes()["time"]
+																									if !ok {
+																										diags.Append(attrReadMissingDiag{"AppV3.Spec.LLM.quota.intervals.reset_options.time"})
+																									} else {
+																										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																										if !ok {
+																											diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.LLM.quota.intervals.reset_options.time", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																										} else {
+																											var t string
+																											if !v.IsNull() && !v.IsUnknown() {
+																												t = (v.ValueString())
+																											}
+																											obj.Time = t
+																										}
+																									}
+																								}
+																							}
+																						}
+																					}
+																				}
+																			}
+																			obj.Intervals[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -22322,6 +22626,218 @@ func CopyAppV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gr
 															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.FallbackModel))
 														}
 														attrs["fallback_model"] = v
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["quota"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.quota"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.quota", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																existing := attrs["quota"]
+																v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																	if preserveUnknown && existing != nil && existing.IsUnknown() {
+																		return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																	} else {
+																		if obj.Quota == nil {
+																			return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																		} else {
+																			obj := obj.Quota
+																			attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																			v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																			if ok && v.Attributes() != nil {
+																				attrs = v.Attributes()
+																			}
+																			{
+																				attrType, ok := attrType.AttributeTypes()["requests"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.quota.requests"})
+																				} else {
+																					attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.quota.requests", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																					} else {
+																						existing := attrs["requests"]
+																						v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																							if preserveUnknown && existing != nil && existing.IsUnknown() {
+																								return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																							} else {
+																								if obj.Requests == nil {
+																									return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																								} else {
+																									obj := obj.Requests
+																									attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																									v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																									if ok && v.Attributes() != nil {
+																										attrs = v.Attributes()
+																									}
+																									{
+																										var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																										existing := attrs["default_max_tokens"]
+																										if preserveUnknown && existing != nil && existing.IsUnknown() {
+																											v = github_com_hashicorp_terraform_plugin_framework_types.Int64Unknown()
+																										} else {
+																											v = github_com_hashicorp_terraform_plugin_framework_types.Int64Value(int64(obj.DefaultMaxTokens))
+																										}
+																										attrs["default_max_tokens"] = v
+																									}
+																									result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																									diags.Append(resultDiags...)
+																									return result
+																								}
+																							}
+																						}()
+																						attrs["requests"] = v
+																					}
+																				}
+																			}
+																			{
+																				attrType, ok := attrType.AttributeTypes()["intervals"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.quota.intervals"})
+																				} else {
+																					attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.quota.intervals", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["intervals"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																						} else {
+																							oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Intervals))
+																							c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																							if ok && c.Elements() != nil {
+																								oldElems = c.Elements()
+																							}
+																							elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Intervals))
+																							copy(elems, oldElems)
+																							for k, a := range obj.Intervals {
+																								attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																								existing := elems[k]
+																								v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																									if preserveUnknown && existing != nil && existing.IsUnknown() {
+																										return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																									} else {
+																										if a == nil {
+																											return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																										} else {
+																											obj := a
+																											attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																											v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																											if ok && v.Attributes() != nil {
+																												attrs = v.Attributes()
+																											}
+																											{
+																												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																												existing := attrs["interval"]
+																												if preserveUnknown && existing != nil && existing.IsUnknown() {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																												} else {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Interval))
+																												}
+																												attrs["interval"] = v
+																											}
+																											{
+																												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																												existing := attrs["input_tokens"]
+																												if preserveUnknown && existing != nil && existing.IsUnknown() {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.Int64Unknown()
+																												} else {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.Int64Value(int64(obj.InputTokens))
+																												}
+																												attrs["input_tokens"] = v
+																											}
+																											{
+																												var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																												existing := attrs["output_tokens"]
+																												if preserveUnknown && existing != nil && existing.IsUnknown() {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.Int64Unknown()
+																												} else {
+																													v = github_com_hashicorp_terraform_plugin_framework_types.Int64Value(int64(obj.OutputTokens))
+																												}
+																												attrs["output_tokens"] = v
+																											}
+																											{
+																												attrType, ok := attrType.AttributeTypes()["reset_options"]
+																												if !ok {
+																													diags.Append(attrWriteMissingDiag{"AppV3.Spec.LLM.quota.intervals.reset_options"})
+																												} else {
+																													attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																													if !ok {
+																														diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.LLM.quota.intervals.reset_options", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																													} else {
+																														existing := attrs["reset_options"]
+																														v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																															if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																															} else {
+																																if obj.ResetOptions == nil {
+																																	return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																																} else {
+																																	obj := obj.ResetOptions
+																																	attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																																	v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																																	if ok && v.Attributes() != nil {
+																																		attrs = v.Attributes()
+																																	}
+																																	{
+																																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																																		existing := attrs["timezone"]
+																																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																																		} else {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Timezone))
+																																		}
+																																		attrs["timezone"] = v
+																																	}
+																																	{
+																																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																																		existing := attrs["time"]
+																																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																																		} else {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Time))
+																																		}
+																																		attrs["time"] = v
+																																	}
+																																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																																	diags.Append(resultDiags...)
+																																	return result
+																																}
+																															}
+																														}()
+																														attrs["reset_options"] = v
+																													}
+																												}
+																											}
+																											result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																											diags.Append(resultDiags...)
+																											return result
+																										}
+																									}
+																								}()
+																								elems[k] = v
+																							}
+																							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																							diags.Append(resultDiags...)
+																							v = result
+																						}
+																						attrs["intervals"] = v
+																					}
+																				}
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																			diags.Append(resultDiags...)
+																			return result
+																		}
+																	}
+																}()
+																attrs["quota"] = v
+															}
+														}
 													}
 													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 													diags.Append(resultDiags...)

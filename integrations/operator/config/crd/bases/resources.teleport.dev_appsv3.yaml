@@ -220,6 +220,68 @@ spec:
                     description: Defines which inference provider will be used to
                       serve the requests.
                     type: string
+                  quota:
+                    description: Defines usage quota for the inference endpoint.
+                    nullable: true
+                    properties:
+                      intervals:
+                        description: Intervals defines a list of quota settings per
+                          time interval.
+                        items:
+                          properties:
+                            input_tokens:
+                              description: Defines the number of input tokens available
+                                for the interval. At least one of `input_tokens` or
+                                `output_tokens` is required. If not specified, defaults
+                                to unlimited input tokens.
+                              format: int64
+                              type: integer
+                            interval:
+                              description: 'Interval defines the interval type being.
+                                Supported values: "daily" (reset at the configured
+                                time each day), "weekly" (reset on Sunday), "monthly"
+                                (reset on the first day of each month), "yearly" (reset
+                                at January 1st), "lifetime" (never reset automatically)'
+                              type: string
+                            output_tokens:
+                              description: Defines the number of output tokens available
+                                for the interval. At least one of `input_tokens` or
+                                `output_tokens` is required. If not specified, defaults
+                                to unlimited output tokens.
+                              format: int64
+                              type: integer
+                            reset_options:
+                              description: ResetOptions defines the reset settings
+                                for the interval. Not applicable when interval type
+                                is "lifetime".
+                              nullable: true
+                              properties:
+                                time:
+                                  description: Defines at which time the interval
+                                    resets in `HH:MM` format. Defaults to `00:00`
+                                    (midnight).
+                                  type: string
+                                timezone:
+                                  description: Defines which timezone, in IANA format
+                                    (such as `America/Los_Angeles`), the interval
+                                    resets. Defaults to `UTC`.
+                                  type: string
+                              type: object
+                          type: object
+                        nullable: true
+                        type: array
+                      requests:
+                        description: Requests specifies quota-related settings for
+                          LLM requests.
+                        nullable: true
+                        properties:
+                          default_max_tokens:
+                            description: Defines the default max tokens value to set
+                              when a request doesn't include it.
+                            format: int64
+                            type: integer
+                        type: object
+                    type: object
                 type: object
               insecure_skip_verify:
                 description: InsecureSkipVerify disables app's TLS certificate verification.

@@ -1321,6 +1321,54 @@ message LLM {
     string provider_name = 2;
   }
 
+  // Quota contains LLM inference usage quota settings.
+  message Quota {
+    // Requests contains quota settings for LLM requests.
+    message Requests {
+      // Defines the default max tokens value to set when a request doesn't
+      // include it.
+      uint64 default_max_tokens = 1;
+    }
+
+    // Interval contans information about a quota interval.
+    message Interval {
+      // Reset cotains the interval reset settings.
+      message Reset {
+        // Defines which timezone, in IANA format (such as
+        // `America/Los_Angeles`), the interval resets. Defaults to `UTC`.
+        string timezone = 1;
+        // Defines at which time the interval resets in `HH:MM` format.
+        // Defaults to `00:00` (midnight).
+        string time = 2;
+      }
+
+      // Interval defines the interval type being.
+      // Supported values:
+      //   "daily" (reset at the configured time each day),
+      //   "weekly" (reset on Sunday),
+      //   "monthly" (reset on the first day of each month),
+      //   "yearly" (reset at January 1st),
+      //   "lifetime" (never reset automatically)
+      string interval = 1;
+      // Defines the number of input tokens available for the interval.
+      // At least one of `input_tokens` or `output_tokens` is required.
+      // If not specified, defaults to unlimited input tokens.
+      uint64 input_tokens = 2;
+      // Defines the number of output tokens available for the interval.
+      // At least one of `input_tokens` or `output_tokens` is required.
+      // If not specified, defaults to unlimited output tokens.
+      uint64 output_tokens = 3;
+      // ResetOptions defines the reset settings for the interval. Not
+      // applicable when interval type is "lifetime".
+      Reset reset_options = 4;
+    }
+
+    // Requests specifies quota-related settings for LLM requests.
+    Requests requests = 1;
+    // Intervals defines a list of quota settings per time interval.
+    repeated Interval intervals = 2;
+  }
+
   // Defines the LLM inference API format.
   string format = 1;
   // Defines which inference provider will be used to serve the requests.
@@ -1331,6 +1379,8 @@ message LLM {
   // Defines a model that will be used if the model requested is not on the list.
   // The fallback model must be in the "models" list.
   string fallback_model = 4;
+  // Defines usage quota for the inference endpoint.
+  Quota quota = 5;
 }
 
 // AppTLS contains the app TLS configuration.

@@ -326,6 +326,42 @@ func (v SAMLIdPServiceProviderSpecValidator) ValidateObject(_ context.Context, r
 
 }
 
+// Int64AtLeastValidator validates that an integer field is greater than or
+// equal to a minimum value.
+type Int64AtLeastValidator struct {
+	Min int64
+}
+
+// UseInt64AtLeast creates Int64AtLeastValidator
+func UseInt64AtLeast(min int64) validator.Int64 {
+	return Int64AtLeastValidator{Min: min}
+}
+
+// Description returns validator description
+func (v Int64AtLeastValidator) Description(_ context.Context) string {
+	return fmt.Sprintf("Checks that value is at least %d", v.Min)
+}
+
+// MarkdownDescription returns validator markdown description
+func (v Int64AtLeastValidator) MarkdownDescription(_ context.Context) string {
+	return fmt.Sprintf("Checks that value is at least %d", v.Min)
+}
+
+// Validate performs the validation.
+func (v Int64AtLeastValidator) ValidateInt64(_ context.Context, req validator.Int64Request, resp *validator.Int64Response) {
+	value := req.ConfigValue
+	if value.IsNull() || value.IsUnknown() {
+		return
+	}
+
+	if value.ValueInt64() < v.Min {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Field validation error",
+			fmt.Sprintf("Value must be at least %d, got %d.", v.Min, value.ValueInt64()))
+	}
+}
+
 // UseValueIn creates a StringValueValidator
 func UseValueIn(allowed ...string) validator.String {
 	return StringValueValidator{allowed}
