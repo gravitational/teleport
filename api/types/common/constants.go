@@ -78,6 +78,10 @@ const (
 	// imported from the AWS Identity Center or created from
 	// the AWS Identity Center plugin.
 	OriginAWSIdentityCenter = "aws-identity-center"
+
+	// OriginIntegrationOAuthProxy is an origin value indicating that the resource was
+	// created from the OAuth Proxy Integration.
+	OriginIntegrationOAuthProxy = "integration_oauthproxy"
 )
 
 // OriginValues lists all possible origin values.
@@ -93,4 +97,5 @@ var OriginValues = []string{
 	OriginEntraID,
 	OriginAWSIdentityCenter,
 	OriginIntegrationAWSRolesAnywhere,
+	OriginIntegrationOAuthProxy,
 }

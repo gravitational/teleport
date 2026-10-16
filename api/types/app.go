@@ -312,10 +312,16 @@ func (a *AppV3) IsAWSConsole() bool {
 func (a *AppV3) SupportsIntegration() bool {
 	switch a.GetProtocol() {
 	case ApplicationProtocolHTTP:
-		return a.IsAWSConsole()
+		return a.IsAWSConsole() || a.HasOAuthProxyOrigin()
 	default:
 		return false
 	}
+}
+
+// HasOAuthProxyOrigin returns true when the app has an origin label
+// indicating it's created for OAuth Proxy integration.
+func (a *AppV3) HasOAuthProxyOrigin() bool {
+	return a.Origin() == OriginIntegrationOAuthProxy
 }
 
 // IsAzureCloud returns true if this app is Azure Cloud instance.

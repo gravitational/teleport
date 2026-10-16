@@ -916,6 +916,10 @@ const (
 	// from the Entra ID directory.
 	OriginEntraID = common.OriginEntraID
 
+	// OriginIntegrationOAuthProxy is an origin value indicating that the resource was
+	// created from the OAuth Proxy Integration.
+	OriginIntegrationOAuthProxy = common.OriginIntegrationOAuthProxy
+
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"
 

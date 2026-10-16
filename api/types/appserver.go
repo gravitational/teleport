@@ -133,6 +133,37 @@ func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr strin
 	})
 }
 
+// NewAppServerForOAuthProxyIntegration creates a new AppServer that will be used to proxy requests to a third-party API,
+// authorized using OAuth authorization grant.
+func NewAppServerForOAuthProxyIntegration(integrationName, hostID, upstreamURL, publicAddr string, labels map[string]string) (*AppServerV3, error) {
+	if labels == nil {
+		labels = map[string]string{}
+	}
+
+	labels[OriginLabel] = OriginIntegrationOAuthProxy
+
+	return NewAppServerV3(
+		Metadata{
+			Name:   integrationName,
+			Labels: labels,
+		},
+		AppServerSpecV3{
+			HostID: hostID,
+			App: &AppV3{
+				Metadata: Metadata{
+					Name:   integrationName,
+					Labels: labels,
+				},
+				Spec: AppSpecV3{
+					URI:         upstreamURL,
+					Integration: integrationName,
+					PublicAddr:  publicAddr,
+				},
+			},
+		},
+	)
+}
+
 func (s *AppServerV3) IsEqual(other AppServer) bool {
 	otherv3, ok := other.(*AppServerV3)
 	if !ok {
