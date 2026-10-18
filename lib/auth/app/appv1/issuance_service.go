@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
@@ -205,15 +204,7 @@ func (s *IssuanceService) getIdentityFromUserCert(ctx context.Context, rawCert [
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := utils.VerifyCertificateWithClockSkew(cert, s.clock, time.Minute, x509.VerifyOptions{
-		Roots: roots,
-		KeyUsages: []x509.ExtKeyUsage{
-			// Extensions added by tlsca.
-			// See https://github.com/gravitational/teleport/blob/master/lib/tlsca/ca.go
-			x509.ExtKeyUsageServerAuth,
-			x509.ExtKeyUsageClientAuth,
-		},
-	}); err != nil {
+	if err := services.VerifyUserCertificateWithClockSkew(cert, s.clock, roots); err != nil {
 		return nil, trace.Wrap(err, "invalid user certificate")
 	}
 

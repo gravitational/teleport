@@ -19,11 +19,13 @@
 package services
 
 import (
+	"context"
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"iter"
 	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -315,6 +317,34 @@ func CertPool(ca types.CertAuthority) (*x509.CertPool, error) {
 		return nil, trace.BadParameter("certificate authority has no TLS certificates")
 	}
 	return certPool, nil
+}
+
+// CertPoolFromAuthorityGetter returns a certificate pool from the TLS
+// certificates of the certificate authority of the type for the cluster.
+func CertPoolFromAuthorityGetter(ctx context.Context, caGetter AuthorityGetter, caType types.CertAuthType, clusterName string) (*x509.CertPool, error) {
+	ca, err := caGetter.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
+		DomainName: clusterName,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certPool, err := CertPool(ca)
+	return certPool, trace.Wrap(err)
+}
+
+// VerifyUserCertificateWithClockSkew verifies the TLS user certificate against
+// the roots, with one minute of clock skew tolerance.
+func VerifyUserCertificateWithClockSkew(cert *x509.Certificate, clock clockwork.Clock, roots *x509.CertPool) error {
+	return trace.Wrap(utils.VerifyCertificateWithClockSkew(cert, clock, time.Minute, x509.VerifyOptions{
+		Roots: roots,
+		KeyUsages: []x509.ExtKeyUsage{
+			// Extensions added by tlsca.
+			// See https://github.com/gravitational/teleport/blob/master/lib/tlsca/ca.go
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+	}))
 }
 
 // UnmarshalCertAuthority unmarshals the CertAuthority resource to JSON.
