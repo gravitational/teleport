@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -54,4 +55,21 @@ func FindUserExternalCredential(resource *userexternalcredentialsv1.UserExternal
 		}
 	}
 	return nil, false
+}
+
+// PutUserExternalCredential adds the credential to the resource. An existing
+// credential for the same resource is replaced only if the access token of the
+// new credential expires later.
+func PutUserExternalCredential(resource *userexternalcredentialsv1.UserExternalCredentials, credential *userexternalcredentialsv1.Credential) {
+	credentials := resource.GetSpec().GetCredentials()
+	i := slices.IndexFunc(credentials, func(c *userexternalcredentialsv1.Credential) bool {
+		return c.GetResourceKind() == credential.GetResourceKind() && c.GetResourceName() == credential.GetResourceName()
+	})
+	switch {
+	case i < 0:
+		credentials = append(credentials, credential)
+	case credential.GetOauth().GetAccessTokenExpiry().AsTime().After(credentials[i].GetOauth().GetAccessTokenExpiry().AsTime()):
+		credentials[i] = credential
+	}
+	resource.GetSpec().SetCredentials(credentials)
 }

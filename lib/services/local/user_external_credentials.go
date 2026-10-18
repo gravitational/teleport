@@ -73,6 +73,18 @@ func validateUserExternalCredentials(resource *pb.UserExternalCredentials) error
 	if resource.GetMetadata().GetExpires() == nil {
 		return trace.BadParameter("expiry is required")
 	}
+	const maxCredentials = 10
+	if len(resource.GetSpec().GetCredentials()) > maxCredentials {
+		return trace.BadParameter("too many credentials, at most %d are allowed", maxCredentials)
+	}
+	for _, credential := range resource.GetSpec().GetCredentials() {
+		if credential.GetResourceKind() == "" || credential.GetResourceName() == "" {
+			return trace.BadParameter("credential is missing resource kind or name")
+		}
+		if len(credential.GetOauth().GetAccessTokenBlob()) == 0 {
+			return trace.BadParameter("credential for %s %q has no access token", credential.GetResourceKind(), credential.GetResourceName())
+		}
+	}
 	return nil
 }
 

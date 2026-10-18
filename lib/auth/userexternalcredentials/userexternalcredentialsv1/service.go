@@ -22,10 +22,12 @@ import (
 	"context"
 	"crypto/x509"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/oauth2"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
@@ -99,6 +101,8 @@ type Service struct {
 	decryptLimiter rateLimiter
 	// verifyUserCertificateOverride overrides verifyUserCertificate in tests.
 	verifyUserCertificateOverride func(ctx context.Context, certDER []byte) (*tlsca.Identity, error)
+	// writeLimiter limits the rate of refresh and sync per user.
+	writeLimiter rateLimiter
 }
 
 // NewService creates a new UserExternalCredentialService.
@@ -141,9 +145,23 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Refresh and sync calls use a separate limiter with same limits.
+	writeLimiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{{
+			Period:  defaults.LimiterPeriod,
+			Average: defaults.LimiterAverage,
+			Burst:   defaults.LimiterBurst,
+		}},
+		Clock: cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Service{
 		cfg:            cfg,
 		decryptLimiter: decryptLimiter,
+		writeLimiter:   writeLimiter,
 		handlers:       map[string]resourceHandler{},
 	}, nil
 }
@@ -266,6 +284,108 @@ func (s *Service) DecryptUserExternalCredential(ctx context.Context, req *pb.Dec
 	}.Build(), nil
 }
 
+// RefreshOAuthTokens refreshes the OAuth tokens of a credential of the
+// caller's session. The refresh is only allowed when the access token stored
+// for the session is about to expire, regardless of what the client has
+// cached.
+//
+// TODO(greedy52) currently client side always refetches the entire user
+// credentials resource after successful refresh. To optimize, we can return the
+// refreshed credential in the response.
+func (s *Service) RefreshOAuthTokens(ctx context.Context, req *pb.RefreshOAuthTokensRequest) (*pb.RefreshOAuthTokensResponse, error) {
+	if len(req.GetAuthEncryptedRefreshToken()) == 0 {
+		return nil, trace.BadParameter("missing auth_encrypted_refresh_token")
+	}
+
+	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !authz.IsLocalUser(*authCtx) {
+		return nil, trace.AccessDenied("only users can refresh user external credentials")
+	}
+	username := authCtx.User.GetName()
+	if err := s.writeLimiter.RegisterRequest(username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check resource access.
+	payload, err := s.cfg.Encryptor.DecryptPayload(ctx, req.GetAuthEncryptedRefreshToken())
+	if err != nil {
+		return nil, trace.Wrap(err, "decrypting refresh token")
+	} else if payload.User != username {
+		return nil, trace.AccessDenied("refresh token does not belong to the caller")
+	}
+	handler, err := s.getResourceHandler(payload.ResourceKind)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := handler.CheckAccess(ctx, authCtx, payload.ResourceName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If credential is not ready for refresh (either client clock is too far
+	// ahead or another session has refreshed) return success without
+	// refreshing.
+	if ready, err := s.isOAuthTokenReadyForRefresh(ctx, authCtx, payload); err != nil {
+		return nil, trace.Wrap(err)
+	} else if !ready {
+		return &pb.RefreshOAuthTokensResponse{}, nil
+	}
+
+	// Refresh and distribute.
+	token, err := handler.RefreshOAuthToken(ctx, username, payload.ResourceName, payload.Credential)
+	if err != nil {
+		return nil, trace.Wrap(err, "refreshing OAuth token")
+	}
+	authEncrypted, err := userexternalcredentials.MakeAuthEncryptedOAuthCredential(ctx, s.cfg.Encryptor, username, payload.ResourceKind, payload.ResourceName, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := userexternalcredentials.Distribute(ctx, s.cfg.Backend, username, authEncrypted); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &pb.RefreshOAuthTokensResponse{}, nil
+}
+
+// SyncUserExternalCredentials syncs credentials to a target session by
+// re-encrypting with the target's public key.
+func (s *Service) SyncUserExternalCredentials(ctx context.Context, req *pb.SyncUserExternalCredentialsRequest) (*pb.SyncUserExternalCredentialsResponse, error) {
+	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !authz.IsLocalUser(*authCtx) {
+		return nil, trace.AccessDenied("only users can sync user external credentials")
+	}
+	identity := authCtx.Identity.GetIdentity()
+	if err := s.writeLimiter.RegisterRequest(identity.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	target := req.GetCredentials()
+	targetKeyID := target.GetSpec().GetEncryptionKeyId()
+	if err := checkSyncTarget(&identity, targetKeyID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	existing, err := s.cfg.Backend.Get(ctx, targetKeyID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	merged := mergeCredentials(existing, target)
+
+	// Skip the update if nothing changed.
+	if proto.Equal(existing, merged) {
+		return &pb.SyncUserExternalCredentialsResponse{}, nil
+	}
+
+	if _, err := s.cfg.Backend.Update(ctx, merged); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &pb.SyncUserExternalCredentialsResponse{}, nil
+}
+
 // verifyUserCertificate verifies the user certificate is issued by the local
 // user CA and returns its identity. Certificates of remote clusters are not
 // supported.
@@ -294,4 +414,46 @@ func (s *Service) verifyUserCertificate(ctx context.Context, certDER []byte) (*t
 		return nil, trace.AccessDenied("invalid user certificate: %v", err)
 	}
 	return identity, nil
+}
+
+func (s *Service) isOAuthTokenReadyForRefresh(ctx context.Context, authCtx *authz.Context, payload *credentialencryption.Payload) (bool, error) {
+	session, err := s.getUserExternalCredentials(ctx, authCtx)
+	if err != nil {
+		return false, trace.Wrap(err, "getting user external credentials")
+	}
+	credential, found := services.FindUserExternalCredential(session, payload.ResourceKind, payload.ResourceName)
+	if !found {
+		return false, trace.NotFound("no credential for %s %q in the session", payload.ResourceKind, payload.ResourceName)
+	}
+	expiry := credential.GetOauth().GetAccessTokenExpiry().AsTime()
+	if now := s.cfg.Clock.Now(); expiry.After(now.Add(time.Minute)) {
+		s.cfg.Logger.DebugContext(ctx, "Access token not expired",
+			"user", authCtx.User.GetName(),
+			"resource_name", payload.ResourceName,
+			"access_token_expiry", expiry,
+		)
+		return false, nil
+	}
+	return true, nil
+}
+
+// checkSyncTarget checks the target is another session of the caller.
+//
+// TODO(greedy52) support delegated sessions (e.g. beams).
+func checkSyncTarget(identity *tlsca.Identity, target *pb.EncryptionKeyID) error {
+	switch {
+	case target.GetUser() != identity.Username:
+		return trace.AccessDenied("cannot sync user external credentials to other users")
+	case target.GetKeyId() == identity.EncryptionKeyID:
+		return trace.BadParameter("cannot sync user external credentials to the caller's own session")
+	}
+	return nil
+}
+
+func mergeCredentials(existing, incoming *pb.UserExternalCredentials) *pb.UserExternalCredentials {
+	merged := proto.CloneOf(existing)
+	for _, credential := range incoming.GetSpec().GetCredentials() {
+		services.PutUserExternalCredential(merged, credential)
+	}
+	return merged
 }
