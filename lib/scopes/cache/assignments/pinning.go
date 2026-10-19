@@ -53,7 +53,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 	}
 
 	// Track whether we've added any assignments to detect the empty case
-	assignmentCount := 0
+	roleAssignmentCount := 0
 
 	// track the last error encountered when writing assignments. we generally want to just skip malformed assignments, but
 	// if all assignments seem malformed then we want to bubble up the error.
@@ -112,12 +112,25 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 					continue
 				}
 
-				assignmentCount++
+				roleAssignmentCount++
+			}
+
+			// Write the trait assignments to the pin's assignment tree. The write function will automatically handle
+			// deduplication and enforcing tree structure
+			for traitsAssignment := range scopedaccess.WeakValidatedTraitAssignments(assignment) {
+				scopeOfEffect := traitsAssignment.GetScope()
+				if err := pinning.WriteTraitsAssignment(pin, pinning.TraitsAssignment{
+					ScopeOfOrigin: scopeOfOrigin,
+					ScopeOfEffect: scopeOfEffect,
+					Traits:        traitsAssignment.GetTraits(),
+				}); err != nil {
+					slog.WarnContext(ctx, "failed to write traits assignment to scope pin", "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "user", user, "error", err)
+				}
 			}
 		}
 	}
 
-	if assignmentCount == 0 {
+	if roleAssignmentCount == 0 {
 		// if the assignment count is zero due to error(s) encountered during writing, return the most recent error.
 		if lastErr != nil {
 			return trace.Errorf("failed to populate any scoped role assignments for user %q applicable to pinned scope %q: last error: %w", user, pin.GetScope(), lastErr)

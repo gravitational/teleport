@@ -410,6 +410,30 @@ func WeakValidatedSubAssignments(assignment *scopedaccessv1.ScopedRoleAssignment
 	}
 }
 
+// WeakValidatedTraitAssignments is a helper for iterating all well formed traits-assignments within a given assignment. Note that
+// the concept of a well-formed traits-assignment is distinct from whether or not an assignment is "broken/invalidated" in the sense
+// used when deciding whether or not an access-control check can be performed for a given scope. The only thing that is being filtered
+// out by this iterator is traits-assignments that are so obviously misconfigured that we can't reason about them at all.
+func WeakValidatedTraitAssignments(assignment *scopedaccessv1.ScopedRoleAssignment) iter.Seq[*scopedaccessv1.TraitsAssignment] {
+	return func(yield func(*scopedaccessv1.TraitsAssignment) bool) {
+		for _, traitsAssignment := range assignment.GetSpec().GetTraits() {
+			if err := scopes.WeakValidate(traitsAssignment.GetScope()); err != nil {
+				// ignore sub-assignments with invalid scopes
+				continue
+			}
+
+			if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(traitsAssignment.GetScope()) {
+				// ignore sub-assignments with scopes that do not conform to assignment subjugation rules
+				continue
+			}
+
+			if !yield(traitsAssignment) {
+				return
+			}
+		}
+	}
+}
+
 // WeakValidateAssignment validates an assignment to ensure it is free of obvious issues that would render it unusable and/or
 // induce serious unintended behavior. Prefer using this function for validating assignments loaded from "internal" sources
 // (e.g. backend/control-plane), and [StrongValidateAssignment] for validating assignments loaded from "external" sources (e.g. user input).
@@ -590,6 +614,10 @@ func validateAssignedTrait(trait *traitv1.Trait) error {
 
 	valuesSeen := make(map[string]struct{})
 	for _, value := range values {
+		if value == "" {
+			return trace.BadParameter("empty value assigned to key %q", key)
+		}
+
 		if len(value) > maxTraitLength {
 			return trace.BadParameter("value %q assigned to key %q is longer than max allowed %d", value, key, maxTraitLength)
 		}
