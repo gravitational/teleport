@@ -28,12 +28,14 @@ import (
 )
 
 // ec2InstallerBackoffTarget combines an instance with the context needed to
-// derive its backoff identity while retaining current metadata for reporting.
+// derive its backoff identity and the latest attempt diagnostics needed for
+// reporting.
 type ec2InstallerBackoffTarget struct {
 	accountID       string
 	region          string
 	enrollmentScope ec2InstallerBackoffScope
 	instance        server.EC2Instance
+	invocationURL   string
 }
 
 // ec2InstallerBackoffScope identifies the effective enrollment configuration.
@@ -132,7 +134,7 @@ func writeLengthPrefixedString(builder *strings.Builder, value string) {
 // newEC2InstallerBackoff creates an EC2 installer backoff keyed by AWS
 // account, region, instance ID, and effective enrollment configuration.
 func newEC2InstallerBackoff(baseDelay time.Duration, jitter retryutils.Jitter) (*ec2InstallerBackoff, error) {
-	backoff, err := newInstallerBackoff(baseDelay, jitter, newEC2InstallerBackoffKey)
+	backoff, err := newInstallerBackoff(baseDelay, jitter, newEC2InstallerBackoffKey, refreshEC2InstallerBackoffTarget)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +144,7 @@ func newEC2InstallerBackoff(baseDelay time.Duration, jitter retryutils.Jitter) (
 }
 
 // filter removes instances with active completed-attempt cooldowns from group
-// and returns the corresponding entries.
+// and returns consistent snapshots of their state and invocation URLs.
 func (b *ec2InstallerBackoff) filter(group *server.EC2Instances, t time.Time) []installerBackoffEntry[ec2InstallerBackoffTarget] {
 	scope := newEC2InstallerBackoffScope(group)
 	var targets []ec2InstallerBackoffTarget
@@ -155,5 +157,28 @@ func (b *ec2InstallerBackoff) filter(group *server.EC2Instances, t time.Time) []
 	for _, target := range retained {
 		group.Instances = append(group.Instances, target.instance)
 	}
+
 	return skipped
+}
+
+// recordFailedAttempt records a completed failure and its invocation URL.
+func (b *ec2InstallerBackoff) recordFailedAttempt(target ec2InstallerBackoffTarget, issueType string, invocationURL string, t time.Time) installerBackoffEntry[ec2InstallerBackoffTarget] {
+	target.invocationURL = invocationURL
+	return b.installerBackoff.recordFailedAttempt(target, issueType, t)
+}
+
+// recordSuccessfulAttempt records a completed success and clears diagnostics
+// from any preceding failure for the same key.
+func (b *ec2InstallerBackoff) recordSuccessfulAttempt(target ec2InstallerBackoffTarget, t time.Time) installerBackoffEntry[ec2InstallerBackoffTarget] {
+	target.invocationURL = ""
+	return b.installerBackoff.recordSuccessfulAttempt(target, t)
+}
+
+// refreshEC2InstallerBackoffTarget refreshes discovered instance metadata
+// while preserving the invocation URL recorded by the latest attempt.
+func refreshEC2InstallerBackoffTarget(
+	previous, current ec2InstallerBackoffTarget,
+) ec2InstallerBackoffTarget {
+	current.invocationURL = previous.invocationURL
+	return current
 }
