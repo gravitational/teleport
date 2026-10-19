@@ -32,6 +32,7 @@ import (
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/services/label"
 	"github.com/gravitational/teleport/lib/traits"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -906,6 +907,28 @@ func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
 		return trace.Wrap(err)
 	}
 
+	if err := validateAppAWSBlock(app.GetAws()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// validateAWSBlock validates the aws sub-block of a scoped role's app block.
+func validateAppAWSBlock(aws *scopedaccessv1.ScopedRoleApp_AWS) error {
+	for _, arn := range aws.GetRoleArns() {
+		if err := ScopedValidateTemplate(arn); err != nil {
+			return trace.BadParameter("has invalid aws.role_arns entry: %v", err)
+		}
+		// Templated ARNs can only be checked after trait interpolation.
+		if strings.Contains(arn, "{{") {
+			continue
+		}
+		if err := awsutils.CheckRoleARN(arn); err != nil {
+			return trace.BadParameter("has invalid aws.role_arns entry: %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -993,6 +1016,11 @@ func filterInvalidTemplatesFromRole(spec *scopedaccessv1.ScopedRoleSpec, failFas
 	}
 
 	if err := handleErrs(filterInvalidTemplates(spec.GetSsh().GetHostUserCreation().GetGroups, spec.GetSsh().GetHostUserCreation().SetGroups)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// filter invalid AWS role ARN templates
+	if err := handleErrs(filterInvalidTemplates(spec.GetApp().GetAws().GetRoleArns, spec.GetApp().GetAws().SetRoleArns)...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

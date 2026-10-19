@@ -96,6 +96,10 @@ func applyAppBlock(src *scopedaccessv1.ScopedRoleApp, dst *types.RoleConditions)
 	if expr := src.GetLabelExpression(); expr != "" {
 		dst.AppLabelsExpression = expr
 	}
+
+	if aws := src.GetAws(); aws != nil {
+		dst.AWSRoleARNs = aws.GetRoleArns()
+	}
 }
 
 // applyWorkloadIdentityBlock writes/converts the relevant subset of the scoped role's workload_identity
