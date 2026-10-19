@@ -182,3 +182,38 @@ func refreshEC2InstallerBackoffTarget(
 	current.invocationURL = previous.invocationURL
 	return current
 }
+
+// ec2InstallerIterationDeduplicator tracks effective installation targets
+// selected during one normal EC2 watcher iteration. It is not safe for
+// concurrent use; callers must filter groups serially before submitting
+// installation workers.
+type ec2InstallerIterationDeduplicator struct {
+	seen map[ec2InstallerBackoffKey]struct{}
+}
+
+// newEC2InstallerIterationDeduplicator creates an empty per-iteration target
+// set.
+func newEC2InstallerIterationDeduplicator() *ec2InstallerIterationDeduplicator {
+	return &ec2InstallerIterationDeduplicator{
+		seen: make(map[ec2InstallerBackoffKey]struct{}),
+	}
+}
+
+// filter removes instances whose effective installation target was already
+// selected during this iteration and returns the number removed. It mutates
+// group.Instances in place.
+func (d *ec2InstallerIterationDeduplicator) filter(group *server.EC2Instances) int {
+	scope := newEC2InstallerBackoffScope(group)
+
+	originalCount := len(group.Instances)
+	group.Instances = slices.DeleteFunc(group.Instances, func(instance server.EC2Instance) bool {
+		target := newEC2InstallerBackoffTargetWithScope(group, instance, scope)
+		key := newEC2InstallerBackoffKey(target)
+		if _, ok := d.seen[key]; ok {
+			return true
+		}
+		d.seen[key] = struct{}{}
+		return false
+	})
+	return originalCount - len(group.Instances)
+}
