@@ -330,10 +330,13 @@ func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
 
 	tunneledConn := portforward.NewTunnelingConnection("server", conn)
 
-	streamChan := make(chan httpstream.Stream, 1)
+	streamChan := make(chan streamAndReply, 1)
+	// streamCtx is canceled when the proxy loop stops accepting streams, see portForwardProxy.run.
+	streamCtx, stopStreams := context.WithCancel(req.context)
+	defer stopStreams()
 	spdyConn, err := spdystream.NewServerConnectionWithPings(
 		tunneledConn,
-		httpStreamReceived(req.context, streamChan),
+		httpStreamReceived(streamCtx, streamChan),
 		req.pingPeriod,
 	)
 	if err != nil {
@@ -353,6 +356,7 @@ func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
 		portForwardRequest:    req,
 		sourceConn:            spdyConn,
 		streamChan:            streamChan,
+		stopStreams:           stopStreams,
 		streamPairs:           make(map[string]*httpStreamPair),
 		streamCreationTimeout: DefaultStreamCreationTimeout,
 		targetConn:            targetConn,

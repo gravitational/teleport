@@ -82,10 +82,13 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	streamChan := make(chan httpstream.Stream, 1)
+	streamChan := make(chan streamAndReply, 1)
+	// streamCtx is canceled when the proxy loop stops accepting streams, see portForwardProxy.run.
+	streamCtx, stopStreams := context.WithCancel(req.context)
+	defer stopStreams()
 
 	upgrader := spdystream.NewResponseUpgraderWithPings(req.pingPeriod)
-	conn := upgrader.UpgradeResponse(req.httpResponseWriter, req.httpRequest, httpStreamReceived(req.context, streamChan))
+	conn := upgrader.UpgradeResponse(req.httpResponseWriter, req.httpRequest, httpStreamReceived(streamCtx, streamChan))
 	if conn == nil {
 		return trace.ConnectionProblem(nil, "Unable to upgrade websocket connection")
 	}
@@ -99,6 +102,7 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 		portForwardRequest:    req,
 		sourceConn:            conn,
 		streamChan:            streamChan,
+		stopStreams:           stopStreams,
 		streamPairs:           make(map[string]*httpStreamPair),
 		streamCreationTimeout: DefaultStreamCreationTimeout,
 		targetConn:            targetConn,
@@ -116,7 +120,7 @@ func runPortForwardingHTTPStreams(req portForwardRequest) error {
 // forward streams. It checks each stream's port and stream type headers,
 // rejecting any streams that with missing or invalid values. Each valid
 // stream is sent to the streams channel.
-func httpStreamReceived(ctx context.Context, streams chan httpstream.Stream) func(httpstream.Stream, <-chan struct{}) error {
+func httpStreamReceived(ctx context.Context, streams chan streamAndReply) func(httpstream.Stream, <-chan struct{}) error {
 	return func(stream httpstream.Stream, replySent <-chan struct{}) error {
 		// make sure it has a valid port header
 		portString := stream.Headers().Get(PortHeader)
@@ -138,8 +142,29 @@ func httpStreamReceived(ctx context.Context, streams chan httpstream.Stream) fun
 			return trace.BadParameter("invalid stream type %q", streamType)
 		}
 
+		// Reply before handing the stream over. The caller (httpstream/spdy newSpdyStream)
+		// only replies after this handler returns and ignores a failed reply. spdystream
+		// blocks every Write/Close on a received stream until the reply has been sent,
+		// with no escape on connection close. If the client disconnects in between, the
+		// reply fails and any later Write/Close on the stream parks forever. Replying here
+		// means only streams that were acknowledged ever reach the proxy loop, and a failed
+		// reply rejects the stream (which resets it) instead. The later reply is a no-op.
+		// Realistically this should really be addressed by httpstream/spdy itself,
+		// but this is a workaround for now.
+		if r, ok := stream.(streamReplier); ok {
+			if err := r.SendReply(http.Header{}, false); err != nil {
+				return trace.ConnectionProblem(err, "unable to reply to stream")
+			}
+		}
+
+		// select picks randomly among ready cases, check ctx defensively here.
+		// This is kept buffered to avoid blocking the frame worker.
+		if err := ctx.Err(); err != nil {
+			return trace.BadParameter("request has been canceled")
+		}
+
 		select {
-		case streams <- stream:
+		case streams <- streamAndReply{Stream: stream, replySent: replySent}:
 			return nil
 		case <-ctx.Done():
 			return trace.BadParameter("request has been canceled")
@@ -147,13 +172,22 @@ func httpStreamReceived(ctx context.Context, streams chan httpstream.Stream) fun
 	}
 }
 
+// streamReplier is implemented by the *spdystream.Stream that
+// k8s.io/apimachinery/pkg/util/httpstream/spdy hands to a stream handler.
+type streamReplier interface {
+	SendReply(headers http.Header, fin bool) error
+}
+
 // portForwardProxy is capable of processing multiple port forward
 // requests over a single httpstream.Connection.
 type portForwardProxy struct {
 	*log.Entry
 	portForwardRequest
-	sourceConn            httpstream.Connection
-	streamChan            chan httpstream.Stream
+	sourceConn httpstream.Connection
+	streamChan chan streamAndReply
+	// stopStreams cancels the context used by httpStreamReceived, so stream handlers
+	// blocked handing a stream to the loop return once the loop stops reading streamChan.
+	stopStreams           context.CancelFunc
 	streamPairsLock       sync.RWMutex
 	streamPairs           map[string]*httpStreamPair
 	streamCreationTimeout time.Duration
@@ -170,9 +204,9 @@ func (h *portForwardProxy) Close() error {
 
 // forwardStreamPair creates a new data and error streams using the same requestID
 // received from the client and copies the data between target's data and error and
-// client's data and error streams. It blocks until all copy operations complete.
-// It does not close the client's data and error streams as they are closed by
-// the caller.
+// client's data and error streams. It returns once the data stream is done and
+// the error stream has either been closed by the target or reset after
+// errStreamGracePeriod.
 func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64) error {
 	// create error stream
 	headers := http.Header{}
@@ -187,23 +221,22 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 	if err != nil {
 		err := trace.ConnectionProblem(err, "error creating error stream for port %d", remotePort)
 		p.sendErr(err)
+		// Unread data frames on the client data stream can block the frames, reset to unblock.
+		_ = p.dataStream.Reset()
 		return err
 	}
-	defer func() {
-		// on stream close, remove the stream from the connection and close it.
-		h.targetConn.RemoveStreams(targetErrorStream)
-		targetErrorStream.Close()
-	}()
+	defer h.targetConn.RemoveStreams(targetErrorStream)
 
-	wg := &sync.WaitGroup{}
+	// We never write to the error stream. Note that Close only half-closes the
+	// stream, it does not unblock the Read, only the target closing its
+	// side or a Reset does.
+	if err := targetErrorStream.Close(); err != nil {
+		h.WithError(err).Debug("Unable to close target error stream")
+	}
 
-	wg.Add(1)
+	errDone := make(chan struct{})
 	go func() {
-		defer wg.Done()
-		// Close the target error stream to indicate no more writes.
-		if err := targetErrorStream.Close(); err != nil {
-			h.WithError(err).Debug("Unable to close target error stream")
-		}
+		defer close(errDone)
 		// Enables error propagation from Kube API server to kubectl client.
 		if _, err := io.Copy(p.errorStream, targetErrorStream); err != nil {
 			h.WithError(err).Debug("Unable to proxy portforward error-stream")
@@ -214,29 +247,134 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 	headers.Set(StreamType, StreamTypeData)
 	targetDataStream, err := h.targetConn.CreateStream(headers)
 	if err != nil {
+		// Unblock the Read() and wait for the error stream copy before sending our error to the client.
+		_ = targetErrorStream.Reset()
+		<-errDone
 		err := trace.ConnectionProblem(err, "error creating forwarding stream for port -> %d: %v", remotePort, err)
 		p.sendErr(err)
+		// Unread data frames on the client data stream can block the frames, reset to unblock.
+		_ = p.dataStream.Reset()
 		return err
 	}
-	defer func() {
-		// on stream close, remove the stream from the connection and close it.
-		h.targetConn.RemoveStreams(targetDataStream)
-		targetDataStream.Close()
-	}()
+	defer h.targetConn.RemoveStreams(targetDataStream)
 
-	wg.Add(1)
+	h.Debug("Streams have been created, waiting for copy to complete")
+
+	// The target data stream must be reset before waiting on the error stream,
+	// otherwise unread data frames can block delivery of the error stream close.
+	h.proxyDataStream(p.dataStream, targetDataStream)
+	h.waitErrorStream(targetErrorStream, errDone)
+
+	h.Debug("Port forwarding pair completed")
+	return nil
+}
+
+// proxyDataStream copies data between the client and target data streams until
+// the target is done sending, the client copy fails, the client connection
+// closes, or the request context is done, then tears both streams down and
+// waits for the copies to return.
+//
+// The two directions are not symmetric:
+//
+//   - client -> target ending cleanly is treated as a half-close. spdystream
+//     returns io.EOF for a FIN, an RST and a dropped connection alike; the
+//     dropped connection is caught by sourceConn.CloseChan, while an RST is
+//     handled like a FIN and lasts until the target closes its side.
+//   - client -> target ending with an error (in practice a failed write to the
+//     target), the target -> client copy ending, the client connection closing,
+//     or the context being done ends the pair.
+//
+// Once the pair ends both streams are closed and reset: Close sends a FIN
+// after any data already written, while Reset discards unread data and
+// unblocks the pending Read on that stream.
+//
+// IMPORTANT: Unread data frames left on a SPDY stream stall
+// frame processing for the whole connection, which in turn prevents the error
+// stream from ever completing.
+//
+// This mirrors client-go's port forwarder, which waits for the remote copy or
+// a local copy error:
+// https://github.com/kubernetes/client-go/blob/master/tools/portforward/portforward.go
+func (h *portForwardProxy) proxyDataStream(client, target httpstream.Stream) {
+	remoteDone := make(chan struct{})
+	localDone := make(chan struct{})
+	// localErr is closed only when the client -> target copy fails. A clean
+	// end of that copy is a half-close and does not end the pair.
+	localErr := make(chan struct{})
+
 	go func() {
-		defer wg.Done()
-		if err := utils.ProxyConn(h.context, p.dataStream, targetDataStream); err != nil {
-			h.WithError(err).Debugf("Unable to proxy portforward data-stream.")
+		defer close(remoteDone)
+		if _, err := io.Copy(client, target); err != nil && !utils.IsOKNetworkError(err) {
+			h.WithError(err).Debug("Unable to copy from target data stream to client")
 		}
 	}()
+	go func() {
+		defer close(localDone)
+		_, err := io.Copy(target, client)
+		if err == nil {
+			// The client half-closed. Pass the FIN on and keep waiting for the
+			// target to finish sending.
+			if err := target.Close(); err != nil {
+				h.WithError(err).Debug("Unable to half-close target data stream")
+			}
+			return
+		}
+		if !utils.IsOKNetworkError(err) {
+			h.WithError(err).Debug("Unable to copy from client data stream to target")
+		}
+		close(localErr)
+	}()
 
-	h.Debugf("Streams have been created, Waiting for copy to complete.")
-	// wait for the copies to complete before returning.
-	wg.Wait()
-	h.Debugf("Port forwarding pair completed.")
-	return nil
+	// This allows unit testing without source connection.
+	var sourceClosed <-chan bool
+	if h.sourceConn != nil {
+		sourceClosed = h.sourceConn.CloseChan()
+	}
+
+	select {
+	case <-remoteDone:
+	case <-localErr:
+	case <-sourceClosed:
+	case <-h.context.Done():
+	}
+
+	_ = target.Close()
+	_ = target.Reset()
+
+	// Tell the client no more data is coming, then reset so the pending client
+	// Read returns. Teardown must not depend on the client closing or resetting
+	// its side, otherwise a client that keeps the stream open pins this pair
+	// (and the target streams) until the connection goes away.
+	_ = client.Close()
+	_ = client.Reset()
+
+	<-remoteDone
+	<-localDone
+}
+
+// waitErrorStream waits for the target error stream copy to finish. If the
+// target has not closed the error stream within errStreamGracePeriod, or the
+// request context is done, or the underlying source connection is closed, the stream is reset so the pending Read returns.
+func (h *portForwardProxy) waitErrorStream(target httpstream.Stream, done <-chan struct{}) {
+	const errStreamGracePeriod = 5 * time.Second
+
+	var sourceClosed <-chan bool
+	if h.sourceConn != nil {
+		sourceClosed = h.sourceConn.CloseChan()
+	}
+
+	select {
+	case <-done:
+		return
+	case <-time.After(errStreamGracePeriod):
+		h.WithField("grace_period", errStreamGracePeriod).Debug("Target error stream not closed within grace period, resetting")
+	case <-h.context.Done():
+	case <-sourceClosed:
+		// The client connection closed.
+	}
+
+	_ = target.Reset()
+	<-done
 }
 
 // getStreamPair returns a httpStreamPair for requestID. This creates a
@@ -304,7 +442,15 @@ func (h *portForwardProxy) requestID(stream httpstream.Stream) (string, error) {
 func (h *portForwardProxy) run() {
 	h.Debugf("Waiting for port forward streams")
 	var wg sync.WaitGroup
-	defer wg.Wait()
+	defer func() {
+		// Nothing reads streamChan past this point. Unblock stream handlers still trying
+		// to hand over a stream before waiting on the forwarders.
+		// spdystream only closes the source streams after every frame worker returns.
+		if h.stopStreams != nil {
+			h.stopStreams()
+		}
+		wg.Wait()
+	}()
 	for {
 		select {
 		case <-h.context.Done():
@@ -316,7 +462,19 @@ func (h *portForwardProxy) run() {
 		case <-h.targetConn.CloseChan():
 			h.Debugf("Target connection closed")
 			return
-		case stream := <-h.streamChan:
+		case s := <-h.streamChan:
+			// k8s.io/streaming only registers the stream with the connection after the
+			// handler returns. Wait for the reply so that removeStreamPair cannot run
+			// before the registration and leave the stream behind in the connection.
+			select {
+			case <-s.replySent:
+			case <-h.context.Done():
+				return
+			case <-h.sourceConn.CloseChan():
+				return
+			}
+			stream := s.Stream
+
 			requestID, err := h.requestID(stream)
 			if err != nil {
 				h.Warningf("Failed to parse request id: %v.", err)
