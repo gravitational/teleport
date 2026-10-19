@@ -465,12 +465,17 @@ func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) 
 	return 0, nil
 }
 
+func refererValue(action string) string {
+	return fmt.Sprintf("https://%s.tools.autoupdate.cdn.teleport.dev", action)
+}
+
 // downloadHash downloads the hash file `.sha256` for package checksum validation and return the hash sum.
 func (u *Updater) downloadHash(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.Header.Set("Referer", refererValue("checksum"))
 	resp, err := u.client.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -503,6 +508,7 @@ func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.Header.Set("Referer", refererValue("download"))
 	resp, err := u.client.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
