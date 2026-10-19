@@ -34,6 +34,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -130,7 +132,7 @@ func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client
 			table := asciitable.MakeTable([]string{"Server ID", "Services", "Version", "Upgrader"})
 			for _, h := range rsp.GetConnected() {
 				table.AddRow([]string{
-					h.GetServerID(),
+					scopes.QualifiedName{Name: h.GetServerID(), Scope: h.GetScope()}.String(),
 					strings.Join(h.GetServices(), ","),
 					h.GetVersion(),
 					cmp.Or(h.GetExternalUpgrader(), "none"),
@@ -236,6 +238,9 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 		ExternalUpgrader: upgrader,
 		NoExtUpgrader:    noUpgrader,
 		UpdateGroup:      c.updateGroup,
+		ScopeFilter: &types.ScopeFilter{
+			Mode: scopesv1.Mode_MODE_ALL,
+		},
 	})
 
 	switch c.format {
@@ -285,7 +290,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 			rows = append(rows, instanceRow{
 				auditQueueBacklog: auditQueueBacklog,
 				cells: []string{
-					instance.GetName(),
+					scopes.QualifiedName{Name: instance.GetName(), Scope: instance.GetScope()}.String(),
 					instance.GetHostname(),
 					strings.Join(services, ","),
 					instance.GetTeleportVersion(),
@@ -354,12 +359,18 @@ func formatAge(seconds int64) string {
 }
 
 func (c *InventoryCommand) Ping(ctx context.Context, client *authclient.Client) error {
+	sqn, err := scopes.ParseOptionallyQualifiedName(c.serverID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	rsp, err := client.PingInventory(ctx, proto.InventoryPingRequest{
-		ServerID: c.serverID,
+		ServerID: sqn.Name,
+		Scope:    sqn.Scope,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Successfully pinged server %q (~%s).\n", c.serverID, rsp.Duration)
+	fmt.Printf("Successfully pinged server %q (~%s).\n", sqn, rsp.Duration)
 	return nil
 }

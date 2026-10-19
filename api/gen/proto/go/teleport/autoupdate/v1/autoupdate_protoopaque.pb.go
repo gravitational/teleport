@@ -2683,6 +2683,7 @@ type Canary struct {
 	xxx_hidden_HostId    string                 `protobuf:"bytes,2,opt,name=host_id,json=hostId,proto3"`
 	xxx_hidden_Hostname  string                 `protobuf:"bytes,3,opt,name=hostname,proto3"`
 	xxx_hidden_Success   bool                   `protobuf:"varint,4,opt,name=success,proto3"`
+	xxx_hidden_Scope     string                 `protobuf:"bytes,5,opt,name=scope,proto3"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -2740,6 +2741,13 @@ func (x *Canary) GetSuccess() bool {
 	return false
 }
 
+func (x *Canary) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *Canary) SetUpdaterId(v string) {
 	x.xxx_hidden_UpdaterId = v
 }
@@ -2756,6 +2764,10 @@ func (x *Canary) SetSuccess(v bool) {
 	x.xxx_hidden_Success = v
 }
 
+func (x *Canary) SetScope(v string) {
+	x.xxx_hidden_Scope = v
+}
+
 type Canary_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -2770,6 +2782,8 @@ type Canary_builder struct {
 	Hostname string
 	// success represents if the agent successfully connected back, running the target version.
 	Success bool
+	// The scope the host is bound to.
+	Scope string
 }
 
 func (b0 Canary_builder) Build() *Canary {
@@ -2780,6 +2794,7 @@ func (b0 Canary_builder) Build() *Canary {
 	x.xxx_hidden_HostId = b.HostId
 	x.xxx_hidden_Hostname = b.Hostname
 	x.xxx_hidden_Success = b.Success
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -2908,13 +2923,14 @@ const file_teleport_autoupdate_v1_autoupdate_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12Y\n" +
 	"\x05value\x18\x02 \x01(\v2C.teleport.autoupdate.v1.AutoUpdateBotInstanceReportSpecGroupVersionR\x05value:\x028\x01\"C\n" +
 	"+AutoUpdateBotInstanceReportSpecGroupVersion\x12\x14\n" +
-	"\x05count\x18\x01 \x01(\x05R\x05count\"v\n" +
+	"\x05count\x18\x01 \x01(\x05R\x05count\"\x8c\x01\n" +
 	"\x06Canary\x12\x1d\n" +
 	"\n" +
 	"updater_id\x18\x01 \x01(\tR\tupdaterId\x12\x17\n" +
 	"\ahost_id\x18\x02 \x01(\tR\x06hostId\x12\x1a\n" +
 	"\bhostname\x18\x03 \x01(\tR\bhostname\x12\x18\n" +
-	"\asuccess\x18\x04 \x01(\bR\asuccess*\xa1\x02\n" +
+	"\asuccess\x18\x04 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05scope\x18\x05 \x01(\tR\x05scope*\xa1\x02\n" +
 	"\x19AutoUpdateAgentGroupState\x12-\n" +
 	")AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED\x10\x00\x12+\n" +
 	"'AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED\x10\x01\x12(\n" +

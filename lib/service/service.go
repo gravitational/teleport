@@ -1442,8 +1442,14 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		for _, r := range instanceRoles {
 			services = append(services, string(r))
 		}
+
+		var scope string
+		if conn := process.waitForInstanceConnector(ctx); conn != nil {
+			scope = conn.scope
+		}
 		hello := proto.UpstreamInventoryHello_builder{
 			ServerID:         hostID,
+			Scope:            scope,
 			Version:          teleport.Version,
 			Services:         services,
 			Hostname:         cfg.Hostname,

@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -62,7 +63,7 @@ type Client interface {
 	SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName string, sampleSize int, groups []string) ([]*autoupdatepb.Canary, error)
 
 	// LookupAgentInInventory looks up a specific HostID in the auth local inventory and returns its Hello message.
-	LookupAgentInInventory(ctx context.Context, hostID string) ([]*proto.UpstreamInventoryHello, error)
+	LookupAgentInInventory(ctx context.Context, hostID scopes.QualifiedName) ([]*proto.UpstreamInventoryHello, error)
 }
 
 func getAllReports(ctx context.Context, clt Client) ([]*autoupdatepb.AutoUpdateAgentReport, error) {

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
@@ -717,18 +718,20 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello *proto.Upstrea
 		services = append(services, types.SystemRole(s))
 	}
 
-	instance, err := types.NewInstance(hello.GetServerID(), types.InstanceSpecV1{
-		Version:                 vc.Normalize(hello.GetVersion()),
-		Services:                services,
-		Hostname:                hello.GetHostname(),
-		AuthID:                  authID,
-		LastSeen:                now.UTC(),
-		ExternalUpgrader:        hello.GetExternalUpgrader(),
-		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
-		LastMeasurement:         lastMeasurement,
-		UpdaterInfo:             hello.GetUpdaterInfo(),
-		AuditQueueStatus:        auditQueueStatus,
-	})
+	instance, err := types.NewScopedInstance(
+		scopes.QualifiedName{Name: hello.GetServerID(), Scope: hello.GetScope()},
+		types.InstanceSpecV1{
+			Version:                 vc.Normalize(hello.GetVersion()),
+			Services:                services,
+			Hostname:                hello.GetHostname(),
+			AuthID:                  authID,
+			LastSeen:                now.UTC(),
+			ExternalUpgrader:        hello.GetExternalUpgrader(),
+			ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
+			LastMeasurement:         lastMeasurement,
+			UpdaterInfo:             hello.GetUpdaterInfo(),
+			AuditQueueStatus:        auditQueueStatus,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
