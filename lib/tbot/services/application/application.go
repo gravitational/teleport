@@ -35,6 +35,15 @@ import (
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/application")
 
+func routeForApp(app types.Application, clusterName string) proto.RouteToApp {
+	return proto.RouteToApp{
+		Name:        app.GetName(),
+		PublicAddr:  app.GetPublicAddr(),
+		ClusterName: clusterName,
+		Scope:       app.GetScope(),
+	}
+}
+
 // validateAppName validates an application service's app_name field. In scope
 // mode the name must be a strongly valid scope-qualified name
 // ("<scope>::<name>"); otherwise it must be a plain, non-qualified app name.

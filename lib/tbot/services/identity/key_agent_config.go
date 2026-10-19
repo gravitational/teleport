@@ -79,8 +79,7 @@ type KeyAgentConfig struct {
 
 // CheckAndSetDefaults satisfies the config.ServiceConfig interface.
 func (c *KeyAgentConfig) CheckAndSetDefaults(scoped bool) error {
-	// TODO(boxofrad): Add support for scopes (and support for the WithPrivateKey
-	// identity generator option to GenerateScoped). Scope support was omitted
+	// TODO(boxofrad): Add support for scopes. Scope support was omitted
 	// from the initial version because we do not need it in Beams yet.
 	if scoped {
 		return trace.BadParameter("service type %q is not supported in scoped mode", KeyAgentServiceType)

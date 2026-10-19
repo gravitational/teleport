@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -179,12 +178,7 @@ func (s *OutputService) generateUnscopedIdentity(ctx context.Context) (*identity
 		return nil, trace.Wrap(err)
 	}
 
-	routeToApp := proto.RouteToApp{
-		Name:        app.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: s.getBotIdentity().ClusterName,
-		Scope:       app.GetScope(),
-	}
+	routeToApp := routeForApp(app, s.getBotIdentity().ClusterName)
 
 	routedIdentity, err := s.identityGenerator.Generate(ctx, append(identityOpts,
 		identity.WithCurrentIdentityFacade(id),
@@ -218,15 +212,12 @@ func (s *OutputService) generateScopedIdentity(ctx context.Context) (*identity.I
 		return nil, trace.Wrap(err)
 	}
 
-	routeToApp := proto.RouteToApp{
-		Name:        app.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: s.getBotIdentity().ClusterName,
-		Scope:       app.GetScope(),
-	}
+	routeToApp := routeForApp(app, s.getBotIdentity().ClusterName)
 
-	routedIdentity, err := s.identityGenerator.GenerateScoped(
-		ctx, s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval, identity.UsageApp(routeToApp),
+	routedIdentity, err := s.identityGenerator.Generate(ctx,
+		identity.WithLifetime(s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+		identity.WithRouteToApp(routeToApp),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

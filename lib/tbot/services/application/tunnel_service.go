@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -354,12 +353,7 @@ func (s *TunnelService) generateUnscopedIdentity(ctx context.Context) (*identity
 		return nil, nil, trace.Wrap(err)
 	}
 
-	routeToApp := proto.RouteToApp{
-		Name:        app.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: s.getBotIdentity().ClusterName,
-		Scope:       app.GetScope(),
-	}
+	routeToApp := routeForApp(app, s.getBotIdentity().ClusterName)
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for application tunnel.")
 	routedIdent, err := s.identityGenerator.Generate(ctx, append(identityOpts, identity.WithRouteToApp(routeToApp))...)
@@ -388,16 +382,13 @@ func (s *TunnelService) generateScopedIdentity(ctx context.Context) (*identity.I
 		return nil, nil, trace.Wrap(err)
 	}
 
-	routeToApp := proto.RouteToApp{
-		Name:        app.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: s.getBotIdentity().ClusterName,
-		Scope:       app.GetScope(),
-	}
+	routeToApp := routeForApp(app, s.getBotIdentity().ClusterName)
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for application tunnel.")
-	routedIdent, err := s.identityGenerator.GenerateScoped(
-		ctx, s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval, identity.UsageApp(routeToApp),
+	routedIdent, err := s.identityGenerator.Generate(ctx,
+		identity.WithLifetime(s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+		identity.WithRouteToApp(routeToApp),
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

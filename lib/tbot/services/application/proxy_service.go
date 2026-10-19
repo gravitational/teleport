@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -233,6 +232,9 @@ func (s *ProxyService) issueCert(
 	return routedIdent.TLSCert, app, nil
 }
 
+// generateUnscopedIdentity generates a role-impersonated identity, creates a
+// client from it, and looks up the application by name the request host is
+// treated as the application name.
 func (s *ProxyService) generateUnscopedIdentity(ctx context.Context, appName string) (*identity.Identity, types.Application, error) {
 	// TODO(noah): At a later date, we should consider running a background
 	// goroutine that maintains a role-impersonated client. We should probably
@@ -269,19 +271,14 @@ func (s *ProxyService) generateUnscopedIdentity(ctx context.Context, appName str
 	}()
 
 	// TODO(noah): Now that app session ids are no longer being retrieved,
-	// we can begin to cache the getUnscopedApp rather than regenerating this
+	// we can begin to cache the getApp rather than regenerating this
 	// on each renew in the ProxyService
 	app, err := getAppLegacy(ctx, impersonatedClient, appName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	routeToApp := proto.RouteToApp{
-		Name:        app.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: s.getBotIdentity().ClusterName,
-		Scope:       app.GetScope(),
-	}
+	routeToApp := routeForApp(app, s.getBotIdentity().ClusterName)
 
 	routedIdent, err := s.identityGenerator.Generate(
 		ctx, append(identityOpts, identity.WithRouteToApp(routeToApp))...,
@@ -293,24 +290,24 @@ func (s *ProxyService) generateUnscopedIdentity(ctx context.Context, appName str
 	return routedIdent, app, nil
 }
 
+// generateScopedIdentity resolves the scoped application identified by host and
+// generates an identity routed to it. Since application names are only unique
+// within a scope, host must be the scope-qualified hash used as the first label
+// of the application's public address. The scoped bot client resolves that
+// label to an application the bot is permitted to access.
 func (s *ProxyService) generateScopedIdentity(ctx context.Context, host string) (*identity.Identity, types.Application, error) {
-	// In the proxy service we only support connecting to scoped apps using their public address
-	// The public address of a scoped app is a hash of the scope and name
 	app, err := getAppByPublicAddrPrefix(ctx, s.botClient, host)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	routeToApp := proto.RouteToApp{
-		Name:        app.GetName(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: s.getBotIdentity().ClusterName,
-		Scope:       app.GetScope(),
-	}
+	routeToApp := routeForApp(app, s.getBotIdentity().ClusterName)
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
-	routedIdent, err := s.identityGenerator.GenerateScoped(
-		ctx, s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval, identity.UsageApp(routeToApp),
+	routedIdent, err := s.identityGenerator.Generate(ctx,
+		identity.WithLifetime(s.effectiveLifetime.TTL, s.effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+		identity.WithRouteToApp(routeToApp),
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

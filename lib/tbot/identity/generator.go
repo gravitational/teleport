@@ -51,7 +51,7 @@ type GeneratorConfig struct {
 	Client *apiclient.Client
 
 	// Logger to which errors and messages will be written. Can be overridden
-	// on a per-call basis by passing WithLogger.
+	// on a per-call basis by passing WithLogger to Generate.
 	Logger *slog.Logger
 
 	// BotIdentity is a Facade containing the bot's internal identity.
@@ -63,6 +63,11 @@ type GeneratorConfig struct {
 	// Insecure controls whether the generated identity TLS config verifies
 	// host certificate authenticity, etc.
 	Insecure bool
+
+	// Scoped indicates whether the bot is running in scoped mode, and so holds
+	// a scoped identity. Certificates for a scoped bot are issued via the
+	// scoped issuance RPC rather than by role impersonation.
+	Scoped bool
 }
 
 // CheckAndSetDefaults checks whether the configuration is valid and sets any
@@ -93,6 +98,7 @@ func NewGenerator(cfg GeneratorConfig) (*Generator, error) {
 		botIdentity: cfg.BotIdentity,
 		fips:        cfg.FIPS,
 		insecure:    cfg.Insecure,
+		scoped:      cfg.Scoped,
 	}, nil
 }
 
@@ -103,6 +109,7 @@ type Generator struct {
 	logger         *slog.Logger
 	botIdentity    *Facade
 	fips, insecure bool
+	scoped         bool
 }
 
 type generateOpts struct {
@@ -111,8 +118,12 @@ type generateOpts struct {
 	ttl, renewalInterval time.Duration
 	currentIdentity      *Identity
 	logger               *slog.Logger
-	requestModifiers     []func(*proto.UserCertsRequest)
 	privateKey           crypto.Signer
+	routeToApp           *proto.RouteToApp
+	routeToDatabase      *proto.RouteToDatabase
+	kubernetesCluster    *string
+	routeToCluster       *string
+	reissuable           bool
 }
 
 // GenerateOption allows you to customize aspects of the generated identity.
@@ -122,6 +133,7 @@ type GenerateOption func(*generateOpts)
 // associated with a *human* user and delegation session.
 //
 // Note: this option is mutually-exclusive with WithRoles.
+// Scoped bots do not support delegation.
 func WithDelegation(sessionID string) GenerateOption {
 	return func(opts *generateOpts) {
 		opts.delegationSessionID = sessionID
@@ -155,6 +167,7 @@ func WithLifetime(ttl, renewalInterval time.Duration) GenerateOption {
 //
 // If you do not provide WithCurrentIdentity, the bot's internal identity will
 // be used. Note: you should *not* explicitly pass the bot's internal identity.
+// Scoped bots do not support generating from another identity.
 func WithCurrentIdentity(identity *Identity) GenerateOption {
 	return func(opts *generateOpts) {
 		opts.currentIdentity = identity
@@ -178,49 +191,44 @@ func WithLogger(logger *slog.Logger) GenerateOption {
 
 // WithKubernetesCluster sets the KubernetesCluster field on the certificates
 // request.
+// Scoped bots do not support Kubernetes routing.
 func WithKubernetesCluster(name string) GenerateOption {
 	return func(opts *generateOpts) {
-		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
-			req.KubernetesCluster = name
-		})
+		opts.kubernetesCluster = &name
 	}
 }
 
 // WithRouteToApp sets the RouteToApp field on the certificates request.
+// Scoped bots support only the app name, public address, scope and local cluster.
 func WithRouteToApp(route proto.RouteToApp) GenerateOption {
 	return func(opts *generateOpts) {
-		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
-			req.RouteToApp = route
-		})
+		opts.routeToApp = &route
 	}
 }
 
 // WithRouteToDatabase sets the RouteToDatabase field on the certificates
 // request.
+// Scoped bots do not support database routing.
 func WithRouteToDatabase(route proto.RouteToDatabase) GenerateOption {
 	return func(opts *generateOpts) {
-		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
-			req.RouteToDatabase = route
-		})
+		opts.routeToDatabase = &route
 	}
 }
 
 // WithReissuableRoleImpersonation sets the WithReissuableRoleImpersonation
 // field on the certificates request.
+// Scoped bots do not support reissuable identities.
 func WithReissuableRoleImpersonation(allow bool) GenerateOption {
 	return func(opts *generateOpts) {
-		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
-			req.ReissuableRoleImpersonation = allow
-		})
+		opts.reissuable = allow
 	}
 }
 
 // WithRouteToCluster sets the RouteToCluster field on the certificates request.
+// Scoped bots do not support routing to another cluster.
 func WithRouteToCluster(cluster string) GenerateOption {
 	return func(opts *generateOpts) {
-		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
-			req.RouteToCluster = cluster
-		})
+		opts.routeToCluster = &cluster
 	}
 }
 
@@ -260,7 +268,19 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		return nil, trace.BadParameter("delegation sessions and explicit roles are mutually-exclusive")
 	}
 
-	if len(o.roles) == 0 {
+	// Validate scoped options before resolving roles, substituting the bot
+	// identity, or generating keys.
+	var scopedReq *issuancev1pb.IssueScopedBotCertsRequest
+	if g.scoped {
+		var err error
+		scopedReq, err = o.scopedCertsRequest(g.botIdentity.Get().ClusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Scoped certificates are not issued by role impersonation.
+	if !g.scoped && len(o.roles) == 0 {
 		if o.currentIdentity != nil {
 			// If the caller provided an impersonated identity, take its roles.
 			o.roles = o.currentIdentity.TLSIdentity.Groups
@@ -287,11 +307,21 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		// Make sure to specify this is an impersonated cert request. If unset,
 		// auth cannot differentiate renewable vs impersonated requests when
 		// len(roleRequests) == 0.
-		UseRoleRequests: true,
+		UseRoleRequests:             true,
+		ReissuableRoleImpersonation: o.reissuable,
 	}
 
-	for _, fn := range o.requestModifiers {
-		fn(&req)
+	if o.routeToApp != nil {
+		req.RouteToApp = *o.routeToApp
+	}
+	if o.routeToDatabase != nil {
+		req.RouteToDatabase = *o.routeToDatabase
+	}
+	if o.kubernetesCluster != nil {
+		req.KubernetesCluster = *o.kubernetesCluster
+	}
+	if o.routeToCluster != nil {
+		req.RouteToCluster = *o.routeToCluster
 	}
 
 	keyPurpose := cryptosuites.BotImpersonatedIdentity
@@ -332,22 +362,27 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 	}
 
 	var certs *proto.Certs
-	if o.delegationSessionID == "" {
-		// Traditional bot certificates.
-		certs, err = g.client.GenerateUserCerts(ctx, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
+	switch {
+	case g.scoped:
+		// Scoped bot certificates, issued via the scoped issuance service.
+		scopedReq.SetSshPublicKey(req.SSHPublicKey)
+		scopedReq.SetTlsPublicKey(req.TLSPublicKey)
+		certs, err = g.generateScopedCertificates(ctx, scopedReq)
+	case o.delegationSessionID != "":
 		// Delegation certificates, tied to a human user identity.
 		certs, err = g.generateDelegationCertificates(ctx, req, o)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	default:
+		// Traditional bot certificates.
+		certs, err = g.client.GenerateUserCerts(ctx, req)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// The root CA included with the returned user certs will only contain the
-	// Teleport User CA. We'll also need the host CA for future API calls.
+	// The root CA included with the returned certs will only contain the
+	// Teleport User CA (and, for scoped certificates, nothing at all - see
+	// generateScopedCertificates). We'll also need the host CA for future API
+	// calls.
 	localCA, err := g.client.GetClusterCACert(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -407,143 +442,70 @@ func (g *Generator) botDefaultRoles(ctx context.Context) ([]string, error) {
 	return conditions.Roles, nil
 }
 
-// ScopedUsage is used to set the type of usage when issuing
-// scoped bot certificates.
-type ScopedUsage struct {
-	apply func(*issuancev1pb.IssueScopedBotCertsRequest)
+// scopedCertsRequest validates options supported by scoped issuance and builds
+// the request without public keys, which are added after key generation.
+func (o *generateOpts) scopedCertsRequest(clusterName string) (*issuancev1pb.IssueScopedBotCertsRequest, error) {
+	switch {
+	case o.delegationSessionID != "":
+		return nil, trace.BadParameter("delegation sessions are not supported for scoped bots")
+	case o.currentIdentity != nil:
+		return nil, trace.BadParameter("current identity is not supported for scoped bots")
+	case o.reissuable:
+		return nil, trace.BadParameter("reissuable role impersonation is not supported for scoped bots")
+	case o.routeToCluster != nil && *o.routeToCluster != "" && *o.routeToCluster != clusterName:
+		return nil, trace.BadParameter("leaf cluster routing is not supported for scoped bots")
+	case o.routeToDatabase != nil:
+		return nil, trace.BadParameter("database routing is not supported for scoped bots")
+	case o.kubernetesCluster != nil:
+		return nil, trace.BadParameter("kubernetes routing is not supported for scoped bots")
+	}
+
+	req := issuancev1pb.IssueScopedBotCertsRequest_builder{
+		Ttl: durationpb.New(o.ttl),
+	}.Build()
+	if o.routeToApp == nil {
+		req.SetIdentity(&issuancev1pb.UsageIdentity{})
+		return req, nil
+	}
+
+	app := o.routeToApp
+	if app.ClusterName != "" && app.ClusterName != clusterName {
+		return nil, trace.BadParameter("routing to an app in another cluster is not supported for scoped bots")
+	}
+	// These fields cannot be expressed by the scoped issuance RPC and must not
+	// be silently discarded. Update this check when RouteToApp gains fields.
+	if app.AWSRoleARN != "" ||
+		app.AzureIdentity != "" ||
+		app.GCPServiceAccount != "" ||
+		app.AWSCredentialProcessCredentials != "" ||
+		app.URI != "" ||
+		app.TargetPort != 0 {
+		return nil, trace.BadParameter("unsupported app routing fields for scoped bots")
+	}
+	req.SetApp(issuancev1pb.UsageApp_builder{
+		Name:       app.Name,
+		PublicAddr: app.PublicAddr,
+		Scope:      app.Scope,
+	}.Build())
+	return req, nil
 }
 
-// Validate checks that the ScopedUsage is valid for use.
-func (u *ScopedUsage) Validate() error {
-	if u == nil {
-		return trace.BadParameter("usage is undefined")
-	}
-	if u.apply == nil {
-		return trace.BadParameter("usage is incomplete: no apply set")
-	}
-	return nil
-}
-
-// UsageIdentity sets the IssueScopedBotCertsRequest.Usage to be of the UsageIdentity type.
-func UsageIdentity() *ScopedUsage {
-	return &ScopedUsage{
-		apply: func(req *issuancev1pb.IssueScopedBotCertsRequest) {
-			req.SetIdentity(&issuancev1pb.UsageIdentity{})
-		},
-	}
-}
-
-// UsageApp sets the IssueScopedBotCertsRequest.Usage to be of the UsageApp type.
-func UsageApp(route proto.RouteToApp) *ScopedUsage {
-	return &ScopedUsage{
-		apply: func(req *issuancev1pb.IssueScopedBotCertsRequest) {
-			req.SetApp(issuancev1pb.UsageApp_builder{
-				Name:       route.Name,
-				PublicAddr: route.PublicAddr,
-				Scope:      route.Scope,
-			}.Build())
-		},
-	}
-}
-
-// GenerateScoped generates scoped certificates. Bot must already be scoped/
-// hold a scoped identity.
-// TODO(noah): add optional args to this like for Generate.
-func (g *Generator) GenerateScoped(
-	ctx context.Context, ttl, renewalInterval time.Duration, usage *ScopedUsage,
-) (*Identity, error) {
-	if err := usage.Validate(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	req := &issuancev1pb.IssueScopedBotCertsRequest{
-		Ttl:   durationpb.New(ttl),
-		Usage: &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-	}
-	usage.apply(req)
-
-	keyPurpose := cryptosuites.BotImpersonatedIdentity
-	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
-		keyPurpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshPub, err := ssh.NewPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	req.SshPublicKey = ssh.MarshalAuthorizedKey(sshPub)
-
-	req.TlsPublicKey, err = keys.MarshalPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+// generateScopedCertificates issues certificates via the scoped issuance
+// service. The bot must already hold a scoped identity.
+func (g *Generator) generateScopedCertificates(
+	ctx context.Context, req *issuancev1pb.IssueScopedBotCertsRequest,
+) (*proto.Certs, error) {
 	res, err := g.client.IssuanceClient().IssueScopedBotCerts(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Fetch CAs for new identity
-	localCA, err := g.client.GetClusterCACert(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	caCerts, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsHostCAs := [][]byte{}
-	// Append the host CAs from the auth server.
-	for _, cert := range caCerts {
-		pemBytes, err := tlsca.MarshalCertificatePEM(cert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsHostCAs = append(tlsHostCAs, pemBytes)
-	}
-
-	newIdentity, err := ReadIdentityFromStore(&LoadIdentityParams{
-		PrivateKeyBytes: privateKeyPEM,
-		PublicKeyBytes:  req.SshPublicKey,
-	}, &proto.Certs{
-		SSH:        res.Certs.Ssh,
-		TLS:        res.Certs.Tls,
-		TLSCACerts: tlsHostCAs,
-		SSHCACerts: g.botIdentity.Get().SSHCACertBytes,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	warnOnEarlyExpiration(
-		ctx,
-		log,
-		newIdentity,
-		ttl,
-		renewalInterval,
-	)
-
-	return newIdentity, nil
-}
-
-// GenerateScopedFacade calls GenerateScoped and wraps the resulting Identity
-// in a Facade for easy use in API clients, etc.
-func (g *Generator) GenerateScopedFacade(
-	ctx context.Context, ttl, renewalInterval time.Duration, usage *ScopedUsage,
-) (*Facade, error) {
-	id, err := g.GenerateScoped(ctx, ttl, renewalInterval, usage)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return NewFacade(g.fips, g.insecure, id), nil
+	// Scoped issuance returns no CAs. Generate adds the host TLS CAs and
+	// copies the SSH CAs from the current identity.
+	return &proto.Certs{
+		SSH: res.GetCerts().GetSsh(),
+		TLS: res.GetCerts().GetTls(),
+	}, nil
 }
 
 func (g *Generator) generateDelegationCertificates(ctx context.Context, req proto.UserCertsRequest, o *generateOpts) (*proto.Certs, error) {
