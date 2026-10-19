@@ -23,7 +23,6 @@
 package beamsv1
 
 import (
-	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	structpb "google.golang.org/protobuf/types/known/structpb"
@@ -1892,10 +1891,6 @@ type ReplayCommand struct {
 	ArgumentsPreview string `protobuf:"bytes,6,opt,name=arguments_preview,json=argumentsPreview,proto3" json:"arguments_preview,omitempty"`
 	// At is when the issuing exchange occurred.
 	At *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=at,proto3" json:"at,omitempty"`
-	// Risk is the LLM-assigned risk level for this command
-	// (none/low/medium/high/critical). Empty for artifacts recorded before
-	// command-risk scoring, or when no beam inference policy is configured.
-	Risk string `protobuf:"bytes,8,opt,name=risk,proto3" json:"risk,omitempty"`
 	// Title is a short, human-readable name for this tool use, assigned by the
 	// segmenter (e.g. "Install dependencies"). Empty for artifacts recorded
 	// before segmentation existed, or when segmentation was unavailable.
@@ -2005,13 +2000,6 @@ func (x *ReplayCommand) GetAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *ReplayCommand) GetRisk() string {
-	if x != nil {
-		return x.Risk
-	}
-	return ""
-}
-
 func (x *ReplayCommand) GetTitle() string {
 	if x != nil {
 		return x.Title
@@ -2103,10 +2091,6 @@ func (x *ReplayCommand) SetAt(v *timestamppb.Timestamp) {
 	x.At = v
 }
 
-func (x *ReplayCommand) SetRisk(v string) {
-	x.Risk = v
-}
-
 func (x *ReplayCommand) SetTitle(v string) {
 	x.Title = v
 }
@@ -2178,10 +2162,6 @@ type ReplayCommand_builder struct {
 	ArgumentsPreview string
 	// At is when the issuing exchange occurred.
 	At *timestamppb.Timestamp
-	// Risk is the LLM-assigned risk level for this command
-	// (none/low/medium/high/critical). Empty for artifacts recorded before
-	// command-risk scoring, or when no beam inference policy is configured.
-	Risk string
 	// Title is a short, human-readable name for this tool use, assigned by the
 	// segmenter (e.g. "Install dependencies"). Empty for artifacts recorded
 	// before segmentation existed, or when segmentation was unavailable.
@@ -2226,7 +2206,6 @@ func (b0 ReplayCommand_builder) Build() *ReplayCommand {
 	x.Phase = b.Phase
 	x.ArgumentsPreview = b.ArgumentsPreview
 	x.At = b.At
-	x.Risk = b.Risk
 	x.Title = b.Title
 	x.Description = b.Description
 	x.CallId = b.CallId
@@ -2249,9 +2228,6 @@ type ReplayFinding struct {
 	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	// Detail is a sentence or two on what was seen and why it matters.
 	Detail string `protobuf:"bytes,2,opt,name=detail,proto3" json:"detail,omitempty"`
-	// Severity is this finding's own seriousness (low/medium/high/critical), which
-	// need not match the run's overall risk level.
-	Severity v1.RiskLevel `protobuf:"varint,3,opt,name=severity,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"severity,omitempty"`
 	// ActivityOrdinals are the activities evidencing this finding, resolved from the
 	// exchanges the analyzer cited. Empty when none of them fell inside an activity,
 	// which can happen for a lane whose segmentation failed.
@@ -2299,13 +2275,6 @@ func (x *ReplayFinding) GetDetail() string {
 	return ""
 }
 
-func (x *ReplayFinding) GetSeverity() v1.RiskLevel {
-	if x != nil {
-		return x.Severity
-	}
-	return v1.RiskLevel(0)
-}
-
 func (x *ReplayFinding) GetActivityOrdinals() []int64 {
 	if x != nil {
 		return x.ActivityOrdinals
@@ -2321,10 +2290,6 @@ func (x *ReplayFinding) SetDetail(v string) {
 	x.Detail = v
 }
 
-func (x *ReplayFinding) SetSeverity(v v1.RiskLevel) {
-	x.Severity = v
-}
-
 func (x *ReplayFinding) SetActivityOrdinals(v []int64) {
 	x.ActivityOrdinals = v
 }
@@ -2336,9 +2301,6 @@ type ReplayFinding_builder struct {
 	Title string
 	// Detail is a sentence or two on what was seen and why it matters.
 	Detail string
-	// Severity is this finding's own seriousness (low/medium/high/critical), which
-	// need not match the run's overall risk level.
-	Severity v1.RiskLevel
 	// ActivityOrdinals are the activities evidencing this finding, resolved from the
 	// exchanges the analyzer cited. Empty when none of them fell inside an activity,
 	// which can happen for a lane whose segmentation failed.
@@ -2351,7 +2313,6 @@ func (b0 ReplayFinding_builder) Build() *ReplayFinding {
 	_, _ = b, x
 	x.Title = b.Title
 	x.Detail = b.Detail
-	x.Severity = b.Severity
 	x.ActivityOrdinals = b.ActivityOrdinals
 	return m0
 }
@@ -2509,12 +2470,6 @@ type ReplayConversation struct {
 	FirstAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=first_at,json=firstAt,proto3" json:"first_at,omitempty"`
 	// LastAt is when this conversation's latest step occurred.
 	LastAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=last_at,json=lastAt,proto3" json:"last_at,omitempty"`
-	// RiskLevel is the analyzer's assessment of this run alone
-	// (low/medium/high/critical), as opposed to the beam-wide verdict on the
-	// recording's summary. Unspecified when the run wasn't analyzed separately.
-	RiskLevel v1.RiskLevel `protobuf:"varint,8,opt,name=risk_level,json=riskLevel,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"risk_level,omitempty"`
-	// RiskScore is the analyzer's numeric score for this run, 0 to 100.
-	RiskScore int32 `protobuf:"varint,9,opt,name=risk_score,json=riskScore,proto3" json:"risk_score,omitempty"`
 	// ShortDescription is the analyzer's one-line account of what this run did.
 	ShortDescription string `protobuf:"bytes,10,opt,name=short_description,json=shortDescription,proto3" json:"short_description,omitempty"`
 	// DetailedDescription is the analyzer's fuller account of this run.
@@ -2614,20 +2569,6 @@ func (x *ReplayConversation) GetLastAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *ReplayConversation) GetRiskLevel() v1.RiskLevel {
-	if x != nil {
-		return x.RiskLevel
-	}
-	return v1.RiskLevel(0)
-}
-
-func (x *ReplayConversation) GetRiskScore() int32 {
-	if x != nil {
-		return x.RiskScore
-	}
-	return 0
-}
-
 func (x *ReplayConversation) GetShortDescription() string {
 	if x != nil {
 		return x.ShortDescription
@@ -2682,14 +2623,6 @@ func (x *ReplayConversation) SetFirstAt(v *timestamppb.Timestamp) {
 
 func (x *ReplayConversation) SetLastAt(v *timestamppb.Timestamp) {
 	x.LastAt = v
-}
-
-func (x *ReplayConversation) SetRiskLevel(v v1.RiskLevel) {
-	x.RiskLevel = v
-}
-
-func (x *ReplayConversation) SetRiskScore(v int32) {
-	x.RiskScore = v
 }
 
 func (x *ReplayConversation) SetShortDescription(v string) {
@@ -2752,12 +2685,6 @@ type ReplayConversation_builder struct {
 	FirstAt *timestamppb.Timestamp
 	// LastAt is when this conversation's latest step occurred.
 	LastAt *timestamppb.Timestamp
-	// RiskLevel is the analyzer's assessment of this run alone
-	// (low/medium/high/critical), as opposed to the beam-wide verdict on the
-	// recording's summary. Unspecified when the run wasn't analyzed separately.
-	RiskLevel v1.RiskLevel
-	// RiskScore is the analyzer's numeric score for this run, 0 to 100.
-	RiskScore int32
 	// ShortDescription is the analyzer's one-line account of what this run did.
 	ShortDescription string
 	// DetailedDescription is the analyzer's fuller account of this run.
@@ -2792,8 +2719,6 @@ func (b0 ReplayConversation_builder) Build() *ReplayConversation {
 	x.Outcome = b.Outcome
 	x.FirstAt = b.FirstAt
 	x.LastAt = b.LastAt
-	x.RiskLevel = b.RiskLevel
-	x.RiskScore = b.RiskScore
 	x.ShortDescription = b.ShortDescription
 	x.DetailedDescription = b.DetailedDescription
 	x.Agents = b.Agents
@@ -3178,12 +3103,6 @@ type ReplayActivity struct {
 	// Reasoning is a short paraphrase of the agent's stated intent for this
 	// activity, when available.
 	Reasoning string `protobuf:"bytes,6,opt,name=reasoning,proto3" json:"reasoning,omitempty"`
-	// Flagged marks the activity for reviewer attention (privilege escalation,
-	// destructive actions, or other security risk).
-	Flagged bool `protobuf:"varint,7,opt,name=flagged,proto3" json:"flagged,omitempty"`
-	// Risk is the segmenter's risk level for the activity
-	// (none/low/medium/high/critical).
-	Risk string `protobuf:"bytes,8,opt,name=risk,proto3" json:"risk,omitempty"`
 	// At is when the activity started.
 	At *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=at,proto3" json:"at,omitempty"`
 	// EndAt is when the activity ended.
@@ -3282,20 +3201,6 @@ func (x *ReplayActivity) GetReasoning() string {
 	return ""
 }
 
-func (x *ReplayActivity) GetFlagged() bool {
-	if x != nil {
-		return x.Flagged
-	}
-	return false
-}
-
-func (x *ReplayActivity) GetRisk() string {
-	if x != nil {
-		return x.Risk
-	}
-	return ""
-}
-
 func (x *ReplayActivity) GetAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.At
@@ -3360,14 +3265,6 @@ func (x *ReplayActivity) SetDetailedDescription(v string) {
 
 func (x *ReplayActivity) SetReasoning(v string) {
 	x.Reasoning = v
-}
-
-func (x *ReplayActivity) SetFlagged(v bool) {
-	x.Flagged = v
-}
-
-func (x *ReplayActivity) SetRisk(v string) {
-	x.Risk = v
 }
 
 func (x *ReplayActivity) SetAt(v *timestamppb.Timestamp) {
@@ -3436,12 +3333,6 @@ type ReplayActivity_builder struct {
 	// Reasoning is a short paraphrase of the agent's stated intent for this
 	// activity, when available.
 	Reasoning string
-	// Flagged marks the activity for reviewer attention (privilege escalation,
-	// destructive actions, or other security risk).
-	Flagged bool
-	// Risk is the segmenter's risk level for the activity
-	// (none/low/medium/high/critical).
-	Risk string
 	// At is when the activity started.
 	At *timestamppb.Timestamp
 	// EndAt is when the activity ended.
@@ -3481,8 +3372,6 @@ func (b0 ReplayActivity_builder) Build() *ReplayActivity {
 	x.ShortDescription = b.ShortDescription
 	x.DetailedDescription = b.DetailedDescription
 	x.Reasoning = b.Reasoning
-	x.Flagged = b.Flagged
-	x.Risk = b.Risk
 	x.At = b.At
 	x.EndAt = b.EndAt
 	x.Unsummarised = b.Unsummarised
@@ -4339,7 +4228,7 @@ var File_teleport_beams_v1_beam_replay_service_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"\n" +
-	"+teleport/beams/v1/beam_replay_service.proto\x12\x11teleport.beams.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/summarizer/v1/summarizer.proto\"\x98\x03\n" +
+	"+teleport/beams/v1/beam_replay_service.proto\x12\x11teleport.beams.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x98\x03\n" +
 	"\rReplayRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x124\n" +
@@ -4412,7 +4301,7 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"\x12activity_page_refs\x18\f \x03(\v2\x1d.teleport.beams.v1.PayloadRefR\x10activityPageRefs\x12S\n" +
 	"\x16conversation_page_refs\x18\r \x03(\v2\x1d.teleport.beams.v1.PayloadRefR\x14conversationPageRefs\"S\n" +
 	"\x0fReplayIndexPage\x12@\n" +
-	"\aentries\x18\x01 \x03(\v2&.teleport.beams.v1.ReplayExchangeEntryR\aentries\"\xd4\x04\n" +
+	"\aentries\x18\x01 \x03(\v2&.teleport.beams.v1.ReplayExchangeEntryR\aentries\"\xcc\x04\n" +
 	"\rReplayCommand\x12'\n" +
 	"\x0fcommand_ordinal\x18\x01 \x01(\x03R\x0ecommandOrdinal\x12)\n" +
 	"\x10exchange_ordinal\x18\x02 \x01(\x03R\x0fexchangeOrdinal\x12!\n" +
@@ -4420,8 +4309,7 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"\ttool_name\x18\x04 \x01(\tR\btoolName\x12\x14\n" +
 	"\x05phase\x18\x05 \x01(\tR\x05phase\x12+\n" +
 	"\x11arguments_preview\x18\x06 \x01(\tR\x10argumentsPreview\x12*\n" +
-	"\x02at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x12\x12\n" +
-	"\x04risk\x18\b \x01(\tR\x04risk\x12\x14\n" +
+	"\x02at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x12\x14\n" +
 	"\x05title\x18\t \x01(\tR\x05title\x12 \n" +
 	"\vdescription\x18\n" +
 	" \x01(\tR\vdescription\x12\x17\n" +
@@ -4431,18 +4319,17 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"\texit_code\x18\x0e \x01(\x05R\bexitCode\x12\x1c\n" +
 	"\tescalated\x18\x0f \x01(\bR\tescalated\x12+\n" +
 	"\x11escalation_reason\x18\x10 \x01(\tR\x10escalationReason\x12#\n" +
-	"\ragent_ordinal\x18\x11 \x01(\x03R\fagentOrdinal\"\xa9\x01\n" +
+	"\ragent_ordinal\x18\x11 \x01(\x03R\fagentOrdinalJ\x04\b\b\x10\tR\x04risk\"z\n" +
 	"\rReplayFinding\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12\x16\n" +
-	"\x06detail\x18\x02 \x01(\tR\x06detail\x12=\n" +
-	"\bseverity\x18\x03 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\bseverity\x12+\n" +
-	"\x11activity_ordinals\x18\x04 \x03(\x03R\x10activityOrdinals\"X\n" +
+	"\x06detail\x18\x02 \x01(\tR\x06detail\x12+\n" +
+	"\x11activity_ordinals\x18\x04 \x03(\x03R\x10activityOrdinalsJ\x04\b\x03\x10\x04R\bseverity\"X\n" +
 	"\x13ReplayActivityIndex\x12A\n" +
 	"\n" +
 	"activities\x18\x01 \x03(\v2!.teleport.beams.v1.ReplayActivityR\n" +
 	"activities\"f\n" +
 	"\x17ReplayConversationIndex\x12K\n" +
-	"\rconversations\x18\x01 \x03(\v2%.teleport.beams.v1.ReplayConversationR\rconversations\"\xcd\x04\n" +
+	"\rconversations\x18\x01 \x03(\v2%.teleport.beams.v1.ReplayConversationR\rconversations\"\x90\x04\n" +
 	"\x12ReplayConversation\x121\n" +
 	"\x14conversation_ordinal\x18\x01 \x01(\x03R\x13conversationOrdinal\x12\x1d\n" +
 	"\n" +
@@ -4451,16 +4338,15 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"\x04goal\x18\x04 \x01(\tR\x04goal\x12\x18\n" +
 	"\aoutcome\x18\x05 \x01(\tR\aoutcome\x125\n" +
 	"\bfirst_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\afirstAt\x123\n" +
-	"\alast_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x06lastAt\x12@\n" +
-	"\n" +
-	"risk_level\x18\b \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\triskLevel\x12\x1d\n" +
-	"\n" +
-	"risk_score\x18\t \x01(\x05R\triskScore\x12+\n" +
+	"\alast_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x06lastAt\x12+\n" +
 	"\x11short_description\x18\n" +
 	" \x01(\tR\x10shortDescription\x121\n" +
 	"\x14detailed_description\x18\v \x01(\tR\x13detailedDescription\x126\n" +
 	"\x06agents\x18\f \x03(\v2\x1e.teleport.beams.v1.ReplayAgentR\x06agents\x12<\n" +
-	"\bfindings\x18\r \x03(\v2 .teleport.beams.v1.ReplayFindingR\bfindings\"\xfc\x03\n" +
+	"\bfindings\x18\r \x03(\v2 .teleport.beams.v1.ReplayFindingR\bfindingsJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"R\n" +
+	"risk_levelR\n" +
+	"risk_score\"\xfc\x03\n" +
 	"\vReplayAgent\x12#\n" +
 	"\ragent_ordinal\x18\x01 \x01(\x03R\fagentOrdinal\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\x1d\n" +
@@ -4479,23 +4365,21 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"isSubagent\x122\n" +
 	"\x15spawn_command_ordinal\x18\r \x01(\x03R\x13spawnCommandOrdinal\x12\x14\n" +
 	"\x05model\x18\x0e \x01(\tR\x05model\x12#\n" +
-	"\rsummary_error\x18\x0f \x01(\tR\fsummaryError\"\xa4\x04\n" +
+	"\rsummary_error\x18\x0f \x01(\tR\fsummaryError\"\x91\x04\n" +
 	"\x0eReplayActivity\x12)\n" +
 	"\x10activity_ordinal\x18\x01 \x01(\x03R\x0factivityOrdinal\x12#\n" +
 	"\ragent_ordinal\x18\x02 \x01(\x03R\fagentOrdinal\x12\x14\n" +
 	"\x05title\x18\x03 \x01(\tR\x05title\x12+\n" +
 	"\x11short_description\x18\x04 \x01(\tR\x10shortDescription\x121\n" +
 	"\x14detailed_description\x18\x05 \x01(\tR\x13detailedDescription\x12\x1c\n" +
-	"\treasoning\x18\x06 \x01(\tR\treasoning\x12\x18\n" +
-	"\aflagged\x18\a \x01(\bR\aflagged\x12\x12\n" +
-	"\x04risk\x18\b \x01(\tR\x04risk\x12*\n" +
+	"\treasoning\x18\x06 \x01(\tR\treasoning\x12*\n" +
 	"\x02at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x121\n" +
 	"\x06end_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\x05endAt\x12\"\n" +
 	"\funsummarised\x18\v \x01(\bR\funsummarised\x12+\n" +
 	"\x11exchange_ordinals\x18\f \x03(\x03R\x10exchangeOrdinals\x12<\n" +
 	"\bcommands\x18\r \x03(\v2 .teleport.beams.v1.ReplayCommandR\bcommands\x12\x12\n" +
-	"\x04kind\x18\x0e \x01(\tR\x04kind\"\xaa\x06\n" +
+	"\x04kind\x18\x0e \x01(\tR\x04kindJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\aflaggedR\x04risk\"\xaa\x06\n" +
 	"\x13ReplayExchangeEntry\x12\x18\n" +
 	"\aordinal\x18\x01 \x01(\x03R\aordinal\x12\x1d\n" +
 	"\n" +
@@ -4572,8 +4456,7 @@ var file_teleport_beams_v1_beam_replay_service_proto_goTypes = []any{
 	(*ReplayEventBatch)(nil),        // 23: teleport.beams.v1.ReplayEventBatch
 	(*ReplayAuditEvent)(nil),        // 24: teleport.beams.v1.ReplayAuditEvent
 	(*timestamppb.Timestamp)(nil),   // 25: google.protobuf.Timestamp
-	(v1.RiskLevel)(0),               // 26: teleport.summarizer.v1.RiskLevel
-	(*structpb.Struct)(nil),         // 27: google.protobuf.Struct
+	(*structpb.Struct)(nil),         // 26: google.protobuf.Struct
 }
 var file_teleport_beams_v1_beam_replay_service_proto_depIdxs = []int32{
 	1,  // 0: teleport.beams.v1.ReplayRequest.open:type_name -> teleport.beams.v1.OpenRequest
@@ -4595,35 +4478,33 @@ var file_teleport_beams_v1_beam_replay_service_proto_depIdxs = []int32{
 	21, // 16: teleport.beams.v1.ReplayManifest.conversation_page_refs:type_name -> teleport.beams.v1.PayloadRef
 	20, // 17: teleport.beams.v1.ReplayIndexPage.entries:type_name -> teleport.beams.v1.ReplayExchangeEntry
 	25, // 18: teleport.beams.v1.ReplayCommand.at:type_name -> google.protobuf.Timestamp
-	26, // 19: teleport.beams.v1.ReplayFinding.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	19, // 20: teleport.beams.v1.ReplayActivityIndex.activities:type_name -> teleport.beams.v1.ReplayActivity
-	17, // 21: teleport.beams.v1.ReplayConversationIndex.conversations:type_name -> teleport.beams.v1.ReplayConversation
-	25, // 22: teleport.beams.v1.ReplayConversation.first_at:type_name -> google.protobuf.Timestamp
-	25, // 23: teleport.beams.v1.ReplayConversation.last_at:type_name -> google.protobuf.Timestamp
-	26, // 24: teleport.beams.v1.ReplayConversation.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	18, // 25: teleport.beams.v1.ReplayConversation.agents:type_name -> teleport.beams.v1.ReplayAgent
-	14, // 26: teleport.beams.v1.ReplayConversation.findings:type_name -> teleport.beams.v1.ReplayFinding
-	25, // 27: teleport.beams.v1.ReplayAgent.first_at:type_name -> google.protobuf.Timestamp
-	25, // 28: teleport.beams.v1.ReplayAgent.last_at:type_name -> google.protobuf.Timestamp
-	25, // 29: teleport.beams.v1.ReplayActivity.at:type_name -> google.protobuf.Timestamp
-	25, // 30: teleport.beams.v1.ReplayActivity.end_at:type_name -> google.protobuf.Timestamp
-	13, // 31: teleport.beams.v1.ReplayActivity.commands:type_name -> teleport.beams.v1.ReplayCommand
-	25, // 32: teleport.beams.v1.ReplayExchangeEntry.at:type_name -> google.protobuf.Timestamp
-	21, // 33: teleport.beams.v1.ReplayExchangeEntry.request_body:type_name -> teleport.beams.v1.PayloadRef
-	21, // 34: teleport.beams.v1.ReplayExchangeEntry.response_body:type_name -> teleport.beams.v1.PayloadRef
-	22, // 35: teleport.beams.v1.ReplayExchangeEntry.attachments:type_name -> teleport.beams.v1.ReplayAttachment
-	21, // 36: teleport.beams.v1.ReplayExchangeEntry.events:type_name -> teleport.beams.v1.PayloadRef
-	21, // 37: teleport.beams.v1.ReplayAttachment.ref:type_name -> teleport.beams.v1.PayloadRef
-	24, // 38: teleport.beams.v1.ReplayEventBatch.events:type_name -> teleport.beams.v1.ReplayAuditEvent
-	25, // 39: teleport.beams.v1.ReplayAuditEvent.at:type_name -> google.protobuf.Timestamp
-	27, // 40: teleport.beams.v1.ReplayAuditEvent.data:type_name -> google.protobuf.Struct
-	0,  // 41: teleport.beams.v1.BeamReplayService.Replay:input_type -> teleport.beams.v1.ReplayRequest
-	6,  // 42: teleport.beams.v1.BeamReplayService.Replay:output_type -> teleport.beams.v1.ReplayResponse
-	42, // [42:43] is the sub-list for method output_type
-	41, // [41:42] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	19, // 19: teleport.beams.v1.ReplayActivityIndex.activities:type_name -> teleport.beams.v1.ReplayActivity
+	17, // 20: teleport.beams.v1.ReplayConversationIndex.conversations:type_name -> teleport.beams.v1.ReplayConversation
+	25, // 21: teleport.beams.v1.ReplayConversation.first_at:type_name -> google.protobuf.Timestamp
+	25, // 22: teleport.beams.v1.ReplayConversation.last_at:type_name -> google.protobuf.Timestamp
+	18, // 23: teleport.beams.v1.ReplayConversation.agents:type_name -> teleport.beams.v1.ReplayAgent
+	14, // 24: teleport.beams.v1.ReplayConversation.findings:type_name -> teleport.beams.v1.ReplayFinding
+	25, // 25: teleport.beams.v1.ReplayAgent.first_at:type_name -> google.protobuf.Timestamp
+	25, // 26: teleport.beams.v1.ReplayAgent.last_at:type_name -> google.protobuf.Timestamp
+	25, // 27: teleport.beams.v1.ReplayActivity.at:type_name -> google.protobuf.Timestamp
+	25, // 28: teleport.beams.v1.ReplayActivity.end_at:type_name -> google.protobuf.Timestamp
+	13, // 29: teleport.beams.v1.ReplayActivity.commands:type_name -> teleport.beams.v1.ReplayCommand
+	25, // 30: teleport.beams.v1.ReplayExchangeEntry.at:type_name -> google.protobuf.Timestamp
+	21, // 31: teleport.beams.v1.ReplayExchangeEntry.request_body:type_name -> teleport.beams.v1.PayloadRef
+	21, // 32: teleport.beams.v1.ReplayExchangeEntry.response_body:type_name -> teleport.beams.v1.PayloadRef
+	22, // 33: teleport.beams.v1.ReplayExchangeEntry.attachments:type_name -> teleport.beams.v1.ReplayAttachment
+	21, // 34: teleport.beams.v1.ReplayExchangeEntry.events:type_name -> teleport.beams.v1.PayloadRef
+	21, // 35: teleport.beams.v1.ReplayAttachment.ref:type_name -> teleport.beams.v1.PayloadRef
+	24, // 36: teleport.beams.v1.ReplayEventBatch.events:type_name -> teleport.beams.v1.ReplayAuditEvent
+	25, // 37: teleport.beams.v1.ReplayAuditEvent.at:type_name -> google.protobuf.Timestamp
+	26, // 38: teleport.beams.v1.ReplayAuditEvent.data:type_name -> google.protobuf.Struct
+	0,  // 39: teleport.beams.v1.BeamReplayService.Replay:input_type -> teleport.beams.v1.ReplayRequest
+	6,  // 40: teleport.beams.v1.BeamReplayService.Replay:output_type -> teleport.beams.v1.ReplayResponse
+	40, // [40:41] is the sub-list for method output_type
+	39, // [39:40] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_beam_replay_service_proto_init() }

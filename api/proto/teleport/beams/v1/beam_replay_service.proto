@@ -18,7 +18,6 @@ package teleport.beams.v1;
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
-import "teleport/summarizer/v1/summarizer.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
 
@@ -273,10 +272,8 @@ message ReplayCommand {
   // At is when the issuing exchange occurred.
   google.protobuf.Timestamp at = 7;
 
-  // Risk is the LLM-assigned risk level for this command
-  // (none/low/medium/high/critical). Empty for artifacts recorded before
-  // command-risk scoring, or when no beam inference policy is configured.
-  string risk = 8;
+  reserved 8;
+  reserved "risk";
 
   // Title is a short, human-readable name for this tool use, assigned by the
   // segmenter (e.g. "Install dependencies"). Empty for artifacts recorded
@@ -330,9 +327,8 @@ message ReplayFinding {
   // Detail is a sentence or two on what was seen and why it matters.
   string detail = 2;
 
-  // Severity is this finding's own seriousness (low/medium/high/critical), which
-  // need not match the run's overall risk level.
-  teleport.summarizer.v1.RiskLevel severity = 3;
+  reserved 3;
+  reserved "severity";
 
   // ActivityOrdinals are the activities evidencing this finding, resolved from the
   // exchanges the analyzer cited. Empty when none of them fell inside an activity,
@@ -391,13 +387,8 @@ message ReplayConversation {
   // LastAt is when this conversation's latest step occurred.
   google.protobuf.Timestamp last_at = 7;
 
-  // RiskLevel is the analyzer's assessment of this run alone
-  // (low/medium/high/critical), as opposed to the beam-wide verdict on the
-  // recording's summary. Unspecified when the run wasn't analyzed separately.
-  teleport.summarizer.v1.RiskLevel risk_level = 8;
-
-  // RiskScore is the analyzer's numeric score for this run, 0 to 100.
-  int32 risk_score = 9;
+  reserved 8, 9;
+  reserved "risk_level", "risk_score";
 
   // ShortDescription is the analyzer's one-line account of what this run did.
   string short_description = 10;
@@ -527,13 +518,8 @@ message ReplayActivity {
   // activity, when available.
   string reasoning = 6;
 
-  // Flagged marks the activity for reviewer attention (privilege escalation,
-  // destructive actions, or other security risk).
-  bool flagged = 7;
-
-  // Risk is the segmenter's risk level for the activity
-  // (none/low/medium/high/critical).
-  string risk = 8;
+  reserved 7, 8;
+  reserved "flagged", "risk";
 
   // At is when the activity started.
   google.protobuf.Timestamp at = 9;
