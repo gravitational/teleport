@@ -24,14 +24,7 @@
         // Referenced from a JSDoc type annotation in jest.config.js.
         "@jest/types",
         // Named as a string in web/.storybook/main.mts `addons`.
-        "@storybook/addon-vitest",
-        // Loaded by name through `jsPlugins` in .oxlintrc.jsonc. The plugins pull in eslint
-        // itself at runtime via @typescript-eslint/utils.
-        "eslint",
-        "eslint-plugin-jest-dom",
-        "eslint-plugin-storybook",
-        "eslint-plugin-testing-library",
-        "eslint-plugin-unused-imports"
+        "@storybook/addon-vitest"
       ]
     },
     "web/packages/build": {
