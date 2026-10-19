@@ -3716,6 +3716,13 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		return nil, trace.Wrap(err)
 	}
 
+	// Beam users carry the ID of their associated Beam as an internal label.
+	// Derive the certificate field from that label when a caller has not
+	// supplied Beam attribution explicitly.
+	if req.BeamID == "" {
+		req.BeamID, _ = req.User.GetLabel(types.BeamIDLabel)
+	}
+
 	_, isScoped := req.CheckerContext.ScopePin()
 	if isScoped {
 		// require that the scope feature is enabled for scoped certificate creation

@@ -184,7 +184,7 @@ type Request struct {
 	// is being generated for.
 	DelegationSessionID string
 	// BeamID is the identifier of the Beam this certificate is being generated
-	// for, derived from the delegation session's types.BeamIDLabel label.
+	// for.
 	BeamID string
 	// HeadlessAuthenticationID is the ID of the headless authentication
 	// resource this certificate is being generated for.

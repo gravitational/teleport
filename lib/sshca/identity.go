@@ -163,8 +163,7 @@ type Identity struct {
 	// DelegationSessionID is the identifier of the Delegation Session this
 	// certificate was created for.
 	DelegationSessionID string
-	// BeamID is the identifier of the Beam this certificate was created for,
-	// derived from the delegation session's types.BeamIDLabel label.
+	// BeamID is the identifier of the Beam this certificate was created for.
 	BeamID string
 
 	// Delegation contains the delegation chain of the identity this certificate

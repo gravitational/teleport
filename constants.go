@@ -564,8 +564,7 @@ const (
 	// Delegation Session this certificate was created for.
 	CertExtensionDelegationSessionID = "delegation-session-id@goteleport.com"
 	// CertExtensionBeamID contains the identifier of the Beam this certificate
-	// was created for, derived from the delegation session's
-	// types.BeamIDLabel label.
+	// was created for.
 	CertExtensionBeamID = "beam-id@goteleport.com"
 
 	// CertExtensionDelegation contains the delegation chain of the identity this
