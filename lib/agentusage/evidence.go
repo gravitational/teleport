@@ -22,6 +22,7 @@ import (
 	"context"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"golang.org/x/term"
@@ -32,16 +33,24 @@ import (
 
 const (
 	maxTeleportSkillLength = 64
+	maxAIAgentLength       = 64
 	maxEncodedSize         = 256
 
 	// Agents that use a Teleport skill are asked to set teleportSkillEnvVar to the skill
 	// name.
 	teleportSkillEnvVar = "TELEPORT_SKILL"
 	teleportSkillPrefix = "teleport-"
+
+	// Agent tools set aiAgentEnvVar to their own name.
+	aiAgentEnvVar = "AI_AGENT"
 )
 
 // Skill names are expected to be only letters, numbers, dashes, such as teleport-discovery.
 var teleportSkillName = regexp.MustCompile(`^[a-z0-9-]*$`)
+
+// AI_AGENT values are expected to be tool names such as pi or claude-code_2-1-290_agent.
+// Unrecognized patterns are ignored to avoid collecting sensitive or bad data.
+var aiAgentName = regexp.MustCompile(`^[A-Za-z0-9._-]*$`)
 
 type contextKey struct{}
 
@@ -79,14 +88,45 @@ func decode(encoded []byte) *prehogv1a.AgentUsageEvidence {
 	return &evidence
 }
 
-// parse decodes and validates evidence from an untrusted source. Evidence is
-// optional analytics data. parse returns nil for invalid or empty evidence.
+// parse reads evidence from an untrusted source. It returns nil when no usable
+// evidence remains.
 func parse(encoded []byte) *prehogv1a.AgentUsageEvidence {
-	evidence := decode(encoded)
-	if evidence == nil || !isValid(evidence) || isEmpty(evidence) {
+	return sanitizeEvidence(decode(encoded))
+}
+
+// sanitizeEvidence removes unrecognized or invalid values from evidence.
+func sanitizeEvidence(evidence *prehogv1a.AgentUsageEvidence) *prehogv1a.AgentUsageEvidence {
+	if evidence == nil {
+		return nil
+	}
+	if !validTeleportSkill(evidence.GetTeleportSkill()) {
+		evidence.TeleportSkill = ""
+	}
+	if !validAIAgent(evidence.GetAiAgent()) {
+		evidence.AiAgent = ""
+	}
+	evidence.KnownAgentEnvironment = knownTools(evidence.KnownAgentEnvironment)
+	evidence.KnownAgentParentProcess = knownTools(evidence.KnownAgentParentProcess)
+	evidence.KnownAgentUserAgent = knownTools(evidence.KnownAgentUserAgent)
+	if isEmpty(evidence) {
 		return nil
 	}
 	return evidence
+}
+
+func validTeleportSkill(name string) bool {
+	return len(name) <= maxTeleportSkillLength && teleportSkillName.MatchString(name)
+}
+
+func validAIAgent(name string) bool {
+	return len(name) <= maxAIAgentLength && aiAgentName.MatchString(name)
+}
+
+func knownTools(tools []prehogv1a.AgentTool) []prehogv1a.AgentTool {
+	return slices.DeleteFunc(tools, func(tool prehogv1a.AgentTool) bool {
+		_, known := prehogv1a.AgentTool_name[int32(tool)]
+		return tool == prehogv1a.AgentTool_AGENT_TOOL_UNSPECIFIED || !known
+	})
 }
 
 func isEmpty(evidence *prehogv1a.AgentUsageEvidence) bool {
@@ -95,29 +135,8 @@ func isEmpty(evidence *prehogv1a.AgentUsageEvidence) bool {
 		len(evidence.GetKnownAgentParentProcess()) == 0 &&
 		len(evidence.GetKnownAgentUserAgent()) == 0 &&
 		!evidence.GetDeclaredWebDriver() &&
-		!evidence.GetInteractiveTerminal()
-}
-
-func isValid(evidence *prehogv1a.AgentUsageEvidence) bool {
-	skill := evidence.GetTeleportSkill()
-	if len(skill) > maxTeleportSkillLength || !teleportSkillName.MatchString(skill) {
-		return false
-	}
-	for _, tools := range [][]prehogv1a.AgentTool{
-		evidence.GetKnownAgentEnvironment(),
-		evidence.GetKnownAgentParentProcess(),
-		evidence.GetKnownAgentUserAgent(),
-	} {
-		for _, tool := range tools {
-			if tool == prehogv1a.AgentTool_AGENT_TOOL_UNSPECIFIED {
-				return false
-			}
-			if _, ok := prehogv1a.AgentTool_name[int32(tool)]; !ok {
-				return false
-			}
-		}
-	}
-	return true
+		!evidence.GetInteractiveTerminal() &&
+		evidence.GetAiAgent() == ""
 }
 
 // Collect reads agent usage evidence from environment variables and the
@@ -127,6 +146,7 @@ func Collect() *prehogv1a.AgentUsageEvidence {
 		TeleportSkill:         collectTeleportSkill(),
 		KnownAgentEnvironment: collectEnvironment(),
 		InteractiveTerminal:   term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())),
+		AiAgent:               collectAIAgent(),
 	}
 	if isEmpty(evidence) {
 		return nil
@@ -136,7 +156,15 @@ func Collect() *prehogv1a.AgentUsageEvidence {
 
 func collectTeleportSkill() string {
 	name := strings.TrimPrefix(strings.ToLower(os.Getenv(teleportSkillEnvVar)), teleportSkillPrefix)
-	if len(name) > maxTeleportSkillLength || !teleportSkillName.MatchString(name) {
+	if !validTeleportSkill(name) {
+		return ""
+	}
+	return name
+}
+
+func collectAIAgent() string {
+	name := os.Getenv(aiAgentEnvVar)
+	if !validAIAgent(name) {
 		return ""
 	}
 	return name
