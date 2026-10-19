@@ -27,6 +27,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -291,6 +292,10 @@ func readChecksum(path string) ([]byte, error) {
 	return sum, nil
 }
 
+func refererValue(action string) string {
+	return fmt.Sprintf("https://%s.agent.autoupdate.cdn.teleport.dev", action)
+}
+
 func (li *LocalInstaller) getChecksum(ctx context.Context, url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -299,6 +304,7 @@ func (li *LocalInstaller) getChecksum(ctx context.Context, url string) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.Header.Set("Referer", refererValue("checksum"))
 	resp, err := li.HTTP.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -427,6 +433,7 @@ func (li *LocalInstaller) getSignature(ctx context.Context, url string) ([]byte,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.Header.Set("Referer", refererValue("signature"))
 	resp, err := li.HTTP.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -493,6 +500,7 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	req.Header.Set("Referer", refererValue("download"))
 	startTime := time.Now()
 	resp, err := li.HTTP.Do(req)
 	if err != nil {
