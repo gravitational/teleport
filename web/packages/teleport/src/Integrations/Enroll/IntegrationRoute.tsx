@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { FeatureBox } from 'teleport/components/Layout';
 import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { AwsRolesAnywhereSetup } from 'teleport/Integrations/Enroll/AwsConsole/AwsRolesAnywhereSetup';
@@ -30,13 +31,21 @@ export function getRoutesToEnrollIntegrations() {
     <Route
       key={IntegrationKind.AwsRa}
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa)}
-      element={<AwsRolesAnywhereSetup />}
+      element={
+        <FeatureBox>
+          <AwsRolesAnywhereSetup />
+        </FeatureBox>
+      }
     />,
     <Route
       key={IntegrationKind.AwsOidc}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)}
-      element={<AwsOidc />}
+      element={
+        <FeatureBox>
+          <AwsOidc />
+        </FeatureBox>
+      }
     />,
     <Route
       key={IntegrationKind.AwsCloud}
@@ -48,7 +57,11 @@ export function getRoutesToEnrollIntegrations() {
       key={IntegrationKind.AzureCloud}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AzureCloud)}
-      element={<EnrollAzure />}
+      element={
+        <FeatureBox>
+          <EnrollAzure />
+        </FeatureBox>
+      }
     />,
   ];
 }

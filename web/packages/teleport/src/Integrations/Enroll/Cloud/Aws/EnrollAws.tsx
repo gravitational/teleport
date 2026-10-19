@@ -19,7 +19,15 @@
 import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router';
 
-import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
+import {
+  Box,
+  ButtonSecondary,
+  Flex,
+  ResourceIcon,
+  Subtitle1,
+  Text,
+} from 'design';
+import { Info } from 'design/Icon';
 import { MarkInverse } from 'design/Mark';
 import { RadioGroup } from 'design/RadioGroup';
 import FieldInput from 'shared/components/FieldInput';
@@ -30,6 +38,17 @@ import {
   requiredIntegrationName,
 } from 'shared/components/Validation/rules';
 
+import {
+  ResizableSidePanelMainContent,
+  getPanelTitle,
+  ResizablePanelLayout,
+  ResizableSidePanel,
+  useResizableSidePanel,
+} from 'teleport/components/SlidingSidePanel/ResizableSidePanel';
+import {
+  SidePanelTab,
+  SidePanelTabs,
+} from 'teleport/components/SlidingSidePanel/ResizableSidePanel/SidePanelTab';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
@@ -44,13 +63,7 @@ import {
   Divider,
   useEnrollCloudIntegration,
 } from '../Shared';
-import {
-  ContentWithSidePanel,
-  InfoGuideSwitch,
-  TerraformInfoGuide,
-  TerraformInfoGuideSidePanel,
-  useTerraformInfoGuide,
-} from '../Shared/InfoGuide';
+import { TerraformInfoGuide } from '../Shared/InfoGuide';
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import { InfoGuideContent } from './InfoGuide';
 import { ResourcesSection } from './ResourcesSection';
@@ -122,102 +135,118 @@ export function EnrollAws() {
     ]
   );
 
-  const {
-    isPanelOpen,
-    activeInfoGuideTab,
-    setActiveInfoGuideTab,
-    onInfoGuideClick,
-  } = useTerraformInfoGuide();
+  const sidePanel = useResizableSidePanel();
 
   return (
     <Validation>
       {({ validator }) => (
-        <Box pt={3}>
-          <ContentWithSidePanel isPanelOpen={isPanelOpen}>
-            <Flex justifyContent="space-between" alignItems="center" mb={1}>
-              <Header>Connect Amazon Web Services</Header>
-              <InfoGuideSwitch
-                isPanelOpen={isPanelOpen}
-                activeTab={activeInfoGuideTab}
-                onSwitch={onInfoGuideClick}
-              />
-            </Flex>
-            <Subtitle1 mb={3}>
-              Connect your AWS account to automatically discover and enroll
-              resources in your Teleport Cluster.
-            </Subtitle1>
-            <Container flexDirection="column" p={4} mb={3}>
-              <IntegrationSection
-                integrationName={integrationName}
-                onChange={setIntegrationName}
-                disabled={isFetching}
-              />
-              <Divider />
-              <ScopeSection
-                scope={scope}
-                onScopeChange={setScope}
-                orgUnits={orgUnits}
-                onOrgUnitsChange={setOrgUnits}
-              />
-              <Divider />
-              <ResourcesSection
-                configs={supportedConfigs}
-                onConfigChange={updateConfig}
-                isOrganization={isOrganization}
-              />
-              <Divider />
-              <DeploymentMethodSection
-                isOrganization={isOrganization}
-                terraformConfig={terraformConfig}
-                handleCopy={() => {
-                  if (validator.validate() && terraformConfig) {
-                    copyTerraformConfig(terraformConfig);
-                  }
-                }}
-                integrationExists={integrationExists}
-                integrationName={integrationName}
-                handleCheckIntegration={() => {
-                  if (validator.validate()) {
-                    checkIntegration();
-                  }
-                }}
-                handleCancelCheckIntegration={cancelCheckIntegration}
-                isCheckingIntegration={isFetching}
-                checkIntegrationError={isError}
-              />
-            </Container>
-            <Box mb={2}>
-              <CheckIntegrationButton
-                integrationExists={integrationExists}
-                integrationName={integrationName}
-                integrationKind={IntegrationKind.AwsOidc}
-              />
-              <ButtonSecondary
-                ml={3}
-                as={InternalLink}
-                to={cfg.getIntegrationEnrollRoute(null)}
-              >
-                Back
-              </ButtonSecondary>
+        <ResizablePanelLayout $withHorizontalScroll>
+          <ResizableSidePanelMainContent $minWidth={650}>
+            <Box pt={3} pb={5} px={6} maxWidth={800}>
+              <Flex justifyContent="space-between" alignItems="center" mb={1}>
+                <Header>Connect Amazon Web Services</Header>
+              </Flex>
+              <Subtitle1 mb={3}>
+                Connect your AWS account to automatically discover and enroll
+                resources in your Teleport Cluster.
+              </Subtitle1>
+              <Container flexDirection="column" p={4} mb={3}>
+                <IntegrationSection
+                  integrationName={integrationName}
+                  onChange={setIntegrationName}
+                  disabled={isFetching}
+                />
+                <Divider />
+                <ScopeSection
+                  scope={scope}
+                  onScopeChange={setScope}
+                  orgUnits={orgUnits}
+                  onOrgUnitsChange={setOrgUnits}
+                />
+                <Divider />
+                <ResourcesSection
+                  configs={supportedConfigs}
+                  onConfigChange={updateConfig}
+                  isOrganization={isOrganization}
+                />
+                <Divider />
+                <DeploymentMethodSection
+                  isOrganization={isOrganization}
+                  terraformConfig={terraformConfig}
+                  handleCopy={() => {
+                    if (validator.validate() && terraformConfig) {
+                      copyTerraformConfig(terraformConfig);
+                    }
+                  }}
+                  integrationExists={integrationExists}
+                  integrationName={integrationName}
+                  handleCheckIntegration={() => {
+                    if (validator.validate()) {
+                      checkIntegration();
+                    }
+                  }}
+                  handleCancelCheckIntegration={cancelCheckIntegration}
+                  isCheckingIntegration={isFetching}
+                  checkIntegrationError={isError}
+                />
+              </Container>
+              <Box mb={2}>
+                <CheckIntegrationButton
+                  integrationExists={integrationExists}
+                  integrationName={integrationName}
+                  integrationKind={IntegrationKind.AwsOidc}
+                />
+                <ButtonSecondary
+                  ml={3}
+                  as={InternalLink}
+                  to={cfg.getIntegrationEnrollRoute(null)}
+                >
+                  Back
+                </ButtonSecondary>
+              </Box>
             </Box>
-          </ContentWithSidePanel>
+          </ResizableSidePanelMainContent>
+          <SidePanelTabs>
+            <SidePanelTab
+              ariaLabel={'Info Guide'}
+              isActive={sidePanel.isOpen && sidePanel.activeTab === 'info'}
+              onClick={() => sidePanel.toggleTab('info')}
+            >
+              <Info size="small" />
+            </SidePanelTab>
 
-          <TerraformInfoGuideSidePanel
-            activeTab={activeInfoGuideTab}
-            onTabChange={setActiveInfoGuideTab}
-            InfoGuideContent={<InfoGuideContent />}
-            TerraformContent={
-              <TerraformInfoGuide
-                terraformConfig={terraformConfig}
-                handleCopy={() => {
-                  if (validator.validate() && terraformConfig) {
-                    copyTerraformConfig(terraformConfig);
-                  }
-                }}
-              />
-            }
-          />
-        </Box>
+            <SidePanelTab
+              ariaLabel="Terraform Configuration"
+              isActive={sidePanel.isOpen && sidePanel.activeTab === 'terraform'}
+              onClick={() => sidePanel.toggleTab('terraform')}
+            >
+              <ResourceIcon name="terraform" width="20px" height="20px" />
+            </SidePanelTab>
+          </SidePanelTabs>
+          {sidePanel.isOpen && (
+            <ResizableSidePanel
+              title={getPanelTitle(sidePanel.activeTab)}
+              width={sidePanel.width}
+              onWidthChange={sidePanel.updateWidth}
+              onClose={sidePanel.close}
+            >
+              <Box px={3} pb={3}>
+                {sidePanel.activeTab === 'info' ? (
+                  <InfoGuideContent />
+                ) : (
+                  <TerraformInfoGuide
+                    terraformConfig={terraformConfig}
+                    handleCopy={() => {
+                      if (validator.validate() && terraformConfig) {
+                        copyTerraformConfig(terraformConfig);
+                      }
+                    }}
+                  />
+                )}
+              </Box>
+            </ResizableSidePanel>
+          )}
+        </ResizablePanelLayout>
       )}
     </Validation>
   );

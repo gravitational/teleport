@@ -100,7 +100,10 @@ describe('EnrollAws', () => {
   test('info guide renders by default', async () => {
     renderEnrollAws();
 
-    expect(screen.getByRole('radio', { name: 'Info Guide' })).toBeChecked();
+    expect(screen.getByRole('button', { name: 'Info Guide' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
 
     await waitFor(() => {
       expect(screen.getByText(/Reference Links/i)).toBeInTheDocument();
@@ -274,13 +277,16 @@ describe('EnrollAws', () => {
   test('panel switches between info and terraform tabs', async () => {
     renderEnrollAws();
 
-    expect(screen.getByRole('radio', { name: 'Info Guide' })).toBeChecked();
+    expect(screen.getByRole('button', { name: 'Info Guide' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
 
     await waitFor(() => {
       expect(screen.getByText(/Reference Links/i)).toBeInTheDocument();
     });
 
-    const terraformButton = screen.getByRole('radio', {
+    const terraformButton = screen.getByRole('button', {
       name: 'Terraform Configuration',
     });
     fireEvent.click(terraformButton);
@@ -293,7 +299,7 @@ describe('EnrollAws', () => {
       expect(screen.queryByText('Reference Links')).not.toBeInTheDocument();
     });
 
-    const infoButton = screen.getByRole('radio', {
+    const infoButton = screen.getByRole('button', {
       name: 'Info Guide',
     });
     fireEvent.click(infoButton);
