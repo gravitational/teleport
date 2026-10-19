@@ -17,7 +17,7 @@
  */
 
 import api from 'teleport/services/api';
-import NodesService from 'teleport/services/nodes';
+import NodesService, { sortNodeLogins } from 'teleport/services/nodes';
 
 test('correct formatting of nodes fetch response', async () => {
   const nodesService = new NodesService();
@@ -85,3 +85,15 @@ const mockResponse = {
   startKey: 'mockKey',
   totalCount: 100,
 };
+
+test('sortNodeLogins', () => {
+  expect(sortNodeLogins(['susan', 'fred', 'bob', 'alice'])).toEqual([
+    'alice',
+    'bob',
+    'fred',
+    'susan',
+  ]);
+  expect(sortNodeLogins(['eric', 'barbara', 'root', 'victor', 'emma'])).toEqual(
+    ['root', 'barbara', 'emma', 'eric', 'victor']
+  );
+});

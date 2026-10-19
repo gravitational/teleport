@@ -130,7 +130,8 @@ const SwitcherDropdown = styled(Dropdown)`
   min-width: 290px;
   transform-origin: top left;
   max-height: 80vh;
-  overflow-y: scroll;
+  overflow-y: auto;
+  overflow-x: hidden;
 `;
 
 function SwitcherDropdownItem({

@@ -57,7 +57,7 @@ export default class NodeService {
 export const sortNodeLogins = (logins: string[]) => {
   const noRoot = logins.filter(l => l !== 'root').sort();
   if (noRoot.length === logins.length) {
-    return logins;
+    return noRoot;
   }
   return ['root', ...noRoot];
 };
