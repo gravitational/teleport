@@ -667,6 +667,7 @@
     "jumphost",
     "jwks",
     "jwkset",
+    "keep_alives",
     "keepalives",
     "keyfile",
     "keyid",
