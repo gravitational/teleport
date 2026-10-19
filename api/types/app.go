@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	netutils "github.com/gravitational/teleport/api/utils/net"
 )
 
@@ -71,6 +72,9 @@ type Application interface {
 	IsAzureCloud() bool
 	// IsGCP returns true if this app represents GCP instance.
 	IsGCP() bool
+	// GetCloud returns the cloud provider (e.g. "AWS", "Azure", "GCP") or
+	// empty if the app is not a cloud app.
+	GetCloud() string
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
 	// IsMCP returns true if this app represents a MCP server.
@@ -95,6 +99,9 @@ type Application interface {
 	SetUserGroups([]string)
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
+	// SupportsIntegration returns true if the app type supports the integration
+	// credential flow on the Proxy.
+	SupportsIntegration() bool
 	// GetIntegration will return the Integration.
 	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 	GetIntegration() string
@@ -295,20 +302,18 @@ func (a *AppV3) GetRewrite() *Rewrite {
 
 // IsAWSConsole returns true if this app is AWS management console.
 func (a *AppV3) IsAWSConsole() bool {
-	// TODO(greedy52) support region based console URL like:
-	// https://us-east-1.console.aws.amazon.com/
-	for _, consoleURL := range []string{
-		constants.AWSConsoleURL,
-		constants.AWSUSGovConsoleURL,
-		constants.AWSCNConsoleURL,
-		constants.AWSQuickSightURL,
-	} {
-		if strings.HasPrefix(a.Spec.URI, consoleURL) {
-			return true
-		}
-	}
+	return a.Spec.Cloud == CloudAWS || awsutils.IsConsoleURL(a.Spec.URI)
+}
 
-	return a.Spec.Cloud == CloudAWS
+// SupportsIntegration returns true if the app type supports the integration
+// credential flow on the Proxy.
+func (a *AppV3) SupportsIntegration() bool {
+	switch a.GetProtocol() {
+	case ApplicationProtocolHTTP:
+		return a.IsAWSConsole()
+	default:
+		return false
+	}
 }
 
 // IsAzureCloud returns true if this app is Azure Cloud instance.
@@ -319,6 +324,12 @@ func (a *AppV3) IsAzureCloud() bool {
 // IsGCP returns true if this app is GCP instance.
 func (a *AppV3) IsGCP() bool {
 	return a.Spec.Cloud == CloudGCP
+}
+
+// GetCloud returns the cloud provider (e.g. "AWS", "Azure", "GCP") or empty
+// if the app is not a cloud app.
+func (a *AppV3) GetCloud() string {
+	return a.Spec.Cloud
 }
 
 // IsTCP returns true if this app represents a TCP endpoint.
@@ -759,20 +770,21 @@ func (a *AppV3) GetScope() string {
 	return a.Scope
 }
 
-// DeduplicateApps deduplicates apps by combination of app name and public address.
-// Apps can have the same name but also could have different addresses.
+// DeduplicateApps deduplicates apps by combination of app scope, name, and
+// public address. Apps can have the same name but also could have different
+// scopes or addresses.
 func DeduplicateApps(apps []Application) []Application {
 	return slices.Collect(DeduplicatedApps(slices.Values(apps)))
 }
 
-// DeduplicatedApps iterates deduplicated apps by combination of app name and
-// public address. This is the iter.Seq version of DeduplicateApps.
+// DeduplicatedApps iterates deduplicated apps by combination of app scope,
+// name, and public address. This is the iter.Seq version of DeduplicateApps.
 func DeduplicatedApps(apps iter.Seq[Application]) iter.Seq[Application] {
-	type key struct{ name, addr string }
+	type key struct{ scope, name, addr string }
 	seen := make(map[key]struct{})
 	return func(yield func(Application) bool) {
 		for app := range apps {
-			key := key{app.GetName(), app.GetPublicAddr()}
+			key := key{app.GetScope(), app.GetName(), app.GetPublicAddr()}
 			if _, ok := seen[key]; ok {
 				continue
 			}

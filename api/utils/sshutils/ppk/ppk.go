@@ -148,9 +148,12 @@ func writeECDSAPrivateKey(w io.Writer, privateKey *ecdsa.PrivateKey) error {
 	// - ‘ecdsa-sha2-nistp521’
 	// The public key data has already provided the public elliptic curve point. The private key stores:
 	// mpint: the private exponent, which is the discrete log of the public point.
-	//
-	// crypto/ecdsa calls this D.
-	return trace.Wrap(writeRFC4251Mpint(w, privateKey.D))
+	d, err := privateKey.Bytes()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(writeRFC4251Mpint(w, new(big.Int).SetBytes(d)))
 }
 
 func writeEd25519PrivateKey(w io.Writer, privateKey ed25519.PrivateKey) error {

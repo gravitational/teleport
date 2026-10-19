@@ -25,11 +25,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	internalwrappers "github.com/gravitational/teleport/api/types/internal/wrappers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1685,51 +1685,38 @@ func CopyRulesSlice(in []Rule) []Rule {
 // from scalar and list values
 type Labels map[string]utils.Strings
 
-// ToProto returns a protobuf-compatible representation of Labels.
-func (l Labels) ToProto() *wrappers.LabelValues {
-	v := &wrappers.LabelValues{
-		Values: make(map[string]wrappers.StringValues, len(l)),
-	}
-	for key, vals := range l {
-		stringValues := wrappers.StringValues{
-			Values: make([]string, len(vals)),
-		}
-		copy(stringValues.Values, vals)
-		v.Values[key] = stringValues
-	}
-	return v
+var _ internalwrappers.GogoprotoCustomType = (*Labels)(nil)
+
+// Size implements [internalwrappers.GogoprotoCustomType].
+func (l Labels) Size() int {
+	return internalwrappers.LabelValuesSizeFromMap(l)
 }
 
-// Marshal marshals value into protobuf representation
+// Marshal implements [internalwrappers.GogoprotoCustomType].
 func (l Labels) Marshal() ([]byte, error) {
-	return proto.Marshal(l.ToProto())
+	return internalwrappers.LabelValuesMarshalFromMap(l)
 }
 
-// MarshalTo marshals value to the array
+// MarshalTo implements [internalwrappers.GogoprotoCustomType].
 func (l Labels) MarshalTo(data []byte) (int, error) {
-	return l.ToProto().MarshalTo(data)
+	return internalwrappers.LabelValuesMarshalToFromMap(l, data)
 }
 
-// Unmarshal unmarshals value from protobuf
+// Unmarshal implements [internalwrappers.GogoprotoCustomType].
 func (l *Labels) Unmarshal(data []byte) error {
-	protoValues := &wrappers.LabelValues{}
-	err := proto.Unmarshal(data, protoValues)
-	if err != nil {
+	protoValues := new(wrappers.LabelValues)
+	if err := protoValues.Unmarshal(data); err != nil {
 		return err
 	}
 	if protoValues.Values == nil {
 		return nil
 	}
-	*l = make(map[string]utils.Strings, len(protoValues.Values))
-	for key := range protoValues.Values {
-		(*l)[key] = protoValues.Values[key].Values
+	newValues := make(Labels, len(protoValues.Values))
+	for key, values := range protoValues.Values {
+		newValues[key] = values.Values
 	}
+	*l = newValues
 	return nil
-}
-
-// Size returns protobuf size
-func (l Labels) Size() int {
-	return l.ToProto().Size()
 }
 
 // Clone returns non-shallow copy of the labels set
@@ -1830,6 +1817,8 @@ type BoolOption struct {
 	Value bool
 }
 
+var _ internalwrappers.GogoprotoCustomType = (*BoolOption)(nil)
+
 // NewBoolOption returns Bool struct based on bool value
 func NewBoolOption(b bool) *BoolOption {
 	v := BoolOption{Value: b}
@@ -1845,41 +1834,29 @@ func BoolDefaultTrue(v *BoolOption) bool {
 	return v.Value
 }
 
-func (b *BoolOption) protoType() *BoolValue {
-	return &BoolValue{
-		Value: b.Value,
-	}
+// Size implements implements [internalwrappers.GogoprotoCustomType].
+func (b BoolOption) Size() int {
+	return (&BoolValue{Value: b.Value}).Size()
 }
 
-// MarshalTo marshals value to the slice
-func (b BoolOption) MarshalTo(data []byte) (int, error) {
-	return b.protoType().MarshalTo(data)
-}
-
-// MarshalToSizedBuffer marshals value to the slice
-func (b BoolOption) MarshalToSizedBuffer(data []byte) (int, error) {
-	return b.protoType().MarshalToSizedBuffer(data)
-}
-
-// Marshal marshals value into protobuf representation
+// Marshal implements implements [internalwrappers.GogoprotoCustomType].
 func (b BoolOption) Marshal() ([]byte, error) {
-	return proto.Marshal(b.protoType())
+	return (&BoolValue{Value: b.Value}).Marshal()
 }
 
-// Unmarshal unmarshals value from protobuf
+// MarshalTo implements implements [internalwrappers.GogoprotoCustomType].
+func (b BoolOption) MarshalTo(data []byte) (int, error) {
+	return (&BoolValue{Value: b.Value}).MarshalTo(data)
+}
+
+// Unmarshal implements implements [internalwrappers.GogoprotoCustomType].
 func (b *BoolOption) Unmarshal(data []byte) error {
-	protoValue := &BoolValue{}
-	err := proto.Unmarshal(data, protoValue)
-	if err != nil {
+	protoValue := new(BoolValue)
+	if err := protoValue.Unmarshal(data); err != nil {
 		return err
 	}
 	b.Value = protoValue.Value
 	return nil
-}
-
-// Size returns protobuf size
-func (b BoolOption) Size() int {
-	return b.protoType().Size()
 }
 
 // MarshalJSON marshals boolean value.
@@ -2279,7 +2256,8 @@ func (a AccessReviewConditions) IsEmpty() bool {
 		len(a.PreviewAsRoles) == 0 &&
 		len(a.Roles) == 0 &&
 		len(a.Where) == 0 &&
-		len(a.SubmitForUsers) == 0
+		len(a.SubmitForUsers) == 0 &&
+		len(a.GrantableTraits) == 0
 }
 
 // LabelMatchers holds the role label matchers and label expression that are

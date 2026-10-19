@@ -278,7 +278,11 @@ type ScopedTokenSpec struct {
 	// Configuration specific to the "github" join method.
 	Github *Github `protobuf:"bytes,17,opt,name=github,proto3" json:"github,omitempty"`
 	// Configuration specific to the "gitlab" join method.
-	Gitlab        *GitLab `protobuf:"bytes,18,opt,name=gitlab,proto3" json:"gitlab,omitempty"`
+	Gitlab *GitLab `protobuf:"bytes,18,opt,name=gitlab,proto3" json:"gitlab,omitempty"`
+	// Configuration specific to the "tpm" join method.
+	Tpm *TPM `protobuf:"bytes,19,opt,name=tpm,proto3" json:"tpm,omitempty"`
+	// Configuration specific to the "circleci" join method
+	Circleci      *CircleCI `protobuf:"bytes,20,opt,name=circleci,proto3" json:"circleci,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -420,6 +424,20 @@ func (x *ScopedTokenSpec) GetGitlab() *GitLab {
 	return nil
 }
 
+func (x *ScopedTokenSpec) GetTpm() *TPM {
+	if x != nil {
+		return x.Tpm
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetCircleci() *CircleCI {
+	if x != nil {
+		return x.Circleci
+	}
+	return nil
+}
+
 func (x *ScopedTokenSpec) SetAssignedScope(v string) {
 	x.AssignedScope = v
 }
@@ -482,6 +500,14 @@ func (x *ScopedTokenSpec) SetGithub(v *Github) {
 
 func (x *ScopedTokenSpec) SetGitlab(v *GitLab) {
 	x.Gitlab = v
+}
+
+func (x *ScopedTokenSpec) SetTpm(v *TPM) {
+	x.Tpm = v
+}
+
+func (x *ScopedTokenSpec) SetCircleci(v *CircleCI) {
+	x.Circleci = v
 }
 
 func (x *ScopedTokenSpec) HasImmutableLabels() bool {
@@ -561,6 +587,20 @@ func (x *ScopedTokenSpec) HasGitlab() bool {
 	return x.Gitlab != nil
 }
 
+func (x *ScopedTokenSpec) HasTpm() bool {
+	if x == nil {
+		return false
+	}
+	return x.Tpm != nil
+}
+
+func (x *ScopedTokenSpec) HasCircleci() bool {
+	if x == nil {
+		return false
+	}
+	return x.Circleci != nil
+}
+
 func (x *ScopedTokenSpec) ClearImmutableLabels() {
 	x.ImmutableLabels = nil
 }
@@ -603,6 +643,14 @@ func (x *ScopedTokenSpec) ClearGithub() {
 
 func (x *ScopedTokenSpec) ClearGitlab() {
 	x.Gitlab = nil
+}
+
+func (x *ScopedTokenSpec) ClearTpm() {
+	x.Tpm = nil
+}
+
+func (x *ScopedTokenSpec) ClearCircleci() {
+	x.Circleci = nil
 }
 
 type ScopedTokenSpec_builder struct {
@@ -653,6 +701,10 @@ type ScopedTokenSpec_builder struct {
 	Github *Github
 	// Configuration specific to the "gitlab" join method.
 	Gitlab *GitLab
+	// Configuration specific to the "tpm" join method.
+	Tpm *TPM
+	// Configuration specific to the "circleci" join method
+	Circleci *CircleCI
 }
 
 func (b0 ScopedTokenSpec_builder) Build() *ScopedTokenSpec {
@@ -675,6 +727,8 @@ func (b0 ScopedTokenSpec_builder) Build() *ScopedTokenSpec {
 	x.GenericOidc = b.GenericOidc
 	x.Github = b.Github
 	x.Gitlab = b.Gitlab
+	x.Tpm = b.Tpm
+	x.Circleci = b.Circleci
 	return m0
 }
 
@@ -2900,6 +2954,172 @@ func (b0 GitLab_builder) Build() *GitLab {
 	return m0
 }
 
+// Configuration specific to TPM tokens.
+type TPM struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A list of Rules, the presented delegated identity must match one allow rule
+	// to permit joining.
+	Allow []*TPM_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// A list of CA certificates that will be used to validate TPM EKCerts.
+	// When specified, joining TPMs must present an EKCert signed by one of the
+	// specified CAs. TPMs that do not present an EKCert will be not permitted to
+	// join.
+	// When unspecified, TPMs will be allowed to join with either an EKCert or an
+	// EKPubHash.
+	EkcertAllowedCas []string `protobuf:"bytes,2,rep,name=ekcert_allowed_cas,json=ekcertAllowedCas,proto3" json:"ekcert_allowed_cas,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *TPM) Reset() {
+	*x = TPM{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TPM) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TPM) ProtoMessage() {}
+
+func (x *TPM) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *TPM) GetAllow() []*TPM_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *TPM) GetEkcertAllowedCas() []string {
+	if x != nil {
+		return x.EkcertAllowedCas
+	}
+	return nil
+}
+
+func (x *TPM) SetAllow(v []*TPM_Rule) {
+	x.Allow = v
+}
+
+func (x *TPM) SetEkcertAllowedCas(v []string) {
+	x.EkcertAllowedCas = v
+}
+
+type TPM_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of Rules, the presented delegated identity must match one allow rule
+	// to permit joining.
+	Allow []*TPM_Rule
+	// A list of CA certificates that will be used to validate TPM EKCerts.
+	// When specified, joining TPMs must present an EKCert signed by one of the
+	// specified CAs. TPMs that do not present an EKCert will be not permitted to
+	// join.
+	// When unspecified, TPMs will be allowed to join with either an EKCert or an
+	// EKPubHash.
+	EkcertAllowedCas []string
+}
+
+func (b0 TPM_builder) Build() *TPM {
+	m0 := &TPM{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Allow = b.Allow
+	x.EkcertAllowedCas = b.EkcertAllowedCas
+	return m0
+}
+
+// Configuration specific to CircleCI tokens.
+type CircleCI struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Allow is a list of TokenRules, nodes using this token must match one
+	// allow rule to use this token. At least one rule is required.
+	Allow []*CircleCI_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// The unique identifier of the organization. Required.
+	OrganizationId string `protobuf:"bytes,2,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CircleCI) Reset() {
+	*x = CircleCI{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CircleCI) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CircleCI) ProtoMessage() {}
+
+func (x *CircleCI) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CircleCI) GetAllow() []*CircleCI_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *CircleCI) GetOrganizationId() string {
+	if x != nil {
+		return x.OrganizationId
+	}
+	return ""
+}
+
+func (x *CircleCI) SetAllow(v []*CircleCI_Rule) {
+	x.Allow = v
+}
+
+func (x *CircleCI) SetOrganizationId(v string) {
+	x.OrganizationId = v
+}
+
+type CircleCI_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Allow is a list of TokenRules, nodes using this token must match one
+	// allow rule to use this token. At least one rule is required.
+	Allow []*CircleCI_Rule
+	// The unique identifier of the organization. Required.
+	OrganizationId string
+}
+
+func (b0 CircleCI_builder) Build() *CircleCI {
+	m0 := &CircleCI{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Allow = b.Allow
+	x.OrganizationId = b.OrganizationId
+	return m0
+}
+
 // A rule that a joining node must match in order to use the associated token
 // with AWS join methods.
 type AWS_Rule struct {
@@ -2924,7 +3144,7 @@ type AWS_Rule struct {
 
 func (x *AWS_Rule) Reset() {
 	*x = AWS_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2936,7 +3156,7 @@ func (x *AWS_Rule) String() string {
 func (*AWS_Rule) ProtoMessage() {}
 
 func (x *AWS_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3049,7 +3269,7 @@ type GCP_Rule struct {
 
 func (x *GCP_Rule) Reset() {
 	*x = GCP_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3061,7 +3281,7 @@ func (x *GCP_Rule) String() string {
 func (*GCP_Rule) ProtoMessage() {}
 
 func (x *GCP_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3142,7 +3362,7 @@ type Azure_Rule struct {
 
 func (x *Azure_Rule) Reset() {
 	*x = Azure_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3154,7 +3374,7 @@ func (x *Azure_Rule) String() string {
 func (*Azure_Rule) ProtoMessage() {}
 
 func (x *Azure_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3261,7 +3481,7 @@ type AzureDevops_Rule struct {
 
 func (x *AzureDevops_Rule) Reset() {
 	*x = AzureDevops_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[24]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3273,7 +3493,7 @@ func (x *AzureDevops_Rule) String() string {
 func (*AzureDevops_Rule) ProtoMessage() {}
 
 func (x *AzureDevops_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[24]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3445,7 +3665,7 @@ type Oracle_Rule struct {
 
 func (x *Oracle_Rule) Reset() {
 	*x = Oracle_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[25]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3457,7 +3677,7 @@ func (x *Oracle_Rule) String() string {
 func (*Oracle_Rule) ProtoMessage() {}
 
 func (x *Oracle_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[25]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3551,7 +3771,7 @@ type Kubernetes_StaticJWKSConfig struct {
 
 func (x *Kubernetes_StaticJWKSConfig) Reset() {
 	*x = Kubernetes_StaticJWKSConfig{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[26]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3563,7 +3783,7 @@ func (x *Kubernetes_StaticJWKSConfig) String() string {
 func (*Kubernetes_StaticJWKSConfig) ProtoMessage() {}
 
 func (x *Kubernetes_StaticJWKSConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[26]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3616,7 +3836,7 @@ type Kubernetes_OIDCConfig struct {
 
 func (x *Kubernetes_OIDCConfig) Reset() {
 	*x = Kubernetes_OIDCConfig{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[27]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3628,7 +3848,7 @@ func (x *Kubernetes_OIDCConfig) String() string {
 func (*Kubernetes_OIDCConfig) ProtoMessage() {}
 
 func (x *Kubernetes_OIDCConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[27]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3708,7 +3928,7 @@ type Kubernetes_Rule struct {
 
 func (x *Kubernetes_Rule) Reset() {
 	*x = Kubernetes_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[28]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3720,7 +3940,7 @@ func (x *Kubernetes_Rule) String() string {
 func (*Kubernetes_Rule) ProtoMessage() {}
 
 func (x *Kubernetes_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[28]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3823,7 +4043,7 @@ type BoundKeypairSpec_OnboardingSpec struct {
 
 func (x *BoundKeypairSpec_OnboardingSpec) Reset() {
 	*x = BoundKeypairSpec_OnboardingSpec{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[29]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3835,7 +4055,7 @@ func (x *BoundKeypairSpec_OnboardingSpec) String() string {
 func (*BoundKeypairSpec_OnboardingSpec) ProtoMessage() {}
 
 func (x *BoundKeypairSpec_OnboardingSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[29]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3958,7 +4178,7 @@ type BoundKeypairSpec_RecoverySpec struct {
 
 func (x *BoundKeypairSpec_RecoverySpec) Reset() {
 	*x = BoundKeypairSpec_RecoverySpec{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[30]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3970,7 +4190,7 @@ func (x *BoundKeypairSpec_RecoverySpec) String() string {
 func (*BoundKeypairSpec_RecoverySpec) ProtoMessage() {}
 
 func (x *BoundKeypairSpec_RecoverySpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[30]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4051,7 +4271,7 @@ type GenericOIDC_ConditionEq struct {
 
 func (x *GenericOIDC_ConditionEq) Reset() {
 	*x = GenericOIDC_ConditionEq{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[31]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4063,7 +4283,7 @@ func (x *GenericOIDC_ConditionEq) String() string {
 func (*GenericOIDC_ConditionEq) ProtoMessage() {}
 
 func (x *GenericOIDC_ConditionEq) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[31]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4111,7 +4331,7 @@ type GenericOIDC_ConditionNotEq struct {
 
 func (x *GenericOIDC_ConditionNotEq) Reset() {
 	*x = GenericOIDC_ConditionNotEq{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[32]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4123,7 +4343,7 @@ func (x *GenericOIDC_ConditionNotEq) String() string {
 func (*GenericOIDC_ConditionNotEq) ProtoMessage() {}
 
 func (x *GenericOIDC_ConditionNotEq) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[32]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4171,7 +4391,7 @@ type GenericOIDC_ConditionIn struct {
 
 func (x *GenericOIDC_ConditionIn) Reset() {
 	*x = GenericOIDC_ConditionIn{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[33]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4183,7 +4403,7 @@ func (x *GenericOIDC_ConditionIn) String() string {
 func (*GenericOIDC_ConditionIn) ProtoMessage() {}
 
 func (x *GenericOIDC_ConditionIn) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[33]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4231,7 +4451,7 @@ type GenericOIDC_ConditionNotIn struct {
 
 func (x *GenericOIDC_ConditionNotIn) Reset() {
 	*x = GenericOIDC_ConditionNotIn{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[34]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4243,7 +4463,7 @@ func (x *GenericOIDC_ConditionNotIn) String() string {
 func (*GenericOIDC_ConditionNotIn) ProtoMessage() {}
 
 func (x *GenericOIDC_ConditionNotIn) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[34]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4300,7 +4520,7 @@ type GenericOIDC_Condition struct {
 
 func (x *GenericOIDC_Condition) Reset() {
 	*x = GenericOIDC_Condition{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[35]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4312,7 +4532,7 @@ func (x *GenericOIDC_Condition) String() string {
 func (*GenericOIDC_Condition) ProtoMessage() {}
 
 func (x *GenericOIDC_Condition) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[35]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4468,7 +4688,7 @@ type GenericOIDC_Rule struct {
 
 func (x *GenericOIDC_Rule) Reset() {
 	*x = GenericOIDC_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[36]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4480,7 +4700,7 @@ func (x *GenericOIDC_Rule) String() string {
 func (*GenericOIDC_Rule) ProtoMessage() {}
 
 func (x *GenericOIDC_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[36]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4597,7 +4817,7 @@ type Github_Rule struct {
 
 func (x *Github_Rule) Reset() {
 	*x = Github_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[37]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4609,7 +4829,7 @@ func (x *Github_Rule) String() string {
 func (*Github_Rule) ProtoMessage() {}
 
 func (x *Github_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[37]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4877,7 +5097,7 @@ type GitLab_Rule struct {
 
 func (x *GitLab_Rule) Reset() {
 	*x = GitLab_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[38]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4889,7 +5109,7 @@ func (x *GitLab_Rule) String() string {
 func (*GitLab_Rule) ProtoMessage() {}
 
 func (x *GitLab_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[38]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5189,6 +5409,197 @@ func (b0 GitLab_Rule_builder) Build() *GitLab_Rule {
 	return m0
 }
 
+// A rule for TPM joining tokens, of which one must match for a join attempt
+// to be allowed.
+type TPM_Rule struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A human-readable description of the rule. It has no bearing on whether or
+	// not a TPM is allowed to join, but can be used to associate a rule with a
+	// specific host (e.g the asset tag of the server in which the TPM resides).
+	// Example: "build-server-100"
+	Description string `protobuf:"bytes,1,opt,name=description,proto3" json:"description,omitempty"`
+	// The SHA256 hash of the EKPub marshaled in PKIX format and encoded in
+	// hexadecimal. This value will also be checked when a TPM has submitted an
+	// EKCert, and the public key in the EKCert will be used for this check.
+	// Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+	EkPublicHash string `protobuf:"bytes,2,opt,name=ek_public_hash,json=ekPublicHash,proto3" json:"ek_public_hash,omitempty"`
+	// The serial number of the EKCert in hexadecimal with colon separated
+	// nibbles. This value will not be checked when a TPM does not have an
+	// EKCert configured.
+	// Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+	EkCertificateSerial string `protobuf:"bytes,3,opt,name=ek_certificate_serial,json=ekCertificateSerial,proto3" json:"ek_certificate_serial,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *TPM_Rule) Reset() {
+	*x = TPM_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TPM_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TPM_Rule) ProtoMessage() {}
+
+func (x *TPM_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *TPM_Rule) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *TPM_Rule) GetEkPublicHash() string {
+	if x != nil {
+		return x.EkPublicHash
+	}
+	return ""
+}
+
+func (x *TPM_Rule) GetEkCertificateSerial() string {
+	if x != nil {
+		return x.EkCertificateSerial
+	}
+	return ""
+}
+
+func (x *TPM_Rule) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *TPM_Rule) SetEkPublicHash(v string) {
+	x.EkPublicHash = v
+}
+
+func (x *TPM_Rule) SetEkCertificateSerial(v string) {
+	x.EkCertificateSerial = v
+}
+
+type TPM_Rule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A human-readable description of the rule. It has no bearing on whether or
+	// not a TPM is allowed to join, but can be used to associate a rule with a
+	// specific host (e.g the asset tag of the server in which the TPM resides).
+	// Example: "build-server-100"
+	Description string
+	// The SHA256 hash of the EKPub marshaled in PKIX format and encoded in
+	// hexadecimal. This value will also be checked when a TPM has submitted an
+	// EKCert, and the public key in the EKCert will be used for this check.
+	// Example: d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6
+	EkPublicHash string
+	// The serial number of the EKCert in hexadecimal with colon separated
+	// nibbles. This value will not be checked when a TPM does not have an
+	// EKCert configured.
+	// Example: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+	EkCertificateSerial string
+}
+
+func (b0 TPM_Rule_builder) Build() *TPM_Rule {
+	m0 := &TPM_Rule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Description = b.Description
+	x.EkPublicHash = b.EkPublicHash
+	x.EkCertificateSerial = b.EkCertificateSerial
+	return m0
+}
+
+// A CircleCI joining rule.
+type CircleCI_Rule struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A unique project identifier. At least one of project_id or context_id is
+	// required.
+	ProjectId string `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	// A unique context identifier. At least one of context_id or project_id is
+	// required.
+	ContextId     string `protobuf:"bytes,2,opt,name=context_id,json=contextId,proto3" json:"context_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CircleCI_Rule) Reset() {
+	*x = CircleCI_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CircleCI_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CircleCI_Rule) ProtoMessage() {}
+
+func (x *CircleCI_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CircleCI_Rule) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *CircleCI_Rule) GetContextId() string {
+	if x != nil {
+		return x.ContextId
+	}
+	return ""
+}
+
+func (x *CircleCI_Rule) SetProjectId(v string) {
+	x.ProjectId = v
+}
+
+func (x *CircleCI_Rule) SetContextId(v string) {
+	x.ContextId = v
+}
+
+type CircleCI_Rule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A unique project identifier. At least one of project_id or context_id is
+	// required.
+	ProjectId string
+	// A unique context identifier. At least one of context_id or project_id is
+	// required.
+	ContextId string
+}
+
+func (b0 CircleCI_Rule_builder) Build() *CircleCI_Rule {
+	m0 := &CircleCI_Rule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ProjectId = b.ProjectId
+	x.ContextId = b.ContextId
+	return m0
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -5201,7 +5612,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x9f\a\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x94\b\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
@@ -5223,7 +5634,9 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x03bot\x18\x0f \x01(\tR\x03bot\x12J\n" +
 	"\fgeneric_oidc\x18\x10 \x01(\v2'.teleport.scopes.joining.v1.GenericOIDCR\vgenericOidc\x12:\n" +
 	"\x06github\x18\x11 \x01(\v2\".teleport.scopes.joining.v1.GithubR\x06github\x12:\n" +
-	"\x06gitlab\x18\x12 \x01(\v2\".teleport.scopes.joining.v1.GitLabR\x06gitlabJ\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0fR\bbot_nameR\tbot_scope\"\xb6\x01\n" +
+	"\x06gitlab\x18\x12 \x01(\v2\".teleport.scopes.joining.v1.GitLabR\x06gitlab\x121\n" +
+	"\x03tpm\x18\x13 \x01(\v2\x1f.teleport.scopes.joining.v1.TPMR\x03tpm\x12@\n" +
+	"\bcircleci\x18\x14 \x01(\v2$.teleport.scopes.joining.v1.CircleCIR\bcircleciJ\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0fR\bbot_nameR\tbot_scope\"\xb6\x01\n" +
 	"\x0eHostCertParams\x12\x17\n" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x12\n" +
@@ -5418,9 +5831,24 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x0fdeployment_tier\x18\x0f \x01(\tR\x0edeploymentTier\x12-\n" +
 	"\x12project_visibility\x18\x10 \x01(\tR\x11projectVisibilityB\x10\n" +
 	"\x0e_ref_protectedB\x18\n" +
-	"\x16_environment_protectedBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\x16_environment_protected\"\xf4\x01\n" +
+	"\x03TPM\x12:\n" +
+	"\x05allow\x18\x01 \x03(\v2$.teleport.scopes.joining.v1.TPM.RuleR\x05allow\x12,\n" +
+	"\x12ekcert_allowed_cas\x18\x02 \x03(\tR\x10ekcertAllowedCas\x1a\x82\x01\n" +
+	"\x04Rule\x12 \n" +
+	"\vdescription\x18\x01 \x01(\tR\vdescription\x12$\n" +
+	"\x0eek_public_hash\x18\x02 \x01(\tR\fekPublicHash\x122\n" +
+	"\x15ek_certificate_serial\x18\x03 \x01(\tR\x13ekCertificateSerial\"\xba\x01\n" +
+	"\bCircleCI\x12?\n" +
+	"\x05allow\x18\x01 \x03(\v2).teleport.scopes.joining.v1.CircleCI.RuleR\x05allow\x12'\n" +
+	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x1aD\n" +
+	"\x04Rule\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x1d\n" +
+	"\n" +
+	"context_id\x18\x02 \x01(\tR\tcontextIdBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*ScopedToken)(nil),                     // 0: teleport.scopes.joining.v1.ScopedToken
 	(*ScopedTokenSpec)(nil),                 // 1: teleport.scopes.joining.v1.ScopedTokenSpec
@@ -5442,31 +5870,35 @@ var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*GenericOIDC)(nil),                     // 17: teleport.scopes.joining.v1.GenericOIDC
 	(*Github)(nil),                          // 18: teleport.scopes.joining.v1.Github
 	(*GitLab)(nil),                          // 19: teleport.scopes.joining.v1.GitLab
-	nil,                                     // 20: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	(*AWS_Rule)(nil),                        // 21: teleport.scopes.joining.v1.AWS.Rule
-	(*GCP_Rule)(nil),                        // 22: teleport.scopes.joining.v1.GCP.Rule
-	(*Azure_Rule)(nil),                      // 23: teleport.scopes.joining.v1.Azure.Rule
-	(*AzureDevops_Rule)(nil),                // 24: teleport.scopes.joining.v1.AzureDevops.Rule
-	(*Oracle_Rule)(nil),                     // 25: teleport.scopes.joining.v1.Oracle.Rule
-	(*Kubernetes_StaticJWKSConfig)(nil),     // 26: teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
-	(*Kubernetes_OIDCConfig)(nil),           // 27: teleport.scopes.joining.v1.Kubernetes.OIDCConfig
-	(*Kubernetes_Rule)(nil),                 // 28: teleport.scopes.joining.v1.Kubernetes.Rule
-	(*BoundKeypairSpec_OnboardingSpec)(nil), // 29: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
-	(*BoundKeypairSpec_RecoverySpec)(nil),   // 30: teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
-	(*GenericOIDC_ConditionEq)(nil),         // 31: teleport.scopes.joining.v1.GenericOIDC.ConditionEq
-	(*GenericOIDC_ConditionNotEq)(nil),      // 32: teleport.scopes.joining.v1.GenericOIDC.ConditionNotEq
-	(*GenericOIDC_ConditionIn)(nil),         // 33: teleport.scopes.joining.v1.GenericOIDC.ConditionIn
-	(*GenericOIDC_ConditionNotIn)(nil),      // 34: teleport.scopes.joining.v1.GenericOIDC.ConditionNotIn
-	(*GenericOIDC_Condition)(nil),           // 35: teleport.scopes.joining.v1.GenericOIDC.Condition
-	(*GenericOIDC_Rule)(nil),                // 36: teleport.scopes.joining.v1.GenericOIDC.Rule
-	(*Github_Rule)(nil),                     // 37: teleport.scopes.joining.v1.Github.Rule
-	(*GitLab_Rule)(nil),                     // 38: teleport.scopes.joining.v1.GitLab.Rule
-	(*v1.Metadata)(nil),                     // 39: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),           // 40: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),                 // 41: google.protobuf.Struct
+	(*TPM)(nil),                             // 20: teleport.scopes.joining.v1.TPM
+	(*CircleCI)(nil),                        // 21: teleport.scopes.joining.v1.CircleCI
+	nil,                                     // 22: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	(*AWS_Rule)(nil),                        // 23: teleport.scopes.joining.v1.AWS.Rule
+	(*GCP_Rule)(nil),                        // 24: teleport.scopes.joining.v1.GCP.Rule
+	(*Azure_Rule)(nil),                      // 25: teleport.scopes.joining.v1.Azure.Rule
+	(*AzureDevops_Rule)(nil),                // 26: teleport.scopes.joining.v1.AzureDevops.Rule
+	(*Oracle_Rule)(nil),                     // 27: teleport.scopes.joining.v1.Oracle.Rule
+	(*Kubernetes_StaticJWKSConfig)(nil),     // 28: teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
+	(*Kubernetes_OIDCConfig)(nil),           // 29: teleport.scopes.joining.v1.Kubernetes.OIDCConfig
+	(*Kubernetes_Rule)(nil),                 // 30: teleport.scopes.joining.v1.Kubernetes.Rule
+	(*BoundKeypairSpec_OnboardingSpec)(nil), // 31: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
+	(*BoundKeypairSpec_RecoverySpec)(nil),   // 32: teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
+	(*GenericOIDC_ConditionEq)(nil),         // 33: teleport.scopes.joining.v1.GenericOIDC.ConditionEq
+	(*GenericOIDC_ConditionNotEq)(nil),      // 34: teleport.scopes.joining.v1.GenericOIDC.ConditionNotEq
+	(*GenericOIDC_ConditionIn)(nil),         // 35: teleport.scopes.joining.v1.GenericOIDC.ConditionIn
+	(*GenericOIDC_ConditionNotIn)(nil),      // 36: teleport.scopes.joining.v1.GenericOIDC.ConditionNotIn
+	(*GenericOIDC_Condition)(nil),           // 37: teleport.scopes.joining.v1.GenericOIDC.Condition
+	(*GenericOIDC_Rule)(nil),                // 38: teleport.scopes.joining.v1.GenericOIDC.Rule
+	(*Github_Rule)(nil),                     // 39: teleport.scopes.joining.v1.Github.Rule
+	(*GitLab_Rule)(nil),                     // 40: teleport.scopes.joining.v1.GitLab.Rule
+	(*TPM_Rule)(nil),                        // 41: teleport.scopes.joining.v1.TPM.Rule
+	(*CircleCI_Rule)(nil),                   // 42: teleport.scopes.joining.v1.CircleCI.Rule
+	(*v1.Metadata)(nil),                     // 43: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),           // 44: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),                 // 45: google.protobuf.Struct
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	39, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	43, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	5,  // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
 	8,  // 3: teleport.scopes.joining.v1.ScopedTokenSpec.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
@@ -5480,44 +5912,48 @@ var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
 	17, // 11: teleport.scopes.joining.v1.ScopedTokenSpec.generic_oidc:type_name -> teleport.scopes.joining.v1.GenericOIDC
 	18, // 12: teleport.scopes.joining.v1.ScopedTokenSpec.github:type_name -> teleport.scopes.joining.v1.Github
 	19, // 13: teleport.scopes.joining.v1.ScopedTokenSpec.gitlab:type_name -> teleport.scopes.joining.v1.GitLab
-	40, // 14: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
-	40, // 15: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
-	2,  // 16: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
-	3,  // 17: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
-	16, // 18: teleport.scopes.joining.v1.UsageStatus.bound_keypair:type_name -> teleport.scopes.joining.v1.BoundKeypairStatus
-	4,  // 19: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
-	39, // 20: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
-	7,  // 21: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
-	0,  // 22: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
-	20, // 23: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	21, // 24: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
-	22, // 25: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
-	23, // 26: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
-	24, // 27: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
-	25, // 28: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
-	28, // 29: teleport.scopes.joining.v1.Kubernetes.allow:type_name -> teleport.scopes.joining.v1.Kubernetes.Rule
-	26, // 30: teleport.scopes.joining.v1.Kubernetes.static_jwks:type_name -> teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
-	27, // 31: teleport.scopes.joining.v1.Kubernetes.oidc:type_name -> teleport.scopes.joining.v1.Kubernetes.OIDCConfig
-	29, // 32: teleport.scopes.joining.v1.BoundKeypairSpec.onboarding:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
-	30, // 33: teleport.scopes.joining.v1.BoundKeypairSpec.recovery:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
-	40, // 34: teleport.scopes.joining.v1.BoundKeypairSpec.rotate_after:type_name -> google.protobuf.Timestamp
-	40, // 35: teleport.scopes.joining.v1.BoundKeypairStatus.last_recovered_at:type_name -> google.protobuf.Timestamp
-	40, // 36: teleport.scopes.joining.v1.BoundKeypairStatus.last_rotated_at:type_name -> google.protobuf.Timestamp
-	41, // 37: teleport.scopes.joining.v1.GenericOIDC.must_match_fields:type_name -> google.protobuf.Struct
-	36, // 38: teleport.scopes.joining.v1.GenericOIDC.allow_any:type_name -> teleport.scopes.joining.v1.GenericOIDC.Rule
-	37, // 39: teleport.scopes.joining.v1.Github.allow:type_name -> teleport.scopes.joining.v1.Github.Rule
-	38, // 40: teleport.scopes.joining.v1.GitLab.allow:type_name -> teleport.scopes.joining.v1.GitLab.Rule
-	40, // 41: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec.must_register_before:type_name -> google.protobuf.Timestamp
-	31, // 42: teleport.scopes.joining.v1.GenericOIDC.Condition.eq:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionEq
-	32, // 43: teleport.scopes.joining.v1.GenericOIDC.Condition.not_eq:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionNotEq
-	33, // 44: teleport.scopes.joining.v1.GenericOIDC.Condition.in:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionIn
-	34, // 45: teleport.scopes.joining.v1.GenericOIDC.Condition.not_in:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionNotIn
-	35, // 46: teleport.scopes.joining.v1.GenericOIDC.Rule.conditions:type_name -> teleport.scopes.joining.v1.GenericOIDC.Condition
-	47, // [47:47] is the sub-list for method output_type
-	47, // [47:47] is the sub-list for method input_type
-	47, // [47:47] is the sub-list for extension type_name
-	47, // [47:47] is the sub-list for extension extendee
-	0,  // [0:47] is the sub-list for field type_name
+	20, // 14: teleport.scopes.joining.v1.ScopedTokenSpec.tpm:type_name -> teleport.scopes.joining.v1.TPM
+	21, // 15: teleport.scopes.joining.v1.ScopedTokenSpec.circleci:type_name -> teleport.scopes.joining.v1.CircleCI
+	44, // 16: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
+	44, // 17: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
+	2,  // 18: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
+	3,  // 19: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
+	16, // 20: teleport.scopes.joining.v1.UsageStatus.bound_keypair:type_name -> teleport.scopes.joining.v1.BoundKeypairStatus
+	4,  // 21: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
+	43, // 22: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
+	7,  // 23: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
+	0,  // 24: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
+	22, // 25: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	23, // 26: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
+	24, // 27: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
+	25, // 28: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
+	26, // 29: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
+	27, // 30: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
+	30, // 31: teleport.scopes.joining.v1.Kubernetes.allow:type_name -> teleport.scopes.joining.v1.Kubernetes.Rule
+	28, // 32: teleport.scopes.joining.v1.Kubernetes.static_jwks:type_name -> teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
+	29, // 33: teleport.scopes.joining.v1.Kubernetes.oidc:type_name -> teleport.scopes.joining.v1.Kubernetes.OIDCConfig
+	31, // 34: teleport.scopes.joining.v1.BoundKeypairSpec.onboarding:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
+	32, // 35: teleport.scopes.joining.v1.BoundKeypairSpec.recovery:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
+	44, // 36: teleport.scopes.joining.v1.BoundKeypairSpec.rotate_after:type_name -> google.protobuf.Timestamp
+	44, // 37: teleport.scopes.joining.v1.BoundKeypairStatus.last_recovered_at:type_name -> google.protobuf.Timestamp
+	44, // 38: teleport.scopes.joining.v1.BoundKeypairStatus.last_rotated_at:type_name -> google.protobuf.Timestamp
+	45, // 39: teleport.scopes.joining.v1.GenericOIDC.must_match_fields:type_name -> google.protobuf.Struct
+	38, // 40: teleport.scopes.joining.v1.GenericOIDC.allow_any:type_name -> teleport.scopes.joining.v1.GenericOIDC.Rule
+	39, // 41: teleport.scopes.joining.v1.Github.allow:type_name -> teleport.scopes.joining.v1.Github.Rule
+	40, // 42: teleport.scopes.joining.v1.GitLab.allow:type_name -> teleport.scopes.joining.v1.GitLab.Rule
+	41, // 43: teleport.scopes.joining.v1.TPM.allow:type_name -> teleport.scopes.joining.v1.TPM.Rule
+	42, // 44: teleport.scopes.joining.v1.CircleCI.allow:type_name -> teleport.scopes.joining.v1.CircleCI.Rule
+	44, // 45: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec.must_register_before:type_name -> google.protobuf.Timestamp
+	33, // 46: teleport.scopes.joining.v1.GenericOIDC.Condition.eq:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionEq
+	34, // 47: teleport.scopes.joining.v1.GenericOIDC.Condition.not_eq:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionNotEq
+	35, // 48: teleport.scopes.joining.v1.GenericOIDC.Condition.in:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionIn
+	36, // 49: teleport.scopes.joining.v1.GenericOIDC.Condition.not_in:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionNotIn
+	37, // 50: teleport.scopes.joining.v1.GenericOIDC.Rule.conditions:type_name -> teleport.scopes.joining.v1.GenericOIDC.Condition
+	51, // [51:51] is the sub-list for method output_type
+	51, // [51:51] is the sub-list for method input_type
+	51, // [51:51] is the sub-list for extension type_name
+	51, // [51:51] is the sub-list for extension extendee
+	0,  // [0:51] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -5529,14 +5965,14 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 		(*UsageStatus_SingleUse)(nil),
 		(*UsageStatus_BoundKeypair)(nil),
 	}
-	file_teleport_scopes_joining_v1_token_proto_msgTypes[38].OneofWrappers = []any{}
+	file_teleport_scopes_joining_v1_token_proto_msgTypes[40].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   39,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

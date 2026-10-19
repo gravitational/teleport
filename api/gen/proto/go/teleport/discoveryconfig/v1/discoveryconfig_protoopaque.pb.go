@@ -658,6 +658,7 @@ type DiscoverSummary struct {
 	xxx_hidden_AwsRds   *ResourceSummary       `protobuf:"bytes,2,opt,name=aws_rds,json=awsRds,proto3"`
 	xxx_hidden_AwsEks   *ResourceSummary       `protobuf:"bytes,3,opt,name=aws_eks,json=awsEks,proto3"`
 	xxx_hidden_AzureVms *ResourceSummary       `protobuf:"bytes,4,opt,name=azure_vms,json=azureVms,proto3"`
+	xxx_hidden_AzureAks *ResourceSummary       `protobuf:"bytes,5,opt,name=azure_aks,json=azureAks,proto3"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -715,6 +716,13 @@ func (x *DiscoverSummary) GetAzureVms() *ResourceSummary {
 	return nil
 }
 
+func (x *DiscoverSummary) GetAzureAks() *ResourceSummary {
+	if x != nil {
+		return x.xxx_hidden_AzureAks
+	}
+	return nil
+}
+
 func (x *DiscoverSummary) SetAwsEc2(v *ResourceSummary) {
 	x.xxx_hidden_AwsEc2 = v
 }
@@ -729,6 +737,10 @@ func (x *DiscoverSummary) SetAwsEks(v *ResourceSummary) {
 
 func (x *DiscoverSummary) SetAzureVms(v *ResourceSummary) {
 	x.xxx_hidden_AzureVms = v
+}
+
+func (x *DiscoverSummary) SetAzureAks(v *ResourceSummary) {
+	x.xxx_hidden_AzureAks = v
 }
 
 func (x *DiscoverSummary) HasAwsEc2() bool {
@@ -759,6 +771,13 @@ func (x *DiscoverSummary) HasAzureVms() bool {
 	return x.xxx_hidden_AzureVms != nil
 }
 
+func (x *DiscoverSummary) HasAzureAks() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_AzureAks != nil
+}
+
 func (x *DiscoverSummary) ClearAwsEc2() {
 	x.xxx_hidden_AwsEc2 = nil
 }
@@ -775,6 +794,10 @@ func (x *DiscoverSummary) ClearAzureVms() {
 	x.xxx_hidden_AzureVms = nil
 }
 
+func (x *DiscoverSummary) ClearAzureAks() {
+	x.xxx_hidden_AzureAks = nil
+}
+
 type DiscoverSummary_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -786,6 +809,8 @@ type DiscoverSummary_builder struct {
 	AwsEks *ResourceSummary
 	// The summary for the Azure VM discovered instances.
 	AzureVms *ResourceSummary
+	// The summary for the Azure AKS discovered clusters.
+	AzureAks *ResourceSummary
 }
 
 func (b0 DiscoverSummary_builder) Build() *DiscoverSummary {
@@ -796,6 +821,7 @@ func (b0 DiscoverSummary_builder) Build() *DiscoverSummary {
 	x.xxx_hidden_AwsRds = b.AwsRds
 	x.xxx_hidden_AwsEks = b.AwsEks
 	x.xxx_hidden_AzureVms = b.AzureVms
+	x.xxx_hidden_AzureAks = b.AzureAks
 	return m0
 }
 
@@ -903,6 +929,7 @@ type IntegrationDiscoveredSummary struct {
 	xxx_hidden_AwsRds   *ResourcesDiscoveredSummary `protobuf:"bytes,2,opt,name=aws_rds,json=awsRds,proto3"`
 	xxx_hidden_AwsEks   *ResourcesDiscoveredSummary `protobuf:"bytes,3,opt,name=aws_eks,json=awsEks,proto3"`
 	xxx_hidden_AzureVms *ResourcesDiscoveredSummary `protobuf:"bytes,4,opt,name=azure_vms,json=azureVms,proto3"`
+	xxx_hidden_AzureAks *ResourcesDiscoveredSummary `protobuf:"bytes,5,opt,name=azure_aks,json=azureAks,proto3"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -960,6 +987,13 @@ func (x *IntegrationDiscoveredSummary) GetAzureVms() *ResourcesDiscoveredSummary
 	return nil
 }
 
+func (x *IntegrationDiscoveredSummary) GetAzureAks() *ResourcesDiscoveredSummary {
+	if x != nil {
+		return x.xxx_hidden_AzureAks
+	}
+	return nil
+}
+
 func (x *IntegrationDiscoveredSummary) SetAwsEc2(v *ResourcesDiscoveredSummary) {
 	x.xxx_hidden_AwsEc2 = v
 }
@@ -974,6 +1008,10 @@ func (x *IntegrationDiscoveredSummary) SetAwsEks(v *ResourcesDiscoveredSummary) 
 
 func (x *IntegrationDiscoveredSummary) SetAzureVms(v *ResourcesDiscoveredSummary) {
 	x.xxx_hidden_AzureVms = v
+}
+
+func (x *IntegrationDiscoveredSummary) SetAzureAks(v *ResourcesDiscoveredSummary) {
+	x.xxx_hidden_AzureAks = v
 }
 
 func (x *IntegrationDiscoveredSummary) HasAwsEc2() bool {
@@ -1004,6 +1042,13 @@ func (x *IntegrationDiscoveredSummary) HasAzureVms() bool {
 	return x.xxx_hidden_AzureVms != nil
 }
 
+func (x *IntegrationDiscoveredSummary) HasAzureAks() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_AzureAks != nil
+}
+
 func (x *IntegrationDiscoveredSummary) ClearAwsEc2() {
 	x.xxx_hidden_AwsEc2 = nil
 }
@@ -1020,6 +1065,10 @@ func (x *IntegrationDiscoveredSummary) ClearAzureVms() {
 	x.xxx_hidden_AzureVms = nil
 }
 
+func (x *IntegrationDiscoveredSummary) ClearAzureAks() {
+	x.xxx_hidden_AzureAks = nil
+}
+
 type IntegrationDiscoveredSummary_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1031,6 +1080,8 @@ type IntegrationDiscoveredSummary_builder struct {
 	AwsEks *ResourcesDiscoveredSummary
 	// The summary for the Azure VM discovered instances.
 	AzureVms *ResourcesDiscoveredSummary
+	// The summary for the Azure AKS discovered clusters.
+	AzureAks *ResourcesDiscoveredSummary
 }
 
 func (b0 IntegrationDiscoveredSummary_builder) Build() *IntegrationDiscoveredSummary {
@@ -1041,6 +1092,7 @@ func (b0 IntegrationDiscoveredSummary_builder) Build() *IntegrationDiscoveredSum
 	x.xxx_hidden_AwsRds = b.AwsRds
 	x.xxx_hidden_AwsEks = b.AwsEks
 	x.xxx_hidden_AzureVms = b.AzureVms
+	x.xxx_hidden_AzureAks = b.AzureAks
 	return m0
 }
 
@@ -1223,20 +1275,22 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc = "" +
 	"\x15integration_summaries\x18\x03 \x03(\v2L.teleport.discoveryconfig.v1.DiscoveryStatusServer.IntegrationSummariesEntryR\x14integrationSummaries\x1au\n" +
 	"\x19IntegrationSummariesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12B\n" +
-	"\x05value\x18\x02 \x01(\v2,.teleport.discoveryconfig.v1.DiscoverSummaryR\x05value:\x028\x01\"\xb1\x02\n" +
+	"\x05value\x18\x02 \x01(\v2,.teleport.discoveryconfig.v1.DiscoverSummaryR\x05value:\x028\x01\"\xfc\x02\n" +
 	"\x0fDiscoverSummary\x12E\n" +
 	"\aaws_ec2\x18\x01 \x01(\v2,.teleport.discoveryconfig.v1.ResourceSummaryR\x06awsEc2\x12E\n" +
 	"\aaws_rds\x18\x02 \x01(\v2,.teleport.discoveryconfig.v1.ResourceSummaryR\x06awsRds\x12E\n" +
 	"\aaws_eks\x18\x03 \x01(\v2,.teleport.discoveryconfig.v1.ResourceSummaryR\x06awsEks\x12I\n" +
-	"\tazure_vms\x18\x04 \x01(\v2,.teleport.discoveryconfig.v1.ResourceSummaryR\bazureVms\"\xb9\x01\n" +
+	"\tazure_vms\x18\x04 \x01(\v2,.teleport.discoveryconfig.v1.ResourceSummaryR\bazureVms\x12I\n" +
+	"\tazure_aks\x18\x05 \x01(\v2,.teleport.discoveryconfig.v1.ResourceSummaryR\bazureAks\"\xb9\x01\n" +
 	"\x0fResourceSummary\x12Q\n" +
 	"\acurrent\x18\x01 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\acurrent\x12S\n" +
-	"\bprevious\x18\x02 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\bprevious\"\xea\x02\n" +
+	"\bprevious\x18\x02 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\bprevious\"\xc0\x03\n" +
 	"\x1cIntegrationDiscoveredSummary\x12P\n" +
 	"\aaws_ec2\x18\x01 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsEc2\x12P\n" +
 	"\aaws_rds\x18\x02 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsRds\x12P\n" +
 	"\aaws_eks\x18\x03 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsEks\x12T\n" +
-	"\tazure_vms\x18\x04 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\bazureVms\"\xd8\x01\n" +
+	"\tazure_vms\x18\x04 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\bazureVms\x12T\n" +
+	"\tazure_aks\x18\x05 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\bazureAks\"\xd8\x01\n" +
 	"\x1aResourcesDiscoveredSummary\x12\x14\n" +
 	"\x05found\x18\x01 \x01(\x04R\x05found\x12\x1a\n" +
 	"\benrolled\x18\x02 \x01(\x04R\benrolled\x12\x16\n" +
@@ -1294,22 +1348,24 @@ var file_teleport_discoveryconfig_v1_discoveryconfig_proto_depIdxs = []int32{
 	6,  // 16: teleport.discoveryconfig.v1.DiscoverSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourceSummary
 	6,  // 17: teleport.discoveryconfig.v1.DiscoverSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourceSummary
 	6,  // 18: teleport.discoveryconfig.v1.DiscoverSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourceSummary
-	8,  // 19: teleport.discoveryconfig.v1.ResourceSummary.current:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	8,  // 20: teleport.discoveryconfig.v1.ResourceSummary.previous:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	8,  // 21: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_ec2:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	8,  // 22: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	8,  // 23: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	8,  // 24: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	18, // 25: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary.sync_start:type_name -> google.protobuf.Timestamp
-	18, // 26: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary.sync_end:type_name -> google.protobuf.Timestamp
-	7,  // 27: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
-	4,  // 28: teleport.discoveryconfig.v1.DiscoveryConfigStatus.ServerStatusEntry.value:type_name -> teleport.discoveryconfig.v1.DiscoveryStatusServer
-	5,  // 29: teleport.discoveryconfig.v1.DiscoveryStatusServer.IntegrationSummariesEntry.value:type_name -> teleport.discoveryconfig.v1.DiscoverSummary
-	30, // [30:30] is the sub-list for method output_type
-	30, // [30:30] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	6,  // 19: teleport.discoveryconfig.v1.DiscoverSummary.azure_aks:type_name -> teleport.discoveryconfig.v1.ResourceSummary
+	8,  // 20: teleport.discoveryconfig.v1.ResourceSummary.current:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	8,  // 21: teleport.discoveryconfig.v1.ResourceSummary.previous:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	8,  // 22: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_ec2:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	8,  // 23: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	8,  // 24: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	8,  // 25: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	8,  // 26: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.azure_aks:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	18, // 27: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary.sync_start:type_name -> google.protobuf.Timestamp
+	18, // 28: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary.sync_end:type_name -> google.protobuf.Timestamp
+	7,  // 29: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
+	4,  // 30: teleport.discoveryconfig.v1.DiscoveryConfigStatus.ServerStatusEntry.value:type_name -> teleport.discoveryconfig.v1.DiscoveryStatusServer
+	5,  // 31: teleport.discoveryconfig.v1.DiscoveryStatusServer.IntegrationSummariesEntry.value:type_name -> teleport.discoveryconfig.v1.DiscoverSummary
+	32, // [32:32] is the sub-list for method output_type
+	32, // [32:32] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_teleport_discoveryconfig_v1_discoveryconfig_proto_init() }

@@ -1,0 +1,46 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.app.v1;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/app/v1;appv1";
+
+// AppIssuanceService issues credentials for accessing applications proxied by
+// Teleport.
+service AppIssuanceService {
+  // IssueAppOIDCToken issues a JWT signed by the cluster's OIDC IdP CA for an
+  // active application session.
+  rpc IssueAppOIDCToken(IssueAppOIDCTokenRequest) returns (IssueAppOIDCTokenResponse);
+}
+
+// IssueAppOIDCTokenRequest is the request for IssueAppOIDCToken.
+message IssueAppOIDCTokenRequest {
+  // AppSessionId is the ID of the application session this token is being
+  // issued against.
+  string app_session_id = 1;
+  // Ttl is the requested time-to-live for the issued token.
+  google.protobuf.Duration ttl = 2;
+  // UserCertificate is the DER-encoded user TLS certificate.
+  bytes user_certificate = 3;
+}
+
+// IssueAppOIDCTokenResponse is the response for IssueAppOIDCToken.
+message IssueAppOIDCTokenResponse {
+  // Token is the signed JWT.
+  string token = 1;
+}

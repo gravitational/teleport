@@ -1090,8 +1090,13 @@ type GenerateHostCertRequest struct {
 	// principals is a list of principals that the certificate should include.
 	Principals []string `protobuf:"bytes,4,rep,name=principals,proto3" json:"principals,omitempty"`
 	// cluster_name is a list of principals that the certificate should include.
-	ClusterName string `protobuf:"bytes,5,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
-	// role is a system role assigned to the host that will be included on the certificate.
+	ClusterName string `protobuf:"bytes,5,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"` // TODO(Joerger): DELETE IN v20.0.0
+	// This field used to contain the system role included on the certificate, but
+	// it is ignored by the server and it will be removed in v20. v19 clients should
+	// continue to provide "Node" as the role to maintain compatibility with v18
+	// auth servers.
+	//
+	// Deprecated: Marked as deprecated in teleport/trust/v1/trust_service.proto.
 	Role string `protobuf:"bytes,6,opt,name=role,proto3" json:"role,omitempty"`
 	// ttl is the duration the certificate will be valid for. This may be zero for indefinite.
 	Ttl           *durationpb.Duration `protobuf:"bytes,7,opt,name=ttl,proto3" json:"ttl,omitempty"`
@@ -1159,6 +1164,7 @@ func (x *GenerateHostCertRequest) GetClusterName() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in teleport/trust/v1/trust_service.proto.
 func (x *GenerateHostCertRequest) GetRole() string {
 	if x != nil {
 		return x.Role
@@ -1196,6 +1202,7 @@ func (x *GenerateHostCertRequest) SetClusterName(v string) {
 	x.ClusterName = v
 }
 
+// Deprecated: Marked as deprecated in teleport/trust/v1/trust_service.proto.
 func (x *GenerateHostCertRequest) SetRole(v string) {
 	x.Role = v
 }
@@ -1228,7 +1235,12 @@ type GenerateHostCertRequest_builder struct {
 	Principals []string
 	// cluster_name is a list of principals that the certificate should include.
 	ClusterName string
-	// role is a system role assigned to the host that will be included on the certificate.
+	// This field used to contain the system role included on the certificate, but
+	// it is ignored by the server and it will be removed in v20. v19 clients should
+	// continue to provide "Node" as the role to maintain compatibility with v18
+	// auth servers.
+	//
+	// Deprecated: Marked as deprecated in teleport/trust/v1/trust_service.proto.
 	Role string
 	// ttl is the duration the certificate will be valid for. This may be zero for indefinite.
 	Ttl *durationpb.Duration
@@ -1507,7 +1519,7 @@ const file_teleport_trust_v1_trust_service_proto_rawDesc = "" +
 	"\x1bRotateCertAuthorityResponse\"c\n" +
 	"\"RotateExternalCertAuthorityRequest\x12=\n" +
 	"\x0ecert_authority\x18\x01 \x01(\v2\x16.types.CertAuthorityV2R\rcertAuthority\"%\n" +
-	"#RotateExternalCertAuthorityResponse\"\xe5\x01\n" +
+	"#RotateExternalCertAuthorityResponse\"\xe9\x01\n" +
 	"\x17GenerateHostCertRequest\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\fR\x03key\x12\x17\n" +
 	"\ahost_id\x18\x02 \x01(\tR\x06hostId\x12\x1b\n" +
@@ -1515,8 +1527,8 @@ const file_teleport_trust_v1_trust_service_proto_rawDesc = "" +
 	"\n" +
 	"principals\x18\x04 \x03(\tR\n" +
 	"principals\x12!\n" +
-	"\fcluster_name\x18\x05 \x01(\tR\vclusterName\x12\x12\n" +
-	"\x04role\x18\x06 \x01(\tR\x04role\x12+\n" +
+	"\fcluster_name\x18\x05 \x01(\tR\vclusterName\x12\x16\n" +
+	"\x04role\x18\x06 \x01(\tB\x02\x18\x01R\x04role\x12+\n" +
 	"\x03ttl\x18\a \x01(\v2\x19.google.protobuf.DurationR\x03ttl\"C\n" +
 	"\x18GenerateHostCertResponse\x12'\n" +
 	"\x0fssh_certificate\x18\x01 \x01(\fR\x0esshCertificate\"X\n" +

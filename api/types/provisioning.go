@@ -182,6 +182,10 @@ type ProvisionToken interface {
 	GetGithub() *ProvisionTokenSpecV2GitHub
 	// GetGitLab returns gitlab-specific configuration for this token.
 	GetGitLab() *ProvisionTokenSpecV2GitLab
+	// GetTPM returns the TPM-specific configuration for this token.
+	GetTPM() *ProvisionTokenSpecV2TPM
+	// GetCircleCI returns the circleci-specific configuration for this token.
+	GetCircleCI() *ProvisionTokenSpecV2CircleCI
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -308,6 +312,10 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	p.Spec.Roles = roles
+
+	if roles.Include(RoleSSHHost) {
+		return trace.BadParameter("the %q role cannot be assigned to a provisioning token", RoleSSHHost)
+	}
 
 	if roles.Include(RoleBot) && p.Spec.BotName == "" {
 		return trace.BadParameter("token with role %q must set bot_name", RoleBot)
@@ -633,6 +641,16 @@ func (p *ProvisionTokenV2) GetGithub() *ProvisionTokenSpecV2GitHub {
 // GetGitLab returns github-specific configuration for this token.
 func (p *ProvisionTokenV2) GetGitLab() *ProvisionTokenSpecV2GitLab {
 	return p.Spec.GitLab
+}
+
+// GetTPM returns the TPM-specific configuration for this token.
+func (p *ProvisionTokenV2) GetTPM() *ProvisionTokenSpecV2TPM {
+	return p.Spec.TPM
+}
+
+// GetCircleCI returns the CircleCI-specific configuration for this token.
+func (p *ProvisionTokenV2) GetCircleCI() *ProvisionTokenSpecV2CircleCI {
+	return p.Spec.CircleCI
 }
 
 // GetJoinMethod returns joining method that must be used with this token.

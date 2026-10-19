@@ -165,8 +165,13 @@ message GenerateHostCertRequest {
   repeated string principals = 4;
   // cluster_name is a list of principals that the certificate should include.
   string cluster_name = 5;
-  // role is a system role assigned to the host that will be included on the certificate.
-  string role = 6;
+  // TODO(Joerger): DELETE IN v20.0.0
+
+  // This field used to contain the system role included on the certificate, but
+  // it is ignored by the server and it will be removed in v20. v19 clients should
+  // continue to provide "Node" as the role to maintain compatibility with v18
+  // auth servers.
+  string role = 6 [deprecated = true];
   // ttl is the duration the certificate will be valid for. This may be zero for indefinite.
   google.protobuf.Duration ttl = 7;
 }

@@ -40,6 +40,43 @@ type RateLimitError struct {
 func (e *RateLimitError) Error() string { return e.Err.Error() }
 func (e *RateLimitError) Unwrap() error { return e.Err }
 
+// NoContentTrailer is the gRPC response trailer key the server sets on
+// PatchSCIMResource when it applied the patch without materializing a
+// representation of the resource - HTTP 204 No Content instead of 200 OK with a body
+// See: https://datatracker.ietf.org/doc/html/rfc7644#section-3.5.2
+// > On successful completion, the server either MUST return a 200 OK
+// > response code and the entire resource within the response body,
+// > subject to the "attributes" query parameter (see Section 3.9), or MAY
+// > return HTTP status code 204 (No Content) and the appropriate response
+// > headers for a successful PATCH request.  The server MUST return a 200
+// > OK if the "attributes" parameter is specified in the request.
+const NoContentTrailer = "x-scim-no-content"
+
+// SupportsNoContentHeader is a gRPC request header PatchSCIMResourceV2 sets
+// to declare that the caller understands NoContentTrailer.
+// The SCIM auth server handler must only set NoContentTrailer
+// when it sees this header on the request -
+// otherwise a rolling upgrade where auth picks up the fast path before the
+// proxy does (or vice versa) could lead to inconsistent behavior.
+const SupportsNoContentHeader = "x-scim-supports-no-content"
+
+// hasNoContentTrailer reports whether the server flagged the response via
+// [NoContentTrailer].
+func hasNoContentTrailer(trailer metadata.MD) bool {
+	return len(trailer.Get(NoContentTrailer)) > 0
+}
+
+// ClientSupportsNoContent reports whether the incoming request declared
+// support for NoContentTrailer via [SupportsNoContentHeader]. Server-side
+// handlers must check this before setting NoContentTrailer.
+func ClientSupportsNoContent(ctx context.Context) bool {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return false
+	}
+	return len(md.Get(SupportsNoContentHeader)) > 0
+}
+
 // wrapRateLimitErr converts a gRPC error into a [*RateLimitError] when the
 // error is a limit-exceeded error, extracting the retry-after value from the
 // supplied trailer.
@@ -121,6 +158,24 @@ func (c *Client) DeleteSCIMResource(ctx context.Context, req *scimpb.DeleteSCIMR
 	return res, nil
 }
 
+// PatchSCIMResourceResponse is the result of a PatchSCIMResourceV2 call.
+type PatchSCIMResourceResponse struct {
+	// Resource is the patched resource, as reported by the server.
+	Resource *scimpb.Resource
+	// NoContent reports whether the server applied the patch without
+	// materializing a representation of it - see [NoContentTrailer].
+	// Callers exposing this over HTTP should treat that as a 204 No
+	// Content instead of a 200 with Resource as the body.
+	// See: https://datatracker.ietf.org/doc/html/rfc7644#section-3.5.2
+	// > On successful completion, the server either MUST return a 200 OK
+	// > response code and the entire resource within the response body,
+	// > subject to the "attributes" query parameter (see Section 3.9), or MAY
+	// > return HTTP status code 204 (No Content) and the appropriate response
+	// > headers for a successful PATCH request.  The server MUST return a 200
+	// > OK if the "attributes" parameter is specified in the request.
+	NoContent bool
+}
+
 // PatchSCIMResource handles a request to patch a resource.
 func (c *Client) PatchSCIMResource(ctx context.Context, request *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error) {
 	var trailer metadata.MD
@@ -129,4 +184,19 @@ func (c *Client) PatchSCIMResource(ctx context.Context, request *scimpb.PatchSCI
 		return nil, trace.Wrap(wrapRateLimitErr(trailer, err), "handling SCIM patch request")
 	}
 	return resp, nil
+}
+
+// PatchSCIMResourceV2 behaves like PatchSCIMResource, but also reports
+// whether the server applied the patch without materializing a
+// representation of it, instead of collapsing that into a nil Resource.
+func (c *Client) PatchSCIMResourceV2(ctx context.Context, request *scimpb.PatchSCIMResourceRequest) (*PatchSCIMResourceResponse, error) {
+	// Declare support for NoContentTrailer so the server knows it's safe
+	// to set it - see SupportsNoContentHeader.
+	ctx = metadata.AppendToOutgoingContext(ctx, SupportsNoContentHeader, "true")
+	var trailer metadata.MD
+	resp, err := c.grpcClient.PatchSCIMResource(ctx, request, grpc.Trailer(&trailer))
+	if err != nil {
+		return nil, trace.Wrap(wrapRateLimitErr(trailer, err), "handling SCIM patch request")
+	}
+	return &PatchSCIMResourceResponse{Resource: resp, NoContent: hasNoContentTrailer(trailer)}, nil
 }

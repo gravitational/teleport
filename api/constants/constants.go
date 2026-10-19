@@ -89,6 +89,11 @@ const (
 	// compatibility modes.
 	CertificateFormatStandard = "standard"
 
+	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
+	// from which this certificate is accepted for authentication.
+	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
+	CertCriticalOptionSourceAddress = "source-address"
+
 	// DurationNever is human friendly shortcut that is interpreted as a Duration of 0
 	DurationNever = "never"
 

@@ -115,6 +115,9 @@ message DiscoverSummary {
 
   // The summary for the Azure VM discovered instances.
   ResourceSummary azure_vms = 4;
+
+  // The summary for the Azure AKS discovered clusters.
+  ResourceSummary azure_aks = 5;
 }
 
 // ResourceSummary represents the summary of the discovered resources.
@@ -139,6 +142,9 @@ message IntegrationDiscoveredSummary {
 
   // The summary for the Azure VM discovered instances.
   ResourcesDiscoveredSummary azure_vms = 4;
+
+  // The summary for the Azure AKS discovered clusters.
+  ResourcesDiscoveredSummary azure_aks = 5;
 }
 
 // ResourcesDiscoveredSummary represents the AWS resources that were discovered.

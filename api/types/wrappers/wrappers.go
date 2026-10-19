@@ -21,27 +21,16 @@ import (
 	"encoding/json"
 	"slices"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	internalwrappers "github.com/gravitational/teleport/api/types/internal/wrappers"
 )
 
 // Traits is a wrapper around map with string
 // slices as values
 type Traits map[string][]string
 
-func (l Traits) protoType() *LabelValues {
-	v := &LabelValues{
-		Values: make(map[string]StringValues, len(l)),
-	}
-	for key, vals := range l {
-		stringValues := StringValues{
-			Values: make([]string, len(vals)),
-		}
-		copy(stringValues.Values, vals)
-		v.Values[key] = stringValues
-	}
-	return v
-}
+var _ internalwrappers.GogoprotoCustomType = (*Traits)(nil)
 
 // MarshalTraits will marshal Traits as JSON. Used to embed traits into
 // certificates.
@@ -74,74 +63,69 @@ func (l Traits) Clone() Traits {
 	return clone
 }
 
-// Marshal marshals value into protobuf representation
+// Size implements [internalwrappers.GogoprotoCustomType].
+func (l Traits) Size() int {
+	return internalwrappers.LabelValuesSizeFromMap(l)
+}
+
+// Marshal implements [internalwrappers.GogoprotoCustomType].
 func (l Traits) Marshal() ([]byte, error) {
-	return proto.Marshal(l.protoType())
+	return internalwrappers.LabelValuesMarshalFromMap(l)
 }
 
-// MarshalTo marshals value to the array
+// MarshalTo implements [internalwrappers.GogoprotoCustomType].
 func (l Traits) MarshalTo(data []byte) (int, error) {
-	return l.protoType().MarshalTo(data)
+	return internalwrappers.LabelValuesMarshalToFromMap(l, data)
 }
 
-// Unmarshal unmarshals value from protobuf
+// Unmarshal implements [internalwrappers.GogoprotoCustomType].
 func (l *Traits) Unmarshal(data []byte) error {
-	protoValues := &LabelValues{}
-	err := proto.Unmarshal(data, protoValues)
-	if err != nil {
-		return err
+	protoValues := new(LabelValues)
+	if err := protoValues.Unmarshal(data); err != nil {
+		return trace.Wrap(err)
 	}
 	if protoValues.Values == nil {
 		return nil
 	}
-	*l = make(map[string][]string, len(protoValues.Values))
-	for key := range protoValues.Values {
-		(*l)[key] = protoValues.Values[key].Values
+	newValues := make(Traits, len(protoValues.Values))
+	for key, values := range protoValues.Values {
+		newValues[key] = values.Values
 	}
+	*l = newValues
 	return nil
-}
-
-// Size returns protobuf size
-func (l Traits) Size() int {
-	return l.protoType().Size()
 }
 
 // Strings is a list of string that can unmarshal from list of strings
 // or a scalar string from scalar yaml or json property
 type Strings []string
 
-func (s *Strings) protoType() *StringValues {
-	return &StringValues{
-		Values: *s,
-	}
+var _ internalwrappers.GogoprotoCustomType = (*Strings)(nil)
+
+// Size implements [internalwrappers.GogoprotoCustomType].
+func (s Strings) Size() int {
+	return (&StringValues{Values: s}).Size()
 }
 
-// Marshal marshals value into protobuf representation
+// Marshal implements [internalwrappers.GogoprotoCustomType].
 func (s Strings) Marshal() ([]byte, error) {
-	return proto.Marshal(s.protoType())
+	return (&StringValues{Values: s}).Marshal()
 }
 
-// MarshalTo marshals value to the array
+// MarshalTo implements [internalwrappers.GogoprotoCustomType].
 func (s Strings) MarshalTo(data []byte) (int, error) {
-	return s.protoType().MarshalTo(data)
+	return (&StringValues{Values: s}).MarshalTo(data)
 }
 
-// Unmarshal unmarshals value from protobuf
+// Unmarshal implements [internalwrappers.GogoprotoCustomType].
 func (s *Strings) Unmarshal(data []byte) error {
-	protoValues := &StringValues{}
-	err := proto.Unmarshal(data, protoValues)
-	if err != nil {
-		return err
+	protoValues := new(StringValues)
+	if err := protoValues.Unmarshal(data); err != nil {
+		return trace.Wrap(err)
 	}
 	if protoValues.Values != nil {
 		*s = protoValues.Values
 	}
 	return nil
-}
-
-// Size returns protobuf size
-func (s Strings) Size() int {
-	return s.protoType().Size()
 }
 
 // UnmarshalJSON unmarshals scalar string or strings slice to Strings

@@ -109,6 +109,12 @@ const (
 	// RoleAccessGraphPlugin is a role for Access Graph plugins to access
 	// Teleport's internal API and access graph.
 	RoleAccessGraphPlugin SystemRole = "AccessGraphPlugin"
+
+	// RoleSSHHost is a role for a plain SSH direct-dial host. It only ever backs an SSH
+	// host cert; when present in a TLS cert it grants no cluster permissions. Used for
+	// manually registered Agentless nodes (via `tctl` or `tbot`) and for single-use
+	// forwarding node certs to impersonate the end node by principals only.
+	RoleSSHHost SystemRole = "SSHHost"
 )
 
 // roleMappings maps a set of allowed lowercase system role names
@@ -138,6 +144,7 @@ var roleMappings = map[string]SystemRole{
 	"okta":              RoleOkta,
 	"mdm":               RoleMDM,
 	"accessgraphplugin": RoleAccessGraphPlugin,
+	"sshhost":           RoleSSHHost,
 }
 
 func normalizedSystemRole(s string) SystemRole {

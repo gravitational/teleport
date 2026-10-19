@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	appv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/app/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
@@ -2719,16 +2720,30 @@ func (c *Client) DeleteToken(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// GetNode returns a node by name and namespace.
+// GetNode returns an unscoped node by name and namespace.
+//
+// Deprecated: Use [Client.GetSSHServer] instead, which supports scoped nodes.
+// TODO(williamo): Remove in v20
 func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
-	resp, err := c.grpc.GetNode(ctx, &types.ResourceInNamespaceRequest{
-		Name:      name,
-		Namespace: namespace,
-	})
+	return c.GetSSHServer(ctx, presencepb.GetSSHServerRequest_builder{Name: name}.Build())
+}
+
+// GetSSHServer returns a scoped or unscoped ssh servers by name.
+func (c *Client) GetSSHServer(ctx context.Context, req *presencepb.GetSSHServerRequest) (types.Server, error) {
+	resp, err := c.PresenceServiceClient().GetSSHServer(ctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsNotImplemented(trace.Wrap(err)) {
+			return nil, trace.Wrap(err)
+		}
+		if req.GetScope() != "" {
+			return nil, trace.BadParameter("requesting a scoped node from an outdated Teleport control plane that does not support it")
+		}
+		return c.grpc.GetNode(ctx, &types.ResourceInNamespaceRequest{
+			Name:      req.Name,
+			Namespace: defaults.Namespace,
+		})
 	}
-	return resp, nil
+	return resp.GetServer(), nil
 }
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
@@ -2739,6 +2754,94 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	})
 
 	return servers, trace.Wrap(err)
+}
+
+// ListSSHServers returns a page of registered ssh servers respecting scope filters.
+func (c *Client) ListSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) ([]types.Server, string, error) {
+	res, err := c.PresenceServiceClient().ListSSHServers(ctx, req)
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// only allow fallback if the request is not expecting results to be scope filtered
+		if req.GetScopeFilter().GetScope() != "" {
+			return nil, "", trace.BadParameter("requesting list of scoped nodes from an outdated Teleport control plane that does not support it")
+		}
+
+		return c.listNodesFallback(ctx, int(req.GetPageSize()), req.GetPageToken())
+	}
+
+	servers := make([]types.Server, 0, len(res.GetServers()))
+	for _, server := range res.GetServers() {
+		servers = append(servers, server)
+	}
+	return servers, res.GetNextPageToken(), nil
+}
+
+func (c *Client) listNodesFallback(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	resp, err := c.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    defaults.Namespace,
+		Limit:        int32(pageSize),
+		StartKey:     pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	servers := make([]types.Server, 0, len(resp.Resources))
+	for _, resource := range resp.Resources {
+		server, ok := resource.(types.Server)
+		if !ok {
+			return nil, "", trace.BadParameter("expected types.Server, got %T", resource)
+		}
+		servers = append(servers, server)
+	}
+	return servers, resp.NextKey, nil
+}
+
+// RangeSSHServers returns a sequence of ssh servers filtered by the given
+// [*presencepb.ListSSHServersRequest].
+func (c *Client) RangeSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) iter.Seq2[types.Server, error] {
+	if req == nil {
+		req = presencepb.ListSSHServersRequest_builder{}.Build()
+	}
+
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+		req.SetPageToken(pageToken)
+		req.SetPageSize(int32(pageSize))
+		return c.ListSSHServers(ctx, req)
+	}
+	return func(yield func(cluster types.Server, err error) bool) {
+		var fallback bool
+		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", pageFn, types.Server.GetName) {
+			if trace.IsNotImplemented(err) {
+				// if control plane does not support ListNodes, we should try to fallback to the
+				// ListResources API
+				fallback = true
+				break
+			}
+			if !yield(cluster, err) {
+				return
+			}
+		}
+		if !fallback {
+			return
+		}
+		if req.GetScopeFilter().GetScope() != "" {
+			// only allow fallback if the request is not expecting results to be scope filtered
+			yield(nil, trace.BadParameter("requesting range of scoped kube cluster from an outdated Teleport control plane that does not support it"))
+			return
+		}
+		// fallback iterator
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", c.listNodesFallback, nil) {
+			if !yield(cluster, err) {
+				return
+			}
+		}
+	}
 }
 
 // UpsertNode is used by SSH servers to report their presence
@@ -2758,7 +2861,10 @@ func (c *Client) UpsertNode(ctx context.Context, node types.Server) (*types.Keep
 	return keepAlive, nil
 }
 
-// DeleteNode deletes a node by name and namespace.
+// DeleteNode deletes an unscoped node by name and namespace.
+//
+// Deprecated: Use [Client.DeleteSSHServer] instead, which supports scoped nodes.
+// TODO(williamo): Remove in v20
 func (c *Client) DeleteNode(ctx context.Context, namespace, name string) error {
 	if namespace == "" {
 		return trace.BadParameter("missing parameter namespace")
@@ -2766,11 +2872,29 @@ func (c *Client) DeleteNode(ctx context.Context, namespace, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	_, err := c.grpc.DeleteNode(ctx, &types.ResourceInNamespaceRequest{
-		Name:      name,
-		Namespace: namespace,
-	})
-	return trace.Wrap(err)
+	return trace.Wrap(c.DeleteSSHServer(ctx, presencepb.DeleteSSHServerRequest_builder{Name: name}.Build()))
+}
+
+// DeleteSSHServer deletes a scoped or unscoped ssh server by name.
+func (c *Client) DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSHServerRequest) error {
+	_, err := c.PresenceServiceClient().DeleteSSHServer(ctx, req)
+	if err != nil {
+		if !trace.IsNotImplemented(trace.Wrap(err)) {
+			return trace.Wrap(err)
+		}
+		if req.GetScope() != "" {
+			return trace.BadParameter("requesting deletion of a scoped node from an outdated Teleport control plane that does not support it")
+		}
+
+		if _, err := c.grpc.DeleteNode(ctx, &types.ResourceInNamespaceRequest{
+			Namespace: defaults.Namespace,
+			Name:      req.Name,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+
+	}
+	return nil
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace.
@@ -4113,6 +4237,37 @@ func (c *Client) DeleteKubernetesWaitingContainer(ctx context.Context, req *kube
 // StaticHostUserClient returns a new static host user client.
 func (c *Client) StaticHostUserClient() *statichostuserclient.Client {
 	return statichostuserclient.NewClient(userprovisioningpb.NewStaticHostUsersServiceClient(c.conn))
+}
+
+// ListStaticHostUsers lists static host users.
+func (c *Client) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
+	return c.StaticHostUserClient().ListStaticHostUsers(ctx, pageSize, pageToken)
+}
+
+// GetStaticHostUser returns a static host user by name.
+func (c *Client) GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error) {
+	return c.StaticHostUserClient().GetStaticHostUser(ctx, name)
+}
+
+// CreateStaticHostUser creates a static host user.
+func (c *Client) CreateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+	return c.StaticHostUserClient().CreateStaticHostUser(ctx, in)
+}
+
+// UpdateStaticHostUser updates a static host user.
+func (c *Client) UpdateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+	return c.StaticHostUserClient().UpdateStaticHostUser(ctx, in)
+}
+
+// UpsertStaticHostUser upserts a static host user.
+func (c *Client) UpsertStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+	return c.StaticHostUserClient().UpsertStaticHostUser(ctx, in)
+}
+
+// DeleteStaticHostUser deletes a static host user. Note that this does not
+// remove any host users created on nodes from the resource.
+func (c *Client) DeleteStaticHostUser(ctx context.Context, name string) error {
+	return c.StaticHostUserClient().DeleteStaticHostUser(ctx, name)
 }
 
 // CreateDatabase creates a new database resource.
@@ -6328,6 +6483,11 @@ func (c *Client) UpdateScopedToken(ctx context.Context, token *joiningv1.ScopedT
 		Token: token,
 	})
 	return res.GetToken(), trace.Wrap(err)
+}
+
+// AppIssuanceClient returns an [appv1.AppIssuanceServiceClient].
+func (c *Client) AppIssuanceClient() appv1.AppIssuanceServiceClient {
+	return appv1.NewAppIssuanceServiceClient(c.conn)
 }
 
 // WorkloadClustersClient returns an [workloadclusterv1.WorkloadClusterServiceClient].

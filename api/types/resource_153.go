@@ -137,6 +137,16 @@ func Resource153ToLegacy[T Resource153](r T) Resource {
 	return &resource153ToLegacyAdapter[T]{inner: r}
 }
 
+// Resource153ToLegacyWithSecrets extends [Resource153ToLegacy] with a
+// secret-removing function, allowing the returned legacy type to
+// implement [ResourceWithSecrets].
+func Resource153ToLegacyWithSecrets[T Resource153](r T, copyWithoutSecrets func(T) T) ResourceWithSecrets {
+	return &resource153ToLegacyAdapter[T]{
+		inner:              r,
+		copyWithoutSecrets: copyWithoutSecrets,
+	}
+}
+
 // Resource153UnwrapperT returns a [T] from a wrapped RFD
 // 153 style resource.
 type Resource153UnwrapperT[T Resource153] interface{ UnwrapT() T }
@@ -144,7 +154,18 @@ type Resource153UnwrapperT[T Resource153] interface{ UnwrapT() T }
 // resource153ToLegacyAdapter wraps a new-style resource in a type implementing
 // the legacy resource interfaces
 type resource153ToLegacyAdapter[T Resource153] struct {
-	inner T
+	inner              T
+	copyWithoutSecrets func(T) T
+}
+
+// WithoutSecrets returns an instance of the resource which
+// has had all secrets removed.  If the current resource has
+// already had its secrets removed, this may be a no-op.
+func (r *resource153ToLegacyAdapter[T]) WithoutSecrets() Resource {
+	if r.copyWithoutSecrets == nil {
+		return r
+	}
+	return Resource153ToLegacy(r.copyWithoutSecrets(r.inner))
 }
 
 // UnwrapT is an escape hatch for Resource153 instances that are piped down into
@@ -252,10 +273,32 @@ func Resource153ToResourceWithLabels[T Resource153](r T) ResourceWithLabels {
 	}
 }
 
+// Resource153ToResourceWithLabelsSecrets extends [Resource153ToResourceWithLabels]
+// with a secret-removing function, allowing the returned legacy type to implement
+// [ResourceWithSecrets].
+func Resource153ToResourceWithLabelsAndSecrets[T Resource153](r T, copyWithoutSecrets func(T) T) ResourceWithLabels {
+	return &resource153ToResourceWithLabelsAdapter[T]{
+		resource153ToLegacyAdapter: resource153ToLegacyAdapter[T]{
+			inner:              r,
+			copyWithoutSecrets: copyWithoutSecrets,
+		},
+	}
+}
+
 // resource153ToResourceWithLabelsAdapter wraps a new-style resource in a
 // type implementing the legacy resource interfaces
 type resource153ToResourceWithLabelsAdapter[T Resource153] struct {
 	resource153ToLegacyAdapter[T]
+}
+
+// WithoutSecrets returns an instance of the resource which
+// has had all secrets removed.  If the current resource has
+// already had its secrets removed, this may be a no-op.
+func (r *resource153ToResourceWithLabelsAdapter[T]) WithoutSecrets() Resource {
+	if r.copyWithoutSecrets == nil {
+		return r
+	}
+	return Resource153ToResourceWithLabels(r.copyWithoutSecrets(r.inner))
 }
 
 // UnwrapT is an escape hatch for Resource153 instances that are piped down into
@@ -339,6 +382,16 @@ type protoResource153ToLegacyAdapter[T ProtoResource153] struct {
 	resource153ToResourceWithLabelsAdapter[T]
 }
 
+// WithoutSecrets returns an instance of the resource which
+// has had all secrets removed.  If the current resource has
+// already had its secrets removed, this may be a no-op.
+func (r *protoResource153ToLegacyAdapter[T]) WithoutSecrets() Resource {
+	if r.copyWithoutSecrets == nil {
+		return r
+	}
+	return ProtoResource153ToLegacy(r.copyWithoutSecrets(r.inner))
+}
+
 func (r *protoResource153ToLegacyAdapter[T]) CloneResource() ResourceWithLabels {
 	clone := proto.CloneOf(r.inner)
 	return ProtoResource153ToLegacy(clone)
@@ -371,7 +424,22 @@ func ProtoResource153ToLegacy[T ProtoResource153](r T) ClonableResourceWithLabel
 	return &protoResource153ToLegacyAdapter[T]{
 		r,
 		resource153ToResourceWithLabelsAdapter[T]{
-			resource153ToLegacyAdapter[T]{r},
+			resource153ToLegacyAdapter[T]{inner: r},
+		},
+	}
+}
+
+// ProtoResource153ToLegacyWithSecrets extends [ProtoResource153ToLegacy]
+// with a secret-removing function, allowing the returned legacy type to implement
+// [ResourceWithSecrets].
+func ProtoResource153ToLegacyWithSecrets[T ProtoResource153](r T, copyWithoutSecrets func(T) T) ClonableResourceWithLabels {
+	return &protoResource153ToLegacyAdapter[T]{
+		inner: r,
+		resource153ToResourceWithLabelsAdapter: resource153ToResourceWithLabelsAdapter[T]{
+			resource153ToLegacyAdapter: resource153ToLegacyAdapter[T]{
+				inner:              r,
+				copyWithoutSecrets: copyWithoutSecrets,
+			},
 		},
 	}
 }
