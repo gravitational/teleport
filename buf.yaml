@@ -99,6 +99,9 @@ breaking:
     - api/proto/teleport/join/v1
     # TODO(eriktate): Remove ignore once the new scopes API is stable.
     - api/proto/teleport/scopes
+    # "teleport/scopes" is transitively imported by the "proto/" module, so we
+    # need an explicit ignore path. Could be replaced by --exclude-imports in CI.
+    - proto/teleport/scopes
 
 plugins:
   - plugin:
