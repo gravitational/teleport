@@ -115,6 +115,9 @@ func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header)
 // marshalIdentity preserves json v1 identity wire format while
 // omitting zero values to keep forwarding headers small.
 func marshalIdentity(identity tlsca.Identity) ([]byte, error) {
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+	identity.AllowedResourceIDs = identity.LegacyAllowedResourceIDs()
+
 	return jsonv2.Marshal(
 		&identity,
 		json.DefaultOptionsV1(),

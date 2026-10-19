@@ -290,6 +290,9 @@ func (m *Middleware) extractIdentityFromImpersonationHeader(proxyCluster string,
 	if err := json.Unmarshal([]byte(impersonate), &impersonatedIdentity); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := impersonatedIdentity.ReconcileResourceIDs(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	switch {
 	case findPrimarySystemRole(impersonatedIdentity.Groups) != nil:

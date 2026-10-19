@@ -807,6 +807,57 @@ var (
 	DeviceCredentialIDExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 3, 3}
 )
 
+// LegacyAllowedResourceIDs returns the value to encode into the deprecated
+// AllowedResourceIDs field when this identity is sent to another Teleport
+// process, in a cert or forwarded header. Since any receiver predating
+// AllowedResourceAccessIDs interprets an empty list as "no resource-specific
+// restrictions", identities restricted solely by AllowedResourceAccessIDs must
+// also be encoded with a non-matching sentinel value in AllowedResourceIDs.
+//
+// TODO(kiosion): DELETE in 21.0.0
+func (id *Identity) LegacyAllowedResourceIDs() []types.ResourceID {
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+	if len(id.AllowedResourceIDs) > 0 {
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+		return id.AllowedResourceIDs
+	}
+	if len(id.AllowedResourceAccessIDs) > 0 {
+		return []types.ResourceID{types.CreateSentinelResourceID()}
+	}
+	return nil
+}
+
+// ReconcileResourceIDs makes the identity's two resource restriction lists
+// consistent after decoding from a certificate or forwarded header. A sentinel-only
+// legacy list without the new field means a peer lost the resource constraints and is
+// rejected. Otherwise the sentinel is removed and legacy resources are copied to
+// AllowedResourceAccessIDs.
+//
+// TODO(kiosion): DELETE in 21.0.0
+func (id *Identity) ReconcileResourceIDs() error {
+	var resourceIDs []types.ResourceID
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+	for _, rid := range id.AllowedResourceIDs {
+		if !types.IsSentinelResourceID(rid) {
+			resourceIDs = append(resourceIDs, rid)
+		}
+	}
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+	if len(id.AllowedResourceAccessIDs) == 0 && len(id.AllowedResourceIDs) > 0 && len(resourceIDs) == 0 {
+		return trace.AccessDenied("can not read resource restrictions in identity. Upgrade the Teleport Proxy component")
+	}
+
+	switch {
+	case len(id.AllowedResourceAccessIDs) > 0:
+		resourceIDs, _ = types.UnwrapResourceAccessIDs(id.AllowedResourceAccessIDs)
+	case len(resourceIDs) > 0:
+		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(resourceIDs, nil)
+	}
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+	id.AllowedResourceIDs = resourceIDs
+	return nil
+}
+
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
 	// Agent scope pins encode role and scope exclusively via the ScopePin field.
@@ -1210,10 +1261,8 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
-	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
-	if len(id.AllowedResourceIDs) > 0 {
-		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
-		allowedResourcesStr, err := types.ResourceIDsToString(id.AllowedResourceIDs)
+	if legacyResourceIDs := id.LegacyAllowedResourceIDs(); len(legacyResourceIDs) > 0 {
+		allowedResourcesStr, err := types.ResourceIDsToString(legacyResourceIDs)
 		if err != nil {
 			return pkix.Name{}, trace.Wrap(err)
 		}
@@ -1221,23 +1270,6 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AllowedResourcesASN1ExtensionOID,
 				Value: allowedResourcesStr,
-			},
-		)
-	} else if len(id.AllowedResourceAccessIDs) > 0 {
-		// If an identity is resource-constrained exclusively via AllowedResourceAccessIDs,
-		// we add a non-matching sentinel ResourceID into AllowedResourceIDs.
-		// This prevents authorization paths that only parse AllowedResourceIDs and ignore AllowedResourceAccessIDs
-		// (e.g., older Auths in mixed-version clusters) from interpreting an empty AllowedResourceIDs slice as
-		// "no resource-specific restrictions".
-		// TODO(kiosion): DELETE in 21.0.0
-		sentinelResourceIDStr, err := types.ResourceIDsToString([]types.ResourceID{types.CreateSentinelResourceID()})
-		if err != nil {
-			return pkix.Name{}, trace.Wrap(err)
-		}
-		subject.ExtraNames = append(subject.ExtraNames,
-			pkix.AttributeTypeAndValue{
-				Type:  AllowedResourcesASN1ExtensionOID,
-				Value: sentinelResourceIDStr,
 			},
 		)
 	}
@@ -1644,18 +1676,7 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				filteredAllowedResourceIDs := make([]types.ResourceID, 0, len(resourceIDs))
-				for _, rid := range resourceIDs {
-					// AllowedResourceIDs may contain a non-matching sentinel whose sole purpose is to prevent
-					// authorization paths (e.g., older versions operating in mixed-version clusters) that ignore
-					// AllowedResourceAccessIDs from treating an otherwise resource-scoped identity as unconstrained.
-					//
-					// It should be filtered out at decoding here, as it's not a real "requested resource".
-					if !types.IsSentinelResourceID(rid) {
-						filteredAllowedResourceIDs = append(filteredAllowedResourceIDs, rid)
-					}
-				}
-				allowedResourceIDs = filteredAllowedResourceIDs
+				allowedResourceIDs = resourceIDs
 			}
 		case attr.Type.Equal(AllowedResourceAccessIDsASN1ExtensionOID):
 			val, ok := attr.Value.(string)
@@ -1736,21 +1757,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		}
 	}
 
-	if len(allowedResourceAccessIDs) > 0 {
-		// Prefer new extension when present.
-		id.AllowedResourceAccessIDs = allowedResourceAccessIDs
-		// Populate AllowedResourceIDs with any present unconstrained resources,
-		// so any path re-encoding this identity (e.g., database proxy CSR signing)
-		// persists the resourceIDs to the legacy extension, instead of adding a
-		// sentinel.
-		//
-		// TODO(kiosion): DELETE in 20.0.0
-		id.AllowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
-	} else if len(allowedResourceIDs) > 0 {
-		// Fallback for certs from older Auths that don't write the new extension.
-		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
-		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v20
-		id.AllowedResourceIDs = allowedResourceIDs
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+	id.AllowedResourceIDs = allowedResourceIDs
+	id.AllowedResourceAccessIDs = allowedResourceAccessIDs
+	if err := id.ReconcileResourceIDs(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {

@@ -635,6 +635,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	var (
 		allowedResourceIDs       []types.ResourceID
 		allowedResourceAccessIDs []types.ResourceAccessID
+		legacySentinelOnly       bool
 	)
 
 	if v, ok := takeExtension(teleport.CertExtensionAllowedResources); ok {
@@ -644,16 +645,12 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		}
 		filteredResourceIDs := make([]types.ResourceID, 0, len(resourceIDs))
 		for _, rid := range resourceIDs {
-			// AllowedResourceIDs may contain a non-matching sentinel whose sole purpose is to prevent
-			// authorization paths (e.g., older versions operating in mixed-version clusters) that ignore
-			// AllowedResourceAccessIDs from treating an otherwise resource-scoped identity as unconstrained.
-			//
-			// It should be filtered out at decoding here, as it's not a real "requested resource".
 			if types.IsSentinelResourceID(rid) {
 				continue
 			}
 			filteredResourceIDs = append(filteredResourceIDs, rid)
 		}
+		legacySentinelOnly = len(resourceIDs) > 0 && len(filteredResourceIDs) == 0
 		allowedResourceIDs = filteredResourceIDs
 	}
 	if v, ok := takeExtension(teleport.CertExtensionAllowedResourceAccessIDs); ok {
@@ -662,6 +659,9 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 			return nil, trace.BadParameter("failed to parse value %q for extension %q as resourceAccessIDs: %v", v, teleport.CertExtensionAllowedResourceAccessIDs, err)
 		}
 		allowedResourceAccessIDs = resourceAccessIDs
+	}
+	if legacySentinelOnly && len(allowedResourceAccessIDs) == 0 {
+		return nil, trace.AccessDenied("can not read resource restrictions in identity. Upgrade the Teleport Proxy component")
 	}
 	if len(allowedResourceAccessIDs) > 0 {
 		// Prefer new extension when present.

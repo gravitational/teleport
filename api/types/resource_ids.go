@@ -365,7 +365,7 @@ func CreateSentinelResourceID() ResourceID {
 	}
 }
 
-// IsSentinelResourceID reports whether the given [ResourceD] is a sentinel produced by
+// IsSentinelResourceID reports whether the given [ResourceID] is a sentinel produced by
 // [CreateSentinelResourceID]. See [CreateSentinelResourceID] for the rationale and required
 // handling.
 //

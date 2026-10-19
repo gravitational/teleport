@@ -22,6 +22,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/protoadapt"
 )
 
 const (
@@ -29,6 +30,12 @@ const (
 )
 
 func (rc *ResourceConstraints) CheckAndSetDefaults() error {
+	// unknown fields are preserved by proto decoding but are unenforcable
+	// by this Auth; reject if any are present. Converted using protoadapt
+	// to avoid depending on either google or gogo unknown field APIs.
+	if len(protoadapt.MessageV2Of(rc).ProtoReflect().GetUnknown()) > 0 {
+		return trace.BadParameter("unrecognized fields in constraints. Request the resource without constraints")
+	}
 	if rc.Version == "" {
 		rc.Version = ResourceConstraintVersionV1
 	} else if rc.Version != ResourceConstraintVersionV1 {
@@ -113,6 +120,9 @@ func (awsc *ResourceConstraints_AwsConsole) Validate() error {
 	if awsc == nil || awsc.AwsConsole == nil || len(awsc.AwsConsole.RoleArns) == 0 {
 		return trace.BadParameter("aws_console constraints require role_arns, none provided")
 	}
+	if len(protoadapt.MessageV2Of(awsc.AwsConsole).ProtoReflect().GetUnknown()) > 0 {
+		return trace.BadParameter("unrecognized fields in AWS console constraints. Request the resource without constraints")
+	}
 	return nil
 }
 
@@ -120,6 +130,9 @@ func (awsc *ResourceConstraints_AwsConsole) Validate() error {
 func (sshc *ResourceConstraints_Ssh) Validate() error {
 	if sshc == nil || sshc.Ssh == nil || len(sshc.Ssh.Logins) == 0 {
 		return trace.BadParameter("ssh constraints require logins, none provided")
+	}
+	if len(protoadapt.MessageV2Of(sshc.Ssh).ProtoReflect().GetUnknown()) > 0 {
+		return trace.BadParameter("unrecognized fields in SSH constraints. Request the resource without constraints")
 	}
 	return nil
 }
