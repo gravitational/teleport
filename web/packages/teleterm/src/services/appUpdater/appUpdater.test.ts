@@ -19,6 +19,7 @@
 import { createHash } from 'node:crypto';
 
 import { MacUpdater } from 'electron-updater';
+import { DownloadExecutorResult } from 'electron-updater/out/AppUpdater';
 
 import type { GetClusterVersionsResponse } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 import { wait } from 'shared/utils/wait';
@@ -84,14 +85,14 @@ class MockedMacUpdater extends MacUpdater {
     );
   }
 
-  protected override async doDownloadUpdate(): Promise<string[]> {
+  protected override async doDownloadUpdate(): Promise<DownloadExecutorResult> {
     // Simulate download.
     await wait(10);
     this.dispatchUpdateDownloaded({
       ...this.updateInfoAndProvider.info,
       downloadedFile: 'some-update',
     });
-    return ['some-update'];
+    return { updateFile: 'some-update' };
   }
 
   override quitAndInstall() {}
