@@ -620,6 +620,8 @@ enum NeedsReviewReason {
   NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED = 6;
   // ClassificationFailed indicates that classifier evaluation was incomplete.
   NEEDS_REVIEW_REASON_CLASSIFICATION_FAILED = 7;
+  // AnalysisDeclined indicates that the model or a content filter declined to assess part of the activity.
+  NEEDS_REVIEW_REASON_ANALYSIS_DECLINED = 8;
 }
 
 // RiskScoreReason represents a reason that contributed to the overall risk score of a session.

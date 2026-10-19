@@ -168,6 +168,8 @@ func formatReviewReason(r summarizerv1pb.NeedsReviewReason) string {
 		return "access request resource mismatch"
 	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED:
 		return "output not fully captured"
+	case summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_ANALYSIS_DECLINED:
+		return "model declined to analyze part of the activity"
 	default:
 		return strings.ToLower(strings.TrimPrefix(r.String(), "NEEDS_REVIEW_REASON_"))
 	}

@@ -447,6 +447,8 @@ const (
 	NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED NeedsReviewReason = 6
 	// ClassificationFailed indicates that classifier evaluation was incomplete.
 	NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFICATION_FAILED NeedsReviewReason = 7
+	// AnalysisDeclined indicates that the model or a content filter declined to assess part of the activity.
+	NeedsReviewReason_NEEDS_REVIEW_REASON_ANALYSIS_DECLINED NeedsReviewReason = 8
 )
 
 // Enum value maps for NeedsReviewReason.
@@ -460,6 +462,7 @@ var (
 		5: "NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED",
 		6: "NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED",
 		7: "NEEDS_REVIEW_REASON_CLASSIFICATION_FAILED",
+		8: "NEEDS_REVIEW_REASON_ANALYSIS_DECLINED",
 	}
 	NeedsReviewReason_value = map[string]int32{
 		"NEEDS_REVIEW_REASON_UNSPECIFIED":                      0,
@@ -470,6 +473,7 @@ var (
 		"NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED":        5,
 		"NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED":               6,
 		"NEEDS_REVIEW_REASON_CLASSIFICATION_FAILED":            7,
+		"NEEDS_REVIEW_REASON_ANALYSIS_DECLINED":                8,
 	}
 )
 
@@ -4959,7 +4963,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x1cTHREAT_CATEGORY_EXFILTRATION\x10\n" +
 	"\x12\x1a\n" +
 	"\x16THREAT_CATEGORY_IMPACT\x10\v\x12\x18\n" +
-	"\x14THREAT_CATEGORY_NONE\x10\f*\x8c\x03\n" +
+	"\x14THREAT_CATEGORY_NONE\x10\f*\xb7\x03\n" +
 	"\x11NeedsReviewReason\x12#\n" +
 	"\x1fNEEDS_REVIEW_REASON_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dNEEDS_REVIEW_REASON_TOO_LARGE\x10\x01\x12/\n" +
@@ -4968,7 +4972,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"4NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH\x10\x04\x121\n" +
 	"-NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED\x10\x05\x12*\n" +
 	"&NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED\x10\x06\x12-\n" +
-	")NEEDS_REVIEW_REASON_CLASSIFICATION_FAILED\x10\a*\xdd\x01\n" +
+	")NEEDS_REVIEW_REASON_CLASSIFICATION_FAILED\x10\a\x12)\n" +
+	"%NEEDS_REVIEW_REASON_ANALYSIS_DECLINED\x10\b*\xdd\x01\n" +
 	"\x1aBeamInstructionConsistency\x12,\n" +
 	"(BEAM_INSTRUCTION_CONSISTENCY_UNSPECIFIED\x10\x00\x12+\n" +
 	"'BEAM_INSTRUCTION_CONSISTENCY_CONSISTENT\x10\x01\x125\n" +
