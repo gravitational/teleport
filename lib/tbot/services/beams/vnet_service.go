@@ -408,7 +408,8 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 			}.Build(),
 		}.Build(), nil
 	case vnet.IsHTTPSTunnelApp(app):
-		// HTTP and LLM apps are tunneled via the HTTPS-in-mTLS ALPN protocol.
+		// HTTP, LLM and streamable-HTTP MCP apps are tunneled via the
+		// HTTPS-in-mTLS ALPN protocol.
 		// Browser access via this tunnel is currently disabled on the web app
 		// handler, which should be fine for common use cases inside beams.
 		return vnetv1.ResolveFQDNResponse_builder{
