@@ -24,9 +24,8 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/discoverydoctor"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -37,12 +36,9 @@ import (
 // discoveryClient abstracts the auth client methods used by discovery commands.
 // It is a strict subset of authclient.Client.
 type discoveryClient interface {
+	discoverydoctor.DatabaseClient
 	// SearchEvents searches audit events.
 	SearchEvents(ctx context.Context, req libevents.SearchEventsRequest) ([]apievents.AuditEvent, string, error)
-	// GetResources lists resources with pagination.
-	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
-	// ListDatabases lists registered databases with pagination.
-	ListDatabases(ctx context.Context, limit int, start string) ([]types.Database, string, error)
 	// UserTasksClient returns a client for managing user tasks.
 	UserTasksClient() services.UserTasks
 	// DiscoveryConfigClient returns a client for accessing discovery config.
