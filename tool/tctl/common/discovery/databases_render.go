@@ -17,7 +17,6 @@
 package discovery
 
 import (
-	"cmp"
 	"fmt"
 	"io"
 	"strings"
@@ -27,103 +26,61 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/usertasks"
+	"github.com/gravitational/teleport/lib/discoverydoctor"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func renderDatabases(w io.Writer, databases []databaseInfo, format string) error {
+func renderDatabases(w io.Writer, diagnostics discoverydoctor.DatabaseDiagnostics, format string) error {
 	switch format {
 	case teleport.Text:
-		return trace.Wrap(renderDatabasesText(w, databases))
+		return trace.Wrap(renderDatabasesText(w, diagnostics))
 	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(w, databases))
+		return trace.Wrap(utils.WriteJSONArray(w, diagnostics))
 	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(w, databases))
+		return trace.Wrap(utils.WriteYAML(w, diagnostics))
 	default:
 		return trace.BadParameter("unknown format %q", format)
 	}
 }
 
 // renderDatabasesText writes discovered databases, availability, and health.
-func renderDatabasesText(w io.Writer, databaseInfos []databaseInfo) error {
-	if len(databaseInfos) == 0 {
+func renderDatabasesText(w io.Writer, diagnostics discoverydoctor.DatabaseDiagnostics) error {
+	if len(diagnostics) == 0 {
 		_, err := fmt.Fprintln(w, "No databases found.")
 		return trace.Wrap(err)
 	}
 
-	var (
-		hasNoService bool
-		hasUnhealthy bool
-	)
-	issueTypes := map[string]struct{}{}
 	columns := []string{"Cloud", "Account", "Region", "Database", "Time", "Status", "Details"}
 	table := asciitable.MakeTable(columns)
-	for _, dbInfo := range databaseInfos {
-		hasNoService = hasNoService || dbInfo.noService
-		hasUnhealthy = hasUnhealthy || dbInfo.unhealthy
-		for _, issueType := range dbInfo.userTaskIssueTypes {
-			issueTypes[issueType] = struct{}{}
-		}
+	for _, diagnostic := range diagnostics {
 		var timestamp string
-		if !dbInfo.Time.IsZero() {
-			timestamp = dbInfo.Time.UTC().Format(time.RFC3339)
+		if !diagnostic.Time.IsZero() {
+			timestamp = diagnostic.Time.UTC().Format(time.RFC3339)
 		}
 		table.AddRow([]string{
-			dbInfo.Cloud,
-			dbInfo.AccountID,
-			dbInfo.Region,
-			dbInfo.Name,
+			diagnostic.Cloud,
+			diagnostic.AccountID,
+			diagnostic.Region,
+			diagnostic.Name,
 			timestamp,
-			dbInfo.Status,
-			dbInfo.textDetails(),
+			diagnostic.Status,
+			databaseTextDetails(diagnostic),
 		})
 	}
 
 	if _, err := table.AsBuffer().WriteTo(w); err != nil {
 		return trace.Wrap(err)
 	}
-	if !hasNoService && !hasUnhealthy && len(issueTypes) == 0 {
+	recommendations := diagnostics.Recommendations()
+	if len(recommendations) == 0 {
 		return nil
 	}
-	// TODO(gavin): add docs links for each step
 	if _, err := fmt.Fprintln(w, "\nNext steps"); err != nil {
 		return trace.Wrap(err)
 	}
-	actionItems := []actionItem{
-		{
-			render: hasNoService,
-			detail: databaseDetailNoService,
-			description: `
-Deploy a Teleport Database Service and ensure its db_service.resources label
-selectors match the database's labels.`,
-		},
-		{
-			render: hasUnhealthy,
-			detail: databaseDetailUnhealthy,
-			description: `
-Inspect the health check failure in db_server status.target_health and the
-Database Service logs. Ensure the Database Service can reach the database
-endpoint over the network, including VPC routes and security group rules.`,
-		},
-	}
-
-	for issueType := range issueTypes {
-		title, description := usertasks.DescriptionForDiscoverRDSIssue(issueType)
-		actionItems = append(actionItems, actionItem{
-			render: true,
-			detail: cmp.Or(title, issueType),
-			description: cmp.Or(description, `
-No troubleshooting guidance for this issue is available in this version of tctl.
-`),
-		})
-	}
-
-	for _, nextStep := range actionItems {
-		if !nextStep.render {
-			continue
-		}
-		detail := shortDatabaseDetail(nextStep.detail)
-		desc := nextStep.formatText()
+	for _, recommendation := range recommendations {
+		detail := shortDatabaseDetail(recommendation.Detail)
+		desc := formatRecommendationDescription(recommendation.Description)
 		if _, err := fmt.Fprintf(w, "\n%s\n%s\n", detail, desc); err != nil {
 			return trace.Wrap(err)
 		}
@@ -131,18 +88,9 @@ No troubleshooting guidance for this issue is available in this version of tctl.
 	return nil
 }
 
-type actionItem struct {
-	// render controls whether the actionable is included in rendered output.
-	render bool
-	// detail is the detail title.
-	detail string
-	// description is the action that must be taken to resolve the issue.
-	description string
-}
-
-// formatText formats the actionItem description for text output.
-func (a actionItem) formatText() string {
-	lines := strings.Split(strings.TrimSpace(a.description), "\n")
+// formatRecommendationDescription formats a recommendation description for text output.
+func formatRecommendationDescription(description string) string {
+	lines := strings.Split(strings.TrimSpace(description), "\n")
 	for i := range lines {
 		line := strings.TrimSpace(lines[i])
 		if line != "" {
@@ -152,11 +100,11 @@ func (a actionItem) formatText() string {
 	return strings.Join(lines, "\n")
 }
 
-// textDetails uses short issue labels in the table. The next steps section
+// databaseTextDetails uses short issue labels in the table. The next steps section
 // provides the troubleshooting guidance for these issues.
-func (db databaseInfo) textDetails() string {
-	details := make([]string, len(db.Details))
-	for i, detail := range db.Details {
+func databaseTextDetails(diagnostic discoverydoctor.DatabaseDiagnostic) string {
+	details := make([]string, len(diagnostic.Details))
+	for i, detail := range diagnostic.Details {
 		details[i] = shortDatabaseDetail(detail)
 	}
 	return strings.Join(details, "; ")
@@ -166,9 +114,9 @@ func (db databaseInfo) textDetails() string {
 // and next-step headings. Details without a short label are preserved.
 func shortDatabaseDetail(detail string) string {
 	switch detail {
-	case databaseDetailNoService:
+	case discoverydoctor.DatabaseDetailNoService:
 		return "No Database Service"
-	case databaseDetailUnhealthy:
+	case discoverydoctor.DatabaseDetailUnhealthy:
 		return "Unhealthy connection"
 	default:
 		return detail

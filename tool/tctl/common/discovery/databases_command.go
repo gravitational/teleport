@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/discoverydoctor"
 )
 
 type databasesArgs struct {
@@ -73,9 +74,9 @@ Examples:
 }
 
 func (d *databasesArgs) run(ctx context.Context, clt discoveryClient, w io.Writer) error {
-	databases, err := buildDatabasesInfo(ctx, clt, d.failuresOnly)
+	diagnostics, err := discoverydoctor.DiagnoseDatabases(ctx, clt, clt.UserTasksClient(), d.failuresOnly)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(renderDatabases(w, databases, d.format))
+	return trace.Wrap(renderDatabases(w, diagnostics, d.format))
 }

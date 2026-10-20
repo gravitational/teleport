@@ -14,12 +14,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package discovery
+// Package discoverydoctor reports availability and issues for automatically discovered resources.
+package discoverydoctor
 
 import (
 	"cmp"
 	"context"
 	"log/slog"
+	"maps"
 	"slices"
 	"time"
 
@@ -33,27 +35,37 @@ import (
 	usertaskstypes "github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/usertasks"
 )
 
-// statuses
+// Database availability statuses.
 const (
-	// databaseStatusOnline indicates a registered database with a Database
-	// Service proxying it and no RDS discovery issues or health check failures.
-	databaseStatusOnline = "Online"
-	// databaseStatusOffline indicates a missing Database Service heartbeat,
-	// an RDS discovery issue, or an unhealthy target.
-	databaseStatusOffline = "Offline"
+	// DatabaseStatusOnline indicates a Database Service heartbeat, no matching
+	// RDS discovery issues, and an aggregate target health other than unhealthy.
+	DatabaseStatusOnline = "Online"
+	// DatabaseStatusOffline indicates a missing Database Service heartbeat,
+	// a matching RDS discovery issue, or unhealthy targets on all serving agents.
+	DatabaseStatusOffline = "Offline"
 )
 
-// details
 const (
-	databaseDetailNoService = "No Database Service is proxying this database"
-	databaseDetailUnhealthy = "The Database Service connection to this database is unhealthy"
+	// DatabaseDetailNoService describes a missing Database Service heartbeat.
+	DatabaseDetailNoService = "No Database Service is proxying this database"
+	// DatabaseDetailUnhealthy describes unhealthy connections from all serving agents.
+	DatabaseDetailUnhealthy = "The Database Service connection to this database is unhealthy"
 )
 
-// databaseInfo holds the output columns for a discovered database.
-type databaseInfo struct {
+// DatabaseClient provides registered databases and Database Service heartbeats.
+type DatabaseClient interface {
+	client.GetResourcesClient
+	// ListDatabases lists registered databases with pagination.
+	ListDatabases(ctx context.Context, limit int, start string) ([]types.Database, string, error)
+}
+
+// DatabaseDiagnostic describes a discovered database's availability and issues.
+// Its JSON representation matches "tctl discovery databases --format=json".
+type DatabaseDiagnostic struct {
 	Cloud     string    `json:"cloud"`
 	AccountID string    `json:"account_id"`
 	Region    string    `json:"region"`
@@ -62,16 +74,75 @@ type databaseInfo struct {
 	Status    string    `json:"status"`
 	Details   []string  `json:"details,omitempty"`
 
-	noService          bool     `json:"-"`
-	unhealthy          bool     `json:"-"`
-	userTaskIssueTypes []string `json:"-"`
+	// NoService indicates that no Database Service is proxying this database.
+	NoService bool `json:"-"`
+	// Unhealthy indicates that all serving agents report an unhealthy target.
+	Unhealthy bool `json:"-"`
+	// UserTaskIssueTypes identifies RDS issues for troubleshooting guidance.
+	UserTaskIssueTypes []string `json:"-"`
 }
 
-// buildDatabasesInfo correlates discovered AWS databases, Database Service
-// heartbeats, and open RDS discovery issue tasks. Time is the latest
-// discovery sync or target health transition, if available.
-// Database discovery analysis does not use audit events.
-func buildDatabasesInfo(ctx context.Context, clt discoveryClient, failuresOnly bool) ([]databaseInfo, error) {
+// DatabaseDiagnostics describes the availability and issues of discovered databases.
+type DatabaseDiagnostics []DatabaseDiagnostic
+
+// Recommendation describes troubleshooting guidance for a discovery issue.
+type Recommendation struct {
+	// Detail is the issue title.
+	Detail string `json:"detail"`
+	// Description explains how to resolve the issue.
+	Description string `json:"description"`
+}
+
+// Recommendations returns guidance for addressing the issues in diagnostics.
+// Each recommendation is included once. Service and health issues come first,
+// followed by user task issues sorted by type.
+func (diagnostics DatabaseDiagnostics) Recommendations() []Recommendation {
+	var hasNoService, hasUnhealthy bool
+	issueTypes := make(map[string]struct{})
+	for _, diagnostic := range diagnostics {
+		hasNoService = hasNoService || diagnostic.NoService
+		hasUnhealthy = hasUnhealthy || diagnostic.Unhealthy
+		for _, issueType := range diagnostic.UserTaskIssueTypes {
+			issueTypes[issueType] = struct{}{}
+		}
+	}
+
+	var recommendations []Recommendation
+	// TODO(gavin): add docs links for each step.
+	if hasNoService {
+		recommendations = append(recommendations, Recommendation{
+			Detail: DatabaseDetailNoService,
+			Description: `
+Deploy a Teleport Database Service and ensure its db_service.resources label
+selectors match the database's labels.`,
+		})
+	}
+	if hasUnhealthy {
+		recommendations = append(recommendations, Recommendation{
+			Detail: DatabaseDetailUnhealthy,
+			Description: `
+Inspect the health check failure in db_server status.target_health and the
+Database Service logs. Ensure the Database Service can reach the database
+endpoint over the network, including VPC routes and security group rules.`,
+		})
+	}
+	for _, issueType := range slices.Sorted(maps.Keys(issueTypes)) {
+		title, description := usertasks.DescriptionForDiscoverRDSIssue(issueType)
+		recommendations = append(recommendations, Recommendation{
+			Detail: cmp.Or(title, issueType),
+			Description: cmp.Or(description, `
+No troubleshooting guidance for this issue is available in this version of Teleport.
+`),
+		})
+	}
+	return recommendations
+}
+
+// DiagnoseDatabases correlates automatically discovered AWS databases with
+// Database Service heartbeats and open RDS discovery issue tasks.
+// If failuresOnly is true, only offline databases are returned.
+// An empty result is a non-nil slice so that it encodes as a JSON array.
+func DiagnoseDatabases(ctx context.Context, clt DatabaseClient, userTasks services.UserTasks, failuresOnly bool) (DatabaseDiagnostics, error) {
 	slog.DebugContext(ctx, "Fetching registered databases")
 	var databases []types.Database
 	for database, err := range clientutils.Resources(ctx, clt.ListDatabases) {
@@ -84,7 +155,7 @@ func buildDatabasesInfo(ctx context.Context, clt discoveryClient, failuresOnly b
 	}
 	slog.DebugContext(ctx, "Fetched discovered AWS databases", "count", len(databases))
 	if len(databases) == 0 {
-		return nil, nil
+		return DatabaseDiagnostics{}, nil
 	}
 
 	slog.DebugContext(ctx, "Fetching database servers")
@@ -104,7 +175,7 @@ func buildDatabasesInfo(ctx context.Context, clt discoveryClient, failuresOnly b
 
 	slog.DebugContext(ctx, "Fetching open user tasks")
 	tasks, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*usertasksv1.UserTask, string, error) {
-		return clt.UserTasksClient().ListUserTasks(ctx, int64(limit), token, usertasksv1.ListUserTasksFilters_builder{
+		return userTasks.ListUserTasks(ctx, int64(limit), token, usertasksv1.ListUserTasksFilters_builder{
 			TaskState: usertaskstypes.TaskStateOpen,
 		}.Build())
 	}))
@@ -114,15 +185,15 @@ func buildDatabasesInfo(ctx context.Context, clt discoveryClient, failuresOnly b
 	slog.DebugContext(ctx, "Fetched open user tasks", "count", len(tasks))
 	issues := collectRDSIssues(tasks)
 
-	infos := make([]databaseInfo, 0, len(databases))
-	for _, db := range databases {
-		info := buildDatabaseInfo(db, serversByDatabase[db.GetName()], issues)
-		if failuresOnly && info.Status == databaseStatusOnline {
+	diagnostics := make(DatabaseDiagnostics, 0, len(databases))
+	for _, database := range databases {
+		diagnostic := buildDatabaseDiagnostic(database, serversByDatabase[database.GetName()], issues)
+		if failuresOnly && diagnostic.Status == DatabaseStatusOnline {
 			continue
 		}
-		infos = append(infos, info)
+		diagnostics = append(diagnostics, diagnostic)
 	}
-	slices.SortFunc(infos, func(a, b databaseInfo) int {
+	slices.SortFunc(diagnostics, func(a, b DatabaseDiagnostic) int {
 		return cmp.Or(
 			cmp.Compare(a.AccountID, b.AccountID),
 			cmp.Compare(a.Region, b.Region),
@@ -131,7 +202,7 @@ func buildDatabasesInfo(ctx context.Context, clt discoveryClient, failuresOnly b
 			b.Time.Compare(a.Time),
 		)
 	})
-	return infos, nil
+	return diagnostics, nil
 }
 
 // rdsDatabaseID identifies an RDS instance or cluster independently of the
@@ -179,14 +250,14 @@ func collectRDSIssues(tasks []*usertasksv1.UserTask) map[rdsDatabaseID]rdsDataba
 	return issues
 }
 
-func buildDatabaseInfo(database types.Database, servers []types.DatabaseServer, issues map[rdsDatabaseID]rdsDatabaseIssues) databaseInfo {
+func buildDatabaseDiagnostic(database types.Database, servers []types.DatabaseServer, issues map[rdsDatabaseID]rdsDatabaseIssues) DatabaseDiagnostic {
 	aws := database.GetAWS()
-	info := databaseInfo{
-		Cloud:     cloudAWS,
+	diagnostic := DatabaseDiagnostic{
+		Cloud:     types.CloudAWS,
 		AccountID: aws.AccountID,
 		Region:    aws.Region,
 		Name:      database.GetName(),
-		Status:    databaseStatusOnline,
+		Status:    DatabaseStatusOnline,
 	}
 	if database.IsRDS() {
 		id := rdsDatabaseID{
@@ -199,34 +270,34 @@ func buildDatabaseInfo(database types.Database, servers []types.DatabaseServer, 
 			id.isCluster = true
 		}
 		if databaseIssues, hasIssue := issues[id]; hasIssue {
-			info.Status = databaseStatusOffline
-			info.Time = databaseIssues.latestSync
+			diagnostic.Status = DatabaseStatusOffline
+			diagnostic.Time = databaseIssues.latestSync
 			for _, issueType := range slices.Sorted(slices.Values(databaseIssues.issueTypes)) {
-				info.Details = append(info.Details, rdsIssueDetail(issueType))
-				info.userTaskIssueTypes = append(info.userTaskIssueTypes, issueType)
+				diagnostic.Details = append(diagnostic.Details, rdsIssueDetail(issueType))
+				diagnostic.UserTaskIssueTypes = append(diagnostic.UserTaskIssueTypes, issueType)
 			}
 		}
 	}
 	if len(servers) == 0 {
-		info.Status = databaseStatusOffline
-		info.Details = append(info.Details, databaseDetailNoService)
-		info.noService = true
+		diagnostic.Status = DatabaseStatusOffline
+		diagnostic.Details = append(diagnostic.Details, DatabaseDetailNoService)
+		diagnostic.NoService = true
 	} else {
 		statuses := make([]types.TargetHealthStatus, 0, len(servers))
 		for _, server := range servers {
 			statuses = append(statuses, server.GetTargetHealthStatus())
 			health := server.GetTargetHealth()
-			if transitionTime := health.GetTransitionTimestamp(); transitionTime.After(info.Time) {
-				info.Time = transitionTime
+			if transitionTime := health.GetTransitionTimestamp(); transitionTime.After(diagnostic.Time) {
+				diagnostic.Time = transitionTime
 			}
 		}
 		if types.AggregateHealthStatus(slices.Values(statuses)) == types.TargetHealthStatusUnhealthy {
-			info.Status = databaseStatusOffline
-			info.unhealthy = true
-			info.Details = append(info.Details, databaseDetailUnhealthy)
+			diagnostic.Status = DatabaseStatusOffline
+			diagnostic.Unhealthy = true
+			diagnostic.Details = append(diagnostic.Details, DatabaseDetailUnhealthy)
 		}
 	}
-	return info
+	return diagnostic
 }
 
 func rdsIssueDetail(issueType string) string {
