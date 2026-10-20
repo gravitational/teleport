@@ -2836,19 +2836,62 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 }
 
 func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	// AccessRequests are an internal resource, they should not be owned by the user.
+	// However, we did not split cleanly between user-owned and system-owned resources in the past.
+	// The same type is currently used both by the user to request access, the access request service to track the
+	// review progress, and the cert-issuance logic to grant rights.
+	// This leads to a class of bugs where users can see and set internal values and potentially set them.
+	// For backward compatibility reasons we must support the old RPC.
+	//
+	// We can differentiate between a user requesting access, and an admin/test performing operations by looking at the
+	// permissions.
+	// * If they are using their `access_request.create` right, they are an admin or a system caller.
+	//   They should be allowed to set arbitrary values.
+	// * If they are creating a pending request for themselves, this is a regular unprivileged user access flow.
+	//   They should be restricted to a smaller API and be unable to set other fields.
+	//
+	// The long-term fix is to split the RPC in two:
+	// * CreateAccessRequestV3() implementing a proper CRUD for the internal resource
+	// * RequestAccess() used by users to request access, not exposing the internal access request type to the caller.
+
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
-		// An exception is made to allow users to create *pending* access requests
-		// for themselves unless the create verb was explicitly denied.
-		if services.IsAccessExplicitlyDenied(err) || !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
-			return nil, trace.Wrap(err)
+		// User does not have rights to create arbitrary access requests, but they can still request for themselves
+		// under specific conditions.
+
+		if services.IsAccessExplicitlyDenied(err) {
+			return nil, trace.Wrap(err, "a rule explicitly denies creating access_requests")
 		}
+		if a.currentUserAction(req.GetUser()) != nil {
+			return nil, trace.Wrap(err, "unprivileged user cannot create requests on the behalf of others")
+		}
+
+		return a.createAccessRequestUser(ctx, req)
 	}
 
-	if !req.GetState().IsPending() {
-		if authz.IsCurrentUser(a.context, req.GetUser()) {
+	// We try to detect if the admin is creating a request for itself or for someone else.
+	// If they are requesting for themselves, we go through a usual user-request flow.
+	if authz.IsCurrentUser(a.context, req.GetUser()) {
+		// This check is not strictly required as a.createAccessRequestUser will force state to Pending
+		// but we were throwing an error before, so this is backward compatible.
+		if !req.GetState().IsPending() {
 			return nil, trace.AccessDenied("cannot create access request for self in non-pending state")
 		}
 
+		return a.createAccessRequestUser(ctx, req)
+	}
+
+	// This is an admin operation, entering the admin-specific flow.
+	resp, err := a.createAccessRequestAdmin(ctx, req)
+	return resp, trace.Wrap(err)
+}
+
+// createAccessRequestAdmin is used for admin operations on the access_request resource.
+// This is used for:
+// - local auth, and admin with tctl to create access requests for someone else
+// - test fixture creation in unit or integration tests
+// This flow is inherently high privilege and should be avoided when possible.
+func (a *ServerWithRoles) createAccessRequestAdmin(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	if !req.GetState().IsPending() {
 		if len(a.context.Identity.GetIdentity().ActiveRequests) != 0 {
 			return nil, trace.AccessDenied("cannot create access requests in non-pending state while using an access request")
 		}
@@ -2856,17 +2899,68 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 		log.Warnf("Use of resource-level access request 'create' permission by user %q to create non-pending access request for user %q. Creation of non-pending requests will be deprecated in future version of teleport. Consider migrating to a workflow with a separate approval step.", a.context.User.GetName(), req.GetUser())
 	}
 
-	if !authz.IsCurrentUser(a.context, req.GetUser()) {
-		// If this request was authorized by allow rules and not ownership, require MFA.
-		if err := a.context.AuthorizeAdminAction(); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// This request was authorized by allow rules and not ownership, require MFA.
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// ensure request ID is set server-side
 	req.SetName(uuid.Must(uuid.NewV7()).String())
 
 	resp, err := a.authServer.CreateAccessRequestV2(ctx, req, a.context.Identity.GetIdentity())
+	return resp, trace.Wrap(err)
+}
+
+// createAccessRequestUser covers the case when a user is requesting access for themselves.
+// They only have access to a limited set of access requests fields.
+// The function builds a minimal version of the request, using only fields that the user should set.
+// This means internal fields are silently dropped, but this is better than manually checking every field,
+// as we would risk introducing a new one and forget to check.
+// The long term fix is to introduce a new proto message only containing what the user wants.
+func (a *ServerWithRoles) createAccessRequestUser(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	// There's a niche use-case where a user with `user:create` permissions can send access requests as other users.
+	// It's unclear if this is ever used, but in this case we want to run MFA checks.
+	// We'll potentially want to remove this later.
+	if !authz.IsCurrentUser(a.context, req.GetUser()) {
+		if err := a.context.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	cleanedReq := &types.AccessRequestV3{
+		Kind:    req.GetKind(),
+		SubKind: req.GetSubKind(),
+		Version: req.GetVersion(),
+		// TODO: remove metadata?
+		Metadata: types.Metadata{
+			Name: uuid.Must(uuid.NewV7()).String(),
+			// Description and Labels should not be used by any official client,
+			// but users might have built their own.
+			Description: req.GetMetadata().Description,
+			Labels:      req.GetMetadata().Labels,
+		},
+		Spec: types.AccessRequestSpecV3{
+			User:  req.GetUser(),
+			Roles: req.GetRoles(),
+			State: types.RequestState_PENDING,
+			// Expires is when the client want their access to expire, this can be lowered server-side.
+			// This must not be confused with `Metadata.Expiry`, nor `ResourceExpiry`.
+			Expires:              req.GetAccessExpiry(),
+			RequestReason:        req.GetRequestReason(),
+			SuggestedReviewers:   req.GetSuggestedReviewers(),
+			RequestedResourceIDs: req.GetRequestedResourceIDs(),
+			LoginHint:            req.GetLoginHint(),
+			DryRun:               req.GetDryRun(),
+			// MaxDuration is requested by the user but might be lowered later based on the role.
+			MaxDuration:     req.GetMaxDuration(),
+			AssumeStartTime: req.GetAssumeStartTime(),
+			// For an unknown reason, access requests overload expiry methods and store it in spec.
+			// This can be passed by the user in some cases, so it's propagated.
+			ResourceExpiry: new(req.Expiry()),
+		},
+	}
+
+	resp, err := a.authServer.CreateAccessRequestV2(ctx, cleanedReq, a.context.Identity.GetIdentity())
 	return resp, trace.Wrap(err)
 }
 
