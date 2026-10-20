@@ -487,8 +487,9 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 		Audit:    session.audit,
 	}
 
-	// Forward request to the target application.
-	session.handler.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	// Forward request to the target application. Only Teleport may set
+	// reserved headers, so they're removed from the application's responses.
+	common.WithoutReservedResponseHeaders(session.handler).ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
 	return nil
 }
 
@@ -542,31 +543,22 @@ func (c *ConnectionsHandler) Close(ctx context.Context) []error {
 	return errs
 }
 
-// serveHTTP authorizes a request and forwards it to its application. Requests from connIdentityHandler and
-// requestIdentityHandler rejoin here, so everything from here on applies to both.
-func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
-	// Build the authorization context from the request's identity, then fetch and
-	// authorize the requested application.
-	ctx := r.Context()
-	authCtx, err := c.getAuthContext(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	identity := authCtx.Identity.GetIdentity()
-	app, err := c.resolveApp(
-		ctx,
-		identity.RouteToApp.Name,
-		identity.RouteToApp.PublicAddr,
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := c.authorizeApp(ctx, authCtx, app); err != nil {
-		return trace.Wrap(err)
-	}
+// authorizedRequest is a request that a handler has authorized for app. The three travel together so that the serving
+// step can't be given a request with an authorization made for another one.
+type authorizedRequest struct {
+	r       *http.Request
+	authCtx *authz.ScopedContext
+	app     types.Application
+}
+
+// serveAuthorizedHTTP forwards req to its application. Both handlers' requests rejoin here, so everything from here on
+// applies to both.
+func (c *ConnectionsHandler) serveAuthorizedHTTP(w http.ResponseWriter, req authorizedRequest) error {
+	r, app := req.r, req.app
+	identity := req.authCtx.Identity.GetIdentity()
 	// Access is recorded before the app_resources rules below, which authorize individual request paths rather than
 	// access to the application.
-	c.recordAccess(ctx, &identity, app)
+	c.recordAccess(r.Context(), &identity, app)
 
 	switch {
 	case app.IsAWSConsole():
@@ -597,11 +589,11 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 	default:
 		// The default case is a plain HTTP app. app_resources rules are
 		// enforced only on the unscoped access path. A scoped identity was
-		// already authorized for this app by authorizeContext, and the
-		// scoped access model does not yet evaluate v9 app_resources, so v9
-		// enforcement is skipped for it rather than denying an authorized
-		// request. Making the scoped path v9-aware is follow-up work.
-		if unscopedAuthCtx, ok := authCtx.UnscopedContext(); ok {
+		// already authorized for this app, and the scoped access model does
+		// not yet evaluate v9 app_resources, so v9 enforcement is skipped for
+		// it rather than denying an authorized request. Making the scoped path
+		// v9-aware is follow-up work.
+		if unscopedAuthCtx, ok := req.authCtx.UnscopedContext(); ok {
 			if deny := c.appResourcesDenial(r, unscopedAuthCtx, app); deny != nil {
 				deny.write(w)
 				return nil
@@ -667,7 +659,11 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context, app types.App
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessionControls, err := c.authorizeApp(ctx, authCtx, app)
+	state, err := c.accessState(ctx, authCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionControls, err := c.authorizeApp(ctx, authCtx, app, state)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -700,9 +696,16 @@ func (c *ConnectionsHandler) getAuthContext(ctx context.Context) (*authz.ScopedC
 	return authContext, nil
 }
 
-// authorizeApp checks whether authContext allows access to app, returning the
+// accessState returns the access state of authContext's identity, counting the MFA evidence it carries.
+func (c *ConnectionsHandler) accessState(ctx context.Context, authContext *authz.ScopedContext) (services.AccessState, error) {
+	identity := authContext.Identity.GetIdentity()
+	state, err := authContext.CheckerContext.AccessStateFromTLSIdentity(ctx, &identity, c.cfg.AccessPoint)
+	return state, trace.Wrap(err)
+}
+
+// authorizeApp checks whether authContext allows access to app in state, returning the
 // session controls of the role that granted access.
-func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *authz.ScopedContext, app types.Application) (srv.ScopedSessionControls, error) {
+func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *authz.ScopedContext, app types.Application, state services.AccessState) (srv.ScopedSessionControls, error) {
 	identity := authContext.Identity.GetIdentity()
 
 	if identity.RouteToApp.Scope != app.GetScope() {
@@ -733,11 +736,6 @@ func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *auth
 		matchers = append(matchers, &services.GCPServiceAccountMatcher{
 			ServiceAccount: identity.RouteToApp.GCPServiceAccount,
 		})
-	}
-
-	state, err := authContext.CheckerContext.AccessStateFromTLSIdentity(ctx, &identity, c.cfg.AccessPoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Identity Center account apps are currently not supported for scoped applications.
@@ -784,7 +782,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 
 	// A connection from a forwarding Proxy carries requests from many clients, so requestIdentityHandler takes the
 	// client's identity from each request. For every other connection, connIdentityHandler takes it from the client
-	// certificate. HTTP requests from both rejoin in serveHTTP.
+	// certificate.
 	if c.acceptsForwardedIdentity() && c.requestIdentityHandler.accepts(user) {
 		return nil, trace.Wrap(c.requestIdentityHandler.handleConnection(ctx, tlsConn))
 	}

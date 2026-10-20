@@ -301,6 +301,11 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 
 // rewriteResponse applies any rewriting rules to the response before returning it.
 func (t *transport) rewriteResponse(resp *http.Response) error {
+	// ReverseProxy writes a protocol upgrade's 101 response straight to the
+	// hijacked client connection, bypassing the writer serveSession uses to
+	// remove reserved headers.
+	common.RemoveReservedResponseHeaders(resp.Header)
+
 	switch {
 	case t.app.GetRewrite() != nil && len(t.app.GetRewrite().Redirect) > 0:
 		err := t.rewriteRedirect(resp)

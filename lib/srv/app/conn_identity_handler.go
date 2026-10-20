@@ -36,8 +36,7 @@ import (
 )
 
 // connIdentityHandler serves connections authenticated with a client's route-bound App certificate. The certificate
-// routes the whole connection to one app, so the handler limits, authorizes and monitors each connection rather than
-// each request.
+// routes the whole connection to one app, so the handler limits and monitors each connection rather than each request.
 type connIdentityHandler struct {
 	c *ConnectionsHandler
 
@@ -231,23 +230,52 @@ func (h *connIdentityHandler) newHTTPServer() *http.Server {
 	return server
 }
 
-// serve will forward the *http.Request to the target application.
 func (h *connIdentityHandler) serve(w http.ResponseWriter, r *http.Request) {
-	// See if the initial auth failed. If it didn't, serve the HTTP regularly, which
-	// will include subsequent auth attempts to prevent race-type conditions.
+	// Serve a failure to authorize the connection as an HTTP error. Otherwise authorize again, as policy may have
+	// changed since the connection was set up.
 	conn, ok := r.Context().Value(connContextKey).(net.Conn)
 	if !ok {
 		h.c.log.ErrorContext(h.c.closeContext, "Unable to extract connection from context.")
 	}
-	err := h.getAndDeleteConnAuth(conn)
-	if err == nil {
-		err = h.c.serveHTTP(w, r)
+	if err := h.getAndDeleteConnAuth(conn); err != nil {
+		h.writeError(w, r, err)
+		return
 	}
+	req, err := h.authorize(r)
 	if err != nil {
-		// Make sure we close the connection afterwards so that the monitor is recreated if needed.
-		w.Header().Set("Connection", "close")
-		h.c.writeHTTPError(w, r, err)
+		h.writeError(w, r, err)
+		return
 	}
+	if err := h.c.serveAuthorizedHTTP(w, req); err != nil {
+		h.writeError(w, r, err)
+	}
+}
+
+// writeError writes err, and closes the connection afterwards so that the monitor is recreated if needed.
+func (h *connIdentityHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
+	w.Header().Set("Connection", "close")
+	h.c.writeHTTPError(w, r, err)
+}
+
+func (h *connIdentityHandler) authorize(r *http.Request) (authorizedRequest, error) {
+	ctx := r.Context()
+	authCtx, err := h.c.getAuthContext(ctx)
+	if err != nil {
+		return authorizedRequest{}, trace.Wrap(err)
+	}
+	identity := authCtx.Identity.GetIdentity()
+	app, err := h.c.resolveApp(ctx, identity.RouteToApp.Name, identity.RouteToApp.PublicAddr)
+	if err != nil {
+		return authorizedRequest{}, trace.Wrap(err)
+	}
+	state, err := h.c.accessState(ctx, authCtx)
+	if err != nil {
+		return authorizedRequest{}, trace.Wrap(err)
+	}
+	if _, err := h.c.authorizeApp(ctx, authCtx, app, state); err != nil {
+		return authorizedRequest{}, trace.Wrap(err)
+	}
+	return authorizedRequest{r: r, authCtx: authCtx, app: app}, nil
 }
 
 func (h *connIdentityHandler) getAndDeleteConnAuth(conn net.Conn) error {

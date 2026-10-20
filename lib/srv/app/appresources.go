@@ -64,13 +64,17 @@ type denyResponse struct {
 	body string
 	// status is the HTTP status code sent to the client.
 	status int
+	// errorCode is the X-Teleport-App-Error-Code value sent to the client, if
+	// any.
+	errorCode common.AppErrorCode
 }
 
 // newDenyResponse returns the response for a deny decision. Every body is the
 // JSON of [appresource.Decision.ClientJSON]. A denial only an admin can act on
 // (DenyRoleVersionUnsupported, DenyTooManyRules) is a 500 whose body names
 // denyKindInternalAccessError instead of the real kind. A malformed path
-// (DenyInvalidRequest) is a 400, and any other denial is a 403.
+// (DenyInvalidRequest) is a 400, and any other denial is a 403. Only the 403
+// has an error code, so that a client can tell it from the application's own.
 func newDenyResponse(decision appresource.Decision) denyResponse {
 	switch decision.Deny.Kind {
 	case appresource.DenyRoleVersionUnsupported, appresource.DenyTooManyRules:
@@ -79,12 +83,19 @@ func newDenyResponse(decision appresource.Decision) denyResponse {
 	case appresource.DenyInvalidRequest:
 		return denyResponse{body: string(decision.ClientJSON()), status: http.StatusBadRequest}
 	}
-	return denyResponse{body: string(decision.ClientJSON()), status: http.StatusForbidden}
+	return denyResponse{
+		body:      string(decision.ClientJSON()),
+		status:    http.StatusForbidden,
+		errorCode: common.AppErrorCodeResourceDenied,
+	}
 }
 
 // write sends the response.
 func (d denyResponse) write(w http.ResponseWriter) {
 	body := d.body + "\n"
+	if d.errorCode != "" {
+		w.Header().Set(common.TeleportAppErrorCodeHeader, string(d.errorCode))
+	}
 	w.Header().Set("Content-Type", contentTypeJSON)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))

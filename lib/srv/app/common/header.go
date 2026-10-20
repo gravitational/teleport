@@ -57,6 +57,86 @@ const (
 	// TeleportAWSAssumedRoleAuthorization contains the original authorization
 	// header for requests signed by assumed roles.
 	TeleportAWSAssumedRoleAuthorization = "X-Teleport-Aws-Assumed-Role-Authorization"
+
+	// TeleportAppErrorCodeHeader holds an [AppErrorCode] when Teleport denies a
+	// forwarded client identity access to an application, or app_resources
+	// rules deny a request on either path. Teleport removes it from upstream
+	// responses, so that a client can trust it.
+	TeleportAppErrorCodeHeader = "X-Teleport-App-Error-Code"
+)
+
+// reservedResponseHeaders are the response headers that only Teleport may set,
+// so that clients can trust them.
+var reservedResponseHeaders = []string{TeleportAppErrorCodeHeader}
+
+// RemoveReservedResponseHeaders removes the headers that only Teleport may set
+// from h, whether as headers or trailers, so that an upstream can't forge them.
+func RemoveReservedResponseHeaders(h http.Header) {
+	for key := range h {
+		// Trailer keys set after the body are prefixed and not canonicalized.
+		name := http.CanonicalHeaderKey(strings.TrimPrefix(key, http.TrailerPrefix))
+		if slices.Contains(reservedResponseHeaders, name) {
+			delete(h, key)
+		}
+	}
+}
+
+// WithoutReservedResponseHeaders serves next, removing the headers that only
+// Teleport may set from everything next writes: interim (1xx) responses, the
+// final response and its trailers. A protocol upgrade's 101 response is
+// written to the hijacked connection rather than through the writer, so a
+// handler that proxies upgrades must also call RemoveReservedResponseHeaders
+// on the upstream's response.
+func WithoutReservedResponseHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(reservedHeaderWriter{w}, r)
+		// The server sends trailers once this returns.
+		RemoveReservedResponseHeaders(w.Header())
+	})
+}
+
+// reservedHeaderWriter removes reserved headers before every call that may
+// send a header block.
+type reservedHeaderWriter struct{ http.ResponseWriter }
+
+func (w reservedHeaderWriter) WriteHeader(code int) {
+	RemoveReservedResponseHeaders(w.Header())
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w reservedHeaderWriter) Write(b []byte) (int, error) {
+	RemoveReservedResponseHeaders(w.Header())
+	return w.ResponseWriter.Write(b)
+}
+
+func (w reservedHeaderWriter) Flush() {
+	RemoveReservedResponseHeaders(w.Header())
+	_ = http.NewResponseController(w.ResponseWriter).Flush()
+}
+
+// Unwrap lets http.ResponseController reach the server's writer, which
+// ReverseProxy uses to hijack upgrades.
+func (w reservedHeaderWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// AppErrorCode is a stable code that tells a client why Teleport rejected a
+// request. The response body is guidance for a person, so clients should rely
+// on the code rather than the body's wording.
+type AppErrorCode string
+
+const (
+	// AppErrorCodeAccessDenied is an authorization failure without a more specific code. It is also the code when the
+	// client may not discover the application, so that the response reveals nothing about it.
+	AppErrorCodeAccessDenied AppErrorCode = "access-denied"
+	// AppErrorCodeMFARequired means that access requires per-session MFA, which a forwarded client identity can't
+	// satisfy.
+	AppErrorCodeMFARequired AppErrorCode = "mfa-required"
+	// AppErrorCodeUnsupportedApplicationType means that the application can't be served with a forwarded client
+	// identity and needs an application-specific access path.
+	AppErrorCodeUnsupportedApplicationType AppErrorCode = "unsupported-application-type"
+	// AppErrorCodeResourceDenied means that the application's app_resources
+	// rules deny the request path or method. The client may still access other
+	// paths of the application.
+	AppErrorCodeResourceDenied AppErrorCode = "resource-denied"
 )
 
 // ReservedHeaders is a list of headers injected by Teleport.

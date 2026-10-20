@@ -436,6 +436,13 @@ func (h *Handler) handleRequest(
 		reverseproxy.WithFlushInterval(50*time.Millisecond),
 		reverseproxy.WithRoundTripper(h.cfg.Transport),
 		reverseproxy.WithLogger(log),
+		reverseproxy.WithResponseModifier(func(resp *http.Response) error {
+			// ReverseProxy writes a protocol upgrade's 101 response straight
+			// to the hijacked client connection, bypassing the writer
+			// serveSession uses to remove reserved headers.
+			common.RemoveReservedResponseHeaders(resp.Header)
+			return nil
+		}),
 		reverseproxy.WithErrorHandler(func(_ http.ResponseWriter, r *http.Request, fwdErr error) {
 			// reverseproxy already logs this error, so no need to log it here.
 			if werr := writeErrorFunc(w, fwdErr); werr != nil {

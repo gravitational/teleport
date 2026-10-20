@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"slices"
@@ -29,7 +30,11 @@ import (
 	"github.com/gravitational/teleport"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/componentfeatures"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -83,7 +88,7 @@ func (h *requestIdentityHandler) newHTTPServer(serve http.Handler) *http.Server 
 func (h *requestIdentityHandler) admit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := h.check(r); err != nil {
-			h.c.writeHTTPError(w, r, err)
+			h.writeProxyError(w, err)
 			return
 		}
 		// authz.Middleware stores the TLS peer's certificate as the user certificate, but here the peer is the Proxy.
@@ -100,12 +105,12 @@ func (h *requestIdentityHandler) limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		clientIP, err := forwardedClientIP(r)
 		if err != nil {
-			h.c.writeHTTPError(w, r, err)
+			h.writeProxyError(w, err)
 			return
 		}
 		release, err := h.c.limiter.RegisterRequestAndConnection(clientIP)
 		if err != nil {
-			h.c.writeHTTPError(w, r, err)
+			h.writeError(w, r, err)
 			return
 		}
 		defer release()
@@ -198,10 +203,97 @@ func forwardedClientIP(r *http.Request) (string, error) {
 	return host, nil
 }
 
-// serve passes an admitted request to serveHTTP. Unlike connIdentityHandler.serve, it keeps the connection open after
-// an error, because the connection carries other clients' requests.
 func (h *requestIdentityHandler) serve(w http.ResponseWriter, r *http.Request) {
-	if err := h.c.serveHTTP(w, r); err != nil {
+	req, err := h.authorize(r)
+	if err != nil {
+		h.writeError(w, r, err)
+		return
+	}
+	if err := h.c.serveAuthorizedHTTP(w, req); err != nil {
 		h.c.writeHTTPError(w, r, err)
 	}
+}
+
+var errUnsupportedApplicationType = &trace.AccessDeniedError{
+	Message: "application can't be served with a forwarded client identity",
+}
+
+// authorize authorizes a request for the application its forwarded identity routes to. Until the identity may
+// discover the application, a response must not reveal anything about it, so discovery comes before the checks whose
+// errors are specific to the application.
+func (h *requestIdentityHandler) authorize(r *http.Request) (authorizedRequest, error) {
+	ctx := r.Context()
+	authCtx, err := h.c.getAuthContext(ctx)
+	if err != nil {
+		return authorizedRequest{}, trace.Wrap(err)
+	}
+	identity := authCtx.Identity.GetIdentity()
+	app, err := h.c.resolveApp(ctx, identity.RouteToApp.Name, identity.RouteToApp.PublicAddr)
+	if err != nil {
+		return authorizedRequest{}, trace.Wrap(err)
+	}
+	if _, err := authCtx.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return trace.Wrap(checker.App().CanAccessApp(app))
+	}); err != nil {
+		return authorizedRequest{}, trace.Wrap(err)
+	}
+	// The application may have changed since the Proxy admitted the connection.
+	if !componentfeatures.SupportsAppForwardedIdentityV1(app) {
+		return authorizedRequest{}, trace.Wrap(errUnsupportedApplicationType)
+	}
+	state, err := h.c.accessState(ctx, authCtx)
+	if err != nil {
+		return authorizedRequest{}, trace.Wrap(err)
+	}
+	// A forwarded identity comes from a certificate that routes to no application, so MFA evidence in it would satisfy
+	// per-session MFA for every application the user can access. Only the access state ignores it. Locks, audit events
+	// and hardware key enforcement still read the identity's fields.
+	state.MFAVerified = false
+	if _, err := h.c.authorizeApp(ctx, authCtx, app, state); err != nil {
+		return authorizedRequest{}, trace.Wrap(err)
+	}
+	return authorizedRequest{r: r, authCtx: authCtx, app: app}, nil
+}
+
+// writeError gives authorization failures an [common.AppErrorCode], so a client can tell them apart from the
+// application's responses. A failure without a more specific code is access-denied, even for an application that
+// doesn't exist, so a response never reveals one the client may not discover. Unlike connIdentityHandler.writeError,
+// it keeps the connection open, because the connection carries other clients' requests.
+func (h *requestIdentityHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
+	var code common.AppErrorCode
+	var message string
+	switch {
+	case errors.Is(err, errUnsupportedApplicationType):
+		code = common.AppErrorCodeUnsupportedApplicationType
+		message = "This application can't be accessed on this path. Use an application-specific access path."
+	case errors.Is(err, services.ErrSessionMFARequired):
+		code = common.AppErrorCodeMFARequired
+		message = "This application requires per-session MFA, which this access path can't complete."
+	// An unmet private key policy is a BadParameter whose message tells tsh to log in again with a hardware key, which
+	// a client of this path can't act on.
+	case errors.Is(err, services.ErrTrustedDeviceRequired), trace.IsAccessDenied(err), trace.IsNotFound(err),
+		keys.IsPrivateKeyPolicyError(err):
+		code = common.AppErrorCodeAccessDenied
+		message = http.StatusText(http.StatusForbidden)
+	default:
+		// Not an authorization failure, such as a limit.
+		h.c.writeHTTPError(w, r, err)
+		return
+	}
+
+	h.c.log.WarnContext(h.c.closeContext, "Failed to serve request", "code", code, "error", err)
+	w.Header().Set(common.TeleportAppErrorCodeHeader, string(code))
+	if errors.Is(err, services.ErrTrustedDeviceRequired) {
+		writeTrustedDeviceRequired(w, r, http.StatusForbidden)
+		return
+	}
+	http.Error(w, message, http.StatusForbidden)
+}
+
+// writeProxyError answers a request that the Proxy shouldn't have sent. The
+// fault is Teleport's rather than the client's, so it's an internal error with
+// no error code.
+func (h *requestIdentityHandler) writeProxyError(w http.ResponseWriter, err error) {
+	h.c.log.WarnContext(h.c.closeContext, "Rejected a request from a forwarding Proxy", "error", err)
+	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
