@@ -186,11 +186,25 @@ func validateAccessRequest(ar types.AccessRequest, allowUnenforceable bool) erro
 		return trace.BadParameter("access request contains too many resources (%v), max %v", l, maxResourcesPerRequest)
 	}
 
+	for _, r := range ar.GetRequestedResourceIDs() {
+		// Identity center resources must be constrained, so they must not appear in the
+		// old-style resources list
+		if r.Kind == types.KindIdentityCenterResource {
+			return trace.BadParameter("identity center resources must be constrained")
+		}
+	}
+
 	for _, r := range ar.GetRequestedResourceAccessIDs() {
+		kind := r.GetResourceID().Kind
 		rc := r.GetConstraints()
+
 		if rc == nil {
+			if kind == types.KindIdentityCenterResource {
+				return trace.BadParameter("identity center resources must be constrained")
+			}
 			continue
 		}
+
 		if allowUnenforceable && rc.Unenforceable() {
 			// Skip all validation; these may carry a newer version.
 			continue
@@ -198,7 +212,7 @@ func validateAccessRequest(ar types.AccessRequest, allowUnenforceable bool) erro
 		if err := rc.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-		kind := r.GetResourceID().Kind
+
 		switch c := rc.Details.(type) {
 		case *types.ResourceConstraints_AwsConsole:
 			if kind != types.KindApp {
@@ -207,6 +221,10 @@ func validateAccessRequest(ar types.AccessRequest, allowUnenforceable bool) erro
 		case *types.ResourceConstraints_Ssh:
 			if kind != types.KindNode {
 				return trace.BadParameter("ssh constraints are not valid for resource kind %q", kind)
+			}
+		case *types.ResourceConstraints_IdentityCenterResource:
+			if kind != types.KindIdentityCenterResource {
+				return trace.BadParameter("identity center resource constraints are not valid for resource kind %q", kind)
 			}
 		default:
 			return trace.BadParameter("unsupported constraint type %T for resource kind %q", c, kind)

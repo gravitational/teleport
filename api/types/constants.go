@@ -675,6 +675,10 @@ const (
 	// pair that can be requested by a Teleport User.
 	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
 
+	// KindIdentityCenterResource indicates an AWS resource that has its
+	// access within controlled by Teleport.
+	KindIdentityCenterResource = "aws_ic_resource"
+
 	// KindContact is a resource that holds contact information
 	// for Teleport Enterprise customers.
 	KindContact = "contact"

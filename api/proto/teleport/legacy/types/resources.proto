@@ -53,6 +53,9 @@ message ResourceConstraints {
     // ssh scopes an SSH node to a subset of logins the requester is
     // allowed to use.
     SSHResourceConstraints ssh = 11;
+    // IdentityCenterResourceConstraints constrains which policies a principal
+    // can use to access the target Identity Center Resource
+    IdentityCenterResourceConstraints identity_center_resource = 12;
   }
 }
 
@@ -78,4 +81,10 @@ message ResourceAccessID {
 // ResourceAccessIDList represents a list of ResourceAccessIDs
 message ResourceAccessIDList {
   repeated ResourceAccessID resources = 1 [(gogoproto.nullable) = false];
+}
+
+// IdentityCenterResourceConstraints constrains the users access to an
+// Identity Center resource to the specified access profiles
+message IdentityCenterResourceConstraints {
+  repeated string access_policies = 1;
 }

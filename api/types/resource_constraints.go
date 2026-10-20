@@ -50,6 +50,10 @@ func (rc *ResourceConstraints) CheckAndSetDefaults() error {
 		if err := d.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *ResourceConstraints_IdentityCenterResource:
+		if err := d.Validate(); err != nil {
+			return trace.Wrap(err, "Validating Identity Center Resource constraint")
+		}
 	case nil:
 		return trace.BadParameter("constraints carry no supported content; they are either empty or from a newer Teleport version")
 	default:
@@ -133,6 +137,15 @@ func (sshc *ResourceConstraints_Ssh) Validate() error {
 	}
 	if len(protoadapt.MessageV2Of(sshc.Ssh).ProtoReflect().GetUnknown()) > 0 {
 		return trace.BadParameter("unrecognized fields in SSH constraints. Request the resource without constraints")
+	}
+	return nil
+}
+
+// Validate ensures that IdentityCenterResources is non-nil and contains at least
+// one access policy.
+func (icc *ResourceConstraints_IdentityCenterResource) Validate() error {
+	if icc == nil || icc.IdentityCenterResource == nil || len(icc.IdentityCenterResource.AccessPolicies) == 0 {
+		return trace.BadParameter("requires at least one access policy")
 	}
 	return nil
 }

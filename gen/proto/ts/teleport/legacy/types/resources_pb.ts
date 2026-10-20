@@ -98,6 +98,15 @@ export interface ResourceConstraints {
          */
         ssh: SSHResourceConstraints;
     } | {
+        oneofKind: "identityCenterResource";
+        /**
+         * IdentityCenterResourceConstraints constrains which policies a principal
+         * can use to access the target Identity Center Resource
+         *
+         * @generated from protobuf field: types.IdentityCenterResourceConstraints identity_center_resource = 12;
+         */
+        identityCenterResource: IdentityCenterResourceConstraints;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -151,6 +160,18 @@ export interface ResourceAccessIDList {
      * @generated from protobuf field: repeated types.ResourceAccessID resources = 1;
      */
     resources: ResourceAccessID[];
+}
+/**
+ * IdentityCenterResourceConstraints constrains the users access to an
+ * Identity Center resource to the specified access profiles
+ *
+ * @generated from protobuf message types.IdentityCenterResourceConstraints
+ */
+export interface IdentityCenterResourceConstraints {
+    /**
+     * @generated from protobuf field: repeated string access_policies = 1;
+     */
+    accessPolicies: string[];
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class ResourceID$Type extends MessageType<ResourceID> {
@@ -229,7 +250,8 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
         super("types.ResourceConstraints", [
             { no: 1, name: "version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 10, name: "aws_console", kind: "message", oneof: "details", T: () => AWSConsoleResourceConstraints },
-            { no: 11, name: "ssh", kind: "message", oneof: "details", T: () => SSHResourceConstraints }
+            { no: 11, name: "ssh", kind: "message", oneof: "details", T: () => SSHResourceConstraints },
+            { no: 12, name: "identity_center_resource", kind: "message", oneof: "details", T: () => IdentityCenterResourceConstraints }
         ]);
     }
     create(value?: PartialMessage<ResourceConstraints>): ResourceConstraints {
@@ -260,6 +282,12 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
                         ssh: SSHResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).ssh)
                     };
                     break;
+                case /* types.IdentityCenterResourceConstraints identity_center_resource */ 12:
+                    message.details = {
+                        oneofKind: "identityCenterResource",
+                        identityCenterResource: IdentityCenterResourceConstraints.internalBinaryRead(reader, reader.uint32(), options, (message.details as any).identityCenterResource)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -281,6 +309,9 @@ class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
         /* types.SSHResourceConstraints ssh = 11; */
         if (message.details.oneofKind === "ssh")
             SSHResourceConstraints.internalBinaryWrite(message.details.ssh, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* types.IdentityCenterResourceConstraints identity_center_resource = 12; */
+        if (message.details.oneofKind === "identityCenterResource")
+            IdentityCenterResourceConstraints.internalBinaryWrite(message.details.identityCenterResource, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -485,3 +516,50 @@ class ResourceAccessIDList$Type extends MessageType<ResourceAccessIDList> {
  * @generated MessageType for protobuf message types.ResourceAccessIDList
  */
 export const ResourceAccessIDList = new ResourceAccessIDList$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class IdentityCenterResourceConstraints$Type extends MessageType<IdentityCenterResourceConstraints> {
+    constructor() {
+        super("types.IdentityCenterResourceConstraints", [
+            { no: 1, name: "access_policies", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<IdentityCenterResourceConstraints>): IdentityCenterResourceConstraints {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.accessPolicies = [];
+        if (value !== undefined)
+            reflectionMergePartial<IdentityCenterResourceConstraints>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentityCenterResourceConstraints): IdentityCenterResourceConstraints {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string access_policies */ 1:
+                    message.accessPolicies.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IdentityCenterResourceConstraints, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string access_policies = 1; */
+        for (let i = 0; i < message.accessPolicies.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.accessPolicies[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message types.IdentityCenterResourceConstraints
+ */
+export const IdentityCenterResourceConstraints = new IdentityCenterResourceConstraints$Type();
