@@ -422,6 +422,11 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SCOPED_TOKEN_UPSERT_FAILURE]: Icons.Warning,
   [eventCodes.SCOPED_TOKEN_UPDATE_FAILURE]: Icons.Warning,
   [eventCodes.SCOPED_TOKEN_DELETE_FAILURE]: Icons.Warning,
+  [eventCodes.OAUTH_PROXY_AUTHORIZE]: Icons.Info,
+  [eventCodes.OAUTH_PROXY_AUTHORIZE_FAILURE]: Icons.Warning,
+  [eventCodes.OAUTH_PROXY_REFRESH]: Icons.Info,
+  [eventCodes.OAUTH_PROXY_REFRESH_FAILURE]: Icons.Warning,
+  [eventCodes.OAUTH_PROXY_ACCESS]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

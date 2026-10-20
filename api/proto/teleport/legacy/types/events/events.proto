@@ -5342,6 +5342,8 @@ message IntegrationMetadata {
   GitHubIntegrationMetadata GitHub = 4 [(gogoproto.jsontag) = "github,omitempty"];
   // AWSRA contains metadata for AWS IAM Roles Anywhere integrations.
   AWSRAIntegrationMetadata AWSRA = 5 [(gogoproto.jsontag) = "aws_ra,omitempty"];
+  // OAuthProxy contains metadata for OAuth Proxy integration.
+  OAuthProxyIntegrationMetadata OAuthProxy = 6 [(gogoproto.jsontag) = "oauth_proxy,omitempty"];
 }
 
 // AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
@@ -5373,6 +5375,154 @@ message GitHubIntegrationMetadata {
 message AWSRAIntegrationMetadata {
   // TrustAnchorARN contains the IAM Roles Anywhere Trust Anchor ARN used to set up the Integration.
   string TrustAnchorARN = 1 [(gogoproto.jsontag) = "trust_anchor_arn,omitempty"];
+}
+
+// OAuthProxyIntegrationMetadata contains metadata for OAuth Proxy integration.
+message OAuthProxyIntegrationMetadata {
+  // IssuerUrl is the provider's OAuth issuer URL.
+  string issuer_url = 1 [(gogoproto.jsontag) = "issuer_url,omitempty"];
+  // UpstreamUrl is the base URL of the third-party API that requests are proxied to.
+  string upstream_url = 2 [(gogoproto.jsontag) = "upstream_url,omitempty"];
+  // Scopes is a list of OAuth scopes requested.
+  repeated string scopes = 3 [(gogoproto.jsontag) = "scopes,omitempty"];
+}
+
+// OAuthProxyAuthorize is emitted when a user completes authorization for an OAuth Proxy integration.
+message OAuthProxyAuthorize {
+  // Metadata is common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is common user event metadata.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata.
+  ResourceMetadata resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Integration holds information about the integration.
+  IntegrationMetadata integration = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the authorization was successful.
+  Status status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // GrantedScopes are the scopes granted by the provider.
+  repeated string granted_scopes = 7 [(gogoproto.jsontag) = "granted_scopes,omitempty"];
+}
+
+// OAuthProxyRefresh is emitted when an OAuth Proxy authorization token is refreshed.
+message OAuthProxyRefresh {
+  // Metadata is common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is common user event metadata.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata.
+  ResourceMetadata resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Integration holds information about the integration.
+  IntegrationMetadata integration = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the refresh was successful.
+  Status status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// OAuthProxyAccess is emitted when an OAuth Proxy authorization token accessed.
+message OAuthProxyAccess {
+  // Metadata is common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is common user event metadata.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is common resource event metadata.
+  ResourceMetadata resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Integration holds information about the integration.
+  IntegrationMetadata integration = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is common event session metadata
+  SessionMetadata session_metadata = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // PluginCreate is emitted when a plugin resource is created.
@@ -5788,6 +5938,9 @@ message OneOf {
     events.BeamDestroyed BeamDestroyed = 280;
     events.AppAccess AppAccess = 281;
     events.ClassifierMatched ClassifierMatched = 282;
+    events.OAuthProxyAuthorize OAuthProxyAuthorize = 283;
+    events.OAuthProxyRefresh OAuthProxyRefresh = 284;
+    events.OAuthProxyAccess OAuthProxyAccess = 285;
   }
 }
 

@@ -173,6 +173,178 @@ Example:
 }
 ```
 
+## integration.oauth_proxy.access
+
+OAuth Proxy Access
+
+Example:
+
+```json
+{
+  "addr.local": "127.0.0.1:3022",
+  "addr.remote": "[::1]:34902",
+  "cluster_name": "test-cluster",
+  "code": "IG006I",
+  "ei": 0,
+  "event": "integration.oauth_proxy.access",
+  "expires": "2020-04-08T02:45:06.524816756Z",
+  "name": "oauth-proxy-integration",
+  "oauth_proxy": {
+    "issuer_url": "https://example.okta.com",
+    "scopes": [
+      "openid",
+      "offline"
+    ],
+    "upstream_url": "https://example.okta.com"
+  },
+  "sid": "5b3555dc-729f-11ea-b66a-507b9dd95841",
+  "sub_kind": "oauth-proxy",
+  "time": "2022-02-22T22:22:22.222Z",
+  "uid": "1de57538-2eea-438b-a52d-3098f8093b28",
+  "user": "alice@example.com"
+}
+```
+
+## integration.oauth_proxy.authorize
+
+There are multiple events with the `integration.oauth_proxy.authorize` type.
+
+### IG004I
+
+OAuth Proxy Authorized
+
+Example:
+
+```json
+{
+  "addr.local": "127.0.0.1:3022",
+  "addr.remote": "[::1]:34902",
+  "cluster_name": "test-cluster",
+  "code": "IG004I",
+  "ei": 0,
+  "event": "integration.oauth_proxy.authorize",
+  "expires": "2020-04-08T02:45:06.524816756Z",
+  "granted_scopes": [
+    "openid",
+    "offline"
+  ],
+  "name": "oauth-proxy-integration",
+  "oauth_proxy": {
+    "issuer_url": "https://example.okta.com",
+    "scopes": [
+      "openid",
+      "offline"
+    ],
+    "upstream_url": "https://example.okta.com"
+  },
+  "sub_kind": "oauth-proxy",
+  "success": true,
+  "time": "2022-02-22T22:22:22.222Z",
+  "uid": "1de57538-2eea-438b-a52d-3098f8093b28",
+  "user": "alice@example.com"
+}
+```
+
+### IG004E
+
+OAuth Proxy Authorization Failed
+
+Example:
+
+```json
+{
+  "addr.local": "127.0.0.1:3022",
+  "addr.remote": "[::1]:34902",
+  "cluster_name": "test-cluster",
+  "code": "IG004E",
+  "ei": 0,
+  "event": "integration.oauth_proxy.authorize",
+  "expires": "2020-04-08T02:45:06.524816756Z",
+  "name": "oauth-proxy-integration",
+  "oauth_proxy": {
+    "issuer_url": "https://example.okta.com",
+    "scopes": [
+      "openid",
+      "offline"
+    ],
+    "upstream_url": "https://example.okta.com"
+  },
+  "sub_kind": "oauth-proxy",
+  "success": false,
+  "time": "2022-02-22T22:22:22.222Z",
+  "uid": "1de57538-2eea-438b-a52d-3098f8093b28",
+  "user": "alice@example.com"
+}
+```
+
+## integration.oauth_proxy.refresh
+
+There are multiple events with the `integration.oauth_proxy.refresh` type.
+
+### IG005I
+
+OAuth Proxy Refresh
+
+Example:
+
+```json
+{
+  "addr.local": "127.0.0.1:3022",
+  "addr.remote": "[::1]:34902",
+  "cluster_name": "test-cluster",
+  "code": "IG005I",
+  "ei": 0,
+  "event": "integration.oauth_proxy.refresh",
+  "expires": "2020-04-08T02:45:06.524816756Z",
+  "name": "oauth-proxy-integration",
+  "oauth_proxy": {
+    "issuer_url": "https://example.okta.com",
+    "scopes": [
+      "openid",
+      "offline"
+    ],
+    "upstream_url": "https://example.okta.com"
+  },
+  "sub_kind": "oauth-proxy",
+  "success": true,
+  "time": "2022-02-22T22:22:22.222Z",
+  "uid": "1de57538-2eea-438b-a52d-3098f8093b28",
+  "user": "alice@example.com"
+}
+```
+
+### IG005E
+
+OAuth Proxy Refresh Failed
+
+Example:
+
+```json
+{
+  "addr.local": "127.0.0.1:3022",
+  "addr.remote": "[::1]:34902",
+  "cluster_name": "test-cluster",
+  "code": "IG005E",
+  "ei": 0,
+  "event": "integration.oauth_proxy.refresh",
+  "expires": "2020-04-08T02:45:06.524816756Z",
+  "name": "oauth-proxy-integration",
+  "oauth_proxy": {
+    "issuer_url": "https://example.okta.com",
+    "scopes": [
+      "openid",
+      "offline"
+    ],
+    "upstream_url": "https://example.okta.com"
+  },
+  "sub_kind": "oauth-proxy",
+  "success": false,
+  "time": "2022-02-22T22:22:22.222Z",
+  "uid": "1de57538-2eea-438b-a52d-3098f8093b28",
+  "user": "alice@example.com"
+}
+```
+
 ## integration.update
 
 Integration Updated

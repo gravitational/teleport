@@ -3014,6 +3014,34 @@ export const formatters: Formatters = {
     format: res =>
       `User [${res.user}] failed to delete scoped join token [${formatSqn(res)}]`,
   },
+  [eventCodes.OAUTH_PROXY_AUTHORIZE]: {
+    type: 'integration.oauth_proxy.authorize',
+    desc: 'OAuth Proxy Authorized',
+    format: ({ user, name, granted_scopes }) =>
+      granted_scopes?.length
+        ? `User [${user}] authorized [${name}] with scopes [${granted_scopes.join(', ')}]`
+        : `User [${user}] authorized [${name}]`,
+  },
+  [eventCodes.OAUTH_PROXY_AUTHORIZE_FAILURE]: {
+    type: 'integration.oauth_proxy.authorize',
+    desc: 'OAuth Proxy Authorization Failed',
+    format: ({ user, name }) => `User [${user}] failed to authorize [${name}]`,
+  },
+  [eventCodes.OAUTH_PROXY_REFRESH]: {
+    type: 'integration.oauth_proxy.refresh',
+    desc: 'OAuth Proxy Refresh',
+    format: ({ user, name }) => `User [${user}] refreshed [${name}]`,
+  },
+  [eventCodes.OAUTH_PROXY_REFRESH_FAILURE]: {
+    type: 'integration.oauth_proxy.refresh',
+    desc: 'OAuth Proxy Refresh Failed',
+    format: ({ user, name }) => `User [${user}] failed to refresh [${name}]`,
+  },
+  [eventCodes.OAUTH_PROXY_ACCESS]: {
+    type: 'integration.oauth_proxy.access',
+    desc: 'OAuth Proxy Access',
+    format: ({ user, name }) => `User [${user}] accessed [${name}]`,
+  },
 };
 
 const unknownFormatter = {

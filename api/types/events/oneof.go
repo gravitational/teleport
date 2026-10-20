@@ -1130,6 +1130,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ScopedTokenDelete{
 			ScopedTokenDelete: e,
 		}
+	case *OAuthProxyAuthorize:
+		out.Event = &OneOf_OAuthProxyAuthorize{
+			OAuthProxyAuthorize: e,
+		}
+	case *OAuthProxyRefresh:
+		out.Event = &OneOf_OAuthProxyRefresh{
+			OAuthProxyRefresh: e,
+		}
+	case *OAuthProxyAccess:
+		out.Event = &OneOf_OAuthProxyAccess{
+			OAuthProxyAccess: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

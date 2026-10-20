@@ -3193,3 +3193,24 @@ func (m *ClassifierMatched) TrimToMaxSize(maxSize int) AuditEvent {
 		}
 	})
 }
+
+func (m *OAuthProxyAuthorize) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *OAuthProxyAuthorize) fieldTrimmer {
+		return fieldTrimmers{
+			newGenericTrimmer(&m.Status, &out.Status),
+			newStrSliceTrimmer(m.GrantedScopes, &out.GrantedScopes),
+		}
+	})
+}
+
+func (m *OAuthProxyRefresh) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *OAuthProxyRefresh) fieldTrimmer {
+		return fieldTrimmers{
+			newGenericTrimmer(&m.Status, &out.Status),
+		}
+	})
+}
+
+func (m *OAuthProxyAccess) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}

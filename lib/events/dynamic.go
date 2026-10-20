@@ -694,6 +694,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.BeamsConfigUpdate{}
 	case BeamsConfigDeleteEvent:
 		e = &events.BeamsConfigDelete{}
+
+	case OAuthProxyAuthorizeEvent:
+		e = &events.OAuthProxyAuthorize{}
+	case OAuthProxyRefreshEvent:
+		e = &events.OAuthProxyRefresh{}
+	case OAuthProxyAccessEvent:
+		e = &events.OAuthProxyAccess{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}

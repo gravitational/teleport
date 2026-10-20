@@ -884,6 +884,13 @@ const (
 	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
 	IntegrationDeleteEvent = "integration.delete"
 
+	// OAuthProxyAuthorizeEvent is emitted when a user completes authorization for an OAuth Proxy integration.
+	OAuthProxyAuthorizeEvent = "integration.oauth_proxy.authorize"
+	// OAuthProxyRefreshEvent is emitted when an OAuth Proxy authorization token is refreshed.
+	OAuthProxyRefreshEvent = "integration.oauth_proxy.refresh"
+	// OAuthProxyAccessEvent is emitted when an OAuth Proxy authorization token accessed.
+	OAuthProxyAccessEvent = "integration.oauth_proxy.access"
+
 	// PluginCreateEvent is emitted when a plugin resource is created.
 	PluginCreateEvent = "plugin.create"
 	// PluginUpdateEvent is emitted when a plugin resource is updated.

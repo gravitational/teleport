@@ -424,6 +424,11 @@ export const eventCodes = {
   SCOPED_TOKEN_UPDATE_FAILURE: 'TST002E',
   SCOPED_TOKEN_DELETE: 'TST003I',
   SCOPED_TOKEN_DELETE_FAILURE: 'TST003E',
+  OAUTH_PROXY_AUTHORIZE: 'IG004I',
+  OAUTH_PROXY_AUTHORIZE_FAILURE: 'IG004E',
+  OAUTH_PROXY_REFRESH: 'IG005I',
+  OAUTH_PROXY_REFRESH_FAILURE: 'IG005E',
+  OAUTH_PROXY_ACCESS: 'IG006I',
 } as const;
 
 /**
@@ -2634,6 +2639,38 @@ export type RawEvents = {
       error: string;
     }
   >;
+  [eventCodes.OAUTH_PROXY_AUTHORIZE]: RawOAuthProxyEvent<
+    typeof eventCodes.OAUTH_PROXY_AUTHORIZE,
+    {
+      success: boolean;
+      granted_scopes?: string[];
+    }
+  >;
+  [eventCodes.OAUTH_PROXY_AUTHORIZE_FAILURE]: RawOAuthProxyEvent<
+    typeof eventCodes.OAUTH_PROXY_AUTHORIZE_FAILURE,
+    {
+      success: boolean;
+      granted_scopes?: string[];
+    }
+  >;
+  [eventCodes.OAUTH_PROXY_REFRESH]: RawOAuthProxyEvent<
+    typeof eventCodes.OAUTH_PROXY_REFRESH,
+    {
+      success: boolean;
+    }
+  >;
+  [eventCodes.OAUTH_PROXY_REFRESH_FAILURE]: RawOAuthProxyEvent<
+    typeof eventCodes.OAUTH_PROXY_REFRESH_FAILURE,
+    {
+      success: boolean;
+    }
+  >;
+  [eventCodes.OAUTH_PROXY_ACCESS]: RawOAuthProxyEvent<
+    typeof eventCodes.OAUTH_PROXY_ACCESS,
+    {
+      sid: string;
+    }
+  >;
 };
 
 /**
@@ -2937,6 +2974,21 @@ type RawScopedTokenEvent<T extends EventCode> = RawEvent<
     success: boolean;
     error?: string;
   }
+>;
+
+type RawOAuthProxyEvent<T extends EventCode, K = unknown> = RawEvent<
+  T,
+  Merge<
+    HasName & {
+      sub_kind: string;
+      oauth_proxy?: {
+        issuer_url?: string;
+        upstream_url?: string;
+        scopes?: string[];
+      };
+    },
+    K
+  >
 >;
 
 /**

@@ -717,6 +717,17 @@ const (
 	// IntegrationDeleteCode is the integration resource delete event code.
 	IntegrationDeleteCode = "IG003I"
 
+	// OAuthProxyAuthorizeCode is the OAuth Proxy integration authorize code.
+	OAuthProxyAuthorizeCode = "IG004I"
+	// OAuthProxyAuthorizeFailureCode is the OAuth Proxy integration authorize failure code.
+	OAuthProxyAuthorizeFailureCode = "IG004E"
+	// OAuthProxyRefreshCode is the OAuth Proxy integration token refresh code.
+	OAuthProxyRefreshCode = "IG005I"
+	// OAuthProxyRefreshFailureCode is the OAuth Proxy integration token refresh failure code.
+	OAuthProxyRefreshFailureCode = "IG005E"
+	// OAuthProxyAccessCode is the OAuth Proxy integration token access code.
+	OAuthProxyAccessCode = "IG006I"
+
 	// PluginCreateCode is the plugin resource create event code.
 	PluginCreateCode = "PG001I"
 	// PluginUpdateCode is the plugin resource update event code.
