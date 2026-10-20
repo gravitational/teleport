@@ -39,6 +39,7 @@ import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
 import { GitServerAuthorize } from './GitServers/GitServerAuthorize';
 import { HeadlessRequest } from './HeadlessRequest';
 import { GitHubIntegrationCallback } from './Integrations/GitHubIntegrationCallback';
+import { IntegrationSetupComplete } from './Integrations/IntegrationSetupComplete';
 import { Login } from './Login';
 import { LoginClose } from './Login/LoginClose';
 import { LoginFailed } from './Login/LoginFailed';
@@ -192,6 +193,12 @@ export function getSharedPublicRoutes() {
       title="SAML Single Logout Failed"
       path={cfg.routes.samlSloFailed}
       element={<SingleLogoutFailed />}
+    />,
+    <Route
+      key="integration-setup-complete"
+      title="Setup Complete"
+      path={cfg.routes.integrationSetupComplete}
+      element={<IntegrationSetupComplete />}
     />,
   ];
 }

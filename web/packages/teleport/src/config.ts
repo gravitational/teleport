@@ -223,6 +223,8 @@ const ossRoutes = {
   samlIdpSso: '/enterprise/saml-idp/sso',
 
   gitServerAuthorize: '/web/gitservers/:name/authorize',
+
+  integrationSetupComplete: '/web/msg/info/integration_setup_complete',
 };
 
 export type Cfg = typeof cfg;

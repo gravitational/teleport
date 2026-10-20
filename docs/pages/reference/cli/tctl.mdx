@@ -1859,6 +1859,25 @@ Flags:
 |---|---|---|
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
+## tctl integrations github add
+
+Connect a GitHub organization for Git and the GitHub CLI over HTTPS, with a new
+GitHub App.
+
+Usage:
+
+```code
+$ tctl integrations github add --org=ORG [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--app-name`|*no default*|Name of the GitHub App to create, which must be unique on GitHub. Defaults to the cluster name.|
+|`--[no-]dry-run`|`false`|Print what the command would do without making any changes.|
+|`--org`|*no default*|GitHub organization name.|
+
 ## tctl integrations test
 
 Verify an integration.

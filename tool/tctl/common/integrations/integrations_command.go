@@ -53,6 +53,9 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.awsicAccountsLsCmd = awsicAccountsCmd.Command("ls", "List AWS Identity Center accounts and their permission sets.")
 	c.awsicAccountsLsCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.awsicAccountsLsFormat, teleport.Text, teleport.JSON, teleport.YAML)
 
+	githubCmd := integrationsCmd.Command("github", "GitHub integration helpers.")
+	c.githubAdd = newGitHubAddCommand(githubCmd)
+
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
 	}
@@ -68,6 +71,10 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 		}
 	case c.awsicAccountsLsCmd.FullCommand():
 		commandFunc = c.listAWSICAccounts
+	case c.githubAdd.FullCommand():
+		commandFunc = func(ctx context.Context, client *authclient.Client) error {
+			return c.githubAdd.run(ctx, client, client.GitServerClient())
+		}
 	default:
 		return false, nil
 	}
@@ -133,6 +140,8 @@ type Command struct {
 
 	awsicAccountsLsCmd    *kingpin.CmdClause
 	awsicAccountsLsFormat string
+
+	githubAdd *githubAddCommand
 
 	// Stdout allows to switch the standard output source. Used in tests.
 	Stdout io.Writer
