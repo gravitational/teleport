@@ -102,6 +102,27 @@ type ProxyServiceHTTPConfig struct {
 	// If zero, there will be no timeout.
 	WriteTimeout *time.Duration `yaml:"write_timeout,omitempty"`
 
+	// UpstreamDisableKeepAlives disables upstream HTTP connection reuse so each
+	// request establishes a new connection. Useful for troubleshooting, at the
+	// cost of additional TCP connections and TLS handshakes. Defaults to false.
+	UpstreamDisableKeepAlives bool `yaml:"upstream_disable_keep_alives,omitempty"`
+
+	// UpstreamIdleConnTimeout is the maximum amount of time an idle upstream
+	// keep-alive connection will remain idle before closing itself.
+	// Has no effect when UpstreamDisableKeepAlives is true.
+	//
+	// Defaults to Teleport's default idle connection timeout if omitted or zero.
+	// Must not exceed 20 minutes.
+	UpstreamIdleConnTimeout time.Duration `yaml:"upstream_idle_conn_timeout,omitempty"`
+
+	// UpstreamMaxIdleConns is the maximum number of idle upstream keep-alive
+	// connections retained across all applications.
+	// Has no effect when UpstreamDisableKeepAlives is true.
+	//
+	// Defaults to 100 if omitted or zero.
+	// Must not exceed 1000.
+	UpstreamMaxIdleConns int `yaml:"upstream_max_idle_conns,omitempty"`
+
 	// UpstreamRequestTimeout is the maximum duration for the upstream HTTP exchange,
 	// including connection establishment and reading the response body.
 	// Does not include application certificate acquisition.
@@ -193,6 +214,27 @@ func (c *ProxyServiceConfig) CheckAndSetDefaults(scoped bool) error {
 	}
 	if *c.HTTP.WriteTimeout < 0 {
 		return trace.BadParameter("http.write_timeout: cannot be negative")
+	}
+
+	if c.HTTP.UpstreamIdleConnTimeout < 0 {
+		return trace.BadParameter("http.upstream_idle_conn_timeout: cannot be negative")
+	}
+	if c.HTTP.UpstreamIdleConnTimeout == 0 {
+		c.HTTP.UpstreamIdleConnTimeout = apidefaults.DefaultIdleTimeout
+	}
+	if c.HTTP.UpstreamIdleConnTimeout > 20*time.Minute {
+		return trace.BadParameter("http.upstream_idle_conn_timeout: cannot be > 20m")
+	}
+
+	if c.HTTP.UpstreamMaxIdleConns < 0 {
+		return trace.BadParameter("http.upstream_max_idle_conns: cannot be negative")
+	}
+	if c.HTTP.UpstreamMaxIdleConns == 0 {
+		// Set the default match http.DefaultTransport
+		c.HTTP.UpstreamMaxIdleConns = 100
+	}
+	if c.HTTP.UpstreamMaxIdleConns > 1000 {
+		return trace.BadParameter("http.upstream_max_idle_conns: cannot be > 1000")
 	}
 
 	if c.HTTP.UpstreamRequestTimeout < 0 {

@@ -21,6 +21,7 @@ package application
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -94,9 +95,21 @@ type ProxyService struct {
 	alpnUpgradeCache   *internal.ALPNUpgradeCache
 
 	cache               *utils.FnCache
+	httpClient          *http.Client
 	proxyAddr           string
+	proxyPort           string
 	alpnUpgradeRequired bool
 }
+
+// upstreamDialTarget binds a transport connection-pool identity to the exact
+// client certificate that must authenticate connections in that pool.
+// Both are cached together in FnCache and treated as immutable after creation.
+type upstreamDialTarget struct {
+	certificate *tls.Certificate
+	poolAddr    string
+}
+
+type upstreamDialTargetContextKey struct{}
 
 // Run runs the service until the context is closed or an error occurs.
 func (s *ProxyService) Run(ctx context.Context) error {
@@ -121,9 +134,9 @@ func (s *ProxyService) Run(ctx context.Context) error {
 		}()
 	}
 
-	// Initialize the fnCache
 	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL: s.effectiveLifetime.RenewalInterval,
+		Context: ctx,
+		TTL:     s.effectiveLifetime.RenewalInterval,
 		// Otherwise a failed issuance is served to every request for that
 		// app until the TTL expires.
 		ReloadOnErr: true,
@@ -145,6 +158,10 @@ func (s *ProxyService) Run(ctx context.Context) error {
 		return trace.Wrap(err, "determining proxy address from ping response")
 	}
 	s.proxyAddr = proxyAddr
+	_, s.proxyPort, err = net.SplitHostPort(proxyAddr)
+	if err != nil {
+		return trace.Wrap(err, "determining proxy port")
+	}
 
 	// Check if ALPN upgrade will be required to pass client certificate to the
 	// proxy.
@@ -153,6 +170,28 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	)
 	if err != nil {
 		return trace.Wrap(err, "testing if ALPN connection upgrade is required")
+	}
+
+	// Share one transport across applications so MaxIdleConns bounds the total
+	// idle connections, including pools for previously issued certificates.
+	// Transport also owns idle eviction, timeouts, and synchronization.
+	transport := &http.Transport{
+		DialTLSContext:        s.dialUpstream,
+		DisableKeepAlives:     s.cfg.HTTP.UpstreamDisableKeepAlives,
+		IdleConnTimeout:       s.cfg.HTTP.UpstreamIdleConnTimeout,
+		MaxIdleConns:          s.cfg.HTTP.UpstreamMaxIdleConns,
+		ResponseHeaderTimeout: s.cfg.HTTP.UpstreamResponseHeaderTimeout,
+	}
+	defer transport.CloseIdleConnections()
+	s.httpClient = &http.Client{
+		Timeout:   s.cfg.HTTP.UpstreamRequestTimeout,
+		Transport: transport,
+		// Per RFC 9110, our proxy is an intermediary and redirects should be
+		// handled by the user agent, so forward them on to the client rather than
+		// handling them on their behalf.
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
 	httpSrv := http.Server{
@@ -230,6 +269,74 @@ func (s *ProxyService) issueCert(
 	}
 
 	return routedIdent.TLSCert, app, nil
+}
+
+func (s *ProxyService) newUpstreamDialTarget(host string, certificate *tls.Certificate) (*upstreamDialTarget, error) {
+	if certificate == nil || len(certificate.Certificate) == 0 {
+		return nil, trace.Errorf("application certificate has no certificate chain")
+	}
+
+	// Transport pools HTTPS connections by origin, without considering the
+	// client certificate. Every app dials the same Teleport Proxy, so using its
+	// address as the origin would allow connections to cross app identities.
+	// Hash the app name and full certificate chain to give each identity its
+	// own pool. A renewed chain selects a new pool; existing connections in the
+	// old pool are left to the transport's idle timeout and global idle limit.
+	hash := sha256.New()
+	_, _ = hash.Write([]byte(host))
+	// Separate the variable-length app name from the DER certificate chain.
+	_, _ = hash.Write([]byte{0})
+	for _, certificateDER := range certificate.Certificate {
+		_, _ = hash.Write(certificateDER)
+	}
+	digest := hash.Sum(nil)
+
+	return &upstreamDialTarget{
+		certificate: certificate,
+		poolAddr: net.JoinHostPort(
+			// A 32-byte digest becomes 64 hex characters. Split it into two
+			// 32-character labels to stay within DNS's 63-character label limit,
+			// even though this synthetic hostname must never reach DNS.
+			// .invalid is a reserved domain suffix specifically intended for
+			// deliberately invalid names (RFC 2606). It makes the synthetic authority
+			// visibly artificial and avoids collisions with real public domains.
+			// Go’s transport gives it no special pooling behavior. Our dialer must
+			// still ensure it is never resolved or dialed.
+			fmt.Sprintf("%x.%x.invalid", digest[:16], digest[16:]),
+			// Include the discovered port explicitly: omitting it would make
+			// Transport supply HTTPS's default :443, even for another proxy port.
+			s.proxyPort,
+		),
+	}, nil
+}
+
+// dialUpstream establishes an application-authenticated connection to the
+// Teleport Proxy. addr is an opaque connection-pool identity and is never
+// resolved or dialed directly.
+func (s *ProxyService) dialUpstream(ctx context.Context, network, addr string) (net.Conn, error) {
+	target, ok := ctx.Value(upstreamDialTargetContextKey{}).(*upstreamDialTarget)
+	if !ok {
+		return nil, trace.Errorf("application dial target missing from context")
+	}
+	if addr != target.poolAddr {
+		return nil, trace.Errorf("unexpected application connection pool address %q", addr)
+	}
+
+	// Always pass the real address to the ALPN dialer. Besides the network
+	// destination, it determines TLS ServerName when no explicit name is set.
+	return apiclient.NewALPNDialer(apiclient.ALPNDialerConfig{
+		DialTimeout:             s.cfg.HTTP.DialTimeout,
+		ALPNConnUpgradeRequired: s.alpnUpgradeRequired,
+		TLSConfig: &tls.Config{
+			Certificates:       []tls.Certificate{*target.certificate},
+			InsecureSkipVerify: s.botClient.Config().InsecureSkipVerify,
+			// Keep HTTP/1.1, whose pools are bounded by Transport.MaxIdleConns.
+			NextProtos: []string{string(common.ProtocolHTTP)},
+		},
+		GetClusterCAs: func(context.Context) (*x509.CertPool, error) {
+			return s.getBotIdentity().TLSCAPool, nil
+		},
+	}).DialContext(ctx, network, s.proxyAddr)
 }
 
 // generateUnscopedIdentity generates a role-impersonated identity, creates a
@@ -351,70 +458,40 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// net/http implements RFC7230 5.3 correctly, and will prefer the host
 	// specified within an absolute-form request-target over the Host header
 	// when setting req.Host - which means we can safely use req.Host here.
-	var appCert *tls.Certificate
-	var err error
-	appCert, err = utils.FnCacheGet(
+	target, err := utils.FnCacheGet(
 		ctx,
 		s.cache,
 		req.Host,
-		func(ctx context.Context) (*tls.Certificate, error) {
+		func(ctx context.Context) (*upstreamDialTarget, error) {
 			s.log.InfoContext(
 				ctx, "Issuing app cert",
 				"app", req.Host,
 			)
-			cert, _, err := s.issueCert(ctx, req.Host)
-			return cert, err
+			certificate, _, err := s.issueCert(ctx, req.Host)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return s.newUpstreamDialTarget(req.Host, certificate)
 		})
 	if err != nil {
-		return trace.Wrap(err, "fetching certificate")
+		return trace.Wrap(err, "fetching application certificate")
 	}
 
-	transport := &http.Transport{
-		// The transport is discarded after this request, so a kept-alive
-		// connection would otherwise linger until the proxy closes it.
-		// This eliminates the need to defer a call to transport.CloseIdleConns()
-		DisableKeepAlives: true,
-		// The ALPN dialer completes the TLS handshake, so it is wired in as
-		// DialTLSContext rather than DialContext.
-		DialTLSContext: apiclient.NewALPNDialer(apiclient.ALPNDialerConfig{
-			DialTimeout:             s.cfg.HTTP.DialTimeout,
-			ALPNConnUpgradeRequired: s.alpnUpgradeRequired,
-			TLSConfig: &tls.Config{
-				Certificates:       []tls.Certificate{*appCert},
-				InsecureSkipVerify: s.botClient.Config().InsecureSkipVerify,
-				NextProtos:         []string{string(common.ProtocolHTTP)},
-			},
-			GetClusterCAs: func(context.Context) (*x509.CertPool, error) {
-				return s.getBotIdentity().TLSCAPool, nil
-			},
-		}).DialContext,
-		ResponseHeaderTimeout: s.cfg.HTTP.UpstreamResponseHeaderTimeout,
-	}
-
-	// TODO(noah): We could cache the httpClient for each upstream, this
-	// would potentially allow performance improvements by caching connections.
-	// The transport settings would need to be reconsidered, i.e DisableKeepAlives.
-	httpClient := &http.Client{
-		Timeout:   s.cfg.HTTP.UpstreamRequestTimeout,
-		Transport: transport,
-		// Per RFC 9110, our proxy is an intermediary and redirects should be
-		// handled by the user agent, so forward them on to the client rather than
-		// handling them on their behalf.
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
+	// DialTLSContext receives only a context, network, and address. The address
+	// identifies the pool but does not contain its certificate, and looking the
+	// certificate up again could race with renewal. Transport retains request
+	// context values in the dial context, including when it detaches a
+	// speculative dial from request cancellation, so this immutable value binds
+	// the selected pool and certificate without another cache.
+	upstreamCtx := context.WithValue(req.Context(), upstreamDialTargetContextKey{}, target)
 	// Build the Application Request
-	upstreamReq := req.Clone(req.Context())
-	// For now, we redirect all requests to the proxy web's address. However,
-	// it would be a potential improvement for us to switch to fetching the
-	// public address from the App resource. This would reduce the chance of
-	// breakage if the Proxy is eventually modified to consider SNI. The problem
-	// with doing this is that the public address does not include a port, which
-	// we could guess from the Proxy's public web address.
+	upstreamReq := req.Clone(upstreamCtx)
+	// URL.Host is an opaque origin used only as the transport's connection-pool
+	// identity. The dialer validates it and connects to the real proxy address.
+	upstreamReq.URL.Host = target.poolAddr
+	// Request.Host controls the HTTP Host header independently of URL.Host,
+	// so the synthetic pool identity is not sent as the proxy's Host header.
 	upstreamReq.Host = s.proxyAddr
-	upstreamReq.URL.Host = s.proxyAddr
 	upstreamReq.URL.Scheme = "https"
 	// RequestURI must be empty when making client requests.
 	upstreamReq.RequestURI = ""
@@ -422,7 +499,7 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// upstream request?
 
 	// Execute the upstream request
-	resp, err := httpClient.Do(upstreamReq)
+	resp, err := s.httpClient.Do(upstreamReq)
 	if err != nil {
 		return err
 	}

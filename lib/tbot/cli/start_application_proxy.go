@@ -45,6 +45,9 @@ type ApplicationProxyCommand struct {
 	httpReadTimeoutSetByUser          bool
 	httpWriteTimeoutSetByUser         bool
 	HTTPWriteTimeout                  time.Duration
+	HTTPUpstreamDisableKeepAlives     bool
+	HTTPUpstreamIdleConnTimeout       time.Duration
+	HTTPUpstreamMaxIdleConns          int
 	HTTPUpstreamRequestTimeout        time.Duration
 	HTTPUpstreamResponseHeaderTimeout time.Duration
 }
@@ -65,6 +68,9 @@ func NewApplicationProxyCommand(parentCmd *kingpin.CmdClause, action MutatorActi
 	cmd.Flag("http-read-header-timeout", "The maximum time to read the incoming HTTP request headers.").DurationVar(&c.HTTPReadHeaderTimeout)
 	cmd.Flag("http-read-timeout", "The maximum time to read the entire incoming HTTP request, including headers and body.").IsSetByUser(&c.httpReadTimeoutSetByUser).DurationVar(&c.HTTPReadTimeout)
 	cmd.Flag("http-write-timeout", "The maximum time to write the response, measured from completion of incoming request header reading.").IsSetByUser(&c.httpWriteTimeoutSetByUser).DurationVar(&c.HTTPWriteTimeout)
+	cmd.Flag("http-upstream-disable-keep-alives", "Disable upstream HTTP connection reuse for troubleshooting. Each request establishes a new connection, adding TCP and TLS handshake overhead. Defaults to false.").BoolVar(&c.HTTPUpstreamDisableKeepAlives)
+	cmd.Flag("http-upstream-idle-conn-timeout", "The maximum amount of time an idle upstream keep-alive connection will remain idle before closing itself. Has no effect when --http-upstream-disable-keep-alives is set. Defaults to 30s if omitted or zero. Must not exceed 20m.").DurationVar(&c.HTTPUpstreamIdleConnTimeout)
+	cmd.Flag("http-upstream-max-idle-conns", "The maximum number of idle upstream keep-alive connections retained across all applications. Has no effect when --http-upstream-disable-keep-alives is set. Defaults to 100 if omitted or zero. Must not exceed 1000.").IntVar(&c.HTTPUpstreamMaxIdleConns)
 	cmd.Flag("http-upstream-request-timeout", "The maximum duration for the upstream HTTP exchange, including connection establishment, redirects, and reading the response body.").DurationVar(&c.HTTPUpstreamRequestTimeout)
 	cmd.Flag("http-upstream-response-header-timeout", "The maximum wait for upstream HTTP response headers after the request, including its body, has been fully written.").DurationVar(&c.HTTPUpstreamResponseHeaderTimeout)
 
@@ -80,6 +86,9 @@ func (c *ApplicationProxyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Log
 		DialTimeout:                   c.HTTPDialTimeout,
 		IdleTimeout:                   c.HTTPIdleTimeout,
 		ReadHeaderTimeout:             c.HTTPReadHeaderTimeout,
+		UpstreamDisableKeepAlives:     c.HTTPUpstreamDisableKeepAlives,
+		UpstreamIdleConnTimeout:       c.HTTPUpstreamIdleConnTimeout,
+		UpstreamMaxIdleConns:          c.HTTPUpstreamMaxIdleConns,
 		UpstreamRequestTimeout:        c.HTTPUpstreamRequestTimeout,
 		UpstreamResponseHeaderTimeout: c.HTTPUpstreamResponseHeaderTimeout,
 	}

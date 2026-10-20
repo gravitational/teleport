@@ -1620,6 +1620,29 @@ http:
   # Zero means no timeout.
   write_timeout: "30s"
 
+  # upstream_disable_keep_alives disables upstream HTTP connection reuse.
+  # Enable for troubleshooting: each request establishes a new connection,
+  # adding TCP and TLS handshake overhead.
+  #
+  # Defaults to false, allowing upstream connections to be reused.
+  upstream_disable_keep_alives: false
+
+  # upstream_idle_conn_timeout is the maximum amount of time an idle upstream
+  # keep-alive connection will remain idle before closing itself.
+  # Has no effect when upstream_disable_keep_alives is true.
+  #
+  # The default is 30 seconds if omitted or zero.
+  # Must not be negative or exceed 20 minutes.
+  upstream_idle_conn_timeout: "30s"
+
+  # upstream_max_idle_conns is the maximum number of idle upstream keep-alive
+  # connections retained across all applications.
+  # Has no effect when upstream_disable_keep_alives is true.
+  #
+  # The default is 100 if omitted or zero.
+  # Must not be negative or exceed 1000.
+  upstream_max_idle_conns: 100
+
   # upstream_request_timeout is the maximum duration for the upstream HTTP
   # exchange, including connection establishment, redirects, and reading the
   # response body. Does not include application certificate acquisition.
