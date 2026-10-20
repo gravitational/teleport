@@ -2333,6 +2333,7 @@ type ReplayConversation struct {
 	xxx_hidden_DetailedDescription string                 `protobuf:"bytes,11,opt,name=detailed_description,json=detailedDescription,proto3"`
 	xxx_hidden_Agents              *[]*ReplayAgent        `protobuf:"bytes,12,rep,name=agents,proto3"`
 	xxx_hidden_Findings            *[]*ReplayFinding      `protobuf:"bytes,13,rep,name=findings,proto3"`
+	xxx_hidden_TitleGenerated      bool                   `protobuf:"varint,14,opt,name=title_generated,json=titleGenerated,proto3"`
 	unknownFields                  protoimpl.UnknownFields
 	sizeCache                      protoimpl.SizeCache
 }
@@ -2443,6 +2444,13 @@ func (x *ReplayConversation) GetFindings() []*ReplayFinding {
 	return nil
 }
 
+func (x *ReplayConversation) GetTitleGenerated() bool {
+	if x != nil {
+		return x.xxx_hidden_TitleGenerated
+	}
+	return false
+}
+
 func (x *ReplayConversation) SetConversationOrdinal(v int64) {
 	x.xxx_hidden_ConversationOrdinal = v
 }
@@ -2487,6 +2495,10 @@ func (x *ReplayConversation) SetFindings(v []*ReplayFinding) {
 	x.xxx_hidden_Findings = &v
 }
 
+func (x *ReplayConversation) SetTitleGenerated(v bool) {
+	x.xxx_hidden_TitleGenerated = v
+}
+
 func (x *ReplayConversation) HasFirstAt() bool {
 	if x == nil {
 		return false
@@ -2521,7 +2533,8 @@ type ReplayConversation_builder struct {
 	// implicit conversation.
 	SessionId string
 	// Title is the segmenter's short label for what the run set out to do, taken
-	// from its root lane, falling back to the analyzer's title for the run.
+	// from its root lane, falling back to the analyzer's title for the run, then to
+	// one derived from the recording (see title_generated).
 	Title string
 	// Goal is the segmenter's one-sentence statement of the run's objective.
 	Goal string
@@ -2543,7 +2556,7 @@ type ReplayConversation_builder struct {
 	// the whole artifact, so a paged activity references its lane with one
 	// ordinal.
 	Agents []*ReplayAgent
-	// Findings are this run's suspicious activities, each pointing at the timeline
+	// Findings are this run's notable observations, each pointing at the timeline
 	// steps it was drawn from. The analyzer works over transcript exchanges and
 	// cites those; the sink resolves them to activities here, since an activity
 	// records which exchanges it covers and a viewer positions by activity.
@@ -2552,6 +2565,9 @@ type ReplayConversation_builder struct {
 	// that cannot cite: the prose in short_description still describes them, so an
 	// empty list means "nowhere to jump to", never "nothing found".
 	Findings []*ReplayFinding
+	// TitleGenerated reports that title was derived from the recording rather than
+	// written by a model.
+	TitleGenerated bool
 }
 
 func (b0 ReplayConversation_builder) Build() *ReplayConversation {
@@ -2569,6 +2585,7 @@ func (b0 ReplayConversation_builder) Build() *ReplayConversation {
 	x.xxx_hidden_DetailedDescription = b.DetailedDescription
 	x.xxx_hidden_Agents = &b.Agents
 	x.xxx_hidden_Findings = &b.Findings
+	x.xxx_hidden_TitleGenerated = b.TitleGenerated
 	return m0
 }
 
@@ -2593,6 +2610,7 @@ type ReplayAgent struct {
 	xxx_hidden_SpawnCommandOrdinal int64                  `protobuf:"varint,13,opt,name=spawn_command_ordinal,json=spawnCommandOrdinal,proto3"`
 	xxx_hidden_Model               string                 `protobuf:"bytes,14,opt,name=model,proto3"`
 	xxx_hidden_SummaryError        string                 `protobuf:"bytes,15,opt,name=summary_error,json=summaryError,proto3"`
+	xxx_hidden_TitleGenerated      bool                   `protobuf:"varint,16,opt,name=title_generated,json=titleGenerated,proto3"`
 	unknownFields                  protoimpl.UnknownFields
 	sizeCache                      protoimpl.SizeCache
 }
@@ -2727,6 +2745,13 @@ func (x *ReplayAgent) GetSummaryError() string {
 	return ""
 }
 
+func (x *ReplayAgent) GetTitleGenerated() bool {
+	if x != nil {
+		return x.xxx_hidden_TitleGenerated
+	}
+	return false
+}
+
 func (x *ReplayAgent) SetAgentOrdinal(v int64) {
 	x.xxx_hidden_AgentOrdinal = v
 }
@@ -2787,6 +2812,10 @@ func (x *ReplayAgent) SetSummaryError(v string) {
 	x.xxx_hidden_SummaryError = v
 }
 
+func (x *ReplayAgent) SetTitleGenerated(v bool) {
+	x.xxx_hidden_TitleGenerated = v
+}
+
 func (x *ReplayAgent) HasFirstAt() bool {
 	if x == nil {
 		return false
@@ -2826,7 +2855,8 @@ type ReplayAgent_builder struct {
 	// Kind categorizes the agent (e.g. the Codex subagent_kind), when the
 	// recording reports one.
 	Kind string
-	// Title is the segmenter's short label for the agent's objective.
+	// Title is the segmenter's short label for the agent's objective, or one
+	// derived from the recording when the segmenter gave none (see title_generated).
 	Title string
 	// Goal is the segmenter's one-sentence statement of what the agent was asked
 	// or set out to do (intent), as opposed to what it did.
@@ -2864,6 +2894,9 @@ type ReplayAgent_builder struct {
 	// recording whose riskiest lane is the one the model refused to describe must
 	// not present that as the lane where least happened.
 	SummaryError string
+	// TitleGenerated reports that title was derived from the recording rather than
+	// written by a model.
+	TitleGenerated bool
 }
 
 func (b0 ReplayAgent_builder) Build() *ReplayAgent {
@@ -2885,6 +2918,7 @@ func (b0 ReplayAgent_builder) Build() *ReplayAgent {
 	x.xxx_hidden_SpawnCommandOrdinal = b.SpawnCommandOrdinal
 	x.xxx_hidden_Model = b.Model
 	x.xxx_hidden_SummaryError = b.SummaryError
+	x.xxx_hidden_TitleGenerated = b.TitleGenerated
 	return m0
 }
 
@@ -2907,6 +2941,12 @@ type ReplayActivity struct {
 	xxx_hidden_ExchangeOrdinals    []int64                `protobuf:"varint,12,rep,packed,name=exchange_ordinals,json=exchangeOrdinals,proto3"`
 	xxx_hidden_Commands            *[]*ReplayCommand      `protobuf:"bytes,13,rep,name=commands,proto3"`
 	xxx_hidden_Kind                string                 `protobuf:"bytes,14,opt,name=kind,proto3"`
+	xxx_hidden_NotableObservations []string               `protobuf:"bytes,15,rep,name=notable_observations,json=notableObservations,proto3"`
+	xxx_hidden_SensitiveItems      []string               `protobuf:"bytes,16,rep,name=sensitive_items,json=sensitiveItems,proto3"`
+	xxx_hidden_ObservedEndpoints   []string               `protobuf:"bytes,17,rep,name=observed_endpoints,json=observedEndpoints,proto3"`
+	xxx_hidden_PrivilegeChange     bool                   `protobuf:"varint,18,opt,name=privilege_change,json=privilegeChange,proto3"`
+	xxx_hidden_ExternalTransfer    bool                   `protobuf:"varint,19,opt,name=external_transfer,json=externalTransfer,proto3"`
+	xxx_hidden_PersistentChange    bool                   `protobuf:"varint,20,opt,name=persistent_change,json=persistentChange,proto3"`
 	unknownFields                  protoimpl.UnknownFields
 	sizeCache                      protoimpl.SizeCache
 }
@@ -3022,6 +3062,48 @@ func (x *ReplayActivity) GetKind() string {
 	return ""
 }
 
+func (x *ReplayActivity) GetNotableObservations() []string {
+	if x != nil {
+		return x.xxx_hidden_NotableObservations
+	}
+	return nil
+}
+
+func (x *ReplayActivity) GetSensitiveItems() []string {
+	if x != nil {
+		return x.xxx_hidden_SensitiveItems
+	}
+	return nil
+}
+
+func (x *ReplayActivity) GetObservedEndpoints() []string {
+	if x != nil {
+		return x.xxx_hidden_ObservedEndpoints
+	}
+	return nil
+}
+
+func (x *ReplayActivity) GetPrivilegeChange() bool {
+	if x != nil {
+		return x.xxx_hidden_PrivilegeChange
+	}
+	return false
+}
+
+func (x *ReplayActivity) GetExternalTransfer() bool {
+	if x != nil {
+		return x.xxx_hidden_ExternalTransfer
+	}
+	return false
+}
+
+func (x *ReplayActivity) GetPersistentChange() bool {
+	if x != nil {
+		return x.xxx_hidden_PersistentChange
+	}
+	return false
+}
+
 func (x *ReplayActivity) SetActivityOrdinal(v int64) {
 	x.xxx_hidden_ActivityOrdinal = v
 }
@@ -3068,6 +3150,30 @@ func (x *ReplayActivity) SetCommands(v []*ReplayCommand) {
 
 func (x *ReplayActivity) SetKind(v string) {
 	x.xxx_hidden_Kind = v
+}
+
+func (x *ReplayActivity) SetNotableObservations(v []string) {
+	x.xxx_hidden_NotableObservations = v
+}
+
+func (x *ReplayActivity) SetSensitiveItems(v []string) {
+	x.xxx_hidden_SensitiveItems = v
+}
+
+func (x *ReplayActivity) SetObservedEndpoints(v []string) {
+	x.xxx_hidden_ObservedEndpoints = v
+}
+
+func (x *ReplayActivity) SetPrivilegeChange(v bool) {
+	x.xxx_hidden_PrivilegeChange = v
+}
+
+func (x *ReplayActivity) SetExternalTransfer(v bool) {
+	x.xxx_hidden_ExternalTransfer = v
+}
+
+func (x *ReplayActivity) SetPersistentChange(v bool) {
+	x.xxx_hidden_PersistentChange = v
 }
 
 func (x *ReplayActivity) HasAt() bool {
@@ -3139,6 +3245,24 @@ type ReplayActivity_builder struct {
 	// derive exactly (milestone, spawn, return). Empty for artifacts recorded
 	// before activity kinds existed; consumers fall back to "tool".
 	Kind string
+	// NotableObservations are concrete details of the activity worth a
+	// reviewer's attention, stated factually without judging them.
+	NotableObservations []string
+	// SensitiveItems are the sensitive files or data the activity read, wrote or
+	// modified.
+	SensitiveItems []string
+	// ObservedEndpoints are the external hosts, addresses and URLs the activity
+	// contacted or referenced.
+	ObservedEndpoints []string
+	// PrivilegeChange reports that the activity changed or attempted to change
+	// a privilege level or boundary.
+	PrivilegeChange bool
+	// ExternalTransfer reports that the activity moved or staged data toward a
+	// destination other than the host it ran on.
+	ExternalTransfer bool
+	// PersistentChange reports that the activity created or changed something
+	// that outlives the run, such as a scheduled job or a startup entry.
+	PersistentChange bool
 }
 
 func (b0 ReplayActivity_builder) Build() *ReplayActivity {
@@ -3157,6 +3281,12 @@ func (b0 ReplayActivity_builder) Build() *ReplayActivity {
 	x.xxx_hidden_ExchangeOrdinals = b.ExchangeOrdinals
 	x.xxx_hidden_Commands = &b.Commands
 	x.xxx_hidden_Kind = b.Kind
+	x.xxx_hidden_NotableObservations = b.NotableObservations
+	x.xxx_hidden_SensitiveItems = b.SensitiveItems
+	x.xxx_hidden_ObservedEndpoints = b.ObservedEndpoints
+	x.xxx_hidden_PrivilegeChange = b.PrivilegeChange
+	x.xxx_hidden_ExternalTransfer = b.ExternalTransfer
+	x.xxx_hidden_PersistentChange = b.PersistentChange
 	return m0
 }
 
@@ -4072,7 +4202,7 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"activities\x18\x01 \x03(\v2!.teleport.beams.v1.ReplayActivityR\n" +
 	"activities\"f\n" +
 	"\x17ReplayConversationIndex\x12K\n" +
-	"\rconversations\x18\x01 \x03(\v2%.teleport.beams.v1.ReplayConversationR\rconversations\"\x90\x04\n" +
+	"\rconversations\x18\x01 \x03(\v2%.teleport.beams.v1.ReplayConversationR\rconversations\"\xb9\x04\n" +
 	"\x12ReplayConversation\x121\n" +
 	"\x14conversation_ordinal\x18\x01 \x01(\x03R\x13conversationOrdinal\x12\x1d\n" +
 	"\n" +
@@ -4086,10 +4216,11 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	" \x01(\tR\x10shortDescription\x121\n" +
 	"\x14detailed_description\x18\v \x01(\tR\x13detailedDescription\x126\n" +
 	"\x06agents\x18\f \x03(\v2\x1e.teleport.beams.v1.ReplayAgentR\x06agents\x12<\n" +
-	"\bfindings\x18\r \x03(\v2 .teleport.beams.v1.ReplayFindingR\bfindingsJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\bfindings\x18\r \x03(\v2 .teleport.beams.v1.ReplayFindingR\bfindings\x12'\n" +
+	"\x0ftitle_generated\x18\x0e \x01(\bR\x0etitleGeneratedJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"R\n" +
 	"risk_levelR\n" +
-	"risk_score\"\xfc\x03\n" +
+	"risk_score\"\xa5\x04\n" +
 	"\vReplayAgent\x12#\n" +
 	"\ragent_ordinal\x18\x01 \x01(\x03R\fagentOrdinal\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\x1d\n" +
@@ -4108,7 +4239,8 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"isSubagent\x122\n" +
 	"\x15spawn_command_ordinal\x18\r \x01(\x03R\x13spawnCommandOrdinal\x12\x14\n" +
 	"\x05model\x18\x0e \x01(\tR\x05model\x12#\n" +
-	"\rsummary_error\x18\x0f \x01(\tR\fsummaryError\"\x91\x04\n" +
+	"\rsummary_error\x18\x0f \x01(\tR\fsummaryError\x12'\n" +
+	"\x0ftitle_generated\x18\x10 \x01(\bR\x0etitleGenerated\"\xa1\x06\n" +
 	"\x0eReplayActivity\x12)\n" +
 	"\x10activity_ordinal\x18\x01 \x01(\x03R\x0factivityOrdinal\x12#\n" +
 	"\ragent_ordinal\x18\x02 \x01(\x03R\fagentOrdinal\x12\x14\n" +
@@ -4122,7 +4254,13 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"\funsummarised\x18\v \x01(\bR\funsummarised\x12+\n" +
 	"\x11exchange_ordinals\x18\f \x03(\x03R\x10exchangeOrdinals\x12<\n" +
 	"\bcommands\x18\r \x03(\v2 .teleport.beams.v1.ReplayCommandR\bcommands\x12\x12\n" +
-	"\x04kind\x18\x0e \x01(\tR\x04kindJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\aflaggedR\x04risk\"\xaa\x06\n" +
+	"\x04kind\x18\x0e \x01(\tR\x04kind\x121\n" +
+	"\x14notable_observations\x18\x0f \x03(\tR\x13notableObservations\x12'\n" +
+	"\x0fsensitive_items\x18\x10 \x03(\tR\x0esensitiveItems\x12-\n" +
+	"\x12observed_endpoints\x18\x11 \x03(\tR\x11observedEndpoints\x12)\n" +
+	"\x10privilege_change\x18\x12 \x01(\bR\x0fprivilegeChange\x12+\n" +
+	"\x11external_transfer\x18\x13 \x01(\bR\x10externalTransfer\x12+\n" +
+	"\x11persistent_change\x18\x14 \x01(\bR\x10persistentChangeJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\aflaggedR\x04risk\"\xaa\x06\n" +
 	"\x13ReplayExchangeEntry\x12\x18\n" +
 	"\aordinal\x18\x01 \x01(\x03R\aordinal\x12\x1d\n" +
 	"\n" +

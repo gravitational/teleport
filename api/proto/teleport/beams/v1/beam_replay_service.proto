@@ -372,7 +372,8 @@ message ReplayConversation {
   string session_id = 2;
 
   // Title is the segmenter's short label for what the run set out to do, taken
-  // from its root lane, falling back to the analyzer's title for the run.
+  // from its root lane, falling back to the analyzer's title for the run, then to
+  // one derived from the recording (see title_generated).
   string title = 3;
 
   // Goal is the segmenter's one-sentence statement of the run's objective.
@@ -405,7 +406,7 @@ message ReplayConversation {
   // ordinal.
   repeated ReplayAgent agents = 12;
 
-  // Findings are this run's suspicious activities, each pointing at the timeline
+  // Findings are this run's notable observations, each pointing at the timeline
   // steps it was drawn from. The analyzer works over transcript exchanges and
   // cites those; the sink resolves them to activities here, since an activity
   // records which exchanges it covers and a viewer positions by activity.
@@ -414,6 +415,10 @@ message ReplayConversation {
   // that cannot cite: the prose in short_description still describes them, so an
   // empty list means "nowhere to jump to", never "nothing found".
   repeated ReplayFinding findings = 13;
+
+  // TitleGenerated reports that title was derived from the recording rather than
+  // written by a model.
+  bool title_generated = 14;
 }
 
 // ReplayAgent is one agent lane the segmenter identified in the recording: the
@@ -440,7 +445,8 @@ message ReplayAgent {
   // recording reports one.
   string kind = 5;
 
-  // Title is the segmenter's short label for the agent's objective.
+  // Title is the segmenter's short label for the agent's objective, or one
+  // derived from the recording when the segmenter gave none (see title_generated).
   string title = 6;
 
   // Goal is the segmenter's one-sentence statement of what the agent was asked
@@ -487,6 +493,10 @@ message ReplayAgent {
   // recording whose riskiest lane is the one the model refused to describe must
   // not present that as the lane where least happened.
   string summary_error = 15;
+
+  // TitleGenerated reports that title was derived from the recording rather than
+  // written by a model.
+  bool title_generated = 16;
 }
 
 // ReplayActivity is one grouped step in an agent lane's timeline: a small
@@ -553,6 +563,30 @@ message ReplayActivity {
   // derive exactly (milestone, spawn, return). Empty for artifacts recorded
   // before activity kinds existed; consumers fall back to "tool".
   string kind = 14;
+
+  // NotableObservations are concrete details of the activity worth a
+  // reviewer's attention, stated factually without judging them.
+  repeated string notable_observations = 15;
+
+  // SensitiveItems are the sensitive files or data the activity read, wrote or
+  // modified.
+  repeated string sensitive_items = 16;
+
+  // ObservedEndpoints are the external hosts, addresses and URLs the activity
+  // contacted or referenced.
+  repeated string observed_endpoints = 17;
+
+  // PrivilegeChange reports that the activity changed or attempted to change
+  // a privilege level or boundary.
+  bool privilege_change = 18;
+
+  // ExternalTransfer reports that the activity moved or staged data toward a
+  // destination other than the host it ran on.
+  bool external_transfer = 19;
+
+  // PersistentChange reports that the activity created or changed something
+  // that outlives the run, such as a scheduled job or a startup entry.
+  bool persistent_change = 20;
 }
 
 // ReplayExchangeEntry describes a single recorded HTTP exchange.

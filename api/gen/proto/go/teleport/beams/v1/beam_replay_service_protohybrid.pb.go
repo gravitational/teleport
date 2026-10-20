@@ -2460,7 +2460,8 @@ type ReplayConversation struct {
 	// implicit conversation.
 	SessionId string `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	// Title is the segmenter's short label for what the run set out to do, taken
-	// from its root lane, falling back to the analyzer's title for the run.
+	// from its root lane, falling back to the analyzer's title for the run, then to
+	// one derived from the recording (see title_generated).
 	Title string `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
 	// Goal is the segmenter's one-sentence statement of the run's objective.
 	Goal string `protobuf:"bytes,4,opt,name=goal,proto3" json:"goal,omitempty"`
@@ -2482,7 +2483,7 @@ type ReplayConversation struct {
 	// the whole artifact, so a paged activity references its lane with one
 	// ordinal.
 	Agents []*ReplayAgent `protobuf:"bytes,12,rep,name=agents,proto3" json:"agents,omitempty"`
-	// Findings are this run's suspicious activities, each pointing at the timeline
+	// Findings are this run's notable observations, each pointing at the timeline
 	// steps it was drawn from. The analyzer works over transcript exchanges and
 	// cites those; the sink resolves them to activities here, since an activity
 	// records which exchanges it covers and a viewer positions by activity.
@@ -2490,9 +2491,12 @@ type ReplayConversation struct {
 	// Empty when the model produced no citable findings, which includes every model
 	// that cannot cite: the prose in short_description still describes them, so an
 	// empty list means "nowhere to jump to", never "nothing found".
-	Findings      []*ReplayFinding `protobuf:"bytes,13,rep,name=findings,proto3" json:"findings,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Findings []*ReplayFinding `protobuf:"bytes,13,rep,name=findings,proto3" json:"findings,omitempty"`
+	// TitleGenerated reports that title was derived from the recording rather than
+	// written by a model.
+	TitleGenerated bool `protobuf:"varint,14,opt,name=title_generated,json=titleGenerated,proto3" json:"title_generated,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ReplayConversation) Reset() {
@@ -2597,6 +2601,13 @@ func (x *ReplayConversation) GetFindings() []*ReplayFinding {
 	return nil
 }
 
+func (x *ReplayConversation) GetTitleGenerated() bool {
+	if x != nil {
+		return x.TitleGenerated
+	}
+	return false
+}
+
 func (x *ReplayConversation) SetConversationOrdinal(v int64) {
 	x.ConversationOrdinal = v
 }
@@ -2641,6 +2652,10 @@ func (x *ReplayConversation) SetFindings(v []*ReplayFinding) {
 	x.Findings = v
 }
 
+func (x *ReplayConversation) SetTitleGenerated(v bool) {
+	x.TitleGenerated = v
+}
+
 func (x *ReplayConversation) HasFirstAt() bool {
 	if x == nil {
 		return false
@@ -2675,7 +2690,8 @@ type ReplayConversation_builder struct {
 	// implicit conversation.
 	SessionId string
 	// Title is the segmenter's short label for what the run set out to do, taken
-	// from its root lane, falling back to the analyzer's title for the run.
+	// from its root lane, falling back to the analyzer's title for the run, then to
+	// one derived from the recording (see title_generated).
 	Title string
 	// Goal is the segmenter's one-sentence statement of the run's objective.
 	Goal string
@@ -2697,7 +2713,7 @@ type ReplayConversation_builder struct {
 	// the whole artifact, so a paged activity references its lane with one
 	// ordinal.
 	Agents []*ReplayAgent
-	// Findings are this run's suspicious activities, each pointing at the timeline
+	// Findings are this run's notable observations, each pointing at the timeline
 	// steps it was drawn from. The analyzer works over transcript exchanges and
 	// cites those; the sink resolves them to activities here, since an activity
 	// records which exchanges it covers and a viewer positions by activity.
@@ -2706,6 +2722,9 @@ type ReplayConversation_builder struct {
 	// that cannot cite: the prose in short_description still describes them, so an
 	// empty list means "nowhere to jump to", never "nothing found".
 	Findings []*ReplayFinding
+	// TitleGenerated reports that title was derived from the recording rather than
+	// written by a model.
+	TitleGenerated bool
 }
 
 func (b0 ReplayConversation_builder) Build() *ReplayConversation {
@@ -2723,6 +2742,7 @@ func (b0 ReplayConversation_builder) Build() *ReplayConversation {
 	x.DetailedDescription = b.DetailedDescription
 	x.Agents = b.Agents
 	x.Findings = b.Findings
+	x.TitleGenerated = b.TitleGenerated
 	return m0
 }
 
@@ -2746,7 +2766,8 @@ type ReplayAgent struct {
 	// Kind categorizes the agent (e.g. the Codex subagent_kind), when the
 	// recording reports one.
 	Kind string `protobuf:"bytes,5,opt,name=kind,proto3" json:"kind,omitempty"`
-	// Title is the segmenter's short label for the agent's objective.
+	// Title is the segmenter's short label for the agent's objective, or one
+	// derived from the recording when the segmenter gave none (see title_generated).
 	Title string `protobuf:"bytes,6,opt,name=title,proto3" json:"title,omitempty"`
 	// Goal is the segmenter's one-sentence statement of what the agent was asked
 	// or set out to do (intent), as opposed to what it did.
@@ -2783,9 +2804,12 @@ type ReplayAgent struct {
 	// no narration, which is indistinguishable from an agent that ran quietly. A
 	// recording whose riskiest lane is the one the model refused to describe must
 	// not present that as the lane where least happened.
-	SummaryError  string `protobuf:"bytes,15,opt,name=summary_error,json=summaryError,proto3" json:"summary_error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SummaryError string `protobuf:"bytes,15,opt,name=summary_error,json=summaryError,proto3" json:"summary_error,omitempty"`
+	// TitleGenerated reports that title was derived from the recording rather than
+	// written by a model.
+	TitleGenerated bool `protobuf:"varint,16,opt,name=title_generated,json=titleGenerated,proto3" json:"title_generated,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ReplayAgent) Reset() {
@@ -2918,6 +2942,13 @@ func (x *ReplayAgent) GetSummaryError() string {
 	return ""
 }
 
+func (x *ReplayAgent) GetTitleGenerated() bool {
+	if x != nil {
+		return x.TitleGenerated
+	}
+	return false
+}
+
 func (x *ReplayAgent) SetAgentOrdinal(v int64) {
 	x.AgentOrdinal = v
 }
@@ -2978,6 +3009,10 @@ func (x *ReplayAgent) SetSummaryError(v string) {
 	x.SummaryError = v
 }
 
+func (x *ReplayAgent) SetTitleGenerated(v bool) {
+	x.TitleGenerated = v
+}
+
 func (x *ReplayAgent) HasFirstAt() bool {
 	if x == nil {
 		return false
@@ -3017,7 +3052,8 @@ type ReplayAgent_builder struct {
 	// Kind categorizes the agent (e.g. the Codex subagent_kind), when the
 	// recording reports one.
 	Kind string
-	// Title is the segmenter's short label for the agent's objective.
+	// Title is the segmenter's short label for the agent's objective, or one
+	// derived from the recording when the segmenter gave none (see title_generated).
 	Title string
 	// Goal is the segmenter's one-sentence statement of what the agent was asked
 	// or set out to do (intent), as opposed to what it did.
@@ -3055,6 +3091,9 @@ type ReplayAgent_builder struct {
 	// recording whose riskiest lane is the one the model refused to describe must
 	// not present that as the lane where least happened.
 	SummaryError string
+	// TitleGenerated reports that title was derived from the recording rather than
+	// written by a model.
+	TitleGenerated bool
 }
 
 func (b0 ReplayAgent_builder) Build() *ReplayAgent {
@@ -3076,6 +3115,7 @@ func (b0 ReplayAgent_builder) Build() *ReplayAgent {
 	x.SpawnCommandOrdinal = b.SpawnCommandOrdinal
 	x.Model = b.Model
 	x.SummaryError = b.SummaryError
+	x.TitleGenerated = b.TitleGenerated
 	return m0
 }
 
@@ -3129,9 +3169,27 @@ type ReplayActivity struct {
 	// return. The segmenter proposes it and the sink overrides the three it can
 	// derive exactly (milestone, spawn, return). Empty for artifacts recorded
 	// before activity kinds existed; consumers fall back to "tool".
-	Kind          string `protobuf:"bytes,14,opt,name=kind,proto3" json:"kind,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Kind string `protobuf:"bytes,14,opt,name=kind,proto3" json:"kind,omitempty"`
+	// NotableObservations are concrete details of the activity worth a
+	// reviewer's attention, stated factually without judging them.
+	NotableObservations []string `protobuf:"bytes,15,rep,name=notable_observations,json=notableObservations,proto3" json:"notable_observations,omitempty"`
+	// SensitiveItems are the sensitive files or data the activity read, wrote or
+	// modified.
+	SensitiveItems []string `protobuf:"bytes,16,rep,name=sensitive_items,json=sensitiveItems,proto3" json:"sensitive_items,omitempty"`
+	// ObservedEndpoints are the external hosts, addresses and URLs the activity
+	// contacted or referenced.
+	ObservedEndpoints []string `protobuf:"bytes,17,rep,name=observed_endpoints,json=observedEndpoints,proto3" json:"observed_endpoints,omitempty"`
+	// PrivilegeChange reports that the activity changed or attempted to change
+	// a privilege level or boundary.
+	PrivilegeChange bool `protobuf:"varint,18,opt,name=privilege_change,json=privilegeChange,proto3" json:"privilege_change,omitempty"`
+	// ExternalTransfer reports that the activity moved or staged data toward a
+	// destination other than the host it ran on.
+	ExternalTransfer bool `protobuf:"varint,19,opt,name=external_transfer,json=externalTransfer,proto3" json:"external_transfer,omitempty"`
+	// PersistentChange reports that the activity created or changed something
+	// that outlives the run, such as a scheduled job or a startup entry.
+	PersistentChange bool `protobuf:"varint,20,opt,name=persistent_change,json=persistentChange,proto3" json:"persistent_change,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ReplayActivity) Reset() {
@@ -3243,6 +3301,48 @@ func (x *ReplayActivity) GetKind() string {
 	return ""
 }
 
+func (x *ReplayActivity) GetNotableObservations() []string {
+	if x != nil {
+		return x.NotableObservations
+	}
+	return nil
+}
+
+func (x *ReplayActivity) GetSensitiveItems() []string {
+	if x != nil {
+		return x.SensitiveItems
+	}
+	return nil
+}
+
+func (x *ReplayActivity) GetObservedEndpoints() []string {
+	if x != nil {
+		return x.ObservedEndpoints
+	}
+	return nil
+}
+
+func (x *ReplayActivity) GetPrivilegeChange() bool {
+	if x != nil {
+		return x.PrivilegeChange
+	}
+	return false
+}
+
+func (x *ReplayActivity) GetExternalTransfer() bool {
+	if x != nil {
+		return x.ExternalTransfer
+	}
+	return false
+}
+
+func (x *ReplayActivity) GetPersistentChange() bool {
+	if x != nil {
+		return x.PersistentChange
+	}
+	return false
+}
+
 func (x *ReplayActivity) SetActivityOrdinal(v int64) {
 	x.ActivityOrdinal = v
 }
@@ -3289,6 +3389,30 @@ func (x *ReplayActivity) SetCommands(v []*ReplayCommand) {
 
 func (x *ReplayActivity) SetKind(v string) {
 	x.Kind = v
+}
+
+func (x *ReplayActivity) SetNotableObservations(v []string) {
+	x.NotableObservations = v
+}
+
+func (x *ReplayActivity) SetSensitiveItems(v []string) {
+	x.SensitiveItems = v
+}
+
+func (x *ReplayActivity) SetObservedEndpoints(v []string) {
+	x.ObservedEndpoints = v
+}
+
+func (x *ReplayActivity) SetPrivilegeChange(v bool) {
+	x.PrivilegeChange = v
+}
+
+func (x *ReplayActivity) SetExternalTransfer(v bool) {
+	x.ExternalTransfer = v
+}
+
+func (x *ReplayActivity) SetPersistentChange(v bool) {
+	x.PersistentChange = v
 }
 
 func (x *ReplayActivity) HasAt() bool {
@@ -3360,6 +3484,24 @@ type ReplayActivity_builder struct {
 	// derive exactly (milestone, spawn, return). Empty for artifacts recorded
 	// before activity kinds existed; consumers fall back to "tool".
 	Kind string
+	// NotableObservations are concrete details of the activity worth a
+	// reviewer's attention, stated factually without judging them.
+	NotableObservations []string
+	// SensitiveItems are the sensitive files or data the activity read, wrote or
+	// modified.
+	SensitiveItems []string
+	// ObservedEndpoints are the external hosts, addresses and URLs the activity
+	// contacted or referenced.
+	ObservedEndpoints []string
+	// PrivilegeChange reports that the activity changed or attempted to change
+	// a privilege level or boundary.
+	PrivilegeChange bool
+	// ExternalTransfer reports that the activity moved or staged data toward a
+	// destination other than the host it ran on.
+	ExternalTransfer bool
+	// PersistentChange reports that the activity created or changed something
+	// that outlives the run, such as a scheduled job or a startup entry.
+	PersistentChange bool
 }
 
 func (b0 ReplayActivity_builder) Build() *ReplayActivity {
@@ -3378,6 +3520,12 @@ func (b0 ReplayActivity_builder) Build() *ReplayActivity {
 	x.ExchangeOrdinals = b.ExchangeOrdinals
 	x.Commands = b.Commands
 	x.Kind = b.Kind
+	x.NotableObservations = b.NotableObservations
+	x.SensitiveItems = b.SensitiveItems
+	x.ObservedEndpoints = b.ObservedEndpoints
+	x.PrivilegeChange = b.PrivilegeChange
+	x.ExternalTransfer = b.ExternalTransfer
+	x.PersistentChange = b.PersistentChange
 	return m0
 }
 
@@ -4329,7 +4477,7 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"activities\x18\x01 \x03(\v2!.teleport.beams.v1.ReplayActivityR\n" +
 	"activities\"f\n" +
 	"\x17ReplayConversationIndex\x12K\n" +
-	"\rconversations\x18\x01 \x03(\v2%.teleport.beams.v1.ReplayConversationR\rconversations\"\x90\x04\n" +
+	"\rconversations\x18\x01 \x03(\v2%.teleport.beams.v1.ReplayConversationR\rconversations\"\xb9\x04\n" +
 	"\x12ReplayConversation\x121\n" +
 	"\x14conversation_ordinal\x18\x01 \x01(\x03R\x13conversationOrdinal\x12\x1d\n" +
 	"\n" +
@@ -4343,10 +4491,11 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	" \x01(\tR\x10shortDescription\x121\n" +
 	"\x14detailed_description\x18\v \x01(\tR\x13detailedDescription\x126\n" +
 	"\x06agents\x18\f \x03(\v2\x1e.teleport.beams.v1.ReplayAgentR\x06agents\x12<\n" +
-	"\bfindings\x18\r \x03(\v2 .teleport.beams.v1.ReplayFindingR\bfindingsJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\bfindings\x18\r \x03(\v2 .teleport.beams.v1.ReplayFindingR\bfindings\x12'\n" +
+	"\x0ftitle_generated\x18\x0e \x01(\bR\x0etitleGeneratedJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"R\n" +
 	"risk_levelR\n" +
-	"risk_score\"\xfc\x03\n" +
+	"risk_score\"\xa5\x04\n" +
 	"\vReplayAgent\x12#\n" +
 	"\ragent_ordinal\x18\x01 \x01(\x03R\fagentOrdinal\x12\x19\n" +
 	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\x1d\n" +
@@ -4365,7 +4514,8 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"isSubagent\x122\n" +
 	"\x15spawn_command_ordinal\x18\r \x01(\x03R\x13spawnCommandOrdinal\x12\x14\n" +
 	"\x05model\x18\x0e \x01(\tR\x05model\x12#\n" +
-	"\rsummary_error\x18\x0f \x01(\tR\fsummaryError\"\x91\x04\n" +
+	"\rsummary_error\x18\x0f \x01(\tR\fsummaryError\x12'\n" +
+	"\x0ftitle_generated\x18\x10 \x01(\bR\x0etitleGenerated\"\xa1\x06\n" +
 	"\x0eReplayActivity\x12)\n" +
 	"\x10activity_ordinal\x18\x01 \x01(\x03R\x0factivityOrdinal\x12#\n" +
 	"\ragent_ordinal\x18\x02 \x01(\x03R\fagentOrdinal\x12\x14\n" +
@@ -4379,7 +4529,13 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"\funsummarised\x18\v \x01(\bR\funsummarised\x12+\n" +
 	"\x11exchange_ordinals\x18\f \x03(\x03R\x10exchangeOrdinals\x12<\n" +
 	"\bcommands\x18\r \x03(\v2 .teleport.beams.v1.ReplayCommandR\bcommands\x12\x12\n" +
-	"\x04kind\x18\x0e \x01(\tR\x04kindJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\aflaggedR\x04risk\"\xaa\x06\n" +
+	"\x04kind\x18\x0e \x01(\tR\x04kind\x121\n" +
+	"\x14notable_observations\x18\x0f \x03(\tR\x13notableObservations\x12'\n" +
+	"\x0fsensitive_items\x18\x10 \x03(\tR\x0esensitiveItems\x12-\n" +
+	"\x12observed_endpoints\x18\x11 \x03(\tR\x11observedEndpoints\x12)\n" +
+	"\x10privilege_change\x18\x12 \x01(\bR\x0fprivilegeChange\x12+\n" +
+	"\x11external_transfer\x18\x13 \x01(\bR\x10externalTransfer\x12+\n" +
+	"\x11persistent_change\x18\x14 \x01(\bR\x10persistentChangeJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\aflaggedR\x04risk\"\xaa\x06\n" +
 	"\x13ReplayExchangeEntry\x12\x18\n" +
 	"\aordinal\x18\x01 \x01(\x03R\aordinal\x12\x1d\n" +
 	"\n" +
