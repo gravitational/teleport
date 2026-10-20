@@ -290,6 +290,7 @@ func (g *gcpKMSKeyStore) canUseKey(ctx context.Context, raw []byte, keyType type
 //  1. Are not included in the argument activeKeys
 //  2. Are labeled with hostLabel (teleport_auth_host)
 //  3. The hostLabel value matches the local host UUID
+//  4. Are asymmetric signing keys, which all Teleport CA keys are
 //
 // The activeKeys argument is meant to contain to complete set of raw key IDs as
 // stored in the current CA specs in the backend.
@@ -346,12 +347,24 @@ func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			// Record that this current active key was actually found.
 			activeKmsKeyVersions[keyVersionName] += 1
 		} else if key.Labels[hostLabel] == g.hostUUID {
-			// This key is not active (it is not currently stored in any
-			// Teleport CA) and it was created by this Auth server, so it should
-			// be safe to delete.
-			keysToDelete = append(keysToDelete, gcpKMSKeyID{
-				keyVersionName: keyVersionName,
-			})
+			// Perform a fail-safe check before deleting the key.
+			// The label check above is the only thing distinguishing a CA key
+			// from a key created for another purpose. Non-CA keys are never stored
+			// in Teleport's CA so they will not appear in activeKeys, and destroying
+			// one is unrecoverable.
+
+			// Confirm with KMS that this really is a signing key before deleting it.
+			if purpose := key.GetPurpose(); purpose != kmspb.CryptoKey_ASYMMETRIC_SIGN {
+				g.log.InfoContext(ctx, "Not deleting GCP KMS key which is labeled as a CA key but is not an asymmetric signing key.",
+					"key_name", key.Name, "purpose", purpose.String())
+			} else {
+				// This key is not active (it is not currently stored in any
+				// Teleport CA) and it was created by this Auth server, so it
+				// should be safe to delete.
+				keysToDelete = append(keysToDelete, gcpKMSKeyID{
+					keyVersionName: keyVersionName,
+				})
+			}
 		}
 		key, err = iter.Next()
 	}

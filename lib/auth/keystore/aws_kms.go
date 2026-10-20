@@ -511,6 +511,7 @@ func (a *awsKMSKeystore) canUseKey(ctx context.Context, raw []byte, keyType type
 // 1. Are not included in the argument activeKeys
 // 2. Are labeled in AWS KMS as being created by this Teleport cluster
 // 3. Were not created in the past 5 minutes.
+// 4. Are sign/verify keys, which all Teleport CA keys are.
 //
 // The activeKeys argument is meant to contain to complete set of raw key IDs as
 // stored in the current CA specs in the backend.
@@ -619,6 +620,18 @@ func (a *awsKMSKeystore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 			// the backend CA yet (which is why they don't appear in activeKeys).
 			a.logger.InfoContext(ctx, "deleteUnusedKeys skipping AWS KMS key which was created in the past 5 minutes.",
 				"key_arn", arn)
+			return nil
+		}
+
+		// Perform a fail-safe check before deleting the key.
+		// The label check above is the only thing distinguishing a CA key
+		// from a key created for another purpose. Non-CA keys are never stored
+		// in Teleport's CA so they will not appear in activeKeys, and destroying
+		// one is unrecoverable.
+		// Confirm with KMS that this really is a signing key before deleting it.
+		if keyUsage := describeOutput.KeyMetadata.KeyUsage; keyUsage != kmstypes.KeyUsageTypeSignVerify {
+			a.logger.InfoContext(ctx, "deleteUnusedKeys skipping AWS KMS key which is tagged as a CA key but is not a sign/verify key.",
+				"key_arn", arn, "key_usage", keyUsage)
 			return nil
 		}
 
