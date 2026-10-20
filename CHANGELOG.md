@@ -1,5 +1,11 @@
 # Changelog
 
+## 18.11.6 (10/20/26)
+
+This is a follow up to the 18.11.5 release. In addition to the previous release, it includes the following changes:
+
+* Updated the Go toolchain to 1.26.10
+
 ## 18.11.4 (10/14/26)
 
 This is a follow up to the 18.11.3 private security release that includes an additional non-security improvement:

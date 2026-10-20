@@ -2,7 +2,7 @@ apiVersion: v2
 name: teleport-plugin-datadog
 description: A Helm chart for the Teleport Datadog Incident Management Plugin
 type: application
-version: &version "18.11.3"
+version: &version "18.11.6"
 appVersion: *version
 
 dependencies:
