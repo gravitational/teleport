@@ -1,0 +1,1 @@
+Configure AKS discovery and deploy a Teleport Kubernetes Service in Azure Container Instances to access the discovered clusters.

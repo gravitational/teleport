@@ -41,7 +41,7 @@ locals {
 
 # Teleport provision token for Azure join
 resource "teleport_provision_token" "azure" {
-  count = local.create ? 1 : 0
+  count = local.create && local.uses_vm ? 1 : 0
 
   metadata = {
     description = "Allow Teleport nodes to join the cluster using Azure credentials."

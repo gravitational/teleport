@@ -1,0 +1,233 @@
+---
+title: Discover and Access Azure Kubernetes Service clusters
+sidebar_label: aks-discovery-access
+description: Configure AKS discovery and deploy a Teleport Kubernetes Service in Azure Container Instances to access the discovered clusters.
+page_type: reference
+tags:
+ - infrastructure-as-code
+ - reference
+ - platform-wide
+---
+
+{/*
+    Auto-generated file.
+    Do not edit this directly in the docs/pages tree.
+    Instead, edit teleport/discovery/azure/examples/aks-discovery-access/README.md
+    Then, regenerate the docs with `make -C integrations/terraform-modules docs`.
+*/}
+
+This page lists the configuration fields in a usage example of the
+teleport-discovery-azure Terraform module: aks-discovery-access.
+## Discover and access Azure Kubernetes Service clusters
+
+This example configures AKS discovery and deploys a Teleport Kubernetes Service in Azure Container Instances to access the discovered clusters.
+
+The discovery module creates a managed identity, discovery permissions, and the Teleport OIDC integration and discovery configuration.
+The agent module deploys the Kubernetes Service with a separate managed identity and AKS access permissions.
+
+The discovery module uses the tags defined in `azure_matchers` to filter which AKS clusters it registers.
+The Kubernetes Service selects registered AKS clusters in the same discovery group, subscription, resource groups, and regions.
+This can include matching clusters registered by other discovery configurations in that group.
+
+{/* BEGIN_TF_DOCS */}
+## Requirements
+
+| Name | Version |
+| ---- | ------- |
+| terraform | >= 1.5.7 |
+| azurerm | >= 5.0 |
+| http | >= 3.0 |
+| random | >= 3.0 |
+| teleport | >= 18.11.0 |
+
+## Providers
+
+| Name | Version |
+| ---- | ------- |
+| azurerm | >= 5.0 |
+
+## Modules
+
+| Name | Source | Version |
+| ---- | ------ | ------- |
+| azure\_agent | ../../../../agent/azure | n/a |
+| azure\_discovery | ../.. | n/a |
+
+## Resources
+
+| Name | Type |
+| ---- | ---- |
+| [azurerm_resource_group.example](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group) | resource |
+| [azurerm_client_config.current](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/client_config) | data source |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+| ---- | ----------- | ---- | ------- | :------: |
+| teleport\_proxy\_addr | The address of the Teleport Proxy Service in host:port form. | `string` | n/a | yes |
+
+## Outputs
+
+| Name | Description |
+| ---- | ----------- |
+| azure\_agent | Kubernetes Service identity, container deployments, and commands to follow their logs. |
+| azure\_discovery | Discovery configuration, OIDC integration, and Azure discovery identity. |
+{/* END_TF_DOCS */}
+
+## Source Code
+
+[View the aks-discovery-access example source code for the teleport-discovery-azure module on GitHub](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/azure/examples/aks-discovery-access).
+
+```hcl
+################################################################################
+# teleport/discovery/azure/examples/aks-discovery-access/data.tf
+################################################################################
+
+data "azurerm_client_config" "current" {}
+
+################################################################################
+# teleport/discovery/azure/examples/aks-discovery-access/main.tf
+################################################################################
+
+locals {
+  apply_azure_tags               = { origin = "example" }
+  apply_teleport_resource_labels = { origin = "example" }
+
+  # A Discovery Service watching this discovery group must already exist.
+  # If you are using Teleport Cloud, you can use `cloud-discovery-group`.
+  teleport_discovery_group = "discover-aks"
+  matching_resource_groups = ["*"]
+  matching_regions         = ["westus", "eastus"]
+  matching_tags = {
+    env = ["prod"]
+  }
+}
+
+# Resource group that will be used to create resources related to the Discovery and Agent modules.
+# You can use two resource groups if you want to separate the resources for the Discovery and Agent modules.
+resource "azurerm_resource_group" "example" {
+  name     = "teleport-aks-discovery-access"
+  location = "eastus"
+  tags     = local.apply_azure_tags
+}
+
+# Azure Discovery module creates the required resources for discovering AKS clusters.
+# But it doesn't provide a way to access them (see the Azure Agent module below).
+module "azure_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/azure"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr    = var.teleport_proxy_addr
+  teleport_discovery_group_name = local.teleport_discovery_group
+
+  azure_resource_group_name       = azurerm_resource_group.example.name
+  azure_managed_identity_location = azurerm_resource_group.example.location
+
+  # Configure AKS matcher: resource groups, regions and tags to monitor.
+  azure_matchers = [
+    {
+      types           = ["aks"]
+      subscriptions   = [data.azurerm_client_config.current.subscription_id]
+      resource_groups = local.matching_resource_groups
+      regions         = local.matching_regions
+      tags            = local.matching_tags
+    }
+  ]
+
+  apply_azure_tags               = local.apply_azure_tags
+  apply_teleport_resource_labels = local.apply_teleport_resource_labels
+}
+
+# Azure Agent module deploys a Kubernetes Service that will proxy the discovered AKS clusters, providing access to them.
+module "azure_agent" {
+  source  = "terraform.releases.teleport.dev/teleport/agent/azure"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr    = var.teleport_proxy_addr
+  teleport_discovery_group_name = local.teleport_discovery_group
+
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  apply_azure_tags    = local.apply_azure_tags
+
+  container_group_name = "teleport-aks-access"
+
+  # Keep the labels in sync with the configuration in the discovery module under the azure_matchers.
+  kubernetes_service = {
+    enabled = true
+    resource_matcher_labels = {
+      "region"             = local.matching_regions
+      "teleport.dev/cloud" = ["Azure"]
+      "subscription-id"    = [data.azurerm_client_config.current.subscription_id]
+      "resource-group"     = local.matching_resource_groups
+    }
+  }
+}
+
+################################################################################
+# teleport/discovery/azure/examples/aks-discovery-access/outputs.tf
+################################################################################
+
+output "azure_discovery" {
+  description = "Discovery configuration, OIDC integration, and Azure discovery identity."
+  value       = module.azure_discovery
+}
+
+output "azure_agent" {
+  description = "Kubernetes Service identity, container deployments, and commands to follow their logs."
+  value       = module.azure_agent
+}
+
+################################################################################
+# teleport/discovery/azure/examples/aks-discovery-access/providers.tf
+################################################################################
+
+provider "azurerm" {
+  features {}
+}
+
+provider "teleport" {
+  addr         = var.teleport_proxy_addr
+  profile_name = replace(var.teleport_proxy_addr, "/:[0-9]+.*/", "")
+}
+
+################################################################################
+# teleport/discovery/azure/examples/aks-discovery-access/variables.tf
+################################################################################
+
+variable "teleport_proxy_addr" {
+  description = "The address of the Teleport Proxy Service in host:port form."
+  type        = string
+}
+
+################################################################################
+# teleport/discovery/azure/examples/aks-discovery-access/versions.tf
+################################################################################
+
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = ">= 5.0"
+    }
+
+    http = {
+      source  = "hashicorp/http"
+      version = ">= 3.0"
+    }
+
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.0"
+    }
+
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = ">= 18.11.0"
+    }
+  }
+}
+
+```

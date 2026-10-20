@@ -70,6 +70,7 @@ PUBLISHED_TF_MODULES := \
 	teleport/agent/aws \
 	teleport/discovery/aws \
 	teleport/discovery/azure \
+	teleport/agent/azure \
 
 MODULE_TARBALLS:=$(addsuffix .tar.gz, $(subst /,_,$(PUBLISHED_TF_MODULES)))
 BUILD_TARGETS:=$(addprefix $(BUILD_DIR)/$(PLUGIN_TYPE)_, $(MODULE_TARBALLS))

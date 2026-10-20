@@ -76,6 +76,9 @@ EOF
 for module in "${PUBLISHED_TF_MODULES[@]}"; do
     module_name="${module//\//-}"
     module_address="${MODULE_REGISTRY}/${module}"
+    # Extract the namespace of the module: "teleport"
+    module_namespace="$(echo "${module}" | cut -d '/' -f 1)"
+    module_base_url="${MODULE_REGISTRY}/${module_namespace}"
 
     # inject a link to the module into the modules index page
     info "Adding ${module_name} to modules reference index"
@@ -202,7 +205,9 @@ EOF
 EOF
         for file in "${example}"/*.tf; do
             [[ ! -s "$file" ]] && continue # skip empty files
-            cat - "${file}" <<EOF | sed -E "s#^([[:space:]]*)source.*\"../..\"#\1source  = \"${module_address}\"\n\1version = \"~> (=teleport.major_version=).0\"#g" >> "${example_doc}"
+            cat - "${file}" <<EOF | sed -E \
+                -e "s#^([[:space:]]*)source.*\"../..\"#\1source  = \"${module_address}\"\n\1version = \"~> (=teleport.major_version=).0\"#g" \
+                -e "s#^([[:space:]]*)source.*\"../../../../([^\"]+)\"#\1source  = \"${module_base_url}/\2\"\n\1version = \"~> (=teleport.major_version=).0\"#g" >> "${example_doc}"
 ################################################################################
 # ${file}
 ################################################################################

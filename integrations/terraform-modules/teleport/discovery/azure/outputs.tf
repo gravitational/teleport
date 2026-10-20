@@ -19,6 +19,6 @@ output "teleport_integration_name" {
 }
 
 output "teleport_provision_token_name" {
-  description = "Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using Azure credentials. Token details can be viewed with `tctl get token/<name>`."
-  value       = nonsensitive(local.teleport_provision_token_name)
+  description = "Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using Azure credentials. Only used when enrolling VMs. Token details can be viewed with `tctl get token/<name>`."
+  value       = local.uses_vm ? nonsensitive(local.teleport_provision_token_name) : null
 }

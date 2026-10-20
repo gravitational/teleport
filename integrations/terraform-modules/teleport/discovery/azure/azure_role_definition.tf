@@ -19,7 +19,8 @@ locals {
     [for sub in local.azure_matcher_subscriptions : "/subscriptions/${sub}"],
   )
 
-  uses_vm = contains(local.azure_matcher_types, "vm")
+  uses_vm  = contains(local.azure_matcher_types, "vm")
+  uses_aks = contains(local.azure_matcher_types, "aks")
 
   vm_actions = [
     "Microsoft.Compute/virtualMachines/read",
@@ -31,9 +32,14 @@ locals {
     "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/write",
   ]
 
+  aks_actions = [
+    "Microsoft.ContainerService/managedClusters/read",
+  ]
+
   role_actions = distinct(concat(
     ["Microsoft.Resources/subscriptions/read"],
     local.uses_vm ? local.vm_actions : [],
+    local.uses_aks ? local.aks_actions : [],
   ))
 
   azure_role_definition_name = (
@@ -48,7 +54,7 @@ resource "azurerm_role_definition" "teleport_discovery" {
   count = local.create_azure_managed_identity ? 1 : 0
 
   assignable_scopes = local.azure_role_assignment_scopes
-  description       = "Azure role that allows a Teleport Discovery Service to discover VMs."
+  description       = "Azure role that allows a Teleport Discovery Service to discover Azure resources."
   name              = local.azure_role_definition_name
   scope             = coalesce(local.azure_management_group_scope, local.azure_role_assignment_scopes[0])
 

@@ -39,7 +39,7 @@ variable "teleport_proxy_public_addr" {
 }
 
 variable "azure_matchers" {
-  description = "Azure resource discovery matchers. Valid values for azure_matchers.types are: vm. A wildcard ('*') subscription matcher may be used when `azure_management_group_id` or `azure_role_assignment_scopes` is set."
+  description = "Azure resource discovery matchers. Valid values for azure_matchers.types are: vm and aks. A wildcard ('*') subscription matcher may be used when `azure_management_group_id` or `azure_role_assignment_scopes` is set."
   type = list(object({
     types           = list(string)
     subscriptions   = list(string)
@@ -85,7 +85,7 @@ variable "azure_matchers" {
         contains([
           # TODO: add module support for all resource types
           "vm",
-          # "aks",
+          "aks",
           # "mysql",
           # "postgres",
           # "redis",
@@ -97,6 +97,7 @@ variable "azure_matchers" {
       "Allowed values for azure_matchers.types are: %s.",
       join(", ", [
         "vm",
+        "aks",
       ])
     )
   }
@@ -226,7 +227,7 @@ variable "teleport_integration_use_name_prefix" {
 }
 
 variable "teleport_provision_token_allow_rules" {
-  description = "Custom allow rules for the Teleport provision token. When using a wildcard (`*`) subscription matcher and `create_azure_managed_identity` is `true`, defaults to a tenant-based allow rule using the Azure tenant ID. Required when `create_azure_managed_identity` is `false` and a wildcard subscription matcher is used."
+  description = "Custom allow rules for the Teleport provision token. When using a wildcard (`*`) subscription matcher and `create_azure_managed_identity` is `true`, defaults to a tenant-based allow rule using the Azure tenant ID. Required when `create_azure_managed_identity` is `false` and a wildcard subscription matcher is used. Only used when enrolling VMs."
   type = list(object({
     subscription    = optional(string)
     resource_groups = optional(list(string))

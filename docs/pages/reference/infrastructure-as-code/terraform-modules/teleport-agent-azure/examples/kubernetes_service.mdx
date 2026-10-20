@@ -1,0 +1,169 @@
+---
+title: Teleport Kubernetes Service Example
+sidebar_label: kubernetes_service
+description: Deploy Teleport Kubernetes Service to Azure Container Instances.
+page_type: reference
+tags:
+ - infrastructure-as-code
+ - reference
+ - platform-wide
+---
+
+{/*
+    Auto-generated file.
+    Do not edit this directly in the docs/pages tree.
+    Instead, edit teleport/agent/azure/examples/kubernetes_service/README.md
+    Then, regenerate the docs with `make -C integrations/terraform-modules docs`.
+*/}
+
+This page lists the configuration fields in a usage example of the
+teleport-agent-azure Terraform module: kubernetes_service.
+## Deploy a Kubernetes Service in Azure
+
+This example deploys the Teleport Kubernetes Service to Azure Container Instances and joins it to an example Teleport cluster.
+
+{/* BEGIN_TF_DOCS */}
+## Requirements
+
+| Name | Version |
+| ---- | ------- |
+| terraform | >= 1.5.7 |
+| azurerm | ~> 5.0 |
+| http | ~> 3.0 |
+| random | ~> 3.0 |
+| teleport | ~> 18.11 |
+
+## Providers
+
+| Name | Version |
+| ---- | ------- |
+| azurerm | ~> 5.0 |
+
+## Modules
+
+| Name | Source | Version |
+| ---- | ------ | ------- |
+| agent | ../.. | n/a |
+
+## Resources
+
+| Name | Type |
+| ---- | ---- |
+| [azurerm_resource_group.example](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group) | resource |
+| [azurerm_client_config.this](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/client_config) | data source |
+
+## Inputs
+
+No inputs.
+
+## Outputs
+
+| Name | Description |
+| ---- | ----------- |
+| teleport\_kubernetes\_service | Kubernetes Service identity, deployment and logs location. |
+{/* END_TF_DOCS */}
+
+## Source Code
+
+[View the kubernetes_service example source code for the teleport-agent-azure module on GitHub](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/agent/azure/examples/kubernetes_service).
+
+```hcl
+################################################################################
+# teleport/agent/azure/examples/kubernetes_service/data.tf
+################################################################################
+
+data "azurerm_client_config" "this" {}
+
+################################################################################
+# teleport/agent/azure/examples/kubernetes_service/main.tf
+################################################################################
+
+locals {
+  apply_azure_tags = {
+    owner = "my-name-or-email"
+  }
+}
+
+# Resource group for the Azure resources created by the module.
+resource "azurerm_resource_group" "example" {
+  name     = "resource-group-for-teleport-agents"
+  location = "spaincentral"
+  tags     = local.apply_azure_tags
+}
+
+module "agent" {
+  source  = "terraform.releases.teleport.dev/teleport/agent/azure"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr    = "example.teleport.sh:443"
+  teleport_discovery_group_name = "azure-prod"
+
+  # Enable managed updates
+  managed_updates_enabled = true
+  managed_updates_group   = "default"
+
+  apply_azure_tags = local.apply_azure_tags
+
+  container_group_name = "teleport-kubernetes-service"
+  location             = azurerm_resource_group.example.location
+  resource_group_name  = azurerm_resource_group.example.name
+
+  kubernetes_service = {
+    enabled = true
+    resource_matcher_labels = {
+      "region"             = ["*"]
+      "teleport.dev/cloud" = ["Azure"]
+      "subscription-id"    = [data.azurerm_client_config.this.subscription_id]
+      "resource-group"     = ["my-resource-group-with-aks-clusters"]
+    }
+  }
+}
+
+################################################################################
+# teleport/agent/azure/examples/kubernetes_service/outputs.tf
+################################################################################
+
+output "teleport_kubernetes_service" {
+  description = "Kubernetes Service identity, deployment and logs location."
+  value       = module.agent
+}
+
+################################################################################
+# teleport/agent/azure/examples/kubernetes_service/providers.tf
+################################################################################
+
+provider "azurerm" {
+  features {}
+}
+
+provider "teleport" {
+}
+
+################################################################################
+# teleport/agent/azure/examples/kubernetes_service/versions.tf
+################################################################################
+
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 5.0"
+    }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> 18.11"
+    }
+  }
+}
+
+```

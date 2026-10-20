@@ -1,11 +1,11 @@
 ## Azure Discovery Terraform module
 
-This Terraform module creates the Azure and Teleport cluster resources necessary for a Teleport cluster to discover Azure virtual machines:
+This Terraform module creates the Azure and Teleport cluster resources necessary for a Teleport cluster to discover Azure VMs and AKS clusters:
 
-- **Azure user-assigned managed identity**: Used by the Teleport Discovery Service to authenticate to Azure APIs for scanning and managing VMs in matching Azure resource groups.
+- **Azure user-assigned managed identity**: Used by the Teleport Discovery Service to authenticate to Azure APIs for scanning and managing Azure resources in matching resource groups.
 - **Azure federated identity credential**: Establishes trust between Azure and your Teleport cluster by allowing the managed identity to authenticate using OIDC tokens issued by your Teleport proxy.
-- **Azure custom role definition and assignment**: Grants the managed identity the minimum required permissions to discover VMs and run installation commands on them.
-- **Teleport `discovery_config` cluster resource**: Configures the discovery parameters (subscriptions, resource groups, tags) that determine which Azure VMs will be discovered and enrolled.
+- **Azure custom role definition and assignment**: Grants the managed identity permissions to read subscriptions and the required APIs for each resource type included.
+- **Teleport `discovery_config` cluster resource**: Configures the discovery parameters (subscriptions, resource groups, tags) that determine which Azure resources will be discovered.
 - **Teleport `integration` cluster resource**: Stores the Azure OIDC integration configuration in your Teleport cluster, linking the Azure tenant and client ID to enable authentication.
 - **Teleport `token` cluster resource**: Provides the join token that discovered Azure VMs will use to authenticate and join your Teleport cluster.
 
@@ -14,12 +14,15 @@ This Terraform module creates the Azure and Teleport cluster resources necessary
 <!-- lint ignore absolute-docs-links -->
 - [Install Teleport Terraform Provider](https://goteleport.com/docs/configuration/terraform-provider/)
 <!-- lint ignore absolute-docs-links -->
-- Every Azure VM to be discovered must have a managed identity assigned to it with at least the Microsoft.Compute/virtualMachines/read permission. [Read more](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-vm-discovery/azure-vm-discovery-terraform/#setting-up-managed-identities-for-discovered-vms)
+- For VM discovery, every Azure VM to be discovered must have a managed identity assigned to it with at least the Microsoft.Compute/virtualMachines/read permission. [Read more](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-vm-discovery/azure-vm-discovery-terraform/#setting-up-managed-identities-for-discovered-vms)
+<!-- lint ignore absolute-docs-links -->
+- For AKS access, configure a Teleport Kubernetes Service that has access to the AKS cluster and grant it the permissions described in [Teleport AKS Auto-Discovery guide](https://goteleport.com/docs/enroll-resources/auto-discovery/kubernetes/aks-discovery/).
 
 ## Examples
 
 - [Discover VMs in a single Azure subscription](./examples/single-subscription.mdx)
 - [Discover VMs in an Azure management group](./examples/management-group.mdx)
+- [Discover and access AKS clusters](./examples/aks-discovery-access.mdx)
 
 ## How to get help
 
@@ -77,7 +80,7 @@ No modules.
 | azure\_managed\_identity\_name | Name of the Azure user-assigned managed identity created for Teleport Discovery. | `string` | `"discovery-identity"` | no |
 | azure\_managed\_identity\_use\_name\_prefix | Whether `azure_managed_identity_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
 | azure\_management\_group\_id | ID of an Azure management group or Tenant to derive the role assignment scope. Has no effect if `azure_role_assignment_scopes` is set. When neither is set, the subscription scopes will be derived from `azure_matchers`. | `string` | `null` | no |
-| azure\_matchers | Azure resource discovery matchers. Valid values for azure\_matchers.types are: vm. A wildcard ('*') subscription matcher may be used when `azure_management_group_id` or `azure_role_assignment_scopes` is set. | ```list(object({ types = list(string) subscriptions = list(string) resource_groups = optional(list(string), ["*"]) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) }))``` | n/a | yes |
+| azure\_matchers | Azure resource discovery matchers. Valid values for azure\_matchers.types are: vm and aks. A wildcard ('*') subscription matcher may be used when `azure_management_group_id` or `azure_role_assignment_scopes` is set. | ```list(object({ types = list(string) subscriptions = list(string) resource_groups = optional(list(string), ["*"]) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) }))``` | n/a | yes |
 | azure\_resource\_group\_name | Name of an existing Azure Resource Group where Azure resources will be created. Required when `create_azure_managed_identity` is `true`. | `string` | `null` | no |
 | azure\_role\_assignment\_scopes | The scopes at which the Azure discovery role will be assigned. By default, scopes are derived from  the management group set in `azure_management_group_id` or subscriptions configured in `azure_matchers`. | `list(string)` | `[]` | no |
 | azure\_role\_definition\_name | Name for the Azure custom role definition created for Teleport Discovery. | `string` | `"teleport-discovery"` | no |
@@ -90,7 +93,7 @@ No modules.
 | teleport\_installer\_script\_name | Name of an existing Teleport installer script to use. | `string` | `"default-installer"` | no |
 | teleport\_integration\_name | Name for the `teleport_integration` resource. | `string` | `"discovery"` | no |
 | teleport\_integration\_use\_name\_prefix | Whether `teleport_integration_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
-| teleport\_provision\_token\_allow\_rules | Custom allow rules for the Teleport provision token. When using a wildcard (`*`) subscription matcher and `create_azure_managed_identity` is `true`, defaults to a tenant-based allow rule using the Azure tenant ID. Required when `create_azure_managed_identity` is `false` and a wildcard subscription matcher is used. | ```list(object({ subscription = optional(string) resource_groups = optional(list(string)) tenant = optional(string) }))``` | `null` | no |
+| teleport\_provision\_token\_allow\_rules | Custom allow rules for the Teleport provision token. When using a wildcard (`*`) subscription matcher and `create_azure_managed_identity` is `true`, defaults to a tenant-based allow rule using the Azure tenant ID. Required when `create_azure_managed_identity` is `false` and a wildcard subscription matcher is used. Only used when enrolling VMs. | ```list(object({ subscription = optional(string) resource_groups = optional(list(string)) tenant = optional(string) }))``` | `null` | no |
 | teleport\_provision\_token\_name | Name for the `teleport_provision_token` resource. | `string` | `"discovery"` | no |
 | teleport\_provision\_token\_use\_name\_prefix | Whether `teleport_provision_token_name` is used as a name prefix (true) or as the exact name (false). | `bool` | `true` | no |
 | teleport\_proxy\_public\_addr | Teleport cluster proxy public address in the form `host:port` (no URL scheme). | `string` | n/a | yes |
@@ -104,5 +107,5 @@ No modules.
 | azure\_teleport\_discovery\_managed\_identity | Managed identity created for the Teleport Discovery Service. |
 | teleport\_discovery\_config\_name | Name of the Teleport dynamic `discovery_config`. Configuration details can be viewed with `tctl get discovery_config/<name>`. Teleport Discovery Service instances will use this `discovery_config` if they are in the same discovery group as the `discovery_config`. |
 | teleport\_integration\_name | Name of the Teleport `integration` resource. The integration resource configures Teleport Discovery Service instances to assume an Azure managed identity for discovery using Azure OIDC federation. Integration details can be viewed with `tctl get integrations/<name>` or by visiting the Teleport web UI under 'Zero Trust Access' > 'Integrations'. |
-| teleport\_provision\_token\_name | Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using Azure credentials. Token details can be viewed with `tctl get token/<name>`. |
+| teleport\_provision\_token\_name | Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using Azure credentials. Only used when enrolling VMs. Token details can be viewed with `tctl get token/<name>`. |
 <!-- END_TF_DOCS -->

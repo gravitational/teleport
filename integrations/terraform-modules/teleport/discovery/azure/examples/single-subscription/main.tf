@@ -23,11 +23,11 @@ module "azure_discovery" {
   # Region where Azure managed identity will be created (eastus)
   azure_managed_identity_location = azurerm_resource_group.example.location
 
-  # Discover Azure VMs across all resource groups in the current subscription
+  # Discover Azure VMs or AKS clusters across all resource groups in the current subscription
   # and matching the specified tags.
   azure_matchers = [
     {
-      types           = ["vm"]
+      types           = ["vm"] # or ["aks"] for AKS clusters
       subscriptions   = [data.azurerm_client_config.current.subscription_id]
       resource_groups = ["*"]
       regions         = ["westus", "eastus"]
