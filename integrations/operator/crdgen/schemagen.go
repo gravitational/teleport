@@ -404,9 +404,12 @@ func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, 
 	// long term and this defeats the purpose of the generators, but we didn't
 	// have the time yet to revamp this.
 
-	// Traits are represented as map[string][]string in go,
-	// and as []struct{key string, values []string} in protobuf.
-	if field.IsRepeated() && field.TypeName() == ".teleport.trait.v1.Trait" {
+	// Unscoped resources represent traits as map[string][]string in Go even if they're
+	// stored as repeated Trait messages. ScopedRoleAssignments use protojson directly,
+	// so their traits must retain the protobuf array shape.
+	protoJSONTraits := field.File().Package() == "teleport.scopes.access.v1" &&
+		field.Message().Name() == "TraitsAssignment" && field.Name() == "traits"
+	if !protoJSONTraits && field.IsRepeated() && field.TypeName() == ".teleport.trait.v1.Trait" {
 		prop.Type = "object"
 		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
 			Schema: &apiextv1.JSONSchemaProps{

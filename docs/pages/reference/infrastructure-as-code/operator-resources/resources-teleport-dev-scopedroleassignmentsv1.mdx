@@ -48,12 +48,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |scope|string|The scope to which the traits are assigned. This must be a member/child of the scope of the [ScopedRoleAssignment] in which this assignment is contained.|
-|traits|[object](#spectraits-itemstraits)|A list of traits that should be applied at this scope.|
+|traits|[][object](#spectraits-itemstraits-items)|A list of traits that should be applied at this scope.|
 
-### spec.traits items.traits
+### spec.traits items.traits items
 
 |Field|Type|Description|
 |---|---|---|
-|key|string||
-|value|[]string||
+|key|string|key is the name of the trait.|
+|values|[]string|values is the list of trait values.|
 

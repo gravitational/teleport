@@ -85,13 +85,22 @@ spec:
                         in which this assignment is contained.
                       type: string
                     traits:
-                      additionalProperties:
-                        items:
-                          type: string
-                        type: array
                       description: A list of traits that should be applied at this
                         scope.
-                      type: object
+                      items:
+                        properties:
+                          key:
+                            description: key is the name of the trait.
+                            type: string
+                          values:
+                            description: values is the list of trait values.
+                            items:
+                              type: string
+                            nullable: true
+                            type: array
+                        type: object
+                      nullable: true
+                      type: array
                   type: object
                 nullable: true
                 type: array
