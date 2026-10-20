@@ -65,6 +65,17 @@ export interface LongTermResourceGrouping {
   accessListToResources: { [key: string]: ResourceId[] };
 }
 
+interface AccessRequestScheduledTiming {
+  start: Date;
+  // Duration is measured in milliseconds.
+  duration: number;
+}
+
+// Matches the API structure, with each timing mode in its own field.
+export interface AccessRequestTiming {
+  scheduled?: AccessRequestScheduledTiming;
+}
+
 export interface AccessRequest {
   id: string;
   state: RequestState;
@@ -94,6 +105,7 @@ export interface AccessRequest {
   reasonPrompts: string[];
   requestKind?: RequestKind;
   longTermResourceGrouping?: LongTermResourceGrouping;
+  timing?: AccessRequestTiming;
 }
 
 export interface AccessRequestReview {

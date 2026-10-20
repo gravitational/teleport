@@ -22,6 +22,7 @@ import {
   AccessRequest,
   AccessRequestReview,
   AccessRequestReviewer,
+  AccessRequestTiming,
   RequestKind,
 } from './accessRequests';
 
@@ -46,6 +47,7 @@ export function makeAccessRequest(json?): AccessRequest {
     json.suggestedReviewersInfo ??
     (json.suggestedReviewers || []).map(username => ({ username }));
   const reviewers = makeReviewers(suggestedReviewersInfo, reviews);
+  const timing = makeAccessRequestTiming(json.timing);
 
   return {
     id: json.id,
@@ -82,6 +84,20 @@ export function makeAccessRequest(json?): AccessRequest {
     reasonPrompts: json.reasonPrompts || [],
     requestKind: getRequestKind(json.requestKind),
     longTermResourceGrouping: json.longTermResourceGrouping,
+    ...(timing && { timing }),
+  };
+}
+
+function makeAccessRequestTiming(json?): AccessRequestTiming | undefined {
+  if (!json?.scheduled) {
+    return undefined;
+  }
+
+  return {
+    scheduled: {
+      start: new Date(json.scheduled.start),
+      duration: json.scheduled.duration,
+    },
   };
 }
 

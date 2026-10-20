@@ -180,6 +180,33 @@ test('preserves the difference between empty and absent displays', () => {
   expect(request.reviewers[1]).toHaveProperty('display', undefined);
 });
 
+test('maps scheduled timing and preserves legacy responses', () => {
+  // Setup.
+  const timing = {
+    scheduled: {
+      start: '2026-11-13T12:00:00.000Z',
+      duration: 14_400_000,
+    },
+  };
+
+  // Execute scheduled mapping.
+  const scheduledRequest = makeAccessRequest({ ...requestJson, timing });
+
+  // Assert scheduled mapping.
+  expect(scheduledRequest.timing).toEqual({
+    scheduled: {
+      start: new Date(timing.scheduled.start),
+      duration: timing.scheduled.duration,
+    },
+  });
+
+  // Execute legacy mapping.
+  const legacyRequest = makeAccessRequest(requestJson);
+
+  // Assert legacy mapping.
+  expect(legacyRequest).not.toHaveProperty('timing');
+});
+
 const requestJson = {
   id: 'request-id',
   state: 'PENDING',

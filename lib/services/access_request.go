@@ -616,7 +616,7 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		return trace.Wrap(err)
 	}
 	if req.GetTiming() != nil && rev.AssumeStartTime != nil {
-		return trace.BadParameter("assume_start_time cannot be changed for a scheduled access request")
+		return trace.BadParameter("start time cannot be changed for a scheduled access request")
 	}
 
 	// aggregate the threshold indexes for this review
