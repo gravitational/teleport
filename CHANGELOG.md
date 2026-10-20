@@ -1,5 +1,11 @@
 # Changelog
 
+## 17.7.31 (10/20/26)
+
+This is a follow up to the 17.7.30 release. In addition to the previous release, it includes the following changes:
+
+* Updated the Go toolchain to 1.26.10
+
 ## 17.7.30 (10/02/26)
 
 This is a private security release. The changelog will be publicly announced in a later version.
