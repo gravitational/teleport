@@ -154,9 +154,13 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 }
 
 // IsHTTPSTunnelApp returns true if the app should be proxied through the
-// HTTPS-in-mTLS tunnel. Currently this includes HTTP and LLM apps.
+// HTTPS-in-mTLS tunnel. Currently this includes HTTP, LLM and streamable-HTTP
+// MCP apps. Stdio and SSE MCP apps are excluded because they are not served
+// over plain HTTP by the Application Service.
 func IsHTTPSTunnelApp(app types.Application) bool {
-	return app.IsLLM() || app.GetProtocol() == types.ApplicationProtocolHTTP
+	return app.IsLLM() ||
+		app.GetProtocol() == types.ApplicationProtocolHTTP ||
+		types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP
 }
 
 // RouteToApp returns a *proto.RouteToApp populated from appInfo and targetPort.
