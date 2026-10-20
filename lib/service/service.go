@@ -7426,6 +7426,11 @@ func (process *TeleportProcess) initApps() {
 			}
 		}
 
+		acceptForwardedIdentity, _ := apiutils.ParseBool(os.Getenv("TELEPORT_UNSTABLE_APP_FORWARDED_IDENTITY"))
+		if acceptForwardedIdentity {
+			logger.WarnContext(process.ExitContext(), "TELEPORT_UNSTABLE_APP_FORWARDED_IDENTITY is set. The Application Service accepts client identities forwarded by the Proxy. This is not ready for production use.")
+		}
+
 		connectionsHandler, err := app.NewConnectionsHandler(process.ExitContext(), &app.ConnectionsHandlerConfig{
 			InsecureMode:      process.Config.InsecureMode,
 			Clock:             process.Config.Clock,
@@ -7443,6 +7448,9 @@ func (process *TeleportProcess) initApps() {
 			LimiterConfig:     process.Config.Apps.Limiter,
 			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
 			TargetHostPolicy:  targetHostPolicy,
+
+			// Gated until the RFD 0341 forwarded-identity path is complete.
+			AcceptForwardedIdentity: acceptForwardedIdentity,
 		})
 		if err != nil {
 			return trace.Wrap(err)
