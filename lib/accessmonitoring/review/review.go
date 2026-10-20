@@ -256,9 +256,6 @@ func (handler *Handler) getMatchingRule(
 ) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
 	matchingRules, err := accessmonitoring.EvaluateRules(ctx, handler.Logger, env, handler.rules.Get())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	for _, rule := range matchingRules {
 		if rule.GetSpec().GetAutomaticReview().GetDecision() == types.RequestState_DENIED.String() {
 			return rule, nil
@@ -267,6 +264,9 @@ func (handler *Handler) getMatchingRule(
 		if reviewRule == nil {
 			reviewRule = rule
 		}
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return reviewRule, nil
 }
