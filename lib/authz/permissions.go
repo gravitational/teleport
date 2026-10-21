@@ -195,6 +195,20 @@ type ReadOnlyAuthorizerAccessPoint interface {
 	GetReadOnlySessionRecordingConfig(ctx context.Context) (readonly.SessionRecordingConfig, error)
 }
 
+// authorizerAllowRules is the minimum allow rule set needed to construct and drive an [Authorizer].
+func authorizerAllowRules() []types.Rule {
+	return []types.Rule{
+		types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+		types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+		types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+		types.NewRule(types.KindClusterAuthPreference, services.RO()),
+		types.NewRule(types.KindUser, services.RO()),
+		types.NewRule(types.KindRole, services.RO()),
+		types.NewRule(types.KindClusterName, services.RO()),
+		types.NewRule(types.KindLock, services.RO()),
+	}
+}
+
 // MFAAuthenticator authenticates MFA responses.
 type MFAAuthenticator interface {
 	// ValidateMFAAuthResponse validates an MFA challenge response.
@@ -887,7 +901,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 			GitHubPermissions: []types.GitHubPermission{{
 				Organizations: []string{types.Wildcard},
 			}},
-			Rules: []types.Rule{
+			Rules: append(authorizerAllowRules(), []types.Rule{
 				types.NewRule(types.KindProxy, services.RW()),
 				types.NewRule(types.KindOIDCRequest, services.RW()),
 				types.NewRule(types.KindSSHSession, services.RW()),
@@ -901,13 +915,6 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindNode, services.RO()),
 				types.NewRule(types.KindAuthServer, services.RO()),
 				types.NewRule(types.KindReverseTunnel, services.RO()),
-				types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
-				types.NewRule(types.KindUser, services.RO()),
-				types.NewRule(types.KindRole, services.RO()),
-				types.NewRule(types.KindClusterAuthPreference, services.RO()),
-				types.NewRule(types.KindClusterName, services.RO()),
-				types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-				types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 				types.NewRule(types.KindUIConfig, services.RO()),
 				types.NewRule(types.KindStaticTokens, services.RO()),
 				types.NewRule(types.KindTunnelConnection, services.RW()),
@@ -919,7 +926,6 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindKubeServer, services.RW()),
 				types.NewRule(types.KindKubeWaitingContainer, services.RW()),
 				types.NewRule(types.KindDatabaseServer, services.RO()),
-				types.NewRule(types.KindLock, services.RO()),
 				types.NewRule(types.KindToken, []string{types.VerbRead, types.VerbDelete}),
 				types.NewRule(types.KindWindowsDesktopService, services.RO()),
 				types.NewRule(types.KindDatabaseCertificate, []string{types.VerbCreate}),
@@ -967,7 +973,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 						),
 					).String(),
 				},
-			},
+			}...),
 		},
 	}
 }
@@ -1008,14 +1014,12 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					Rules: []types.Rule{
-						types.NewRule(types.KindNode, services.RO()),
 						types.NewRule(types.KindSSHSession, services.RO()),
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
-						types.NewRule(types.KindAuthServer, services.RO()),
 						types.NewRule(types.KindReverseTunnel, services.RO()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
@@ -1036,27 +1040,19 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 				Allow: types.RoleConditions{
 					Namespaces: []string{types.Wildcard},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
-					Rules: []types.Rule{
+					Rules: append(authorizerAllowRules(), []types.Rule{
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
-						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
-						types.NewRule(types.KindUser, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
-						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindAuthServer, services.RO()),
 						types.NewRule(types.KindReverseTunnel, services.RW()),
 						types.NewRule(types.KindTunnelConnection, services.RO()),
-						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
-						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						// App agents have implicit permission to write their own server resources.
 						types.NewRule(types.KindAppServer, services.RO()),
 						// App agents have implicit permission to write their own App resource.
 						types.NewRule(types.KindApp, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
-						types.NewRule(types.KindLock, services.RO()),
-					},
+					}...),
 				},
 			})
 	case types.RoleDatabase:
@@ -1066,31 +1062,23 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 				Allow: types.RoleConditions{
 					Namespaces:     []string{types.Wildcard},
 					DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					Rules: []types.Rule{
+					Rules: append(authorizerAllowRules(), []types.Rule{
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
-						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
-						types.NewRule(types.KindUser, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
-						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindAuthServer, services.RO()),
 						types.NewRule(types.KindReverseTunnel, services.RW()),
 						types.NewRule(types.KindTunnelConnection, services.RO()),
-						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
-						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						// Databases agents have implicit permission to write their own server resources.
 						types.NewRule(types.KindDatabaseServer, services.RO()),
 						// Databases agents have implicit permission to write their own service resource.
 						types.NewRule(types.KindDatabaseService, services.RO()),
 						types.NewRule(types.KindDatabase, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
-						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 						types.NewRule(types.KindDatabaseObjectImportRule, services.RO()),
 						types.NewRule(types.KindDatabaseObject, services.RW()),
-					},
+					}...),
 				},
 			})
 	case types.RoleProxy:
@@ -1160,20 +1148,13 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					// resource matchers. Once cluster selection is pushed down to
 					// auth, this should be dropped in favor of an agent-owned read.
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					Rules: []types.Rule{
+					Rules: append(authorizerAllowRules(), []types.Rule{
+						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindKubeWaitingContainer, services.RW()),
 						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindEvent, services.WO()),
-						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
-						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
-						types.NewRule(types.KindClusterAuthPreference, services.RO()),
-						types.NewRule(types.KindUser, services.RO()),
-						types.NewRule(types.KindRole, services.RO()),
-						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindSemaphore, services.WO()),
-					},
+					}...),
 				},
 			})
 	case types.RoleWindowsDesktop:
@@ -1189,15 +1170,13 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					// naming no longer requires a cluster-wide scan, this should be
 					// dropped in favor of an agent-owned read.
 					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					Rules: []types.Rule{
+					Rules: append(authorizerAllowRules(), []types.Rule{
 						types.NewRule(types.KindEvent, services.WO()),
-						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
-						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
-						types.NewRule(types.KindUser, services.RO()),
-						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
-						types.NewRule(types.KindLock, services.RO()),
-					},
+						types.NewRule(types.KindWindowsDesktopService, services.RO()),
+						types.NewRule(types.KindWindowsDesktop, services.RO()),
+						types.NewRule(types.KindDynamicWindowsDesktop, services.RO()),
+					}...),
 				},
 			})
 	case types.RoleDiscovery:
@@ -1236,20 +1215,15 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces:  []string{types.Wildcard},
 					AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
 					GroupLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					Rules: []types.Rule{
-						types.NewRule(types.KindClusterName, services.RO()),
-						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+					Rules: append(authorizerAllowRules(), []types.Rule{
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindAppServer, services.RW()),
-						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindUser, services.RW()),
 						types.NewRule(types.KindUserGroup, services.RW()),
 						types.NewRule(types.KindOktaImportRule, services.RO()),
 						types.NewRule(types.KindOktaAssignment, services.RW()),
 						types.NewRule(types.KindProxy, services.RO()),
-						types.NewRule(types.KindClusterAuthPreference, services.RO()),
-						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RW()),
 						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
 						types.NewRule(types.KindAccessList, services.RO()),
@@ -1271,7 +1245,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 								builder.String(types.OriginOkta),
 							).String(),
 						},
-					},
+					}...),
 				},
 			})
 	case types.RoleMDM:
