@@ -15,8 +15,12 @@ If something is not working, we recommend to:
 
 ### Using the Web UI
 
-If you get "access denied" or other login errors, the number one place to check is the Audit Log. 
-To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu. 
+If you get "access denied" or other login errors, the number one place to check
+is the audit log. To view audit events, select **Audit** in the Teleport Web UI,
+then click **audit log** in the menu. Find the failed login event (event code
+`T1001W` or `T1011W`) and click **Details** to see the full error. Session recordings are
+only created after a user successfully starts a session, so they won't show
+login failures.
 
 ![Audit Log Entry for SSO Login error](../../../img/sso/teleportauditlogssofailed.png)
 
