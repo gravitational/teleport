@@ -7521,7 +7521,7 @@ func getAppSessionRouteClusterName(session types.WebSession) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err, "parsing app session TLS cert")
 	}
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return "", trace.Wrap(err, "parsing app session identity")
 	}

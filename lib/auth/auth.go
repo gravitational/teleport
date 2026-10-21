@@ -3383,7 +3383,7 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	x509Identity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+	x509Identity, err := tlsca.IdentityFromCert(x509Cert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5467,7 +5467,7 @@ func decodeDeviceExtensionsFromSession(webSession types.WebSession) (*tlsca.Devi
 		return nil, trace.Wrap(err)
 	}
 
-	certIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	certIdentity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

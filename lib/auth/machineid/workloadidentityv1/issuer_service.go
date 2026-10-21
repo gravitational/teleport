@@ -632,7 +632,7 @@ func (s *IssuanceService) routeToAppFromCert(ctx context.Context, rawCert []byte
 		return tlsca.RouteToApp{}, nil, trace.Wrap(err, "requestor provided an invalid certificate")
 	}
 
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return tlsca.RouteToApp{}, nil, trace.Wrap(err, "requestor provided a certificate that doesn't contain a Teleport identity")
 	}

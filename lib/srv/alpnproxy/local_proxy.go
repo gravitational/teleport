@@ -520,7 +520,7 @@ func (l *LocalProxy) CheckCertExpiry(ctx context.Context) error {
 // CheckDBCertSubject checks if the route to the database from the cert matches the provided route in
 // terms of username and database (if present).
 func CheckDBCertSubject(cert *x509.Certificate, dbRoute tlsca.RouteToDatabase) error {
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return trace.Wrap(err)
 	}

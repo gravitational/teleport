@@ -309,7 +309,8 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	// Extract the identity from the CSR.
-	id, err := tlsca.FromSubject(csr.Subject, time.Time{})
+	//nolint:staticcheck // A CSR has no certificate to parse the identity from.
+	id, err := tlsca.IdentityFromSubject(csr.Subject)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

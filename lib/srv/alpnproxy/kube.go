@@ -398,7 +398,7 @@ func kubeClusterFromCert(cert tls.Certificate) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	identity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(x509Cert)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -202,7 +202,7 @@ func reloadAppInfoFromKeyring(app types.Application, appInfo *appInfo, key *clie
 	}
 
 	for _, cert := range appCerts {
-		tlsID, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		tlsID, err := tlsca.IdentityFromCert(&cert)
 		if err != nil {
 			return appInfo, trace.Wrap(err)
 		}

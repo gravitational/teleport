@@ -145,8 +145,12 @@ type Identity struct {
 	KubernetesGroups []string
 	// KubernetesUsers is a list of Kubernetes users allowed
 	KubernetesUsers []string
-	// Expires specifies whenever the session will expire
+	// Expires specifies whenever the session will expire. It's zero for an
+	// identity parsed from a subject alone.
 	Expires time.Time
+	// NotBefore is when the certificate the identity came from became valid.
+	// Like Expires, it's zero for an identity parsed from a subject alone.
+	NotBefore time.Time
 	// RouteToCluster specifies the target cluster
 	// if present in the session
 	RouteToCluster string
@@ -767,7 +771,7 @@ var (
 
 	// identityNameOIDs are standard attribute types that Teleport
 	// repurposes to encode identity and authorization in a certificate
-	// subject. Keep in sync with [FromSubject].
+	// subject. Keep in sync with [IdentityFromSubject].
 	identityNameOIDs = []asn1.ObjectIdentifier{
 		{2, 5, 4, 10}, // organizationName  -> Identity.Groups (Teleport roles)
 		{2, 5, 4, 7},  // localityName      -> Identity.Principals
@@ -1394,14 +1398,30 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	return subject, nil
 }
 
-// FromSubject returns identity from subject name
-func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
+// IdentityFromCert returns the identity encoded in cert, including when the
+// certificate is valid.
+func IdentityFromCert(cert *x509.Certificate) (*Identity, error) {
+	id, err := IdentityFromSubject(cert.Subject)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	id.Expires = cert.NotAfter
+	id.NotBefore = cert.NotBefore
+	return id, nil
+}
+
+// IdentityFromSubject returns the identity encoded in subject. A subject
+// doesn't record when its certificate is valid, so the identity's Expires and
+// NotBefore are zero.
+//
+// Deprecated: Use [IdentityFromCert]. This is only for callers that have no
+// certificate, such as one signing a CSR.
+func IdentityFromSubject(subject pkix.Name) (*Identity, error) {
 	id := &Identity{
 		Username:   subject.CommonName,
 		Groups:     subject.Organization,
 		Usage:      subject.OrganizationalUnit,
 		Principals: subject.Locality,
-		Expires:    expires,
 	}
 	if len(subject.StreetAddress) > 0 {
 		id.RouteToCluster = subject.StreetAddress[0]

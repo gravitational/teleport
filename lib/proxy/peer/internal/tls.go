@@ -37,7 +37,7 @@ func VerifyPeerCertificateIsProxy(rawCerts [][]byte, verifiedChains [][]*x509.Ce
 	}
 
 	clientCert := verifiedChains[0][0]
-	clientIdentity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
+	clientIdentity, err := tlsca.IdentityFromCert(clientCert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -58,7 +58,7 @@ func VerifyPeerCertificateIsSpecificProxy(peerID string) func(rawCerts [][]byte,
 		}
 
 		clientCert := verifiedChains[0][0]
-		clientIdentity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
+		clientIdentity, err := tlsca.IdentityFromCert(clientCert)
 		if err != nil {
 			return trace.Wrap(err)
 		}

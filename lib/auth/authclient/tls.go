@@ -235,7 +235,7 @@ func VerifyPeerCertificate(caMap HostAndUserCAInfo) func([][]byte, [][]*x509.Cer
 		}
 
 		peerCert := verifiedChains[0][0]
-		identity, err := tlsca.FromSubject(peerCert.Subject, peerCert.NotAfter)
+		identity, err := tlsca.IdentityFromCert(peerCert)
 		if err != nil {
 			slog.WarnContext(context.TODO(), "Failed to parse identity from client certificate subject", "error", err)
 			return trace.Wrap(err)

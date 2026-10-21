@@ -96,7 +96,7 @@ func getIdentity(authInfo credentials.AuthInfo) (*tlsca.Identity, error) {
 	}
 
 	clientCert := certs[0]
-	identity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(clientCert)
 	return identity, trace.Wrap(err)
 }
 

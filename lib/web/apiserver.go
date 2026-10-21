@@ -585,7 +585,7 @@ func identityFromRequest(r *http.Request) (*tlsca.Identity, bool) {
 		return nil, false
 	}
 	cert := r.TLS.PeerCertificates[0]
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return nil, false
 	}
@@ -5855,7 +5855,7 @@ func (h *Handler) AuthenticateReqForAccessGraphAPI(r *http.Request) (*SessionCon
 	}
 
 	cert := r.TLS.PeerCertificates[0]
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse client certificate")
 	}

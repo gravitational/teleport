@@ -187,7 +187,7 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 		return trace.BadParameter("expected 1 client certificate: %+v", tlsConn.ConnectionState())
 	}
 
-	identity, err := tlsca.FromSubject(certs[0].Subject, certs[0].NotAfter)
+	identity, err := tlsca.IdentityFromCert(certs[0])
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -401,7 +401,7 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 		return nil, trace.BadParameter("request missing client certificate")
 	}
 	certificate := r.TLS.PeerCertificates[0]
-	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	identity, err := tlsca.IdentityFromCert(certificate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -611,7 +611,7 @@ func appAuthCertificateIdentities(r *http.Request) []*tlsca.Identity {
 	}
 	if HasClientCert(r) {
 		cert := r.TLS.PeerCertificates[0]
-		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		identity, err := tlsca.IdentityFromCert(cert)
 		if err == nil {
 			identities = append(identities, identity)
 		}

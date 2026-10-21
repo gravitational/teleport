@@ -187,7 +187,7 @@ func (s *grpcServerCredentials) ServerHandshake(rawConn net.Conn) (net.Conn, cre
 				return nil
 			}
 
-			id, err := tlsca.FromSubject(cs.VerifiedChains[0][0].Subject, cs.VerifiedChains[0][0].NotAfter)
+			id, err := tlsca.IdentityFromCert(cs.VerifiedChains[0][0])
 			if err != nil {
 				return trace.Wrap(err)
 			}

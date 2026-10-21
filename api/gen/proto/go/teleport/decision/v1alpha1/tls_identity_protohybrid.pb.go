@@ -159,7 +159,9 @@ type TLSIdentity struct {
 	// if any. Empty for unscoped bots and non-bot identities.
 	BotScope string `protobuf:"bytes,41,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
 	// Delegation contains the delegation chain of this TLS identity.
-	Delegation    *v12.Delegation `protobuf:"bytes,42,opt,name=delegation,proto3" json:"delegation,omitempty"`
+	Delegation *v12.Delegation `protobuf:"bytes,42,opt,name=delegation,proto3" json:"delegation,omitempty"`
+	// NotBefore is when the certificate the identity came from became valid.
+	NotBefore     *timestamppb.Timestamp `protobuf:"bytes,43,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -483,6 +485,13 @@ func (x *TLSIdentity) GetDelegation() *v12.Delegation {
 	return nil
 }
 
+func (x *TLSIdentity) GetNotBefore() *timestamppb.Timestamp {
+	if x != nil {
+		return x.NotBefore
+	}
+	return nil
+}
+
 func (x *TLSIdentity) SetUsername(v string) {
 	x.Username = v
 }
@@ -651,6 +660,10 @@ func (x *TLSIdentity) SetDelegation(v *v12.Delegation) {
 	x.Delegation = v
 }
 
+func (x *TLSIdentity) SetNotBefore(v *timestamppb.Timestamp) {
+	x.NotBefore = v
+}
+
 func (x *TLSIdentity) HasExpires() bool {
 	if x == nil {
 		return false
@@ -700,6 +713,13 @@ func (x *TLSIdentity) HasDelegation() bool {
 	return x.Delegation != nil
 }
 
+func (x *TLSIdentity) HasNotBefore() bool {
+	if x == nil {
+		return false
+	}
+	return x.NotBefore != nil
+}
+
 func (x *TLSIdentity) ClearExpires() {
 	x.Expires = nil
 }
@@ -726,6 +746,10 @@ func (x *TLSIdentity) ClearScopePin() {
 
 func (x *TLSIdentity) ClearDelegation() {
 	x.Delegation = nil
+}
+
+func (x *TLSIdentity) ClearNotBefore() {
+	x.NotBefore = nil
 }
 
 type TLSIdentity_builder struct {
@@ -846,6 +870,8 @@ type TLSIdentity_builder struct {
 	BotScope string
 	// Delegation contains the delegation chain of this TLS identity.
 	Delegation *v12.Delegation
+	// NotBefore is when the certificate the identity came from became valid.
+	NotBefore *timestamppb.Timestamp
 }
 
 func (b0 TLSIdentity_builder) Build() *TLSIdentity {
@@ -894,6 +920,7 @@ func (b0 TLSIdentity_builder) Build() *TLSIdentity {
 	x.BeamId = b.BeamId
 	x.BotScope = b.BotScope
 	x.Delegation = b.Delegation
+	x.NotBefore = b.NotBefore
 	return m0
 }
 
@@ -1476,7 +1503,7 @@ var File_teleport_decision_v1alpha1_tls_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/delegation/v1/delegation.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x91\x0f\n" +
+	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/delegation/v1/delegation.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xcc\x0f\n" +
 	"\vTLSIdentity\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\"\n" +
 	"\fimpersonator\x18\x02 \x01(\tR\fimpersonator\x12\x16\n" +
@@ -1528,7 +1555,9 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\tbot_scope\x18) \x01(\tR\bbotScope\x12B\n" +
 	"\n" +
 	"delegation\x18* \x01(\v2\".teleport.delegation.v1.DelegationR\n" +
-	"delegation\"\xfb\x02\n" +
+	"delegation\x129\n" +
+	"\n" +
+	"not_before\x18+ \x01(\v2\x1a.google.protobuf.TimestampR\tnotBefore\"\xfb\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x1d\n" +
 	"\n" +
@@ -1587,11 +1616,12 @@ var file_teleport_decision_v1alpha1_tls_identity_proto_depIdxs = []int32{
 	7,  // 7: teleport.decision.v1alpha1.TLSIdentity.scope_pin:type_name -> teleport.scopes.v1.Pin
 	8,  // 8: teleport.decision.v1alpha1.TLSIdentity.allowed_resource_access_ids:type_name -> types.ResourceAccessID
 	9,  // 9: teleport.decision.v1alpha1.TLSIdentity.delegation:type_name -> teleport.delegation.v1.Delegation
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	5,  // 10: teleport.decision.v1alpha1.TLSIdentity.not_before:type_name -> google.protobuf.Timestamp
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_teleport_decision_v1alpha1_tls_identity_proto_init() }

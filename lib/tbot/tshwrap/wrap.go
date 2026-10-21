@@ -219,6 +219,6 @@ func LoadIdentity(identityPath string) (*tlsca.Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	parsed, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	parsed, err := tlsca.IdentityFromCert(cert)
 	return parsed, trace.Wrap(err)
 }

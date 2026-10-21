@@ -34,8 +34,7 @@ func IsDatabaseConnection(state tls.ConnectionState) (bool, error) {
 	if len(state.VerifiedChains) < 1 || len(state.VerifiedChains[0]) < 1 {
 		return false, nil
 	}
-	identity, err := tlsca.FromSubject(state.VerifiedChains[0][0].Subject,
-		state.VerifiedChains[0][0].NotAfter)
+	identity, err := tlsca.IdentityFromCert(state.VerifiedChains[0][0])
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

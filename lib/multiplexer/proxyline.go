@@ -523,7 +523,7 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 		return trace.Wrap(err)
 	}
 
-	identity, err := tlsca.FromSubject(signingCert.Subject, signingCert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(signingCert)
 	if err != nil {
 		return trace.Wrap(err)
 	}

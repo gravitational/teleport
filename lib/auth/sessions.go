@@ -691,7 +691,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	identity, err := tlsca.IdentityFromCert(certificate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -187,7 +187,7 @@ func (s *IssuanceService) getIdentityFromUserCert(ctx context.Context, rawCert [
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing user certificate")
 	}
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -263,7 +263,7 @@ func (s *IssuanceService) getIdentityFromAppSession(ctx context.Context, session
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

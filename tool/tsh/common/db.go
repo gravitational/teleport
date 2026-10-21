@@ -1443,7 +1443,7 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

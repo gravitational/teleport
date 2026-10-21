@@ -318,7 +318,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 // unverifiedUserMetadata returns user metadata from the client certificate.
 func unverifiedUserMetadata(tlsState *tls.ConnectionState) apievents.UserMetadata {
 	cert := tlsState.PeerCertificates[0]
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return apievents.UserMetadata{User: "unknown"}
 	}

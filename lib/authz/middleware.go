@@ -171,7 +171,7 @@ func (a *Middleware) GetUser(ctx context.Context, connState tls.ConnectionState)
 		return nil, trace.AccessDenied("access denied: invalid client certificate")
 	}
 
-	identity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(clientCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -4079,7 +4079,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		return nil, trace.Wrap(err)
 	}
 
-	ident, err := tlsca.FromSubject(tlsCert.Subject, time.Time{})
+	ident, err := tlsca.IdentityFromCert(tlsCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5354,7 +5354,7 @@ func findActiveDatabases(keyRing *KeyRing) ([]tlsca.RouteToDatabase, error) {
 	}
 	var databases []tlsca.RouteToDatabase
 	for _, cert := range dbCerts {
-		tlsID, err := tlsca.FromSubject(cert.Subject, time.Time{})
+		tlsID, err := tlsca.IdentityFromCert(&cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5377,7 +5377,7 @@ func findActiveApps(keyRing *KeyRing) ([]tlsca.RouteToApp, error) {
 	}
 	var apps []tlsca.RouteToApp
 	for _, cert := range appCerts {
-		tlsID, err := tlsca.FromSubject(cert.Subject, time.Time{})
+		tlsID, err := tlsca.IdentityFromCert(&cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

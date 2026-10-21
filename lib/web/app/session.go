@@ -46,7 +46,7 @@ func getIdentityFromWebSession(ws types.WebSession) (*tlsca.Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	identity, err := tlsca.IdentityFromCert(certificate)
 	return identity, trace.Wrap(err)
 }
 

@@ -209,7 +209,7 @@ func (c *Client) dialRelay(ctx context.Context, dialTarget string, tunnelType ty
 				return trace.Wrap(err)
 			}
 
-			id, err := tlsca.FromSubject(cs.PeerCertificates[0].Subject, cs.PeerCertificates[0].NotAfter)
+			id, err := tlsca.IdentityFromCert(cs.PeerCertificates[0])
 			if err != nil {
 				return trace.Wrap(err)
 			}

@@ -234,7 +234,7 @@ func ParseTLSIdentity(
 		return "", nil, nil, nil, nil, trace.Wrap(err, "parse private key")
 	}
 
-	tlsIdent, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+	tlsIdent, err := tlsca.IdentityFromCert(x509Cert)
 	if err != nil {
 		return "", nil, nil, nil, nil, trace.Wrap(err, "parse tls identity")
 	}
@@ -388,7 +388,7 @@ func (i *Identity) LogValue() slog.Value {
 		return failedToDescribe
 	}
 
-	tlsIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	tlsIdent, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		log.WarnContext(context.TODO(), "Bot TLS certificate can not be parsed as an identity", "error", err)
 		return failedToDescribe

@@ -789,7 +789,7 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string, opts .
 			keyRing.ClusterName = cert.Issuer.CommonName
 		}
 
-		parsedIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		parsedIdent, err := tlsca.IdentityFromCert(cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

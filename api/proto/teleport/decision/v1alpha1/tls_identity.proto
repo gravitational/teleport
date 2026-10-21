@@ -183,6 +183,9 @@ message TLSIdentity {
 
   // Delegation contains the delegation chain of this TLS identity.
   teleport.delegation.v1.Delegation delegation = 42;
+
+  // NotBefore is when the certificate the identity came from became valid.
+  google.protobuf.Timestamp not_before = 43;
 }
 
 // RouteToApp holds routing information for applications.

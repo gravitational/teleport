@@ -477,7 +477,7 @@ func (p *Proxy) checkCertIPPinning(ctx context.Context, tlsConn *tls.Conn) error
 		return nil
 	}
 
-	identity, err := tlsca.FromSubject(state.PeerCertificates[0].Subject, state.PeerCertificates[0].NotAfter)
+	identity, err := tlsca.IdentityFromCert(state.PeerCertificates[0])
 	if err != nil {
 		return trace.Wrap(err)
 	}

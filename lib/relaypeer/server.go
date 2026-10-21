@@ -234,7 +234,7 @@ func (s *Server) handleTLSConnection(nc net.Conn) error {
 				return trace.AccessDenied("missing or invalid client certificate")
 			}
 
-			id, err := tlsca.FromSubject(cs.VerifiedChains[0][0].Subject, cs.VerifiedChains[0][0].NotAfter)
+			id, err := tlsca.IdentityFromCert(cs.VerifiedChains[0][0])
 			if err != nil {
 				return trace.Wrap(err)
 			}

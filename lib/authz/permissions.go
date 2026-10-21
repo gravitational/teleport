@@ -801,6 +801,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		KubernetesUsers:         kubeUsers,
 		TeleportCluster:         a.clusterName,
 		Expires:                 time.Now().Add(ttl),
+		NotBefore:               u.Identity.NotBefore,
 		PreviousIdentityExpires: previousIdentityExpires,
 
 		// These fields are for routing and restrictions, safe to re-use from

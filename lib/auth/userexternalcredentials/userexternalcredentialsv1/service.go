@@ -398,7 +398,7 @@ func (s *Service) verifyUserCertificate(ctx context.Context, certDER []byte) (*t
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing user certificate")
 	}
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
