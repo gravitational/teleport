@@ -65,6 +65,8 @@ message TestSAMLIdPAttributeMappingRequest {
   // users is a list of users whose details will be used
   // to evaluate attribute mapping.
   repeated types.UserV2 users = 2;
+  // AccessRequests are Access Request IDs.
+  repeated string access_requests = 3;
 }
 
 // TestSAMLIdPAttributeMappingResponse is a response to attribute mapping test request.

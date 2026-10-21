@@ -108,6 +108,7 @@ Examples:
 	testAttrMap := samlcmd.Command("test-attribute-mapping", "Test expression evaluation of attribute mapping.")
 	testAttrMap.Flag("users", "username or name of a file containing user spec").Required().Short('u').StringsVar(&s.testAttributeMapping.users)
 	testAttrMap.Flag("sp", "name of a file containing service provider spec").Required().StringVar(&s.testAttributeMapping.serviceProvider)
+	testAttrMap.Flag("access-requests", "Access Request IDs").StringsVar(&s.testAttributeMapping.accessRequests)
 	testAttrMap.Flag("format", "output format, 'yaml' or 'json'").StringVar(&s.testAttributeMapping.outFormat)
 	testAttrMap.Alias(`
 Examples:
@@ -144,6 +145,7 @@ type testAttributeMapping struct {
 
 	serviceProvider string
 	users           []string
+	accessRequests  []string
 	outFormat       string
 }
 
@@ -164,6 +166,7 @@ func (t *testAttributeMapping) run(ctx context.Context, c *authclient.Client) er
 	resp, err := c.SAMLIdPClient().TestSAMLIdPAttributeMapping(ctx, &samlidpv1.TestSAMLIdPAttributeMappingRequest{
 		ServiceProvider: &serviceProvider,
 		Users:           users,
+		AccessRequests:  t.accessRequests,
 	})
 	if err != nil {
 		if trace.IsNotImplemented(err) {

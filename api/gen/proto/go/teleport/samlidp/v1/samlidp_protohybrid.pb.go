@@ -311,9 +311,11 @@ type TestSAMLIdPAttributeMappingRequest struct {
 	ServiceProvider *types.SAMLIdPServiceProviderV1 `protobuf:"bytes,1,opt,name=service_provider,json=serviceProvider,proto3" json:"service_provider,omitempty"`
 	// users is a list of users whose details will be used
 	// to evaluate attribute mapping.
-	Users         []*types.UserV2 `protobuf:"bytes,2,rep,name=users,proto3" json:"users,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Users []*types.UserV2 `protobuf:"bytes,2,rep,name=users,proto3" json:"users,omitempty"`
+	// AccessRequests are Access Request IDs.
+	AccessRequests []string `protobuf:"bytes,3,rep,name=access_requests,json=accessRequests,proto3" json:"access_requests,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *TestSAMLIdPAttributeMappingRequest) Reset() {
@@ -355,12 +357,23 @@ func (x *TestSAMLIdPAttributeMappingRequest) GetUsers() []*types.UserV2 {
 	return nil
 }
 
+func (x *TestSAMLIdPAttributeMappingRequest) GetAccessRequests() []string {
+	if x != nil {
+		return x.AccessRequests
+	}
+	return nil
+}
+
 func (x *TestSAMLIdPAttributeMappingRequest) SetServiceProvider(v *types.SAMLIdPServiceProviderV1) {
 	x.ServiceProvider = v
 }
 
 func (x *TestSAMLIdPAttributeMappingRequest) SetUsers(v []*types.UserV2) {
 	x.Users = v
+}
+
+func (x *TestSAMLIdPAttributeMappingRequest) SetAccessRequests(v []string) {
+	x.AccessRequests = v
 }
 
 func (x *TestSAMLIdPAttributeMappingRequest) HasServiceProvider() bool {
@@ -382,6 +395,8 @@ type TestSAMLIdPAttributeMappingRequest_builder struct {
 	// users is a list of users whose details will be used
 	// to evaluate attribute mapping.
 	Users []*types.UserV2
+	// AccessRequests are Access Request IDs.
+	AccessRequests []string
 }
 
 func (b0 TestSAMLIdPAttributeMappingRequest_builder) Build() *TestSAMLIdPAttributeMappingRequest {
@@ -390,6 +405,7 @@ func (b0 TestSAMLIdPAttributeMappingRequest_builder) Build() *TestSAMLIdPAttribu
 	_, _ = b, x
 	x.ServiceProvider = b.ServiceProvider
 	x.Users = b.Users
+	x.AccessRequests = b.AccessRequests
 	return m0
 }
 
@@ -548,10 +564,11 @@ const file_teleport_samlidp_v1_samlidp_proto_rawDesc = "" +
 	"\x1fservice_provider_sso_descriptor\x18\a \x01(\fR\x1cserviceProviderSsoDescriptor\x12A\n" +
 	"\fmfa_response\x18\b \x01(\v2\x1e.proto.MFAAuthenticateResponseR\vmfaResponse\";\n" +
 	"\x1dProcessSAMLIdPRequestResponse\x12\x1a\n" +
-	"\bresponse\x18\x01 \x01(\fR\bresponse\"\x95\x01\n" +
+	"\bresponse\x18\x01 \x01(\fR\bresponse\"\xbe\x01\n" +
 	"\"TestSAMLIdPAttributeMappingRequest\x12J\n" +
 	"\x10service_provider\x18\x01 \x01(\v2\x1f.types.SAMLIdPServiceProviderV1R\x0fserviceProvider\x12#\n" +
-	"\x05users\x18\x02 \x03(\v2\r.types.UserV2R\x05users\"x\n" +
+	"\x05users\x18\x02 \x03(\v2\r.types.UserV2R\x05users\x12'\n" +
+	"\x0faccess_requests\x18\x03 \x03(\tR\x0eaccessRequests\"x\n" +
 	"#TestSAMLIdPAttributeMappingResponse\x12Q\n" +
 	"\x11mapped_attributes\x18\x01 \x03(\v2$.teleport.samlidp.v1.MappedAttributeR\x10mappedAttributes\"\xe3\x01\n" +
 	"\x0fMappedAttribute\x12\x1a\n" +

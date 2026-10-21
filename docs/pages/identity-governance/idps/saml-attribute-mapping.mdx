@@ -181,10 +181,11 @@ Expression | Result
 ### `test-attribute-mapping` command
 
 Attribute mapping can be tested using `tctl idp saml test-attribute-mapping` command.
-`test-attribute-mapping` command accepts three arguments.
+`test-attribute-mapping` command accepts these arguments:
 
 - `--users`: user names or names of files containing user spec. Required.
 - `--sp`: name of file containing service provider spec with attribute mapping. Required.
+- `--access-requests`: Access Request IDs. Can be any string value for testing purpose. Optional.
 - `--format`: `yaml` or `json`.  Optional. Text output by default if the flag is not provided.
 
 <Admonition type="note">
@@ -194,26 +195,53 @@ Lists. Roles granted through Access Lists are resolved at login time and
 will appear in the actual SAML assertion, but not in the test output.
 </Admonition>
 
-E.g.:
-Test with user name and service provider spec file:
+#### Examples
+
+**Test with user name and service provider spec file**
+
+First, create a service provider YAML spec:
 ```code
-# test with username and service provider file
-$ tctl idp saml test-attribute-mapping --users user1 --sp sp.yml
-User: user1
-Attribute Name Attribute Value
--------------- -----------------------------
-firstname      foo
-lastname       bar
-roles          access, editor, dev-ssh
-groups         okta-admin, dev-sso, dev-rdp
+cat > sp.yml <<'EOF'
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: samltest
+spec:
+  entity_id: https://example.com/saml/metadata
+  acs_url: https://example.com/saml/acs
+  attribute_mapping:
+  - name: firstname
+    value: user.spec.traits.firstname
+  - name: lastname
+    value: user.spec.traits.lastname
+  - name: roles
+    value: user.spec.roles
+  - name: groups
+    value: user.spec.traits.groups
+  - name: access_requests
+    value: session.access_requests
+EOF
 ```
 
-Test with user spec file and service provider spec file:
+Run the test command:
+```code
+$ tctl idp saml test-attribute-mapping --users user1 --sp sp.yml --access-requests test-request-id
+User: user1
+Attribute Name  Attribute Value
+--------------- -----------------------------
+firstname       foo
+lastname        bar
+roles           access, editor, dev-ssh
+groups          okta-admin, dev-sso, dev-rdp
+access-requests test-request-id
+```
+
+**Test with user spec file and service provider spec file**
 ```code
 $ tctl idp saml test-attribute-mapping --users user.yml --sp sp.yml
 ```
 
-Print result in format of choice.
+**Print result in format of choice**
 ```code
 $ tctl idp saml test-attribute-mapping --users user.yml --sp sp.yml --format (json/yaml)
 ```
