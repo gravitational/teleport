@@ -1,5 +1,10 @@
 # Changelog
 
+## 18.11.7 (10/21/26)
+
+* Update Electron to 43.8.1. This prevents Teleport Connect (desktop client) from
+  accepting certificates involved in CVE-2026-111943.
+
 ## 18.11.6 (10/20/26)
 
 This is a follow up to the 18.11.5 release. In addition to the previous release, it includes the following changes:
