@@ -16,20 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { VStack } from '@gravitational/design-system';
+import { useState } from 'react';
 import styled from 'styled-components';
 
+import { Danger } from 'design/Alert';
 import Box from 'design/Box';
 import { ButtonBorder } from 'design/Button';
 import Card from 'design/Card';
 import Flex, { Stack } from 'design/Flex';
 import * as Icon from 'design/Icon';
+import { Indicator } from 'design/Indicator';
 import { H1, H2 } from 'design/Text';
+import { useInfiniteScroll } from 'shared/hooks';
 import { useStore } from 'shared/libs/stores';
 
 import history from 'teleport/services/history/history';
+import { useAssignedScopes } from 'teleport/services/scopes';
 import { storageService } from 'teleport/services/storageService';
 import session from 'teleport/services/websession/websession';
 import useTeleport from 'teleport/useTeleport';
+
+import { ScopeSearchInput } from './ScopeSearchInput';
 
 /**
  * Renders a scope picker screen that is shown if necessary after the user
@@ -41,6 +49,27 @@ import useTeleport from 'teleport/useTeleport';
 export function LoginScopePicker() {
   const ctx = useTeleport();
   const storeUser = useStore(ctx.storeUser);
+
+  const [prefix, setPrefix] = useState('');
+
+  const {
+    fetchNextPage,
+    data,
+    isFetching,
+    isSuccess,
+    isError,
+    error,
+    hasNextPage,
+    isPlaceholderData,
+  } = useAssignedScopes({ prefix, retryOnMount: false });
+
+  const { setTrigger } = useInfiniteScroll({
+    fetch: async () => {
+      if (hasNextPage && !isError && !isFetching) {
+        await fetchNextPage();
+      }
+    },
+  });
 
   function signInWithScope(scope: string) {
     session.switchScope(scope);
@@ -56,44 +85,64 @@ export function LoginScopePicker() {
   return (
     <Box px="5" width="100%" overflow="auto">
       <Card my="5" mx="auto" width="100%" maxWidth={600} p={4}>
-        <H1>Welcome back, {storeUser.getUsername()}</H1>
-        <H2 mt={5} mb={3}>
-          Choose a scope for your session:
-        </H2>
-        <Stack gap={2} as={Ul}>
-          <Li>
-            <ScopeButton
-              block
-              size="extra-large"
-              onClick={() => signInWithoutScope()}
-            >
-              <Icon.Home />
-              <Flex justifyContent="start" flex={1}>
-                Teleport Home
-              </Flex>
-              <SignInAffordance gap={2}>
-                Sign in <Icon.ArrowForward />
-              </SignInAffordance>
-            </ScopeButton>
-          </Li>
-          {storeUser.getAvailableScopes().map(scope => (
-            <Li key={scope}>
-              <ScopeButton
-                block
-                size="extra-large"
-                onClick={() => signInWithScope(scope)}
-              >
-                <Icon.Contract />
-                <Flex justifyContent="start" flex={1}>
-                  {scope}
-                </Flex>
-                <SignInAffordance gap={2}>
-                  Sign in <Icon.ArrowForward />
-                </SignInAffordance>
-              </ScopeButton>
-            </Li>
-          ))}
-        </Stack>
+        <H1 mb={1}>Welcome back, {storeUser.getUsername()}</H1>
+        <VStack gap={3} align="stretch">
+          <H2 mt={5}>Choose a scope for your session:</H2>
+          <ScopeSearchInput onChange={setPrefix} autoFocus />
+          <Stack gap={2} as={Ul}>
+            {prefix === '' && (
+              <Li>
+                <ScopeButton
+                  block
+                  size="extra-large"
+                  onClick={() => signInWithoutScope()}
+                >
+                  <Icon.Home />
+                  <Flex justifyContent="start" flex={1}>
+                    Teleport Home
+                  </Flex>
+                  <SignInAffordance gap={2}>
+                    Sign in <Icon.ArrowForward />
+                  </SignInAffordance>
+                </ScopeButton>
+              </Li>
+            )}
+            {isSuccess &&
+              data.pages.flatMap(page =>
+                page.scopes.map(scope => (
+                  <Li key={scope}>
+                    <ScopeButton
+                      block
+                      size="extra-large"
+                      onClick={() => signInWithScope(scope)}
+                    >
+                      <Icon.Contract />
+                      <Flex justifyContent="start" flex={1}>
+                        {scope}
+                      </Flex>
+                      <SignInAffordance gap={2}>
+                        Sign in <Icon.ArrowForward />
+                      </SignInAffordance>
+                    </ScopeButton>
+                  </Li>
+                ))
+              )}
+          </Stack>
+          {isSuccess && data?.pages[0]?.scopes.length === 0 && (
+            <Box textAlign="center" my={1}>
+              No scopes found
+            </Box>
+          )}
+          <div ref={setTrigger} />
+          {isError && <Danger>{error.message}</Danger>}
+          {!isPlaceholderData && (hasNextPage || isFetching) && (
+            <Box alignSelf="center">
+              <Indicator
+                style={{ visibility: isFetching ? 'visible' : 'hidden' }}
+              />
+            </Box>
+          )}
+        </VStack>
       </Card>
     </Box>
   );

@@ -24,8 +24,9 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
  * It also triggers the initial request when the `trigger` element
  * is rendered for the first time.
  *
- * Callers must set the `trigger` element by passing the [`State.setTrigger`] function
- * as the `ref` prop of the element they want to use as the trigger.
+ * Callers must set the `trigger` element by passing the
+ * {@link InfiniteScroll.setTrigger} function as the `ref` prop of the element
+ * they want to use as the trigger.
  */
 export function useInfiniteScroll({
   fetch,

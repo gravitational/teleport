@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { http, HttpResponse } from 'msw';
 
 import { ButtonPrimary } from 'design/Button';
@@ -28,6 +29,7 @@ import {
   Router,
   screen,
   server,
+  testQueryClient,
 } from 'design/utils/testing';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 import {
@@ -50,6 +52,7 @@ import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { NavigationCategory } from 'teleport/Navigation';
 import { nodes } from 'teleport/Nodes/fixtures';
+import { listAssignedScopes } from 'teleport/services/scopes/scopes';
 import { KeysEnum } from 'teleport/services/storageService';
 import { sessions } from 'teleport/Sessions/fixtures';
 import TeleportContext from 'teleport/teleportContext';
@@ -61,6 +64,17 @@ import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserC
 
 import { Main, MainProps } from './Main';
 
+jest.mock('teleport/services/scopes/scopes', () => ({
+  listAssignedScopes: jest.fn(() =>
+    Promise.resolve({
+      scopes: ['/prod', '/staging'],
+    })
+  ),
+}));
+
+const mockListAssignedScopes = jest.mocked(listAssignedScopes);
+
+mockIntersectionObserver();
 enableMswServer();
 
 const defaultScopesEnabled = cfg.scopesEnabled;
@@ -71,6 +85,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  testQueryClient.clear();
   server.use(
     userEventCaptureSuccess(),
     successGetUsersV2([]),
@@ -131,10 +146,6 @@ test('redirects users with available scopes to the scope picker before rendering
   localStorage.setItem(KeysEnum.USE_LOGIN_SCOPE_PICKER, JSON.stringify(true));
   mockUserContextProviderWith(makeTestUserContext());
   const ctx = setupContext();
-  ctx.storeUser.setState({
-    ...ctx.storeUser.state,
-    availableScopes: ['/prod', '/staging'],
-  });
 
   render(
     <Router>
@@ -148,10 +159,42 @@ test('redirects users with available scopes to the scope picker before rendering
     </Router>
   );
 
-  // No navigation expected.
+  // No navigation menu expected.
   expect(screen.queryAllByText('Zero Trust Access')).toHaveLength(0);
   expect(
-    screen.getByRole('heading', { name: 'Choose a scope for your session:' })
+    await screen.findByRole('heading', {
+      name: 'Choose a scope for your session:',
+    })
+  ).toBeVisible();
+});
+
+test('redirects users to the scope picker if loading scopes results with an error', async () => {
+  cfg.scopesEnabled = true;
+  localStorage.setItem(KeysEnum.USE_LOGIN_SCOPE_PICKER, JSON.stringify(true));
+  mockListAssignedScopes.mockRejectedValue(
+    new Error('listing assigned scopes failed')
+  );
+  mockUserContextProviderWith(makeTestUserContext());
+  const ctx = setupContext();
+
+  render(
+    <Router>
+      <LayoutContextProvider>
+        <ContextProvider ctx={ctx}>
+          <ToastNotificationProvider>
+            <Main features={getOSSFeatures()} />
+          </ToastNotificationProvider>
+        </ContextProvider>
+      </LayoutContextProvider>
+    </Router>
+  );
+
+  // No navigation menu expected.
+  expect(screen.queryAllByText('Zero Trust Access')).toHaveLength(0);
+  expect(
+    await screen.findByRole('heading', {
+      name: 'Choose a scope for your session:',
+    })
   ).toBeVisible();
 });
 
