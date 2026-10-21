@@ -6,6 +6,22 @@ This is a follow up to the 18.11.5 release. In addition to the previous release,
 
 * Updated the Go toolchain to 1.26.10
 
+## 18.11.5
+
+This is a private security release. The changelog will be publicly announced in a later version.
+
+More information about private releases is available here: https://github.com/gravitational/teleport/blob/master/SECURITY.md#private-releases.
+
+The release also contains the additional non-security improvements:
+
+* Improved performance of `tsh` and `tctl` operations when Hardware Keys are enabled.
+* Improved reliability when auth backend connectivity is temoprarily lost on large scale Teleport clusters.
+* Reduced cost of agent reconnections in large scale clusters, and reduced time-to-recovery.
+* Improved performance for all Role and User-listing operations.
+* Improved performance when processing Teleport resources including Role, App, Database, ...
+* Added the ability to enforce Hardware Keys for human users without requiring per-session MFA via the `human_private_key_policy` field in `cluster_auth_preference` and `teleport.yaml`.
+* Added an experimental opt-in feature allowing Access Request reviews to grant traits.
+
 ## 18.11.4 (10/14/26)
 
 This is a follow up to the 18.11.3 private security release that includes an additional non-security improvement:
