@@ -39,6 +39,237 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// `ScardCache` implements a data cache per '2.4. Caching - [Windows Smart Card Minidriver Specification Version 7.07]'.
+///
+/// [Windows Smart Card Minidriver Specification Version 7.07]: https://download.microsoft.com/download/3/3/2/332fd70b-f04d-470a-a135-040350b9563f/sc-minidriver_specs_v7.07.docx
+struct ScardCache {
+    items: HashMap<String, Vec<u8>>,
+}
+
+impl ScardCache {
+    fn new(private_key: &RsaPrivateKey, cert_der: &[u8]) -> PduResult<Self> {
+        // Check that the private key is the expected bit length.
+        if private_key.n().bits() != RSA_BITLEN as usize {
+            return Err(pdu_other_err!(
+                "RSA private key bit length mismatch",
+                source: SmartcardBackendError(format!(
+                    "expected RSA private key bit length {}, but got {}",
+                    RSA_BITLEN,
+                    private_key.n().bits()
+                ))
+            ));
+        }
+
+        const CACHE_FILE_FORMAT_VERSION: u8 = 1;
+        const PIN_FRESHNESS: u8 = 0;
+        const FILE_FRESHNESS: [u8; 2] = 0_u16.to_le_bytes();
+        const CONTAINER_FRESHNESS: [u8; 2] = 0_u16.to_le_bytes();
+
+        // Excerpt from '5.4.3 Cache File - Windows Smart Card Minidriver Specification Version 7.07'.
+        // "The file is organized global data in the form of 2-byte values
+        // followed by a succession of 32-bit cache values that applications
+        // maintain and interpret. The first of these is reserved for
+        // the Base CSP/KSP to use. Thereafter, each application is allocated
+        // a single DWORD."
+        // The 2-byte values described there belong to the CARD_CACHE_FILE_FORMAT struct.
+        // The bVersion field is always 1, the rest of the fields are 0 by default.
+        // There is an undocumented 2-byte value after the freshness counters;
+        // probably padding to DWORD-align the whole header.
+        const CACHE_FILE_HEADER: [u8; 12] = [
+            CACHE_FILE_FORMAT_VERSION,
+            PIN_FRESHNESS,
+            FILE_FRESHNESS[0],
+            FILE_FRESHNESS[1],
+            CONTAINER_FRESHNESS[0],
+            CONTAINER_FRESHNESS[1],
+            0, // wUndocumented.
+            0,
+            0, // dwReserved for Base CSP/KSP.
+            0,
+            0,
+            0,
+        ];
+        const RSA_BITLEN: u32 = 2048;
+        const RSA_MIN_BITLEN: u32 = 1024;
+
+        fn cache_entry(payload: &[&[u8]]) -> Vec<u8> {
+            let size = payload.iter().map(|p| p.len()).sum::<usize>() as u32;
+
+            let mut v = CACHE_FILE_HEADER.to_vec();
+            v.extend_from_slice(&size.to_le_bytes());
+            for p in payload {
+                v.extend_from_slice(p);
+            }
+
+            v
+        }
+
+        let mut cache = HashMap::new();
+
+        cache.insert(
+            "Cached_CardmodFile\\Cached_Pin_Freshness".into(),
+            [PIN_FRESHNESS].to_vec(),
+        );
+        cache.insert(
+            "Cached_CardmodFile\\Cached_File_Freshness".into(),
+            FILE_FRESHNESS.to_vec(),
+        );
+        cache.insert(
+            "Cached_CardmodFile\\Cached_Container_Freshness".into(),
+            CONTAINER_FRESHNESS.to_vec(),
+        );
+        cache.insert("Cached_CardProperty_Read Only Mode_0".into(), {
+            let read_only_mode_supported = 0_u32.to_le_bytes();
+            cache_entry(&[&read_only_mode_supported])
+        });
+        cache.insert("Cached_CardProperty_Cache Mode_0".into(), {
+            // For the list of possible cache modes, check the table in:
+            // '4.5.4 CardGetProperty - Windows Smart Card Minidriver Specification Version 7.07'.
+            let cache_mode = 1_u32.to_le_bytes(); // CP_CACHE_MODE_GLOBAL_CACHE
+            cache_entry(&[&cache_mode])
+        });
+        cache.insert(
+            "Cached_CardProperty_Supports Windows x.509 Enrollment_0".into(),
+            {
+                let win_x509_enrollment_supported = 1_u32.to_le_bytes();
+                cache_entry(&[&win_x509_enrollment_supported])
+            },
+        );
+        cache.insert("Cached_ContainerProperty_PIN Identifier_0".into(), {
+            // Explained in '4.2.1.1 General Defines - Windows Smart Card Minidriver Specification Version 7.07'.
+            // By default, Base CSP/KSP will try to assign ROLE_USER (1) to the emulator.
+            let pin_id = 1_u32.to_le_bytes();
+            cache_entry(&[&pin_id])
+        });
+        cache.insert("Cached_CardProperty_Capabilities_0".into(), {
+            // Explained in '4.4 Card Capabilities (Minidriver Version 5 and Earlier) - Windows Smart Card Minidriver Specification Version 7.07'.
+            // This is just for backwards compatibility purposes.
+            let ver = 1_u32.to_le_bytes();
+            // This cert compression flag is tricky - by default,
+            // Base CSP/KSP will try to cache in runtime that it's TRUE for the emulator.
+            // Reading the "Cached_GeneralFile/mscp/kxc00" item should
+            // behave differently depending on this flag: we precache TRUE
+            // to do away with the compression.
+            let certificate_compression = 1_u32.to_le_bytes();
+            let key_gen_supported = 0_u32.to_le_bytes();
+            cache_entry(&[&ver, &certificate_compression, &key_gen_supported])
+        });
+
+        // Struct defined in '4.5.4 CardGetProperty - Windows Smart Card Minidriver Specification Version 7.07',
+        // under the `CP_CARD_KEYSIZES` property in the table.
+        let card_property_key_sizes = {
+            let ver = 1_u32.to_le_bytes();
+            // The actual RSA bitlen is stored in `dwMaximumBitlen`.
+            // The other values are just for compatibility purposes.
+            let min_bitlen = RSA_MIN_BITLEN.to_le_bytes();
+            let default_bitlen = RSA_MIN_BITLEN.to_le_bytes();
+            let max_bitlen = RSA_BITLEN.to_le_bytes();
+            let incremental_bitlen = RSA_MIN_BITLEN.to_le_bytes();
+            cache_entry(&[
+                &ver,
+                &min_bitlen,
+                &default_bitlen,
+                &max_bitlen,
+                &incremental_bitlen,
+            ])
+        };
+        let card_property_key_sizes_keys = [
+            "Cached_CardProperty_Key Sizes_1",
+            "Cached_CardProperty_Key Sizes_2",
+        ];
+        for k in card_property_key_sizes_keys {
+            cache.insert(k.into(), card_property_key_sizes.clone());
+        }
+
+        // Now, precache the items used for connecting.
+        cache.insert("Cached_GeneralFile/mscp/kxc00".into(), {
+            // If `fCertificateCompression` in "Cached_CardProperty_Capabilities_0" is:
+            // - TRUE  -> reading "kxc00" will be expected to return a raw, uncompressed cert.
+            // - FALSE -> reading "kxc00" will be expected to return a zlib-compressed cert
+            //            with an additional, undocumented "compressed item" header.
+            //
+            // References (symbols taken from basecsp.dll ver. 10.0.26100.8115):
+            // - reading: basecsp!LocalGetKeyParam -> basecsp!CspReadUserCertificate -> basecsp!UncompressData
+            // - writing: basecsp!LocalSetKeyParam -> basecsp!CompressData -> basecsp!compress2 with Z_BEST_COMPRESSION (9)
+            // - compressed item header: https://tbt.qkation.com/posts/win-scard-cache/#:~:text=one%20key%20container.-,Cached_GeneralFile/mscp/kxc00
+            //
+            // In our case, `fCertificateCompression` is precached as TRUE (Base CSP/KSP would cache TRUE anyway),
+            // so we don't have to use the undocumented internals.
+            //
+            // However, even if we wanted to try precaching `fCertificateCompression` as FALSE
+            // and properly cached "kxc00", the remote desktop will report that no valid certificates
+            // were found. Automatic runtime caching of "kxc00" by basecsp.dll will never happen.
+            // TODO: check why precaching FALSE breaks auth no matter what is precached in "kxc00"
+
+            cache_entry(&[cert_der])
+        });
+
+        let public_key_blob = {
+            // PUBLICKEYSTRUC or BLOBHEADER struct defined here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-publickeystruc
+            let blob_type = 0x06_u8; // PUBLICKEYBLOB
+            let ver = 2_u8; // CUR_BLOB_VERSION
+            let reserved = 0_u16.to_le_bytes();
+            let ai_key_alg = 0xa400_u32.to_le_bytes(); // CALG_RSA_KEYX
+
+            // The rest of the blob is RSAPUBKEY: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-rsapubkey
+            // + the 256-byte modulus until the end.
+            let magic = b"RSA1";
+            let bitlen = RSA_BITLEN.to_le_bytes();
+
+            let public_exponent = {
+                let mut e = private_key.e().to_bytes_le();
+                e.resize(4, 0);
+                e
+            };
+            let modulus = {
+                let mut n = private_key.n().to_bytes_le();
+                n.resize(256, 0);
+                n
+            };
+
+            let mut v = vec![blob_type, ver];
+            v.extend_from_slice(&reserved);
+            v.extend_from_slice(&ai_key_alg);
+            v.extend_from_slice(magic);
+            v.extend_from_slice(&bitlen);
+            v.extend_from_slice(&public_exponent);
+            v.extend_from_slice(&modulus);
+            v
+        };
+        let public_key_blob_size = (public_key_blob.len() as u32).to_le_bytes();
+
+        cache.insert("Cached_ContainerInfo_00".into(), {
+            // Struct defined in '4.6.4 CardGetContainerInfo - Windows Smart Card Minidriver Specification Version 7.07'.
+            // Its cache form is slightly simplified: it has no pointers, only the sizes of the key blobs that follow in the buffer.
+            let ver = 1_u32.to_le_bytes();
+            let reserved = 0_u32.to_le_bytes();
+            let signature_key_blob_size = 0_u32.to_le_bytes();
+
+            cache_entry(&[
+                &ver,
+                &reserved,
+                &signature_key_blob_size,
+                &public_key_blob_size,
+                &public_key_blob,
+            ])
+        });
+        cache.insert(
+            "Cached_CardmodFile\\Cached_PIV_Authentication_Key".into(),
+            public_key_blob,
+        );
+
+        Ok(Self { items: cache })
+    }
+
+    fn read(&self, key: &str) -> Option<Vec<u8>> {
+        self.items.get(key).cloned()
+    }
+
+    fn write(&mut self, key: String, val: Vec<u8>) {
+        self.items.insert(key, val);
+    }
+}
+
 /// Carries the deferred state for an in-flight `SCARD_IOCTL_GETSTATUSCHANGE` request that was
 /// received with an infinite timeout but had no state change to report at the time.
 ///
@@ -159,6 +390,7 @@ pub struct ScardBackend {
     cert_der: Vec<u8>,
     auth_key: Arc<RsaPrivateKey>,
     pin: String,
+    cache: ScardCache,
 }
 
 impl std::fmt::Debug for ScardBackend {
@@ -190,6 +422,7 @@ impl ScardBackend {
             RsaPrivateKey::from_pkcs1_der(&key_der)
                 .map_err(|_e| pdu_other_err!("failed to parse private key from DER"))?,
         );
+        let cache = ScardCache::new(&auth_key, &cert_der)?;
 
         Ok(Self {
             client_handle,
@@ -198,6 +431,7 @@ impl ScardBackend {
             cert_der,
             auth_key,
             pin,
+            cache,
         })
     }
 
@@ -656,32 +890,27 @@ impl ScardBackend {
         &mut self,
         call: GetDeviceTypeIdCall,
     ) -> PduResult<ScardHandleResponse> {
-        if self.contexts.exists(call.context.value) {
-            // Reader type describes the type of the physical connection to the smartcard reader (e.g.
-            // USB/serial/TPM). Type "vendor" means a proprietary vendor bus.
-            //
-            // See "ReaderType" in
-            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilities
-            const SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
-            Ok(ScardHandleResponse::Common(
-                ScardResponsePayload::GetDeviceTypeId(
-                    GetDeviceTypeIdReturn::new(ReturnCode::Success, SCARD_READER_TYPE_VENDOR)
-                        .into_inner(),
-                ),
-            ))
-        } else {
-            Err(pdu_other_err!(
-                "",
-                source:SmartcardBackendError(format!(
-                    "got GetDeviceTypeIdCall for unknown context [{}]",
-                    call.context.value
-                ))
-            ))
-        }
+        // Reader type describes the type of the physical connection to the smartcard reader (e.g.
+        // USB/serial/TPM). Type "vendor" means a proprietary vendor bus.
+        //
+        // See "ReaderType" in
+        // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilities
+        const SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
+
+        self.ensure_context(call.context.value, "GetDeviceTypeIdCall")?;
+
+        Ok(ScardHandleResponse::Common(
+            ScardResponsePayload::GetDeviceTypeId(
+                GetDeviceTypeIdReturn::new(ReturnCode::Success, SCARD_READER_TYPE_VENDOR)
+                    .into_inner(),
+            ),
+        ))
     }
 
     fn handle_read_cache(&mut self, call: ReadCacheCall) -> PduResult<ScardHandleResponse> {
-        let (data, return_code) = match self.contexts.read_cache(call)? {
+        self.ensure_context(call.common.context.value, "ReadCacheCall")?;
+
+        let (data, return_code) = match self.cache.read(&call.lookup_name) {
             Some(data) => (data, ReturnCode::Success),
             None => (vec![], ReturnCode::CacheItemNotFound),
         };
@@ -691,7 +920,9 @@ impl ScardBackend {
     }
 
     fn handle_write_cache(&mut self, call: WriteCacheCall) -> PduResult<ScardHandleResponse> {
-        self.contexts.write_cache(call)?;
+        self.ensure_context(call.common.context.value, "WriteCacheCall")?;
+
+        self.cache.write(call.lookup_name, call.common.data);
         Ok(ScardHandleResponse::success_long_return())
     }
 
@@ -720,6 +951,20 @@ impl ScardBackend {
         let resp =
             DeviceControlResponse::new(req, NtStatus::SUCCESS, Some(Box::new(output_buffer)));
         self.client_handle.write_rdpdr(resp.into())?;
+        Ok(())
+    }
+
+    fn ensure_context(&self, id: u32, call_name: &str) -> PduResult<()> {
+        if !self.contexts.exists(id) {
+            return Err(pdu_other_err!(
+                "",
+                source:SmartcardBackendError(format!(
+                    "got {} for unknown context [{}]",
+                    call_name, id
+                ))
+            ));
+        }
+
         Ok(())
     }
 }
@@ -790,18 +1035,6 @@ impl Contexts {
         self.contexts.contains_key(&id)
     }
 
-    fn read_cache(&mut self, call: ReadCacheCall) -> PduResult<Option<Vec<u8>>> {
-        Ok(self
-            .get_internal_mut(call.common.context.value)?
-            .cache_read(&call.lookup_name))
-    }
-
-    fn write_cache(&mut self, call: WriteCacheCall) -> PduResult<()> {
-        self.get_internal_mut(call.common.context.value)?
-            .cache_write(call.lookup_name, call.common.data);
-        Ok(())
-    }
-
     fn get_internal_mut(&mut self, id: u32) -> PduResult<&mut ContextInternal> {
         self.contexts
             .get_mut(&id)
@@ -817,7 +1050,6 @@ impl Contexts {
 struct ContextInternal {
     handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
     next_id: u32,
-    cache: HashMap<String, Vec<u8>>,
     // If we receive a SCARD_IOCTL_GETSTATUSCHANGE with an infinite timeout, we need to
     // return a GetStatusChange_Return (embedded in a PendingGetStatusChange) with
     // its return code set to SCARD_E_CANCELLED in the case that we receive a
@@ -833,7 +1065,6 @@ impl ContextInternal {
         Self {
             next_id: 1,
             handles: HashMap::new(),
-            cache: HashMap::new(),
             scard_cancel_response: None,
         }
     }
@@ -874,14 +1105,6 @@ impl ContextInternal {
 
     fn disconnect(&mut self, id: u32) {
         self.handles.remove(&id);
-    }
-
-    fn cache_read(&self, key: &str) -> Option<Vec<u8>> {
-        self.cache.get(key).cloned()
-    }
-
-    fn cache_write(&mut self, key: String, val: Vec<u8>) {
-        self.cache.insert(key, val);
     }
 }
 
@@ -965,6 +1188,142 @@ mod tests {
             output_buffer_length: 256,
             input_buffer_length: 256,
             io_control_code,
+        }
+    }
+
+    mod scard_cache {
+        use super::*;
+        use crate::test_util::rsa_2048_key;
+
+        fn expected_entry(payload: &[u8]) -> Vec<u8> {
+            let mut v = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0].to_vec();
+            v.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+            v.extend_from_slice(payload);
+            v
+        }
+
+        fn expected_public_key_blob(key: &RsaPrivateKey) -> Vec<u8> {
+            let mut blob = vec![
+                0x06, // bType: PUBLICKEYBLOB
+                0x02, // bVersion: CUR_BLOB_VERSION
+                0x00, 0x00, // reserved
+                0x00, 0xa4, 0x00, 0x00, // aiKeyAlg: CALG_RSA_KEYX (0x0000a400)
+                b'R', b'S', b'A', b'1', // magic: public key
+                0x00, 0x08, 0x00, 0x00, // bitlen: 2048 (0x0800)
+                0x01, 0x00, 0x01, 0x00, // pubexp: 65537
+            ];
+            let mut n_be = key.n().to_bytes_be();
+            n_be.reverse();
+            blob.extend_from_slice(&n_be);
+            blob
+        }
+
+        #[test]
+        fn precaches_with_correct_values() {
+            let cert = [0xAB_u8; 10];
+            let cache = ScardCache::new(&rsa_2048_key(), &cert).unwrap();
+
+            // Raw freshness entries have no header or size prefix.
+            assert_eq!(
+                cache.read("Cached_CardmodFile\\Cached_Pin_Freshness"),
+                Some(vec![0])
+            );
+            assert_eq!(
+                cache.read("Cached_CardmodFile\\Cached_File_Freshness"),
+                Some(vec![0, 0])
+            );
+            assert_eq!(
+                cache.read("Cached_CardmodFile\\Cached_Container_Freshness"),
+                Some(vec![0, 0])
+            );
+
+            // 12-byte header, little-endian u32 payload size, then the payload.
+            assert_eq!(
+                cache.read("Cached_CardProperty_Cache Mode_0").unwrap(),
+                expected_entry(&1_u32.to_le_bytes())
+            );
+            assert_eq!(
+                cache.read("Cached_CardProperty_Read Only Mode_0").unwrap(),
+                expected_entry(&0_u32.to_le_bytes())
+            );
+            assert_eq!(
+                cache
+                    .read("Cached_ContainerProperty_PIN Identifier_0")
+                    .unwrap(),
+                expected_entry(&1_u32.to_le_bytes())
+            );
+            let mut capabilities = Vec::new();
+            for v in [1_u32, 1, 0] {
+                capabilities.extend_from_slice(&v.to_le_bytes());
+            }
+            let capabilities_entry = cache.read("Cached_CardProperty_Capabilities_0").unwrap();
+            assert_eq!(capabilities_entry, expected_entry(&capabilities));
+            assert_eq!(capabilities_entry.len(), 12 + 4 + 12);
+
+            // Key sizes.
+            let mut key_sizes = Vec::new();
+            for v in [1_u32, 1024, 1024, 2048, 1024] {
+                key_sizes.extend_from_slice(&v.to_le_bytes());
+            }
+            for k in [
+                "Cached_CardProperty_Key Sizes_1",
+                "Cached_CardProperty_Key Sizes_2",
+            ] {
+                assert_eq!(cache.read(k).unwrap(), expected_entry(&key_sizes));
+            }
+
+            // Certificate is stored uncompressed behind the header + size.
+            assert_eq!(
+                cache.read("Cached_GeneralFile/mscp/kxc00").unwrap(),
+                expected_entry(&cert)
+            );
+        }
+
+        #[test]
+        fn public_key_blob_layout() {
+            let cache = ScardCache::new(&rsa_2048_key(), &[1, 2, 3]).unwrap();
+            let expected_blob = expected_public_key_blob(&rsa_2048_key());
+
+            // BLOBHEADER (8) + RSAPUBKEY (12) + modulus (256).
+            assert_eq!(expected_blob.len(), 276);
+
+            let blob = cache
+                .read("Cached_CardmodFile\\Cached_PIV_Authentication_Key")
+                .unwrap();
+            assert_eq!(blob, expected_blob);
+            assert_eq!(&blob[..8], &[0x06, 0x02, 0, 0, 0x00, 0xa4, 0, 0]);
+            assert_eq!(&blob[8..12], b"RSA1");
+            assert_eq!(&blob[12..16], &2048_u32.to_le_bytes());
+            assert_eq!(&blob[16..20], &[0x01, 0x00, 0x01, 0x00]); // 65537
+                                                                  // A 2048-bit modulus has its top bit set; it's the last (little-endian) byte.
+            assert!(blob[275] & 0x80 != 0);
+
+            // Container info: ver, reserved, sig blob size (0), key blob size, then the blob.
+            let mut payload = Vec::new();
+            for v in [1_u32, 0, 0, 276] {
+                payload.extend_from_slice(&v.to_le_bytes());
+            }
+            payload.extend_from_slice(&expected_blob);
+            assert_eq!(
+                cache.read("Cached_ContainerInfo_00").unwrap(),
+                expected_entry(&payload)
+            );
+        }
+
+        #[test]
+        fn write_overwrites_and_read_missing_returns_none() {
+            let mut cache = ScardCache::new(&rsa_2048_key(), &[1, 2, 3]).unwrap();
+            assert_eq!(cache.read("missing"), None);
+
+            cache.write("new".into(), vec![1]);
+            assert_eq!(cache.read("new"), Some(vec![1]));
+
+            // Runtime writes by the Base CSP/KSP replace precached values.
+            cache.write("Cached_CardProperty_Cache Mode_0".into(), vec![9]);
+            assert_eq!(
+                cache.read("Cached_CardProperty_Cache Mode_0"),
+                Some(vec![9])
+            );
         }
     }
 
