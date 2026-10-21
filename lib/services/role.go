@@ -1272,12 +1272,24 @@ func FetchRolesForUser(user UserAccessState, access RoleGetter) (RoleSet, error)
 
 // NewRoleSet returns new RoleSet based on the roles
 func NewRoleSet(roles ...types.Role) RoleSet {
-	// unauthenticated Nop role should not have any privileges
-	// by default, otherwise it is too permissive
-	if len(roles) == 1 && roles[0].GetName() == string(types.RoleNop) {
-		return roles
+	if len(roles) == 0 {
+		return []types.Role{NewImplicitRole()}
 	}
-	return append(roles, NewImplicitRole())
+	for _, r := range roles {
+		switch r.GetName() {
+		case string(types.RoleNop), string(types.RoleSSHHost):
+			// unauthenticated Nop and SSHHost roles should not have any privileges by default.
+		case string(types.RoleNode), string(types.RoleKube), string(types.RoleWindowsDesktop), string(types.RoleLinuxDesktop):
+			// Built-in roles should be a 1-1 representation of the permissions needed
+			// to function, removing the need for implicit rules for non-users.
+			//
+			// TODO(Joerger): Extend this implicit rule drop to the other built-in roles.
+		default:
+			// If at least one role expects default implicit rules, include it.
+			return append(roles, NewImplicitRole())
+		}
+	}
+	return roles
 }
 
 // RoleSet is a set of roles that implements access control functionality
