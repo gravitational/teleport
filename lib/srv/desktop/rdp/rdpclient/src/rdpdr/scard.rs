@@ -32,7 +32,11 @@ use ironrdp_rdpdr::pdu::esc::{
 };
 use iso7816::Command as CardCommand;
 use log::{debug, warn};
+use rsa::pkcs1::DecodeRsaPrivateKey;
+use rsa::traits::PublicKeyParts;
+use rsa::RsaPrivateKey;
 use std::collections::HashMap;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// Carries the deferred state for an in-flight `SCARD_IOCTL_GETSTATUSCHANGE` request that was
@@ -153,7 +157,7 @@ pub struct ScardBackend {
     contexts: Contexts,
     uuid: Uuid,
     cert_der: Vec<u8>,
-    key_der: Vec<u8>,
+    auth_key: Arc<RsaPrivateKey>,
     pin: String,
 }
 
@@ -164,8 +168,11 @@ impl std::fmt::Debug for ScardBackend {
             .field("contexts", &self.contexts)
             .field("uuid", &self.uuid)
             .field("cert_der", &util::vec_u8_debug(&self.cert_der))
-            // Important we don't leak key_der to the logs.
-            .field("key_der", &util::vec_u8_debug(&self.key_der))
+            // Important: we don't leak `auth_key` to the logs.
+            .field(
+                "auth_key",
+                &format!("RsaPrivateKey of size {} bits", self.auth_key.n().bits()),
+            )
             // Out of an abundance of caution, don't leak the PIN to the logs.
             .field("pin", &util::str_debug(&self.pin))
             .finish()
@@ -178,15 +185,20 @@ impl ScardBackend {
         cert_der: Vec<u8>,
         key_der: Vec<u8>,
         pin: String,
-    ) -> Self {
-        Self {
+    ) -> PduResult<Self> {
+        let auth_key = Arc::new(
+            RsaPrivateKey::from_pkcs1_der(&key_der)
+                .map_err(|_e| pdu_other_err!("failed to parse private key from DER"))?,
+        );
+
+        Ok(Self {
             client_handle,
             contexts: Contexts::new(),
             uuid: Uuid::new_v4(),
             cert_der,
-            key_der,
+            auth_key,
             pin,
-        }
+        })
     }
 
     pub fn handle(
@@ -521,7 +533,7 @@ impl ScardBackend {
             call.common.context.value,
             self.uuid,
             &self.cert_der,
-            &self.key_der,
+            Arc::clone(&self.auth_key),
             self.pin.clone(),
         )?;
 
@@ -741,11 +753,11 @@ impl Contexts {
         id: u32,
         uuid: Uuid,
         cert_der: &[u8],
-        key_der: &[u8],
+        auth_key: Arc<RsaPrivateKey>,
         pin: String,
     ) -> PduResult<ScardHandle> {
         let ctx_internal = self.get_internal_mut(id)?;
-        let handle = ctx_internal.connect(ctx, uuid, cert_der, key_der, pin)?;
+        let handle = ctx_internal.connect(ctx, uuid, cert_der, auth_key, pin)?;
         Ok(handle)
     }
 
@@ -845,10 +857,10 @@ impl ContextInternal {
         ctx: ScardContext,
         uuid: Uuid,
         cert_der: &[u8],
-        key_der: &[u8],
+        auth_key: Arc<RsaPrivateKey>,
         pin: String,
     ) -> PduResult<ScardHandle> {
-        let card = piv::Card::new(uuid, cert_der, key_der, pin)?;
+        let card = piv::Card::new(uuid, cert_der, auth_key, pin)?;
         let id = self.next_id;
         self.next_id += 1;
         let handle = ScardHandle::new(ctx, id);
@@ -921,6 +933,7 @@ impl std::error::Error for SmartcardBackendError {}
 mod tests {
     use super::*;
     use crate::client::FunctionReceiver;
+    use crate::test_util::RSA_2048_DER;
     use ironrdp_rdpdr::pdu::efs::{DeviceIoRequest, MajorFunction, MinorFunction};
     use ironrdp_rdpdr::pdu::esc::{
         EstablishContextCall, ReaderState, ReaderStateCommonCall, Scope,
@@ -928,7 +941,13 @@ mod tests {
 
     fn build_test_scard_backend() -> (ScardBackend, FunctionReceiver) {
         let (client_handle, function_receiver) = ClientHandle::new(100);
-        let scard_backend = ScardBackend::new(client_handle, Vec::new(), Vec::new(), String::new());
+        let scard_backend = ScardBackend::new(
+            client_handle,
+            Vec::new(),
+            RSA_2048_DER.to_vec(),
+            String::new(),
+        )
+        .expect("failed to create ScardBackend");
         (scard_backend, function_receiver)
     }
 

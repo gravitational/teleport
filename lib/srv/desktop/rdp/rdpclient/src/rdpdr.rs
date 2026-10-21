@@ -111,12 +111,12 @@ impl TeleportRdpdrBackend {
         pin: String,
         cgo_handle: CgoHandle,
         allow_directory_sharing: bool,
-    ) -> Self {
-        Self {
-            scard: ScardBackend::new(client_handle.clone(), cert_der, key_der, pin),
+    ) -> PduResult<Self> {
+        Ok(Self {
+            scard: ScardBackend::new(client_handle.clone(), cert_der, key_der, pin)?,
             fs: FilesystemBackend::new(cgo_handle, client_handle),
             allow_directory_sharing,
-        }
+        })
     }
 
     pub fn add_device(&mut self, device_id: u32) -> PduResult<()> {
