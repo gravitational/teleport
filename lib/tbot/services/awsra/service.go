@@ -204,18 +204,18 @@ func (s *Service) requestSVID(
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
-	// create a client that uses the impersonated identity, so that when we
-	// fetch information, we can ensure access rights are enforced.
-	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
+	// create a client that uses the identity, so that when we fetch information,
+	// we can ensure access rights are enforced.
+	apiClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	defer impersonatedClient.Close()
+	defer apiClient.Close()
 
 	x509Credentials, privateKey, err := workloadidentity.IssueX509WorkloadIdentity(
 		ctx,
 		s.log,
-		impersonatedClient,
+		apiClient,
 		s.cfg.Selector,
 		// We only use this SVID to exchange for AWS credentials, so we don't
 		// need the full lifetime.
