@@ -228,10 +228,14 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.Wrap(err)
 	}
 
-	extant, err := s.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name:  role.GetMetadata().GetName(),
-		Scope: role.GetScope(),
-	}.Build())
+	// Read the raw item so a stored role that fails validation can still be
+	// replaced.
+	key, err := scopedRoleKey{scope: role.GetScope(), name: role.GetMetadata().GetName()}.Key()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	extant, err := s.bk.Get(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// generic condition failure keeps error handling simpler
@@ -240,12 +244,12 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.Wrap(err)
 	}
 
-	if role.GetMetadata().GetRevision() != "" && role.GetMetadata().GetRevision() != extant.GetRole().GetMetadata().GetRevision() {
+	if role.GetMetadata().GetRevision() != "" && role.GetMetadata().GetRevision() != extant.Revision {
 		return nil, trace.CompareFailed("scoped role %q has been concurrently modified", role.GetMetadata().GetName())
 	}
 
 	// use the observed revision as the condition so that a concurrent modification is detected.
-	role = scopedRoleWithRevision(role, extant.GetRole().GetMetadata().GetRevision())
+	role = scopedRoleWithRevision(role, extant.Revision)
 	item, err := scopedRoleToItem(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -714,6 +718,21 @@ func verifyKeyScope(key, watchPrefix backend.Key, fieldScope string) error {
 	return nil
 }
 
+// verifyKeyName checks that a scoped resource's name field agrees with the
+// name encoded in its backend key, rejecting the resource if they disagree.
+func verifyKeyName(key, watchPrefix backend.Key, fieldName string) error {
+	components := key.TrimPrefix(watchPrefix).Components()
+	if len(components) < 2 {
+		return trace.BadParameter("scoped resource key %q is missing its name component", key)
+	}
+
+	if components[1] != fieldName {
+		return trace.BadParameter("scoped resource at key %q has name field %q conflicting with key-encoded name %q", key, fieldName, components[1])
+	}
+
+	return nil
+}
+
 func scopedRoleFromItem(item *backend.Item) (*scopedaccessv1.ScopedRole, error) {
 	var role scopedaccessv1.ScopedRole
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(item.Value, &role); err != nil {
@@ -726,6 +745,10 @@ func scopedRoleFromItem(item *backend.Item) (*scopedaccessv1.ScopedRole, error) 
 	}
 
 	if err := verifyKeyScope(item.Key, scopedRoleWatchPrefix(), role.GetScope()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := verifyKeyName(item.Key, scopedRoleWatchPrefix(), role.GetMetadata().GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

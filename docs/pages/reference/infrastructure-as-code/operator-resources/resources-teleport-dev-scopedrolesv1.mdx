@@ -49,6 +49,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |label_expression|string|LabelExpression is an optional predicate expression evaluated against an application's labels.|
 |labels|[][object](#specapplabels-items)|The set of application labels used for RBAC.|
 |lock|[object](#specapplock)|Lock configures the role's locking behavior for app sessions. If empty, the defaults block value (or global default) applies.|
+|resources|[][object](#specappresources-items)|Resources is a list of rules controlling access to an app's resources on each HTTP request.  This version does not implement app.resources on scoped roles and rejects a scoped role that sets it to a non-empty list. An empty list is the same as leaving the field unset. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.|
+|resources_expressions|[]string|ResourcesExpressions is a list of predicates controlling access to an app's resources on each HTTP request. Every AppResource rule can be written as an expression, but not the reverse.  This version does not implement app.resources_expressions on scoped roles and rejects a scoped role that sets it to a non-empty list. An empty list is the same as leaving the field unset. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.|
 
 ### spec.app.aws
 
@@ -68,6 +70,33 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |mode|string|Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.|
+
+### spec.app.resources items
+
+|Field|Type|Description|
+|---|---|---|
+|allow_all|boolean|AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.|
+|allow_code|string|AllowCode is the code recorded on the allow audit event when the rule matches. If it is not set, no allow audit event is recorded. A code may not start with the reserved "teleport_" prefix.|
+|allow_reason|string|AllowReason is the explanation recorded alongside AllowCode. A rule sets it only together with AllowCode.|
+|allow_unsafe|[object](#specappresources-itemsallow_unsafe)|AllowUnsafe lists options that can extend what the rule allows. They can be unsafe, so use them with care. For example:  `paths: ["/api/v4/projects/{project}/**"]` `allow_unsafe: {encoded: {project: "/"}}`  Set `encoded` only for an application that reads the encoded slash (%2F) as part of one path segment's content and does not auto-decode it to a literal /.|
+|deny_code_hint|string|DenyCodeHint is the code added to the deny decision when the rule's path and method match but the Where predicate does not. A denied request collects a code from every such rule, so one decision can record several codes. A code may not start with the reserved "teleport_" prefix.|
+|deny_reason_hint|string|DenyReasonHint is the explanation recorded alongside DenyCodeHint. A rule sets it only together with DenyCodeHint.|
+|methods|[]string|Methods are the HTTP methods the rule matches, compared case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH, DELETE, and OPTIONS. An empty list matches any of them.|
+|paths|[]string|Paths are the path patterns the rule matches, for example:  `paths: ["/api/projects/{project}/**"]`  The `{project}` segment is captured, and the rule's Where reads it as `vars.project`. A rule sets either Paths or AllowAll.|
+|where|string|Where is a predicate over the caller identity and the rule's path captures, for example matching a captured project against a user's traits:  `where: contains(user.traits["projects"], vars.project)`|
+
+### spec.app.resources items.allow_unsafe
+
+|Field|Type|Description|
+|---|---|---|
+|encoded|[object](#specappresources-itemsallow_unsafeencoded)|Encoded maps a capture name to the characters a request path may contain in percent-encoded form inside that captured segment. The only supported value is "/", which allows the encoded slash (%2F or %2f).|
+
+### spec.app.resources items.allow_unsafe.encoded
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.defaults
 

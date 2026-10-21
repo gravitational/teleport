@@ -150,7 +150,7 @@ func WeakValidatedAssignableScopes(role *scopedaccessv1.ScopedRole) iter.Seq[str
 	}
 }
 
-// WeakValidateRole valides a role to ensure it is free of obvious issues that would render it unusable and/or
+// WeakValidateRole validates a role to ensure it is free of obvious issues that would render it unusable and/or
 // induce serious unintended behavior. Prefer using this function for validating roles loaded from "internal" sources
 // (e.g. backend/control-plane), and [StrongValidateRole] for validating roles loaded from "external" sources (e.g. user input).
 func WeakValidateRole(role *scopedaccessv1.ScopedRole) error {
@@ -377,11 +377,29 @@ func commonValidateRole(role *scopedaccessv1.ScopedRole) error {
 		return trace.BadParameter("scoped role %q is missing scope", role.GetMetadata().GetName())
 	}
 
+	if err := rejectAppRules(role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// rejectAppRules returns an error when the role sets app.resources or
+// app.resources_expressions.
+func rejectAppRules(role *scopedaccessv1.ScopedRole) error {
+	if len(role.GetSpec().GetApp().GetResources()) > 0 {
+		return trace.BadParameter("scoped role %q sets unsupported field app.resources", role.GetMetadata().GetName())
+	}
+
+	if len(role.GetSpec().GetApp().GetResourcesExpressions()) > 0 {
+		return trace.BadParameter("scoped role %q sets unsupported field app.resources_expressions", role.GetMetadata().GetName())
+	}
+
 	return nil
 }
 
 // WeakValidatedSubAssignments is a helper for iterating all well formed sub-assignments within a given assignment. Note that the concept
-// of a well-formed sub-assignment is distinct from whether or not an assignment is "boken/invalidated" in the sense used when
+// of a well-formed sub-assignment is distinct from whether or not an assignment is "broken/invalidated" in the sense used when
 // deciding whether or not an access-control check can be performed for a given scope. The only thing that is being filtered out
 // by this iterator is sub-assignments that are so obviously misconfigured that we can't reason about them at all. Sub-assignments
 // returned by this iterator may still be broken because they assign a nonexistent role, or to a scope that the target role is not

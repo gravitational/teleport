@@ -175,6 +175,12 @@ func ScopedRoleToRole(scopedRole *scopedaccessv1.ScopedRole, assignedScope strin
 		return nil, trace.BadParameter("scoped role %q's kube %s", sr.GetMetadata().GetName(), err)
 	}
 
+	// Refuse a role with app rules before applyAppBlock grants the app by
+	// labels alone.
+	if err := rejectAppRules(sr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var conditions types.RoleConditions
 	applySSHBlock(sr.GetSpec().GetSsh(), &conditions)
 	applyKubeBlock(sr.GetSpec().GetKube(), &conditions)

@@ -1114,6 +1114,28 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+// scopedRoleFromKey returns a scoped role with only the scope and name
+// that key encodes.
+func scopedRoleFromKey(key backend.Key) (types.Resource, error) {
+	components := key.TrimPrefix(scopedRoleWatchPrefix()).Components()
+	if len(components) != 2 {
+		return nil, trace.NotFound("malformed scoped role key %q", key.String())
+	}
+	scope, err := scopes.DecodeFromKey(components[0])
+	if err != nil {
+		return nil, trace.Wrap(err, "failed decoding scope from scoped role key %q", key.String())
+	}
+	// delete events must use full type instead of resource header in order to
+	// propagate scope
+	return types.Resource153ToLegacy(scopedaccessv1.ScopedRole_builder{
+		Kind: scopedaccess.KindScopedRole,
+		Metadata: headerv1.Metadata_builder{
+			Name: components[1],
+		}.Build(),
+		Scope: scope,
+	}.Build()), nil
+}
+
 func newScopedRoleParser() *scopedRoleParser {
 	return &scopedRoleParser{
 		baseParser: newBaseParser(scopedRoleWatchPrefix()),
@@ -1127,26 +1149,19 @@ type scopedRoleParser struct {
 func (p *scopedRoleParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// delete events must use full type instead of resource header in order to propagate scope
-		components := event.Item.Key.TrimPrefix(scopedRoleWatchPrefix()).Components()
-		if len(components) != 2 {
-			return nil, trace.NotFound("malformed scoped role key %q", event.Item.Key.String())
-		}
-		scope, err := scopes.DecodeFromKey(components[0])
-		if err != nil {
-			return nil, trace.Wrap(err, "failed decoding scope from scoped role key %q", event.Item.Key.String())
-		}
-		return types.Resource153ToLegacy(scopedaccessv1.ScopedRole_builder{
-			Kind: scopedaccess.KindScopedRole,
-			Metadata: headerv1.Metadata_builder{
-				Name: components[1],
-			}.Build(),
-			Scope: scope,
-		}.Build()), nil
+		return scopedRoleFromKey(event.Item.Key)
 	case types.OpPut:
 		role, err := scopedRoleFromItem(&event.Item)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// The value at this key is not a valid role, so the put becomes a
+			// delete of the role the key encodes. An earlier revision held in
+			// a cache then grants nothing.
+			deleted, keyErr := scopedRoleFromKey(event.Item.Key)
+			if keyErr != nil {
+				return nil, trace.Wrap(err)
+			}
+			slog.WarnContext(context.Background(), "Evicting scoped role that failed to parse", "key", event.Item.Key.String(), "error", err)
+			return nil, parseEventOverrideError{{Type: types.OpDelete, Resource: deleted}}
 		}
 		return types.Resource153ToLegacy(role), nil
 	default:

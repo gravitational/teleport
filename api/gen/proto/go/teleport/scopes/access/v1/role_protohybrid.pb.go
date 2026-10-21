@@ -1304,9 +1304,28 @@ type ScopedRoleApp struct {
 	// If empty, the defaults block value (or global default) applies.
 	Lock *Lock `protobuf:"bytes,5,opt,name=lock,proto3" json:"lock,omitempty"`
 	// AWS contains the AWS configuration for the scoped role.
-	Aws           *ScopedRoleApp_AWS `protobuf:"bytes,6,opt,name=aws,proto3" json:"aws,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Aws *ScopedRoleApp_AWS `protobuf:"bytes,6,opt,name=aws,proto3" json:"aws,omitempty"`
+	// Resources is a list of rules controlling access to an app's resources
+	// on each HTTP request.
+	//
+	// This version does not implement app.resources on scoped roles and
+	// rejects a scoped role that sets it to a non-empty list. An empty list
+	// is the same as leaving the field unset. The field is declared so that
+	// version skew or a rollback cannot silently drop it and widen a role's
+	// access.
+	Resources []*AppResource `protobuf:"bytes,7,rep,name=resources,proto3" json:"resources,omitempty"`
+	// ResourcesExpressions is a list of predicates controlling access to an
+	// app's resources on each HTTP request. Every AppResource rule can be
+	// written as an expression, but not the reverse.
+	//
+	// This version does not implement app.resources_expressions on scoped
+	// roles and rejects a scoped role that sets it to a non-empty list. An
+	// empty list is the same as leaving the field unset. The field is
+	// declared so that version skew or a rollback cannot silently drop it and
+	// widen a role's access.
+	ResourcesExpressions []string `protobuf:"bytes,8,rep,name=resources_expressions,json=resourcesExpressions,proto3" json:"resources_expressions,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ScopedRoleApp) Reset() {
@@ -1376,6 +1395,20 @@ func (x *ScopedRoleApp) GetAws() *ScopedRoleApp_AWS {
 	return nil
 }
 
+func (x *ScopedRoleApp) GetResources() []*AppResource {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+func (x *ScopedRoleApp) GetResourcesExpressions() []string {
+	if x != nil {
+		return x.ResourcesExpressions
+	}
+	return nil
+}
+
 func (x *ScopedRoleApp) SetLabels(v []*v11.Label) {
 	x.Labels = v
 }
@@ -1398,6 +1431,14 @@ func (x *ScopedRoleApp) SetLock(v *Lock) {
 
 func (x *ScopedRoleApp) SetAws(v *ScopedRoleApp_AWS) {
 	x.Aws = v
+}
+
+func (x *ScopedRoleApp) SetResources(v []*AppResource) {
+	x.Resources = v
+}
+
+func (x *ScopedRoleApp) SetResourcesExpressions(v []string) {
+	x.ResourcesExpressions = v
 }
 
 func (x *ScopedRoleApp) HasDisconnectExpiredCert() bool {
@@ -1453,6 +1494,25 @@ type ScopedRoleApp_builder struct {
 	Lock *Lock
 	// AWS contains the AWS configuration for the scoped role.
 	Aws *ScopedRoleApp_AWS
+	// Resources is a list of rules controlling access to an app's resources
+	// on each HTTP request.
+	//
+	// This version does not implement app.resources on scoped roles and
+	// rejects a scoped role that sets it to a non-empty list. An empty list
+	// is the same as leaving the field unset. The field is declared so that
+	// version skew or a rollback cannot silently drop it and widen a role's
+	// access.
+	Resources []*AppResource
+	// ResourcesExpressions is a list of predicates controlling access to an
+	// app's resources on each HTTP request. Every AppResource rule can be
+	// written as an expression, but not the reverse.
+	//
+	// This version does not implement app.resources_expressions on scoped
+	// roles and rejects a scoped role that sets it to a non-empty list. An
+	// empty list is the same as leaving the field unset. The field is
+	// declared so that version skew or a rollback cannot silently drop it and
+	// widen a role's access.
+	ResourcesExpressions []string
 }
 
 func (b0 ScopedRoleApp_builder) Build() *ScopedRoleApp {
@@ -1465,6 +1525,343 @@ func (b0 ScopedRoleApp_builder) Build() *ScopedRoleApp {
 	x.DisconnectExpiredCert = b.DisconnectExpiredCert
 	x.Lock = b.Lock
 	x.Aws = b.Aws
+	x.Resources = b.Resources
+	x.ResourcesExpressions = b.ResourcesExpressions
+	return m0
+}
+
+// AppResource is one rule under a scoped role's app.resources. It allows
+// an HTTP request that matches it to reach an app's resources.
+//
+// This version does not implement app.resources on scoped roles and rejects
+// a scoped role that sets it. The fields are declared so that version skew
+// or a rollback cannot silently drop one and widen a role's access.
+type AppResource struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Paths are the path patterns the rule matches, for example:
+	//
+	//     `paths: ["/api/projects/{project}/**"]`
+	//
+	// The `{project}` segment is captured, and the rule's Where reads it as
+	// `vars.project`. A rule sets either Paths or AllowAll.
+	Paths []string `protobuf:"bytes,1,rep,name=paths,proto3" json:"paths,omitempty"`
+	// Methods are the HTTP methods the rule matches, compared
+	// case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH,
+	// DELETE, and OPTIONS. An empty list matches any of them.
+	Methods []string `protobuf:"bytes,2,rep,name=methods,proto3" json:"methods,omitempty"`
+	// Where is a predicate over the caller identity and the rule's path
+	// captures, for example matching a captured project against a user's
+	// traits:
+	//
+	//     `where: contains(user.traits["projects"], vars.project)`
+	Where string `protobuf:"bytes,3,opt,name=where,proto3" json:"where,omitempty"`
+	// AllowAll grants unrestricted access to every path and method. It
+	// cannot be combined with any other field.
+	AllowAll *bool `protobuf:"varint,5,opt,name=allow_all,json=allowAll,proto3,oneof" json:"allow_all,omitempty"`
+	// AllowCode is the code recorded on the allow audit event when the rule
+	// matches. If it is not set, no allow audit event is recorded. A code may
+	// not start with the reserved "teleport_" prefix.
+	AllowCode string `protobuf:"bytes,6,opt,name=allow_code,json=allowCode,proto3" json:"allow_code,omitempty"`
+	// AllowReason is the explanation recorded alongside AllowCode. A rule
+	// sets it only together with AllowCode.
+	AllowReason string `protobuf:"bytes,7,opt,name=allow_reason,json=allowReason,proto3" json:"allow_reason,omitempty"`
+	// DenyCodeHint is the code added to the deny decision when the rule's
+	// path and method match but the Where predicate does not. A denied
+	// request collects a code from every such rule, so one decision can
+	// record several codes. A code may not start with the reserved
+	// "teleport_" prefix.
+	DenyCodeHint string `protobuf:"bytes,8,opt,name=deny_code_hint,json=denyCodeHint,proto3" json:"deny_code_hint,omitempty"`
+	// DenyReasonHint is the explanation recorded alongside DenyCodeHint. A
+	// rule sets it only together with DenyCodeHint.
+	DenyReasonHint string `protobuf:"bytes,9,opt,name=deny_reason_hint,json=denyReasonHint,proto3" json:"deny_reason_hint,omitempty"`
+	// AllowUnsafe lists options that can extend what the rule allows. They can be
+	// unsafe, so use them with care. For example:
+	//
+	//     `paths: ["/api/v4/projects/{project}/**"]`
+	//     `allow_unsafe: {encoded: {project: "/"}}`
+	//
+	// Set `encoded` only for an application that reads the encoded slash (%2F)
+	// as part of one path segment's content and does not auto-decode it to a
+	// literal /.
+	AllowUnsafe   *AppResourceUnsafe `protobuf:"bytes,10,opt,name=allow_unsafe,json=allowUnsafe,proto3" json:"allow_unsafe,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppResource) Reset() {
+	*x = AppResource{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppResource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppResource) ProtoMessage() {}
+
+func (x *AppResource) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AppResource) GetPaths() []string {
+	if x != nil {
+		return x.Paths
+	}
+	return nil
+}
+
+func (x *AppResource) GetMethods() []string {
+	if x != nil {
+		return x.Methods
+	}
+	return nil
+}
+
+func (x *AppResource) GetWhere() string {
+	if x != nil {
+		return x.Where
+	}
+	return ""
+}
+
+func (x *AppResource) GetAllowAll() bool {
+	if x != nil && x.AllowAll != nil {
+		return *x.AllowAll
+	}
+	return false
+}
+
+func (x *AppResource) GetAllowCode() string {
+	if x != nil {
+		return x.AllowCode
+	}
+	return ""
+}
+
+func (x *AppResource) GetAllowReason() string {
+	if x != nil {
+		return x.AllowReason
+	}
+	return ""
+}
+
+func (x *AppResource) GetDenyCodeHint() string {
+	if x != nil {
+		return x.DenyCodeHint
+	}
+	return ""
+}
+
+func (x *AppResource) GetDenyReasonHint() string {
+	if x != nil {
+		return x.DenyReasonHint
+	}
+	return ""
+}
+
+func (x *AppResource) GetAllowUnsafe() *AppResourceUnsafe {
+	if x != nil {
+		return x.AllowUnsafe
+	}
+	return nil
+}
+
+func (x *AppResource) SetPaths(v []string) {
+	x.Paths = v
+}
+
+func (x *AppResource) SetMethods(v []string) {
+	x.Methods = v
+}
+
+func (x *AppResource) SetWhere(v string) {
+	x.Where = v
+}
+
+func (x *AppResource) SetAllowAll(v bool) {
+	x.AllowAll = &v
+}
+
+func (x *AppResource) SetAllowCode(v string) {
+	x.AllowCode = v
+}
+
+func (x *AppResource) SetAllowReason(v string) {
+	x.AllowReason = v
+}
+
+func (x *AppResource) SetDenyCodeHint(v string) {
+	x.DenyCodeHint = v
+}
+
+func (x *AppResource) SetDenyReasonHint(v string) {
+	x.DenyReasonHint = v
+}
+
+func (x *AppResource) SetAllowUnsafe(v *AppResourceUnsafe) {
+	x.AllowUnsafe = v
+}
+
+func (x *AppResource) HasAllowAll() bool {
+	if x == nil {
+		return false
+	}
+	return x.AllowAll != nil
+}
+
+func (x *AppResource) HasAllowUnsafe() bool {
+	if x == nil {
+		return false
+	}
+	return x.AllowUnsafe != nil
+}
+
+func (x *AppResource) ClearAllowAll() {
+	x.AllowAll = nil
+}
+
+func (x *AppResource) ClearAllowUnsafe() {
+	x.AllowUnsafe = nil
+}
+
+type AppResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Paths are the path patterns the rule matches, for example:
+	//
+	//     `paths: ["/api/projects/{project}/**"]`
+	//
+	// The `{project}` segment is captured, and the rule's Where reads it as
+	// `vars.project`. A rule sets either Paths or AllowAll.
+	Paths []string
+	// Methods are the HTTP methods the rule matches, compared
+	// case-insensitively. A rule may list only GET, HEAD, POST, PUT, PATCH,
+	// DELETE, and OPTIONS. An empty list matches any of them.
+	Methods []string
+	// Where is a predicate over the caller identity and the rule's path
+	// captures, for example matching a captured project against a user's
+	// traits:
+	//
+	//     `where: contains(user.traits["projects"], vars.project)`
+	Where string
+	// AllowAll grants unrestricted access to every path and method. It
+	// cannot be combined with any other field.
+	AllowAll *bool
+	// AllowCode is the code recorded on the allow audit event when the rule
+	// matches. If it is not set, no allow audit event is recorded. A code may
+	// not start with the reserved "teleport_" prefix.
+	AllowCode string
+	// AllowReason is the explanation recorded alongside AllowCode. A rule
+	// sets it only together with AllowCode.
+	AllowReason string
+	// DenyCodeHint is the code added to the deny decision when the rule's
+	// path and method match but the Where predicate does not. A denied
+	// request collects a code from every such rule, so one decision can
+	// record several codes. A code may not start with the reserved
+	// "teleport_" prefix.
+	DenyCodeHint string
+	// DenyReasonHint is the explanation recorded alongside DenyCodeHint. A
+	// rule sets it only together with DenyCodeHint.
+	DenyReasonHint string
+	// AllowUnsafe lists options that can extend what the rule allows. They can be
+	// unsafe, so use them with care. For example:
+	//
+	//     `paths: ["/api/v4/projects/{project}/**"]`
+	//     `allow_unsafe: {encoded: {project: "/"}}`
+	//
+	// Set `encoded` only for an application that reads the encoded slash (%2F)
+	// as part of one path segment's content and does not auto-decode it to a
+	// literal /.
+	AllowUnsafe *AppResourceUnsafe
+}
+
+func (b0 AppResource_builder) Build() *AppResource {
+	m0 := &AppResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Paths = b.Paths
+	x.Methods = b.Methods
+	x.Where = b.Where
+	x.AllowAll = b.AllowAll
+	x.AllowCode = b.AllowCode
+	x.AllowReason = b.AllowReason
+	x.DenyCodeHint = b.DenyCodeHint
+	x.DenyReasonHint = b.DenyReasonHint
+	x.AllowUnsafe = b.AllowUnsafe
+	return m0
+}
+
+// AppResourceUnsafe contains the allow_unsafe options.
+type AppResourceUnsafe struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Encoded maps a capture name to the characters a request path may contain
+	// in percent-encoded form inside that captured segment. The only supported
+	// value is "/", which allows the encoded slash (%2F or %2f).
+	Encoded       map[string]string `protobuf:"bytes,1,rep,name=encoded,proto3" json:"encoded,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppResourceUnsafe) Reset() {
+	*x = AppResourceUnsafe{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppResourceUnsafe) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppResourceUnsafe) ProtoMessage() {}
+
+func (x *AppResourceUnsafe) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AppResourceUnsafe) GetEncoded() map[string]string {
+	if x != nil {
+		return x.Encoded
+	}
+	return nil
+}
+
+func (x *AppResourceUnsafe) SetEncoded(v map[string]string) {
+	x.Encoded = v
+}
+
+type AppResourceUnsafe_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Encoded maps a capture name to the characters a request path may contain
+	// in percent-encoded form inside that captured segment. The only supported
+	// value is "/", which allows the encoded slash (%2F or %2f).
+	Encoded map[string]string
+}
+
+func (b0 AppResourceUnsafe_builder) Build() *AppResourceUnsafe {
+	m0 := &AppResourceUnsafe{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Encoded = b.Encoded
 	return m0
 }
 
@@ -1482,7 +1879,7 @@ type ScopedRule struct {
 
 func (x *ScopedRule) Reset() {
 	*x = ScopedRule{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1494,7 +1891,7 @@ func (x *ScopedRule) String() string {
 func (*ScopedRule) ProtoMessage() {}
 
 func (x *ScopedRule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1558,7 +1955,7 @@ type SSHPortForwarding struct {
 
 func (x *SSHPortForwarding) Reset() {
 	*x = SSHPortForwarding{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1570,7 +1967,7 @@ func (x *SSHPortForwarding) String() string {
 func (*SSHPortForwarding) ProtoMessage() {}
 
 func (x *SSHPortForwarding) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1653,7 +2050,7 @@ type SSHLocalPortForwarding struct {
 
 func (x *SSHLocalPortForwarding) Reset() {
 	*x = SSHLocalPortForwarding{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1665,7 +2062,7 @@ func (x *SSHLocalPortForwarding) String() string {
 func (*SSHLocalPortForwarding) ProtoMessage() {}
 
 func (x *SSHLocalPortForwarding) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1722,7 +2119,7 @@ type SSHRemotePortForwarding struct {
 
 func (x *SSHRemotePortForwarding) Reset() {
 	*x = SSHRemotePortForwarding{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1734,7 +2131,7 @@ func (x *SSHRemotePortForwarding) String() string {
 func (*SSHRemotePortForwarding) ProtoMessage() {}
 
 func (x *SSHRemotePortForwarding) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1796,7 +2193,7 @@ type CreateHostUser struct {
 
 func (x *CreateHostUser) Reset() {
 	*x = CreateHostUser{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1808,7 +2205,7 @@ func (x *CreateHostUser) String() string {
 func (*CreateHostUser) ProtoMessage() {}
 
 func (x *CreateHostUser) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1888,7 +2285,7 @@ type EnhancedRecording struct {
 
 func (x *EnhancedRecording) Reset() {
 	*x = EnhancedRecording{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1900,7 +2297,7 @@ func (x *EnhancedRecording) String() string {
 func (*EnhancedRecording) ProtoMessage() {}
 
 func (x *EnhancedRecording) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2009,7 +2406,7 @@ type SessionRecording struct {
 
 func (x *SessionRecording) Reset() {
 	*x = SessionRecording{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2021,7 +2418,7 @@ func (x *SessionRecording) String() string {
 func (*SessionRecording) ProtoMessage() {}
 
 func (x *SessionRecording) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2071,7 +2468,7 @@ type Lock struct {
 
 func (x *Lock) Reset() {
 	*x = Lock{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2083,7 +2480,7 @@ func (x *Lock) String() string {
 func (*Lock) ProtoMessage() {}
 
 func (x *Lock) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2140,7 +2537,7 @@ type KubeResource struct {
 
 func (x *KubeResource) Reset() {
 	*x = KubeResource{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[15]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2152,7 +2549,7 @@ func (x *KubeResource) String() string {
 func (*KubeResource) ProtoMessage() {}
 
 func (x *KubeResource) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[15]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2256,7 +2653,7 @@ type ScopedRoleApp_AWS struct {
 
 func (x *ScopedRoleApp_AWS) Reset() {
 	*x = ScopedRoleApp_AWS{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[16]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2268,7 +2665,7 @@ func (x *ScopedRoleApp_AWS) String() string {
 func (*ScopedRoleApp_AWS) ProtoMessage() {}
 
 func (x *ScopedRoleApp_AWS) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[16]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2367,17 +2764,38 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x10label_expression\x18\b \x01(\tR\x0flabelExpressionB\x1a\n" +
 	"\x18_disconnect_expired_cert\"N\n" +
 	"\x1aScopedRoleWorkloadIdentity\x120\n" +
-	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\"\x8e\x03\n" +
+	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\"\x89\x04\n" +
 	"\rScopedRoleApp\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12)\n" +
 	"\x10label_expression\x18\x02 \x01(\tR\x0flabelExpression\x12.\n" +
 	"\x13client_idle_timeout\x18\x03 \x01(\tR\x11clientIdleTimeout\x12;\n" +
 	"\x17disconnect_expired_cert\x18\x04 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
 	"\x04lock\x18\x05 \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lock\x12>\n" +
-	"\x03aws\x18\x06 \x01(\v2,.teleport.scopes.access.v1.ScopedRoleApp.AWSR\x03aws\x1a\"\n" +
+	"\x03aws\x18\x06 \x01(\v2,.teleport.scopes.access.v1.ScopedRoleApp.AWSR\x03aws\x12D\n" +
+	"\tresources\x18\a \x03(\v2&.teleport.scopes.access.v1.AppResourceR\tresources\x123\n" +
+	"\x15resources_expressions\x18\b \x03(\tR\x14resourcesExpressions\x1a\"\n" +
 	"\x03AWS\x12\x1b\n" +
 	"\trole_arns\x18\x01 \x03(\tR\broleArnsB\x1a\n" +
-	"\x18_disconnect_expired_cert\"@\n" +
+	"\x18_disconnect_expired_cert\"\xfb\x02\n" +
+	"\vAppResource\x12\x14\n" +
+	"\x05paths\x18\x01 \x03(\tR\x05paths\x12\x18\n" +
+	"\amethods\x18\x02 \x03(\tR\amethods\x12\x14\n" +
+	"\x05where\x18\x03 \x01(\tR\x05where\x12 \n" +
+	"\tallow_all\x18\x05 \x01(\bH\x00R\ballowAll\x88\x01\x01\x12\x1d\n" +
+	"\n" +
+	"allow_code\x18\x06 \x01(\tR\tallowCode\x12!\n" +
+	"\fallow_reason\x18\a \x01(\tR\vallowReason\x12$\n" +
+	"\x0edeny_code_hint\x18\b \x01(\tR\fdenyCodeHint\x12(\n" +
+	"\x10deny_reason_hint\x18\t \x01(\tR\x0edenyReasonHint\x12O\n" +
+	"\fallow_unsafe\x18\n" +
+	" \x01(\v2,.teleport.scopes.access.v1.AppResourceUnsafeR\vallowUnsafeB\f\n" +
+	"\n" +
+	"_allow_allJ\x04\b\x04\x10\x05R\rallow_encoded\"\xa4\x01\n" +
+	"\x11AppResourceUnsafe\x12S\n" +
+	"\aencoded\x18\x01 \x03(\v29.teleport.scopes.access.v1.AppResourceUnsafe.EncodedEntryR\aencoded\x1a:\n" +
+	"\fEncodedEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
@@ -2417,7 +2835,7 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x05verbs\x18\x04 \x03(\tR\x05verbs\x12\x1b\n" +
 	"\tapi_group\x18\x05 \x01(\tR\bapiGroupBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),                 // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),             // 1: teleport.scopes.access.v1.ScopedRoleSpec
@@ -2426,50 +2844,56 @@ var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRoleKube)(nil),             // 4: teleport.scopes.access.v1.ScopedRoleKube
 	(*ScopedRoleWorkloadIdentity)(nil), // 5: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity
 	(*ScopedRoleApp)(nil),              // 6: teleport.scopes.access.v1.ScopedRoleApp
-	(*ScopedRule)(nil),                 // 7: teleport.scopes.access.v1.ScopedRule
-	(*SSHPortForwarding)(nil),          // 8: teleport.scopes.access.v1.SSHPortForwarding
-	(*SSHLocalPortForwarding)(nil),     // 9: teleport.scopes.access.v1.SSHLocalPortForwarding
-	(*SSHRemotePortForwarding)(nil),    // 10: teleport.scopes.access.v1.SSHRemotePortForwarding
-	(*CreateHostUser)(nil),             // 11: teleport.scopes.access.v1.CreateHostUser
-	(*EnhancedRecording)(nil),          // 12: teleport.scopes.access.v1.EnhancedRecording
-	(*SessionRecording)(nil),           // 13: teleport.scopes.access.v1.SessionRecording
-	(*Lock)(nil),                       // 14: teleport.scopes.access.v1.Lock
-	(*KubeResource)(nil),               // 15: teleport.scopes.access.v1.KubeResource
-	(*ScopedRoleApp_AWS)(nil),          // 16: teleport.scopes.access.v1.ScopedRoleApp.AWS
-	(*v1.Metadata)(nil),                // 17: teleport.header.v1.Metadata
-	(*v11.Label)(nil),                  // 18: teleport.label.v1.Label
+	(*AppResource)(nil),                // 7: teleport.scopes.access.v1.AppResource
+	(*AppResourceUnsafe)(nil),          // 8: teleport.scopes.access.v1.AppResourceUnsafe
+	(*ScopedRule)(nil),                 // 9: teleport.scopes.access.v1.ScopedRule
+	(*SSHPortForwarding)(nil),          // 10: teleport.scopes.access.v1.SSHPortForwarding
+	(*SSHLocalPortForwarding)(nil),     // 11: teleport.scopes.access.v1.SSHLocalPortForwarding
+	(*SSHRemotePortForwarding)(nil),    // 12: teleport.scopes.access.v1.SSHRemotePortForwarding
+	(*CreateHostUser)(nil),             // 13: teleport.scopes.access.v1.CreateHostUser
+	(*EnhancedRecording)(nil),          // 14: teleport.scopes.access.v1.EnhancedRecording
+	(*SessionRecording)(nil),           // 15: teleport.scopes.access.v1.SessionRecording
+	(*Lock)(nil),                       // 16: teleport.scopes.access.v1.Lock
+	(*KubeResource)(nil),               // 17: teleport.scopes.access.v1.KubeResource
+	(*ScopedRoleApp_AWS)(nil),          // 18: teleport.scopes.access.v1.ScopedRoleApp.AWS
+	nil,                                // 19: teleport.scopes.access.v1.AppResourceUnsafe.EncodedEntry
+	(*v1.Metadata)(nil),                // 20: teleport.header.v1.Metadata
+	(*v11.Label)(nil),                  // 21: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	17, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	20, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2,  // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
-	7,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
+	9,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
 	3,  // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
 	4,  // 5: teleport.scopes.access.v1.ScopedRoleSpec.kube:type_name -> teleport.scopes.access.v1.ScopedRoleKube
 	5,  // 6: teleport.scopes.access.v1.ScopedRoleSpec.workload_identity:type_name -> teleport.scopes.access.v1.ScopedRoleWorkloadIdentity
 	6,  // 7: teleport.scopes.access.v1.ScopedRoleSpec.app:type_name -> teleport.scopes.access.v1.ScopedRoleApp
-	13, // 8: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
-	14, // 9: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
-	18, // 10: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
-	8,  // 11: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
-	11, // 12: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
-	12, // 13: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
-	13, // 14: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
-	14, // 15: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
-	18, // 16: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
-	15, // 17: teleport.scopes.access.v1.ScopedRoleKube.resources:type_name -> teleport.scopes.access.v1.KubeResource
-	14, // 18: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
-	18, // 19: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity.labels:type_name -> teleport.label.v1.Label
-	18, // 20: teleport.scopes.access.v1.ScopedRoleApp.labels:type_name -> teleport.label.v1.Label
-	14, // 21: teleport.scopes.access.v1.ScopedRoleApp.lock:type_name -> teleport.scopes.access.v1.Lock
-	16, // 22: teleport.scopes.access.v1.ScopedRoleApp.aws:type_name -> teleport.scopes.access.v1.ScopedRoleApp.AWS
-	9,  // 23: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
-	10, // 24: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
-	25, // [25:25] is the sub-list for method output_type
-	25, // [25:25] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	15, // 8: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
+	16, // 9: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
+	21, // 10: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	10, // 11: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
+	13, // 12: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
+	14, // 13: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
+	15, // 14: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
+	16, // 15: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
+	21, // 16: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
+	17, // 17: teleport.scopes.access.v1.ScopedRoleKube.resources:type_name -> teleport.scopes.access.v1.KubeResource
+	16, // 18: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
+	21, // 19: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity.labels:type_name -> teleport.label.v1.Label
+	21, // 20: teleport.scopes.access.v1.ScopedRoleApp.labels:type_name -> teleport.label.v1.Label
+	16, // 21: teleport.scopes.access.v1.ScopedRoleApp.lock:type_name -> teleport.scopes.access.v1.Lock
+	18, // 22: teleport.scopes.access.v1.ScopedRoleApp.aws:type_name -> teleport.scopes.access.v1.ScopedRoleApp.AWS
+	7,  // 23: teleport.scopes.access.v1.ScopedRoleApp.resources:type_name -> teleport.scopes.access.v1.AppResource
+	8,  // 24: teleport.scopes.access.v1.AppResource.allow_unsafe:type_name -> teleport.scopes.access.v1.AppResourceUnsafe
+	19, // 25: teleport.scopes.access.v1.AppResourceUnsafe.encoded:type_name -> teleport.scopes.access.v1.AppResourceUnsafe.EncodedEntry
+	11, // 26: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
+	12, // 27: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -2481,16 +2905,17 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 	file_teleport_scopes_access_v1_role_proto_msgTypes[3].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[4].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[6].OneofWrappers = []any{}
-	file_teleport_scopes_access_v1_role_proto_msgTypes[9].OneofWrappers = []any{}
-	file_teleport_scopes_access_v1_role_proto_msgTypes[10].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[7].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[11].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[12].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[14].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

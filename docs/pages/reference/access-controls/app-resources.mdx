@@ -12,7 +12,9 @@ unless a rule under `spec.allow.app_resources` or
 `spec.allow.app_resources_expressions` authorizes the request. Earlier
 role versions authorize an application as a whole, so a user who reaches the
 application can send any request to it. Role v9 does not affect TCP, MCP, cloud
-(AWS console, Azure, and GCP), LLM, or Identity Center applications.
+(AWS console, Azure, and GCP), LLM, or Identity Center applications. Scoped
+roles do not support `app.resources` or `app.resources_expressions`, and
+Teleport rejects a scoped role that sets either.
 
 ## Rules
 

@@ -505,8 +505,17 @@ func processEvent(ctx context.Context, state state, event types.Event) error {
 	case types.OpPut:
 		switch item := event.Resource.(type) {
 		case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
-			if err := state.roles.Put(item.UnwrapT()); err != nil {
-				return trace.Errorf("failed to put scoped role %q: %w", item.UnwrapT().GetMetadata().GetName(), err)
+			role := item.UnwrapT()
+			// Put fails only on the role's contents. Returning the error would
+			// restart the cache, and the restarted cache would fail on the same
+			// role. Delete the cached revision instead, so a role that fails
+			// validation grants nothing.
+			if err := state.roles.Put(role); err != nil {
+				slog.WarnContext(ctx, "evicting scoped role that failed validation", "error", err, "name", role.GetMetadata().GetName(), "scope", role.GetScope())
+				state.roles.Delete(scopes.QualifiedName{
+					Scope: role.GetScope(),
+					Name:  role.GetMetadata().GetName(),
+				})
 			}
 		case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]:
 			if err := state.assignments.Put(item.UnwrapT()); err != nil {
