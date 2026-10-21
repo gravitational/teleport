@@ -3714,9 +3714,12 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster, username string, 
 	}
 
 	for _, role := range set {
-		// Deny labels aren't checked here: a deny label match denies the whole
-		// cluster, making kubernetes_resources irrelevant.
-		// Fail closed: an error evaluating the role's labels keeps its denies.
+		// deny rules are not checked for labels because they are greedy. It means that
+		// if there is a deny rule for a cluster, it will deny access to all resources
+		// in that cluster, regardless of kubernetes_resources (i.e. making them irrelevant).
+		// If the goal is to deny access to a specific resource, it should be done by collecting
+		// the kube resources in deny rules of roles whose allow labels match the cluster,
+		// or that set no allow labels. An error evaluating the labels keeps the deny rules.
 		if applies, err := kubeDenyResourcesApply(role, username, userTraits, cluster, false); err == nil && !applies {
 			continue
 		}
