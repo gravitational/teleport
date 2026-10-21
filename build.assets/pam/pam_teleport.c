@@ -23,6 +23,17 @@ int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv)
         pam_info(pamh, "%s", getenv("TELEPORT_USERNAME"));
         pam_info(pamh, "%s", getenv("TELEPORT_LOGIN"));
         pam_info(pamh, "%s", getenv("TELEPORT_ROLES"));
+
+        const char *tty = NULL;
+        if (pam_get_item(pamh, PAM_TTY, (const void **)&tty) != PAM_SUCCESS) {
+            return PAM_SYSTEM_ERR;
+        }
+        pam_info(pamh, "tty: %s", tty);
+        const char *rhost = NULL;
+        if (pam_get_item(pamh, PAM_RHOST, (const void **)&rhost) != PAM_SUCCESS) {
+            return PAM_SYSTEM_ERR;
+        }
+        pam_info(pamh, "rhost: %s", rhost);
     } else if (argc > 0 && argv[0][0] == '0') {
         return PAM_ACCT_EXPIRED;
     } else if (argc > 0 && strcmp(argv[0], "test_custom_env") == 0) {

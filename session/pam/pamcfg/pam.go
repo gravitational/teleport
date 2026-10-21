@@ -36,6 +36,14 @@ type PAMConfig struct {
 	// Login is the *nix login that that is being used.
 	Login string `json:"login"`
 
+	// TTYName is the name of the terminal allocated for the session, if any,
+	// ex: /dev/pts/3. It is set as the PAM_TTY item.
+	TTYName string
+
+	// RemoteHost is the host the session originates from, if known. It is set as
+	// the PAM_RHOST item.
+	RemoteHost string
+
 	// Env is a list of extra environment variables to pass to the PAM modules.
 	Env map[string]string
 
