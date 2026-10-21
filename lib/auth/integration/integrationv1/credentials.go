@@ -20,6 +20,7 @@ package integrationv1
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -27,6 +28,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
@@ -248,5 +250,137 @@ func (s *Service) getStaticCredentialsWithPurpose(ctx context.Context, ig types.
 		return nil, trace.BadParameter("missing credentials")
 	}
 
-	return credentials.GetByPurpose(ctx, ig.GetCredentials().GetStaticCredentialsRef(), purpose, s.cache)
+	return credentials.GetByPurpose(ctx, ig.GetCredentials().GetStaticCredentialsRef(), purpose, s.backend)
+}
+
+// appendCreateOAuthProxyCredentialActions builds the OAuth credential for the integration,
+// and appends a conditional action to atomically put it.
+func (s *Service) appendCreateOAuthProxyCredentialActions(actions []backend.ConditionalAction, ig types.Integration) ([]backend.ConditionalAction, error) {
+	if ig.GetCredentials() == nil || ig.GetCredentials().GetIdSecret() == nil {
+		return nil, trace.BadParameter("OAuth Proxy integration requires OAuth client ID and client secret for credentials")
+	}
+
+	cred, err := buildOAuthCredentials(ig.GetCredentials().GetIdSecret(), credentials.PurposeOAuthProxyClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cred.Metadata.Expires = integrationExpiry(ig)
+
+	ref := credentials.NewRef()
+	credentials.CopyRefLabels(cred, ref)
+
+	actions, err = s.backend.AppendPutPluginStaticCredentialsActions(actions, cred, backend.NotExists())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := ig.SetCredentials(&types.PluginCredentialsV1{
+		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+			StaticCredentialsRef: ref,
+		},
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return actions, nil
+}
+
+// appendUpdateOAuthProxyCredentialActions builds the OAuth credential for the integration,
+// and appends a conditional action to atomically update it.
+func (s *Service) appendUpdateOAuthProxyCredentialActions(ctx context.Context, actions []backend.ConditionalAction, newIg types.Integration, oldIg types.Integration) ([]backend.ConditionalAction, error) {
+	if newIg.GetCredentials() == nil || newIg.GetCredentials().GetIdSecret() == nil {
+		if err := oldIg.GetOAuthProxyIntegrationSpec().CanUpdateWithoutSecret(newIg.GetOAuthProxyIntegrationSpec()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Preserve existing credentials.
+		if err := newIg.SetCredentials(oldIg.GetCredentials()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return s.appendOAuthProxyCredentialExpiryActions(ctx, actions, newIg, oldIg)
+	}
+
+	if oldIg.GetCredentials() == nil {
+		return nil, trace.BadParameter("missing existing credentials")
+	}
+
+	oauthIdSecret, err := s.buildUpdatedOAuthSecret(ctx, newIg, oldIg, credentials.PurposeOAuthProxyClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cred, err := buildOAuthCredentials(oauthIdSecret, credentials.PurposeOAuthProxyClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Copy ref from old integration and overwrite the OAuth settings.
+	if err := newIg.SetCredentials(oldIg.GetCredentials()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ref := oldIg.GetCredentials().GetStaticCredentialsRef()
+	if ref == nil {
+		return nil, trace.BadParameter("missing existing credentials ref")
+	}
+	credentials.CopyRefLabels(cred, ref)
+
+	oldCreds, err := s.backend.GetPluginStaticCredentialsByLabels(ctx, cred.GetStaticLabels())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(oldCreds) != 1 {
+		return nil, trace.CompareFailed("expecting one credential but got %v", len(oldCreds))
+	}
+
+	cred.SetName(oldCreds[0].GetName())
+	cred.SetRevision(oldCreds[0].GetRevision())
+	cred.Metadata.Expires = integrationExpiry(newIg)
+
+	actions, err = s.backend.AppendPutPluginStaticCredentialsActions(actions, cred, backend.Revision(oldCreds[0].GetRevision()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return actions, nil
+}
+
+func (s *Service) appendOAuthProxyCredentialExpiryActions(ctx context.Context, actions []backend.ConditionalAction, newIg, oldIg types.Integration) ([]backend.ConditionalAction, error) {
+	ref := oldIg.GetCredentials().GetStaticCredentialsRef()
+	if ref == nil {
+		return nil, trace.BadParameter("missing existing credentials ref")
+	}
+
+	cred, err := credentials.GetByPurpose(ctx, ref, credentials.PurposeOAuthProxyClient, s.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	credV1, ok := cred.(*types.PluginStaticCredentialsV1)
+	if !ok {
+		return nil, trace.BadParameter("expected *types.PluginStaticCredentialsV1, got %T", cred)
+	}
+
+	credV1.Metadata.Expires = integrationExpiry(newIg)
+
+	actions, err = s.backend.AppendPutPluginStaticCredentialsActions(actions, credV1, backend.Revision(credV1.GetRevision()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return actions, nil
+}
+
+// integrationExpiry copies an expiry from an integration to use on credentials whose lifetime must match the integration's.
+// It needs to be copied rather than use SetExpiry otherwise an absent expiry on the integration results in a zero value expiry on the credential.
+func integrationExpiry(ig types.Integration) *time.Time {
+	expires := ig.GetMetadata().Expires
+	if expires == nil {
+		return nil
+	}
+
+	cloned := *expires
+	return &cloned
 }

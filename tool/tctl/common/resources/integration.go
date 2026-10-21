@@ -161,6 +161,13 @@ func updateExistingIntegration(ctx context.Context, client *authclient.Client, e
 		existingIntegration.SetAWSRolesAnywhereIntegrationSpec(integration.GetAWSRolesAnywhereIntegrationSpec())
 	case types.IntegrationSubKindAzureOIDC:
 		existingIntegration.SetAzureOIDCIntegrationSpec(integration.GetAzureOIDCIntegrationSpec())
+	case types.IntegrationSubKindOAuthProxy:
+		existingIntegration.SetOAuthProxyIntegrationSpec(integration.GetOAuthProxyIntegrationSpec())
+		if creds := integration.GetCredentials(); creds != nil {
+			if err := existingIntegration.SetCredentials(creds); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	default:
 		return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 	}

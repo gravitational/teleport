@@ -21,6 +21,7 @@ package integrationv1
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -32,10 +33,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations"
@@ -92,11 +95,11 @@ type KeyStoreManager interface {
 // Backend defines the interface for all the backend services that the
 // integration service needs.
 type Backend interface {
-	services.Integrations
-	services.PluginStaticCredentials
+	services.IntegrationsInternal
+	services.PluginStaticCredentialsInternal
 	services.GitServers
 	services.DiscoveryConfigs
-	services.Presence
+	services.PresenceInternal
 	services.OAuthProxyAuthRequests
 }
 
@@ -105,6 +108,7 @@ type Backend interface {
 type ServiceConfig struct {
 	Authorizer      authz.Authorizer
 	Backend         Backend
+	StorageBackend  StorageBackend
 	Cache           Cache
 	KeyStoreManager KeyStoreManager
 	Logger          *slog.Logger
@@ -125,6 +129,12 @@ type ServiceConfig struct {
 	// This is used to allow mocking in tests, because the real implementation does
 	// If not set, the default implementation is used.
 	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
+}
+
+// StorageBackend is used to atomically persist an integration, app server, and credential.
+// It must be the same backend as Backend.
+type StorageBackend interface {
+	AtomicWrite(ctx context.Context, actions []backend.ConditionalAction) (revision string, err error)
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -153,6 +163,10 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 
 	if s.Logger == nil {
 		s.Logger = slog.With(teleport.ComponentKey, "integrations.service")
+	}
+
+	if s.StorageBackend == nil {
+		return trace.BadParameter("storage backend is required")
 	}
 
 	if s.Clock == nil {
@@ -188,6 +202,7 @@ type Service struct {
 	proxyPublicAddrGetter           func(context.Context) string
 	checkGitHubIntegrationLicense   func(ctx context.Context, spec *types.GitHubIntegrationSpecV1) error
 	fips                            bool
+	storageBackend                  StorageBackend
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -209,6 +224,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		proxyPublicAddrGetter:           cfg.ProxyPublicAddrGetter,
 		checkGitHubIntegrationLicense:   cfg.CheckGitHubIntegrationLicense,
 		fips:                            cfg.FIPS,
+		storageBackend:                  cfg.StorageBackend,
 	}, nil
 }
 
@@ -311,11 +327,28 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if err := validateAWSRolesAnywhereProfileFilters(req.GetIntegration()); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.IntegrationSubKindOAuthProxy:
+		if req.GetIntegration().GetOAuthProxyIntegrationSpec() == nil {
+			return nil, trace.BadParameter("missing OAuth Proxy integration spec")
+		}
+
+		if err := integrations.ValidName(req.GetIntegration().GetName()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	ig, err := s.backend.CreateIntegration(ctx, req.GetIntegration())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var ig types.Integration
+	switch req.GetIntegration().GetSubKind() {
+	case types.IntegrationSubKindOAuthProxy:
+		ig, err = s.createOAuthProxyIntegration(ctx, req.GetIntegration())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		ig, err = s.backend.CreateIntegration(ctx, req.GetIntegration())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	igMeta, err := getIntegrationMetadata(ig)
@@ -363,7 +396,8 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetIntegration().GetSubKind() == types.IntegrationSubKindGitHub {
+	switch req.GetIntegration().GetSubKind() {
+	case types.IntegrationSubKindGitHub:
 		spec := req.GetIntegration().GetGitHubIntegrationSpec()
 		if spec == nil {
 			return nil, trace.BadParameter("missing GitHub integration spec")
@@ -381,10 +415,10 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		if err := validateGitHubAllowProtocols(spec.AllowProtocols, s.fips); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-
-	if err := validateAWSRolesAnywhereProfileFilters(req.GetIntegration()); err != nil {
-		return nil, trace.Wrap(err)
+	case types.IntegrationSubKindOAuthProxy:
+		if err := services.CheckAndSetDefaults(req.GetIntegration()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	oldIg, err := s.backend.GetIntegration(ctx, req.GetIntegration().GetName())
@@ -392,13 +426,30 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.maybeUpdateStaticCredentials(ctx, req.GetIntegration(), oldIg); err != nil {
-		return nil, trace.Wrap(err)
+	// Prevent changing subkind to/from oauth-proxy.
+	if oldIg.IsOAuthProxy() != req.GetIntegration().IsOAuthProxy() {
+		// TODO(nixpig): Expand this to _all_ integration kinds in a separate PR (see: https://github.com/gravitational/core/pull/2583#discussion_r4300544913)
+		return nil, oldIg.CanChangeStateTo(req.GetIntegration())
 	}
 
-	ig, err := s.backend.UpdateIntegration(ctx, req.GetIntegration())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var ig types.Integration
+	switch req.GetIntegration().GetSubKind() {
+	case types.IntegrationSubKindOAuthProxy:
+		ig, err = s.updateOAuthProxyIntegration(ctx, req.GetIntegration(), oldIg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		if err := validateAWSRolesAnywhereProfileFilters(req.GetIntegration()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := s.maybeUpdateStaticCredentials(ctx, req.GetIntegration(), oldIg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ig, err = s.backend.UpdateIntegration(ctx, req.GetIntegration())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	ig = ig.WithoutCredentials()
@@ -530,6 +581,12 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
+	if ig.IsOAuthProxy() {
+		if err := s.deleteOAuthProxyAppServer(ctx, ig); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	igMeta, err := getIntegrationMetadata(ig)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Failed to build all integration metadata for audit event.", "error", err)
@@ -577,6 +634,8 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 		igMeta.AWSRA = &apievents.AWSRAIntegrationMetadata{
 			TrustAnchorARN: ig.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN,
 		}
+	case types.IntegrationSubKindOAuthProxy:
+		// TODO(nixpig): Add metadata for OAuth Proxy integration audit events.
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)
 	}
@@ -610,6 +669,112 @@ func (s *Service) ensureNoGitHubAssociatedResources(ctx context.Context, ig type
 		if server.GetGitHub() != nil && server.GetGitHub().Integration == ig.GetName() {
 			return trace.BadParameter("git servers associated with integration %s must be deleted first", ig.GetName())
 		}
+	}
+
+	return nil
+}
+
+// newOAuthProxyAppServer returns an app server for an OAuth Proxy integration.
+func (s *Service) newOAuthProxyAppServer(ctx context.Context, ig types.Integration) (types.AppServer, error) {
+	spec := ig.GetOAuthProxyIntegrationSpec()
+	if spec == nil {
+		return nil, trace.BadParameter("missing OAuth Proxy integration spec")
+	}
+
+	proxyPublicAddr := s.proxyPublicAddrGetter(ctx)
+	if proxyPublicAddr == "" {
+		return nil, trace.NotFound("no proxy public addr found")
+	}
+	appPublicAddr := utils.DefaultAppPublicAddr(ig.GetName(), proxyPublicAddr)
+
+	hostID := oauthProxyHostID(ig.GetName())
+
+	appServer, err := types.NewAppServerForOAuthProxyIntegration(ig, hostID, appPublicAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateAppServer(appServer, s.cache); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return appServer, nil
+}
+
+// createOAuthProxyIntegration atomically creates the OAuth Proxy integration, credentials, and app server.
+func (s *Service) createOAuthProxyIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	appServer, err := s.newOAuthProxyAppServer(ctx, ig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	actions, err := s.appendCreateOAuthProxyCredentialActions(nil, ig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	actions, err = s.backend.AppendPutIntegrationActions(actions, ig, backend.NotExists())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	actions, err = s.backend.AppendPutAppServerActions(actions, appServer, backend.NotExists())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	revision, err := s.storageBackend.AtomicWrite(ctx, actions)
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return nil, trace.AlreadyExists("integration could not be created due to naming conflict")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	ig.SetRevision(revision)
+
+	return ig, nil
+}
+
+// updateOAuthProxyIntegration atomically updates the OAuth Proxy integration, credentials, and app server.
+func (s *Service) updateOAuthProxyIntegration(ctx context.Context, newIg, oldIg types.Integration) (types.Integration, error) {
+	appServer, err := s.newOAuthProxyAppServer(ctx, newIg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	actions, err := s.appendUpdateOAuthProxyCredentialActions(ctx, nil, newIg, oldIg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	actions, err = s.backend.AppendPutIntegrationActions(actions, newIg, backend.Revision(oldIg.GetRevision()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	actions, err = s.backend.AppendPutAppServerActions(actions, appServer, backend.Whatever())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	revision, err := s.storageBackend.AtomicWrite(ctx, actions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newIg.SetRevision(revision)
+
+	return newIg, nil
+}
+
+// deleteOAuthProxyAppServer removes the app server for the specified OAuth Proxy integration.
+func (s *Service) deleteOAuthProxyAppServer(ctx context.Context, ig types.Integration) error {
+	if err := s.backend.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: oauthProxyHostID(ig.GetName()),
+		Name:   ig.GetName(),
+	}.Build()); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
 	}
 
 	return nil

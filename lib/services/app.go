@@ -896,3 +896,26 @@ func quoteAndJoin(items []string) string {
 	}
 	return strings.Join(quotedItems, ", ")
 }
+
+// CheckAppOrigin rejects apps with an origin label that may only be updated by Teleport.
+// Currently, that is only OAuth Proxy integration.
+func CheckAppOrigin(app types.Application) error {
+	if app.Origin() == types.OriginIntegrationOAuthProxy {
+		return trace.BadParameter("origin %q is reserved for apps managed by OAuth Proxy integration", types.OriginIntegrationOAuthProxy)
+	}
+
+	return nil
+}
+
+// CheckAppOrigin rejects app servers with an origin label that may only be updated by Teleport.
+// Currently, that is only OAuth Proxy integration.
+func CheckAppServerOrigin(appServer types.AppServer) error {
+	if appServer.Origin() == types.OriginIntegrationOAuthProxy {
+		return trace.BadParameter("origin %q is reserved for app servers managed by OAuth Proxy integration", types.OriginIntegrationOAuthProxy)
+	}
+	if app := appServer.GetApp(); app != nil {
+		return trace.Wrap(CheckAppOrigin(appServer.GetApp()))
+	}
+
+	return nil
+}

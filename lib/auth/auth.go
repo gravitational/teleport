@@ -479,6 +479,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.OAuthProxyAuthRequests == nil {
+		cfg.OAuthProxyAuthRequests, err = local.NewIntegrationsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.PluginStaticCredentials == nil {
 		cfg.PluginStaticCredentials, err = local.NewPluginStaticCredentialsService(cfg.Backend)
 		if err != nil {
@@ -7176,6 +7182,11 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	if err := services.ValidateAppServer(server, a); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := services.CheckAppServerOrigin(server); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	lease, err := a.Services.UpsertApplicationServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -7887,6 +7898,9 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 	if err := services.ValidateApp(app, a); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := services.CheckAppOrigin(app); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.CreateApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
@@ -7915,6 +7929,9 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 // UpdateApp updates an existing application resource.
 func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
 	if err := services.ValidateApp(app, a); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := services.CheckAppOrigin(app); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.Services.UpdateApp(ctx, app); err != nil {
@@ -9499,4 +9516,9 @@ func (s *Server) DownloadSummary(ctx context.Context, sessionID libsession.ID, w
 	defer reader.Close()
 	_, err = io.Copy(writer, reader)
 	return trace.Wrap(err)
+}
+
+// getBackend returns the configured backend.
+func (s *Server) getBackend() backend.Backend {
+	return s.bk
 }

@@ -19,6 +19,7 @@ package types
 import (
 	"fmt"
 	"iter"
+	"maps"
 	"slices"
 	"sort"
 	"time"
@@ -135,28 +136,36 @@ func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr strin
 
 // NewAppServerForOAuthProxyIntegration creates a new AppServer that will be used to proxy requests to a third-party API,
 // authorized using OAuth authorization grant.
-func NewAppServerForOAuthProxyIntegration(integrationName, hostID, upstreamURL, publicAddr string, labels map[string]string) (*AppServerV3, error) {
+func NewAppServerForOAuthProxyIntegration(ig Integration, hostID, publicAddr string) (*AppServerV3, error) {
+	if ig.GetOAuthProxyIntegrationSpec() == nil {
+		return nil, trace.BadParameter("missing spec")
+	}
+
+	labels := maps.Clone(ig.GetAllLabels())
 	if labels == nil {
 		labels = map[string]string{}
 	}
 
+	labels[IntegrationLabel] = ig.GetName()
 	labels[OriginLabel] = OriginIntegrationOAuthProxy
 
 	return NewAppServerV3(
 		Metadata{
-			Name:   integrationName,
-			Labels: labels,
+			Name:    ig.GetName(),
+			Labels:  labels,
+			Expires: ig.GetMetadata().Expires,
 		},
 		AppServerSpecV3{
 			HostID: hostID,
 			App: &AppV3{
 				Metadata: Metadata{
-					Name:   integrationName,
-					Labels: labels,
+					Name:    ig.GetName(),
+					Labels:  labels,
+					Expires: ig.GetMetadata().Expires,
 				},
 				Spec: AppSpecV3{
-					URI:         upstreamURL,
-					Integration: integrationName,
+					URI:         ig.GetOAuthProxyIntegrationSpec().UpstreamUrl,
+					Integration: ig.GetName(),
 					PublicAddr:  publicAddr,
 				},
 			},
