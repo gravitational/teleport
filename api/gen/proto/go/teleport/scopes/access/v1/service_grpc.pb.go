@@ -45,6 +45,7 @@ const (
 	ScopedAccessService_UpdateScopedRoleAssignment_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/UpdateScopedRoleAssignment"
 	ScopedAccessService_UpsertScopedRoleAssignment_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/UpsertScopedRoleAssignment"
 	ScopedAccessService_DeleteScopedRoleAssignment_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/DeleteScopedRoleAssignment"
+	ScopedAccessService_ListAssignedScopes_FullMethodName         = "/teleport.scopes.access.v1.ScopedAccessService/ListAssignedScopes"
 )
 
 // ScopedAccessServiceClient is the client API for ScopedAccessService service.
@@ -78,6 +79,9 @@ type ScopedAccessServiceClient interface {
 	UpsertScopedRoleAssignment(ctx context.Context, in *UpsertScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*UpsertScopedRoleAssignmentResponse, error)
 	// DeleteScopedRoleAssignment deletes a scoped role assignment.
 	DeleteScopedRoleAssignment(ctx context.Context, in *DeleteScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*DeleteScopedRoleAssignmentResponse, error)
+	// ListAssignedScopes returns a list of current user's assigned scopes in
+	// alphabetical order.
+	ListAssignedScopes(ctx context.Context, in *ListAssignedScopesRequest, opts ...grpc.CallOption) (*ListAssignedScopesResponse, error)
 }
 
 type scopedAccessServiceClient struct {
@@ -208,6 +212,16 @@ func (c *scopedAccessServiceClient) DeleteScopedRoleAssignment(ctx context.Conte
 	return out, nil
 }
 
+func (c *scopedAccessServiceClient) ListAssignedScopes(ctx context.Context, in *ListAssignedScopesRequest, opts ...grpc.CallOption) (*ListAssignedScopesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAssignedScopesResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_ListAssignedScopes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ScopedAccessServiceServer is the server API for ScopedAccessService service.
 // All implementations must embed UnimplementedScopedAccessServiceServer
 // for forward compatibility.
@@ -239,6 +253,9 @@ type ScopedAccessServiceServer interface {
 	UpsertScopedRoleAssignment(context.Context, *UpsertScopedRoleAssignmentRequest) (*UpsertScopedRoleAssignmentResponse, error)
 	// DeleteScopedRoleAssignment deletes a scoped role assignment.
 	DeleteScopedRoleAssignment(context.Context, *DeleteScopedRoleAssignmentRequest) (*DeleteScopedRoleAssignmentResponse, error)
+	// ListAssignedScopes returns a list of current user's assigned scopes in
+	// alphabetical order.
+	ListAssignedScopes(context.Context, *ListAssignedScopesRequest) (*ListAssignedScopesResponse, error)
 	mustEmbedUnimplementedScopedAccessServiceServer()
 }
 
@@ -284,6 +301,9 @@ func (UnimplementedScopedAccessServiceServer) UpsertScopedRoleAssignment(context
 }
 func (UnimplementedScopedAccessServiceServer) DeleteScopedRoleAssignment(context.Context, *DeleteScopedRoleAssignmentRequest) (*DeleteScopedRoleAssignmentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteScopedRoleAssignment not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) ListAssignedScopes(context.Context, *ListAssignedScopesRequest) (*ListAssignedScopesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAssignedScopes not implemented")
 }
 func (UnimplementedScopedAccessServiceServer) mustEmbedUnimplementedScopedAccessServiceServer() {}
 func (UnimplementedScopedAccessServiceServer) testEmbeddedByValue()                             {}
@@ -522,6 +542,24 @@ func _ScopedAccessService_DeleteScopedRoleAssignment_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScopedAccessService_ListAssignedScopes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAssignedScopesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).ListAssignedScopes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_ListAssignedScopes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).ListAssignedScopes(ctx, req.(*ListAssignedScopesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ScopedAccessService_ServiceDesc is the grpc.ServiceDesc for ScopedAccessService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -576,6 +614,10 @@ var ScopedAccessService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteScopedRoleAssignment",
 			Handler:    _ScopedAccessService_DeleteScopedRoleAssignment_Handler,
+		},
+		{
+			MethodName: "ListAssignedScopes",
+			Handler:    _ScopedAccessService_ListAssignedScopes_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

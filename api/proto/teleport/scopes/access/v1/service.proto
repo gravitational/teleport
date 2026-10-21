@@ -60,6 +60,10 @@ service ScopedAccessService {
 
   // DeleteScopedRoleAssignment deletes a scoped role assignment.
   rpc DeleteScopedRoleAssignment(DeleteScopedRoleAssignmentRequest) returns (DeleteScopedRoleAssignmentResponse);
+
+  // ListAssignedScopes returns a list of current user's assigned scopes in
+  // alphabetical order.
+  rpc ListAssignedScopes(ListAssignedScopesRequest) returns (ListAssignedScopesResponse);
 }
 
 // GetScopedRoleRequest is the request to get a scoped role.
@@ -282,3 +286,28 @@ message DeleteScopedRoleAssignmentRequest {
 
 // DeleteScopedRoleAssignmentResponse is the response to delete a scoped role assignment.
 message DeleteScopedRoleAssignmentResponse {}
+
+// ListAssignedScopesRequest is a request to list current user's assigned
+// scopes in alphabetical order.
+message ListAssignedScopesRequest {
+  // PageSize is the maximum number of results to return. Default: 50. Maximum:
+  // 1000. Numbers greater than 1000 will get cropped.
+  int32 page_size = 1;
+
+  // PageToken is the pagination cursor used to start from where a previous request left off.
+  string page_token = 2;
+
+  // Prefix is a prefix of scopes to be returned.
+  string prefix = 3;
+}
+
+// ListAssignedScopesResponse is a response that contains a list of scopes
+// assigned to the current user.
+message ListAssignedScopesResponse {
+  // Scopes is the list of assigned scopes.
+  repeated string scopes = 1;
+
+  // NextPageToken is a pagination cursor that can be used to fetch the next
+  // page of results.
+  string next_page_token = 2;
+}

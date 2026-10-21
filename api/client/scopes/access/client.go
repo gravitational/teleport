@@ -92,3 +92,9 @@ func (c *Client) UpsertScopedRoleAssignment(ctx context.Context, req *scopedacce
 func (c *Client) DeleteScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.DeleteScopedRoleAssignmentRequest) (*scopedaccessv1.DeleteScopedRoleAssignmentResponse, error) {
 	return c.grpcClient.DeleteScopedRoleAssignment(ctx, req)
 }
+
+// ListAssignedScopes returns a list of current user's assigned scopes in
+// alphabetical order.
+func (c *Client) ListAssignedScopes(ctx context.Context, req *scopedaccessv1.ListAssignedScopesRequest) (*scopedaccessv1.ListAssignedScopesResponse, error) {
+	return c.grpcClient.ListAssignedScopes(ctx, req)
+}

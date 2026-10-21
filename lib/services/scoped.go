@@ -56,6 +56,10 @@ type CachedScopedAccessReader interface {
 	// filter function. This method is used internally to implement access-controls on the ListScopedRoleAssignments grpc
 	// method.
 	ListScopedRoleAssignmentsWithFilter(context.Context, *scopedaccessv1.ListScopedRoleAssignmentsRequest, func(*scopedaccessv1.ScopedRoleAssignment) bool) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error)
+
+	// ListAssignedScopes returns a list of a given user's assigned scopes in
+	// alphabetical order.
+	ListAssignedScopes(ctx context.Context, user string, req *scopedaccessv1.ListAssignedScopesRequest) (*scopedaccessv1.ListAssignedScopesResponse, error)
 }
 
 // ScopedAccessWriter provides an interface for writing scoped access resources.
