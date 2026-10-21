@@ -3107,9 +3107,19 @@ func (set RoleSet) checkAccess(
 		} else {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Role label matching skipped")
 		}
+		denyMatchers := matchers
+		if len(matchers) > 0 && r.GetKind() == types.KindKubernetesCluster {
+			applies, err := kubeDenyResourcesApply(role, username, traits, r, isLoggingEnabled)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !applies {
+				denyMatchers = nil
+			}
+		}
 		// Deny rules are greedy on purpose. They will always match if
 		// at least one of the matchers returns true.
-		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
+		matchMatchers, matchersMessage, err := RoleMatchers(denyMatchers).MatchAny(role, types.Deny)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3708,12 +3718,30 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster, username string, 
 		// if there is a deny rule for a cluster, it will deny access to all resources
 		// in that cluster, regardless of kubernetes_resources (i.e. making them irrelevant).
 		// If the goal is to deny access to a specific resource, it should be done by collecting
-		// all kube resources in deny rules and ignoring if the role matches or not
-		// the cluster (i.e. no labels check).
+		// the kube resources in deny rules of roles whose allow labels match the cluster,
+		// or that set no allow labels. An error evaluating the labels keeps the deny rules.
+		if applies, err := kubeDenyResourcesApply(role, username, userTraits, cluster, false); err == nil && !applies {
+			continue
+		}
 		denied = append(denied, role.GetKubeResources(types.Deny)...)
 	}
 
 	return deduplicateKubeResources(allowed), deduplicateKubeResources(denied)
+}
+
+// kubeDenyResourcesApply reports whether the role's deny kubernetes_resources
+// apply to cluster: only where its allow kubernetes_labels select the cluster,
+// or everywhere if the role sets no allow kubernetes_labels.
+func kubeDenyResourcesApply(role types.Role, username string, traits wrappers.Traits, cluster AccessCheckable, debug bool) (bool, error) {
+	labelMatchers, err := role.GetLabelMatchers(types.Allow, types.KindKubernetesCluster)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if labelMatchers.Empty() {
+		return true, nil
+	}
+	match, _, err := CheckLabelsMatch(types.Allow, labelMatchers, username, traits, cluster, debug)
+	return match, trace.Wrap(err)
 }
 
 func deduplicateKubeResources(resources []types.KubernetesResource) []types.KubernetesResource {
