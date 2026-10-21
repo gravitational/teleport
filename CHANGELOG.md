@@ -1,5 +1,15 @@
 # Changelog
 
+## 17.7.32 (10/20/26)
+
+This is a private security release. The changelog will be publicly announced in a later version.
+
+More information about private releases is available here: https://github.com/gravitational/teleport/blob/master/SECURITY.md#private-releases.
+
+The release also contains the following change:
+
+* Update Electron to 43.8.1. This prevents Teleport Connect (desktop client) to accept certificates involved in CVE-2026-111943.
+
 ## 17.7.31 (10/20/26)
 
 This is a follow up to the 17.7.30 release. In addition to the previous release, it includes the following changes:

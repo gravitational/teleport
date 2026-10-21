@@ -1,6 +1,6 @@
 name: teleport-cluster
 apiVersion: v2
-version: &version "17.7.31"
+version: &version "17.7.32"
 appVersion: *version
 description: Teleport is an access platform for your infrastructure
 icon: https://goteleport.com/static/teleport-symbol-bimi.svg
