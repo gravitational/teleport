@@ -94,10 +94,10 @@ type sessionChunk struct {
 type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Application) error
 
 // newSessionChunk creates a new chunk session.
-// The session chunk is created with inflight=1,
-// and as such expects `release()` to eventually be called
-// by the caller of this function.
-func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, startTime time.Time, opts ...sessionOpt) (*sessionChunk, error) {
+// The session chunk is created with no requests in flight,
+// so each request must call `acquire()` before using it
+// and `release()` when done.
+func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, startTime time.Time, opts ...sessionOpt) (_ *sessionChunk, err error) {
 	sess := &sessionChunk{
 		id:           uuid.New().String(),
 		appName:      app.GetName(),
@@ -114,6 +114,19 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 	if err := c.createTracker(sess, identity, app.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// A chunk that fails past this point never reaches the cache so isn't closed by onSessionExpired.
+	// This isn't added to cacheCloseWg because the load can finish after Close has started waiting
+	// on it.
+	defer func() {
+		if err == nil {
+			return
+		}
+		go func() {
+			if err := sess.close(c.closeContext); err != nil {
+				c.log.DebugContext(c.closeContext, "Error closing session chunk that failed to start", "session_id", sess.id, "error", err)
+			}
+		}()
+	}()
 
 	// Create the stream writer that will write this chunk to the audit log.
 	// Audit stream is using server context, not session context,
@@ -287,6 +300,10 @@ func (s *sessionChunk) close(ctx context.Context) error {
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
 	s.log.DebugContext(ctx, "Closed session chunk", "session_id", s.id)
+	// streamCloser is unset when newSessionChunk failed before creating the recorder.
+	if s.streamCloser == nil {
+		return nil
+	}
 	return trace.Wrap(s.streamCloser.Close(ctx))
 }
 
