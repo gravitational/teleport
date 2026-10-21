@@ -8860,6 +8860,39 @@ func TestGetKubeResources(t *testing.T) {
 			expectAllowed: []types.KubernetesResource{podA, podB},
 			expectDenied:  []types.KubernetesResource{podA},
 		},
+		{
+			desc: "deny skipped on cluster not selected by the role's allow labels",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabels = types.Labels{"env": {"prod"}}
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabels = types.Labels{"env": {"staging"}}
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podB}
+					r.Spec.Deny.KubernetesResources = []types.KubernetesResource{podA}
+				}),
+			},
+			clusterLabels: map[string]string{"env": "prod"},
+			expectAllowed: []types.KubernetesResource{podA, podB},
+		},
+		{
+			desc: "deny applied on cluster selected by the role's allow labels",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabels = types.Labels{"env": {"prod"}}
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabels = types.Labels{"env": {"staging"}}
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podB}
+					r.Spec.Deny.KubernetesResources = []types.KubernetesResource{podA}
+				}),
+			},
+			clusterLabels: map[string]string{"env": "staging"},
+			expectAllowed: []types.KubernetesResource{podB},
+			expectDenied:  []types.KubernetesResource{podA},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			cluster, err := types.NewKubernetesClusterV3(types.Metadata{
@@ -8873,6 +8906,77 @@ func TestGetKubeResources(t *testing.T) {
 			tc.expectAllowed = append(tc.expectAllowed, types.KubernetesResourceSelfSubjectAccessReview)
 			require.ElementsMatch(t, tc.expectAllowed, allowed, "allow list mismatch")
 			require.ElementsMatch(t, tc.expectDenied, denied, "deny list mismatch")
+		})
+	}
+}
+
+func TestKubeDenyResourcesScopedToAllowLabels(t *testing.T) {
+	t.Parallel()
+	allResources := []types.KubernetesResource{{
+		Kind: types.Wildcard, APIGroup: types.Wildcard, Namespace: types.Wildcard, Name: types.Wildcard, Verbs: []string{types.Wildcard},
+	}}
+	secretsRead := types.KubernetesResource{Kind: "secrets", Namespace: types.Wildcard, Name: types.Wildcard, Verbs: []string{types.KubeVerbGet}}
+	controlPlaneAdmin, err := types.NewRoleWithVersion("controlplane-admin", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubernetesLabels:    types.Labels{"clustertype": {"control-plane"}},
+			KubeGroups:          []string{"system:masters"},
+			KubernetesResources: allResources,
+		},
+	})
+	require.NoError(t, err)
+	dataPlaneCRE, err := types.NewRoleWithVersion("dataplane-cre", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubernetesLabels:    types.Labels{"clustertype": {"data-plane"}},
+			KubeGroups:          []string{"dataplane-cre"},
+			KubernetesResources: allResources,
+		},
+		Deny: types.RoleConditions{
+			KubernetesResources: []types.KubernetesResource{secretsRead},
+		},
+	})
+	require.NoError(t, err)
+	denyEverywhere, err := types.NewRoleWithVersion("deny-everywhere", types.V8, types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			KubernetesResources: []types.KubernetesResource{secretsRead},
+		},
+	})
+	require.NoError(t, err)
+
+	secret := types.KubernetesResource{Kind: "secrets", Namespace: "default", Name: "foo", Verbs: []string{types.KubeVerbGet}}
+	for _, tc := range []struct {
+		desc        string
+		roles       []types.Role
+		clusterType string
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			desc:        "deny not applied on cluster outside the role's allow labels",
+			roles:       []types.Role{controlPlaneAdmin, dataPlaneCRE},
+			clusterType: "control-plane",
+			assertErr:   require.NoError,
+		},
+		{
+			desc:        "deny applied on cluster within the role's allow labels",
+			roles:       []types.Role{controlPlaneAdmin, dataPlaneCRE},
+			clusterType: "data-plane",
+			assertErr:   require.Error,
+		},
+		{
+			desc:        "deny applied everywhere when the role has no allow labels",
+			roles:       []types.Role{controlPlaneAdmin, denyEverywhere},
+			clusterType: "control-plane",
+			assertErr:   require.Error,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+				Name:   "testcluster",
+				Labels: map[string]string{"clustertype": tc.clusterType},
+			}, types.KubernetesClusterSpecV3{})
+			require.NoError(t, err)
+			accessChecker := makeAccessCheckerWithRoleSet(NewRoleSet(tc.roles...))
+			err = accessChecker.CheckAccess(cluster, AccessState{MFAVerified: true}, NewKubernetesResourceMatcher(secret, false))
+			tc.assertErr(t, err)
 		})
 	}
 }
