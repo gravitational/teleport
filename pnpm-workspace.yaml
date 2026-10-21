@@ -55,5 +55,6 @@ minimumReleaseAgeExclude:
   - '@gravitational/design-system'
   - '@gravitational/swc-plugin-jsx-marker'
   - '@gravitational/swc-plugin-styled-components'
+  - electron@43.8.1
 # The pnpm team releases new versions pretty often, and we don't need to stay at the freshest version at all times.
 updateNotifier: false
