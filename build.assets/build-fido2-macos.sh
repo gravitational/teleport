@@ -21,12 +21,12 @@ if ! [[ "${C_ARCH:=$(uname -m)}" =~ ^(x86_64|arm64)$ ]]; then
 fi
 
 # Note: versions are the same as the corresponding git tags for each repo.
-readonly CBOR_VERSION=v0.11.0
-readonly CBOR_COMMIT=170bee2b82cdb7b2ed25af301f62cb6efdd40ec1
+readonly CBOR_VERSION=v0.14.0
+readonly CBOR_COMMIT=6730c20ab487c0b4dc5fb3fea918937085355bac
 readonly CRYPTO_VERSION=openssl-3.0.22
 readonly CRYPTO_COMMIT=a279090b9cd6b682a5a178410765a63e619fa2d9
-readonly FIDO2_VERSION=1.15.0
-readonly FIDO2_COMMIT=f87c19c9487c0131531314d9ccb475ea5325794e
+readonly FIDO2_VERSION=1.17.0
+readonly FIDO2_COMMIT=b974e7cf2ee7392134cc12c08b76a068cf250dd8
 
 readonly LIB_CACHE="/tmp/teleport-fido2-cache-$C_ARCH"
 readonly PKGFILE_DIR="$LIB_CACHE/fido2-${FIDO2_VERSION}_cbor-${CBOR_VERSION}_crypto-${CRYPTO_VERSION}"

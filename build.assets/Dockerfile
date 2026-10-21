@@ -26,16 +26,16 @@ RUN apt-get update && \
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.4 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = 'ee32ac5f6494047b9ece26e7a5920650cdf46655' ] && \
+    [ "$(git rev-parse HEAD)" = '2bebebc9e0444ec53afd7f1f37aa80ff6b95f5f7' ] && \
     make install-static && \
     make clean
 
 # Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.14.0 && \
     cd libcbor && \
-    [ "$(git rev-parse HEAD)" = '170bee2b82cdb7b2ed25af301f62cb6efdd40ec1' ] && \
+    [ "$(git rev-parse HEAD)" = '6730c20ab487c0b4dc5fb3fea918937085355bac' ] && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -55,9 +55,9 @@ RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.22
 
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.17.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = 'f87c19c9487c0131531314d9ccb475ea5325794e' ] && \
+    [ "$(git rev-parse HEAD)" = 'b974e7cf2ee7392134cc12c08b76a068cf250dd8' ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
@@ -329,14 +329,14 @@ COPY --from=libfido2 \
     /usr/local/lib/libcrypto.a \
     /usr/local/lib/libcrypto.so.3 \
     /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.15.0 \
+    /usr/local/lib/libfido2.so.1.17.0 \
     /usr/local/lib/libssl.a \
     /usr/local/lib/libssl.so.3 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
     ln -s libcrypto.so.3 libcrypto.so && \
-    ln -s libfido2.so.1.15.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.17.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.3 libssl.so && \
     ldconfig

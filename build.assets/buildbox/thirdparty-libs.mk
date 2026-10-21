@@ -124,9 +124,9 @@ tp-build-libpam: fetch-git-libpam
 # -----------------------------------------------------------------------------
 # libudev-zero
 
-libudev_zero_VERSION = 1.0.3
+libudev_zero_VERSION = 1.0.4
 libudev_zero_GIT_REF = $(libudev_zero_VERSION)
-libudev_zero_GIT_REF_HASH = ee32ac5f6494047b9ece26e7a5920650cdf46655
+libudev_zero_GIT_REF_HASH = 2bebebc9e0444ec53afd7f1f37aa80ff6b95f5f7
 libudev_zero_GIT_REPO = https://github.com/illiliti/libudev-zero
 libudev_zero_SRCDIR = $(call tp-src-dir,libudev_zero)
 
@@ -139,9 +139,9 @@ tp-build-libudev_zero: fetch-git-libudev_zero
 # -----------------------------------------------------------------------------
 # libcbor
 
-libcbor_VERSION = 0.11.0
+libcbor_VERSION = 0.14.0
 libcbor_GIT_REF = v$(libcbor_VERSION)
-libcbor_GIT_REF_HASH = 170bee2b82cdb7b2ed25af301f62cb6efdd40ec1
+libcbor_GIT_REF_HASH = 6730c20ab487c0b4dc5fb3fea918937085355bac
 libcbor_GIT_REPO = https://github.com/PJK/libcbor
 libcbor_SRCDIR = $(call tp-src-dir,libcbor)
 
@@ -188,9 +188,9 @@ tp-build-openssl: fetch-git-openssl
 # -----------------------------------------------------------------------------
 # libfido2
 
-libfido2_VERSION = 1.15.0
+libfido2_VERSION = 1.17.0
 libfido2_GIT_REF = $(libfido2_VERSION)
-libfido2_GIT_REF_HASH = f87c19c9487c0131531314d9ccb475ea5325794e
+libfido2_GIT_REF_HASH = b974e7cf2ee7392134cc12c08b76a068cf250dd8
 libfido2_GIT_REPO = https://github.com/Yubico/libfido2
 libfido2_SRCDIR = $(call tp-src-dir,libfido2)
 
