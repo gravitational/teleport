@@ -96,7 +96,9 @@ func NewS3V2FileWriter(ctx context.Context, s3Client managerv2.UploadAPIClient, 
 	for _, f := range putObjectInputOptions {
 		f(uploadParams)
 	}
-	uploadFinisherErrChan := make(chan error)
+	// buffered so the upload goroutine can exit even if Close is never called,
+	// e.g. when the caller bails out after a failed Write.
+	uploadFinisherErrChan := make(chan error, 1)
 	go func() {
 		defer close(uploadFinisherErrChan)
 		_, err := uploader.Upload(ctx, uploadParams) //nolint:staticcheck // TODO(tigrato)
