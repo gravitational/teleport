@@ -1196,10 +1196,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "wasi",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -1223,11 +1221,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "r-efi 6.0.0",
  "rand_core 0.10.1",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -1575,8 +1571,6 @@ name = "ironrdp"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
- "getrandom 0.2.17",
- "getrandom 0.4.3",
  "ironrdp-core",
  "ironrdp-graphics",
  "ironrdp-pdu",
@@ -1587,7 +1581,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tracing-web",
- "uuid",
  "wasm-bindgen",
  "web-sys",
 ]
@@ -2699,7 +2692,6 @@ dependencies = [
  "base64 0.23.1",
  "bitflags 2.13.1",
  "boring",
- "byteorder",
  "bytes",
  "cbindgen",
  "env_logger",
@@ -2720,16 +2712,12 @@ dependencies = [
  "iso7816-tlv",
  "log",
  "picky",
- "picky-asn1-der",
- "picky-asn1-x509",
  "pretty_assertions",
  "qoi",
  "rand 0.9.5",
  "rdp-decoder",
- "reqwest 0.13.4",
  "rsa 0.9.10",
  "rstest",
- "rustls",
  "sspi",
  "tempfile",
  "tokio",
@@ -2824,35 +2812,6 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
- "tower",
- "tower-http",
- "tower-service",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "reqwest"
-version = "0.13.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "futures-core",
- "http",
- "http-body",
- "http-body-util",
- "hyper",
- "hyper-util",
- "js-sys",
- "log",
- "percent-encoding",
- "pin-project-lite",
- "sync_wrapper",
- "tokio",
  "tower",
  "tower-http",
  "tower-service",
@@ -3435,7 +3394,7 @@ dependencies = [
  "primeorder",
  "rand 0.10.2",
  "rand_core 0.10.1",
- "reqwest 0.12.28",
+ "reqwest",
  "rsa 0.10.0-rc.18",
  "rustcrypto-ff",
  "rustcrypto-ff_derive",
