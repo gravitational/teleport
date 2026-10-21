@@ -894,6 +894,7 @@
     "protobuf",
     "proxied",
     "proxyaddr",
+    "proxycommand",
     "proxying",
     "proxylistenermode",
     "proxyteleportconfig",

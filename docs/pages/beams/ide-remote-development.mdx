@@ -1,0 +1,259 @@
+---
+title: Remote Development on Beams with your IDE
+sidebar_label: IDE Remote Development
+description: Connect VS Code, Cursor, or Zed to a beam over Remote SSH, using `tsh beams ide` or a manual SSH target.
+page_type: how-to
+tags:
+  - how-to
+  - ai
+---
+
+This guide shows you how to open a [beam](beams.mdx) in your IDE over SSH.
+Your editor stays on your machine, while your code, terminal, and extensions
+run on the beam. VS Code, Cursor, and Zed are supported.
+
+## How it works
+
+Under the hood this is SSH through the Teleport proxy. `tsh config` writes
+an OpenSSH config that sends connections for your cluster through the proxy and
+authenticates with your Teleport certificate, so from your IDE's point of view
+the beam is an ordinary SSH host.
+
+Once connected, the IDE installs a small headless server on the beam and talks
+to it over that SSH session. The server is the half of the editor that touches
+files: it reads and writes the beam's filesystem, runs your terminals, hosts
+extensions such as language servers and debuggers, and streams the results back
+to the editor window on your machine. Only the window runs locally.
+
+The `tsh beams ide` command is a convenience wrapper around this flow. It
+resolves the beam, builds the `beams@<uuid>.<cluster-name>` SSH target, and
+launches your editor with the right remote SSH arguments.
+
+<Admonition type="warning" title="Beams are ephemeral">
+Beams are automatically purged after 24 hours, and everything on the beam's
+filesystem is deleted with them. Files you edit in your IDE live on the beam,
+not on your machine. Commit and push your changes, or copy them somewhere
+durable, before the beam expires. Run `tsh beams ls` to see when each beam
+expires.
+</Admonition>
+
+## Prerequisites
+
+<Admonition type="tip" title="CLI Tools">
+Beams require `tsh` version 18.8.0 or newer. To install `tsh`, visit [Download
+Client Tools](https://goteleport.com/download/client-tools/), select your
+platform, and choose "CLI Client Tools" in the **Download Type** menu.
+
+IDE remote development on beams requires Teleport and `tsh` version 18.12.0 or
+newer.
+</Admonition>
+
+- A logged-in `tsh`. Run `tsh status` to confirm.
+- An OpenSSH client. Linux and macOS ship one. On Windows, use the built-in
+  [OpenSSH client](https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse).
+- One of the supported editors with its remote SSH support installed:
+  - VS Code with the [Remote - SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
+    extension.
+  - Cursor, which ships its own Remote - SSH extension.
+  - Zed, which has remote development built in.
+- A running beam.
+
+## Step 1/4. Set up your SSH config
+
+Your IDE reaches the beam over SSH, so your OpenSSH config needs the Teleport
+connection settings for your cluster. Generate them with `tsh config`, passing
+the address of your Teleport proxy, and append the output to your SSH config
+file:
+
+<Tabs>
+<TabItem label="Linux/macOS">
+
+```code
+$ tsh config --proxy <Var name="proxy-address" /> >> ~/.ssh/config
+```
+
+If you have never used SSH on this machine, the `.ssh` directory does not exist
+yet and the command fails with `No such file or directory`. Create the
+directory first, then run the command above again:
+
+```code
+$ mkdir -p ~/.ssh
+```
+
+</TabItem>
+<TabItem label="Windows">
+
+Run this in **Command Prompt**, not PowerShell:
+
+```code
+$ tsh.exe config --proxy <Var name="proxy-address" /> >> "%USERPROFILE%\.ssh\config"
+```
+
+If you have never used SSH on this machine, the `.ssh` directory does not exist
+yet and the command fails with `The system cannot find the path specified`.
+Create the directory first, then run the command above again:
+
+```code
+$ mkdir "%USERPROFILE%\.ssh"
+```
+
+<Admonition type="warning">
+Use Command Prompt for this step. PowerShell re-encodes command output before
+writing it to a file, and depending on the PowerShell version it can add a byte
+order mark or change the character encoding. Either makes the file unreadable
+to the OpenSSH client. Command Prompt writes the output of `tsh config`
+unchanged.
+</Admonition>
+
+</TabItem>
+</Tabs>
+
+You only need to do this once per cluster. If you use Beams in more than one
+cluster, run it once for each.
+
+## Step 2/4. Find your beam
+
+List your beams to find the one you want to open:
+
+```code
+$ tsh beams ls
+```
+
+The **ID** column is the beam's alias - a short, human-friendly name. To get
+the beam's stable UUID, use the JSON output:
+
+```code
+$ tsh beams ls --format json
+```
+
+You can refer to a beam by either its alias or its UUID.
+
+## Step 3/4. Configure VS Code
+
+If you use VS Code, turn off `Remote.SSH: Use Local Server` before connecting.
+Open **Settings**, search for `@ext:ms-vscode-remote.remote-ssh`, and uncheck
+**Use Local Server**. With this setting on, VS Code requests a shell without a
+PTY on the first connection to a new host, which Teleport does not support,
+and the connection hangs.
+
+Cursor and Zed don't have this setting, so skip this step if you use either of
+them.
+
+## Step 4/4. Connect
+
+<Tabs>
+<TabItem label="tsh beams ide (recommended)">
+
+Open the beam in your IDE with a single command, passing its alias or UUID:
+
+```code
+$ tsh beams ide <Var name="beam" />
+```
+
+If you don't specify an editor, `tsh` asks you to choose one from a list. To
+skip the prompt, pass the editor with the `--ide` flag:
+
+```code
+$ tsh beams ide <Var name="beam" /> --ide=vscode
+```
+
+The supported values are `vscode`, `cursor`, and `zed`. A new window opens
+with a remote SSH session into the beam's home directory.
+
+To use the same editor every time without passing the flag, set the
+`TELEPORT_BEAMS_IDE` environment variable, for example in your shell profile:
+
+```code
+$ export TELEPORT_BEAMS_IDE=vscode
+```
+
+On Windows, run `setx TELEPORT_BEAMS_IDE vscode` and open a new terminal for
+the change to take effect. The `--ide` flag takes precedence over the
+environment variable.
+
+The editor prompt needs an interactive terminal. In scripts or other
+non-interactive environments, pass `--ide` or set `TELEPORT_BEAMS_IDE`.
+
+The command needs your editor's command-line launcher (`code`, `cursor`, or
+`zed`) on your `PATH`. If it isn't found, `tsh` tells you which one is missing.
+
+If VS Code does not have the Remote - SSH extension installed yet, it prompts
+you to install it and reload the window. After the reload, the connection to
+the beam continues. On the first connection to a new host, VS Code may ask for
+the platform of the remote host. Choose **Linux**.
+
+</TabItem>
+<TabItem label="Manual">
+
+Connect using the beam's SSH address, which has the form
+`beams@<Var name="beam-uuid" />.<Var name="cluster-name" />`.
+
+The suffix is your Teleport cluster name, not the proxy address. The SSH config
+from Step 1 matches hosts on `*.<cluster-name>`, so the two must agree. On
+Teleport Cloud they are the same value (for example `example.teleport.sh`). On
+self-hosted clusters they can differ. Run `tsh status` and use the value shown
+under **Cluster**.
+
+In VS Code or Cursor:
+
+1. Open the Command Palette (`Cmd/Ctrl` + `Shift` + `P`).
+1. Run **Remote-SSH: Connect to Host**.
+1. Enter `beams@<Var name="beam-uuid" />.<Var name="cluster-name" />`.
+
+Or connect from the terminal:
+
+```code
+# VS Code
+$ code --new-window --remote ssh-remote+beams@<Var name="beam-uuid" />.<Var name="cluster-name" /> /home/beams
+
+# Cursor
+$ cursor --new-window --remote ssh-remote+beams@<Var name="beam-uuid" />.<Var name="cluster-name" /> /home/beams
+
+# Zed
+$ zed ssh://beams@<Var name="beam-uuid" />.<Var name="cluster-name" />/home/beams
+```
+
+</TabItem>
+</Tabs>
+
+## Verify
+
+Your IDE opens a new window connected to the beam. Open a terminal in that
+window and you should see a prompt showing you logged in as the `beams` user
+on the beam.
+
+## Troubleshooting
+
+- **`Permission denied (publickey)`.** Your Teleport certificate has expired.
+  The log shows something like:
+
+  ```txt
+  beams@35e2f694-....example.teleport.sh: Permission denied (publickey).
+  ERROR: exit status 255
+  ```
+
+  Log in again with `tsh login --proxy=<Var name="proxy-address" />` and
+  reconnect.
+
+- **Connection times out.** Your SSH config has no Teleport entry for this
+  cluster, so the SSH client is trying to reach the beam directly instead of
+  through the proxy. Repeat Step 1 for the cluster the beam belongs to. To
+  check without connecting, run `ssh -G beams@<Var name="beam-uuid" />.<Var name="cluster-name" />`
+  and confirm the output includes a `proxycommand` line that runs `tsh`.
+
+- **Logged into the wrong cluster.** Run `tsh status` to check your active
+  cluster. If it isn't the one the beam belongs to, the connection fails with an
+  authentication or access-denied error. Log in to the right cluster with
+  `tsh login --proxy=<Var name="proxy-address" />`.
+
+- **VS Code hangs while connecting.** Check that `Remote.SSH: Use Local
+  Server` is off, as described in Step 3, and reconnect.
+
+- **`Bad configuration option` on Windows.** Your SSH config file has the
+  wrong encoding, usually because it was written from PowerShell. Open
+  `%USERPROFILE%\.ssh\config` in Notepad, choose **File** > **Save as**, set
+  **Encoding** to **UTF-8**, and save over the file. This fixes the encoding
+  and keeps your existing SSH settings.
+
+- **The beam is gone.** Beams are ephemeral and expire. Confirm the beam is
+  still running with `tsh beams ls`.
