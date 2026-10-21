@@ -75,6 +75,7 @@ const Header = styled(Flex)`
   align-items: center;
   justify-content: space-between;
   padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+  border-bottom: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[1]};
 `;
 
 const Content = styled(Flex)`

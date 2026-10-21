@@ -141,7 +141,6 @@ export const InfoExternalTextLink = styled(Link).attrs({ target: '_blank' })<{
 
 export const InfoUl = styled.ul`
   margin: 0;
-  padding-left: ${p => p.theme.space[4]}px;
 `;
 
 const InfoLinkLi = styled.li`

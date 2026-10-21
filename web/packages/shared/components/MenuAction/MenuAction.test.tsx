@@ -24,7 +24,7 @@ import {
   userEvent,
 } from 'design/utils/testing';
 
-import { MenuIcon, MenuItem } from '.';
+import { MenuButton, MenuIcon, MenuItem } from '.';
 
 test('basic functionality of clicking is respected', () => {
   render(
@@ -108,4 +108,24 @@ describe('keyboard navigation', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Options' })).toHaveFocus();
   });
+});
+
+test('clear button invokes onClear without opening the menu', async () => {
+  const onClear = jest.fn();
+
+  render(
+    <MenuButton buttonText="Some Text" onClear={onClear}>
+      <MenuItem>Item</MenuItem>
+    </MenuButton>
+  );
+
+  await userEvent.click(
+    screen.getByRole('button', { name: 'clear selection' })
+  );
+
+  expect(onClear).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole('button', { name: 'Some Text' }));
+  expect(screen.getByRole('menu')).toBeInTheDocument();
 });

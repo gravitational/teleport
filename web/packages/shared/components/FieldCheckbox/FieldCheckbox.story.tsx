@@ -67,6 +67,14 @@ export function FieldCheckbox(props: StoryProps) {
         readOnly={props.readOnly}
       />
       <Component
+        label="Checkbox with helper text with labelFontWeight set to theme's medium"
+        helperText="The label should be a heavier font weight"
+        defaultChecked={true}
+        disabled={props.disabled}
+        readOnly={props.readOnly}
+        labelFontWeight={'medium'}
+      />
+      <Component
         size="small"
         label="Small checkbox with helper text"
         helperText="Another helpful helper text"
