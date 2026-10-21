@@ -205,7 +205,6 @@ buildbox:
 		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
 		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg BUF_VERSION=$(BUF_VERSION) \
 		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
@@ -729,13 +728,6 @@ print-go-version:
 .PHONY:print-golangci-lint-version
 print-golangci-lint-version:
 	@echo $(GOLANGCI_LINT_VERSION)
-
-#
-# Print the Buf version used by Teleport.
-#
-.PHONY: print-buf-version
-print-buf-version:
-	@echo $(BUF_VERSION)
 
 #
 # Print the Rust version used to build Teleport.

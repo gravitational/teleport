@@ -1703,42 +1703,29 @@ enter/node:
 enter/arm:
 	$(MAKE) -C build.assets enter/arm
 
-BUF := buf
-
-#
-# Install buf to lint, format and generate code from protobuf files.
-#
-.PHONY: ensure-buf
-ensure-buf: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-buf-version)
-ensure-buf:
-# Install buf if it's not already installed.
-ifeq (, $(shell command -v $(BUF)))
-	go install github.com/bufbuild/buf/cmd/buf@$(NEED_VERSION)
-endif
-
 # protos/all runs build, lint and format on all protos.
 # Use `make grpc` to regenerate protos inside buildbox.
 .PHONY: protos/all
 protos/all: protos/build protos/lint protos/format
 
 .PHONY: protos/build
-protos/build: ensure-buf
+protos/build:
 	$(BUF) build
 
 .PHONY: protos/format
-protos/format: ensure-buf
+protos/format:
 	$(BUF) format -w
 
 .PHONY: protos/lint
-protos/lint: ensure-buf
+protos/lint:
 	$(BUF) lint
 	$(BUF) lint --config=buf-legacy.yaml api/proto
 
 .PHONY: protos/breaking
 protos/breaking: BASE=origin/master
-protos/breaking: ensure-buf
+protos/breaking:
 	@echo Checking compatibility against BASE=$(BASE)
-	buf breaking . --against '.git#branch=$(BASE)'
+	$(BUF) breaking . --against '.git#branch=$(BASE)'
 
 .PHONY: lint-protos
 lint-protos: protos/lint

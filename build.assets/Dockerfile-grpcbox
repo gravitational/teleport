@@ -21,18 +21,16 @@ RUN npm exec --yes \
   --package=typescript@3.9.10 \
   -- true
 
-# buf version including v, like "v1.26.1"
-ARG BUF_VERSION
-RUN go install "github.com/bufbuild/buf/cmd/buf@${BUF_VERSION}"
+# Pre-cache the Buf Go tool and its dependencies.
+COPY build.assets/tools/buf /buf-tool/
+RUN GOWORK=off GOCACHE=/.cache go -C /buf-tool tool -n buf >/dev/null && \
+  rm -rf /buf-tool
 
 # Pre-cache `go run`ned binaries. We use `true` as the launcher so `go run` will
 # cache the final linked binaries but not actually run anything. This can be
 # verified to work in the final image by using `go run -n` (dry-run) from the
 # teleport workdir to confirm that the binary is immediately available for
 # running.
-#
-# This is meant to be the only step that changes depending on the Teleport
-# branch.
 COPY go.mod go.sum /teleport-module/
 RUN \
   go -C /teleport-module run -exec true connectrpc.com/connect/cmd/protoc-gen-connect-go && \

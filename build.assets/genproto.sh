@@ -31,6 +31,9 @@ main() {
     shift
   done
 
+  local buf
+  buf="$(GOWORK=off go -C build.assets/tools/buf tool -n buf)"
+
   # Clean gen/proto directories before regenerating them. Legacy protos are
   # generated all over the directory tree, so they won't get cleaned up
   # automatically if the proto is deleted.
@@ -42,18 +45,18 @@ main() {
   # this for us (and which is what we use for the non-gogo protogen).
   rm -fr gogogen
   trap 'rm -fr gogogen' EXIT # don't leave files behind
-  echoed buf generate --template=buf-gogo.gen.yaml
+  echoed "$buf" generate --template=buf-gogo.gen.yaml
   cp -r gogogen/github.com/gravitational/teleport/. .
   # error out if there's anything outside of github.com/gravitational/teleport
   rm -fr gogogen/github.com/gravitational/teleport
   rmdir gogogen/github.com/gravitational gogogen/github.com gogogen
 
   # Generate go, go-grpc and connect-go protos (preferred).
-  echoed buf generate --template=buf-go.gen.yaml
-  echoed buf generate --template=buf-connect-go.gen.yaml
+  echoed "$buf" generate --template=buf-go.gen.yaml
+  echoed "$buf" generate --template=buf-connect-go.gen.yaml
 
   # Generate TS protos.
-  [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-ts.gen.yaml
+  [[ $skip_js -eq 0 ]] && echoed "$buf" generate --template=buf-ts.gen.yaml
 }
 
 main "$@"

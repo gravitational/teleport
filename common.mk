@@ -59,6 +59,7 @@ COMMON_MK_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 # TOOLS_DIR contains external test tools
 TOOLS_DIR := $(abspath $(COMMON_MK_DIR)/build.assets/tools)
 GOTESTSUM = "$$( GOWORK=off go -C $(TOOLS_DIR)/gotestsum tool -n gotestsum )"
+BUF = "$$( GOWORK=off go -C $(TOOLS_DIR)/buf tool -n buf )"
 GCI = "$$( GOWORK=off go -C $(TOOLS_DIR)/gci tool -n gci )"
 GODA = "$$( GOWORK=off go -C $(TOOLS_DIR)/goda tool -n goda )"
 BENCHSTAT = "$$( GOWORK=off go -C $(TOOLS_DIR)/benchstat tool -n benchstat )"
