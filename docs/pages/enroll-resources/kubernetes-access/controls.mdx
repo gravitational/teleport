@@ -1069,6 +1069,11 @@ Service looks up the role's `spec.deny.kubernetes_groups` and
 list of users and groups it created earlier, denying the user access to these
 RBAC principals.
 
+A role's `spec.deny.kubernetes_resources` only applies to clusters that match
+the role's `spec.allow.kubernetes_labels` or
+`spec.allow.kubernetes_labels_expression`. If the role sets neither field, its
+`spec.deny.kubernetes_resources` applies to every cluster.
+
 #### Example
 
 Let's say you have assigned the following three roles to a user:
