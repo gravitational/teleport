@@ -23,8 +23,8 @@ fi
 # Note: versions are the same as the corresponding git tags for each repo.
 readonly CBOR_VERSION=v0.11.0
 readonly CBOR_COMMIT=170bee2b82cdb7b2ed25af301f62cb6efdd40ec1
-readonly CRYPTO_VERSION=openssl-3.0.19
-readonly CRYPTO_COMMIT=a22063cd69a077cc68bb4c10e9f351f75899b194
+readonly CRYPTO_VERSION=openssl-3.0.22
+readonly CRYPTO_COMMIT=a279090b9cd6b682a5a178410765a63e619fa2d9
 readonly FIDO2_VERSION=1.15.0
 readonly FIDO2_COMMIT=f87c19c9487c0131531314d9ccb475ea5325794e
 

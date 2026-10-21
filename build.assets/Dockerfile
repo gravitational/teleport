@@ -46,9 +46,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.19 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.22 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'a22063cd69a077cc68bb4c10e9f351f75899b194' ] && \
+    [ "$(git rev-parse HEAD)" = 'a279090b9cd6b682a5a178410765a63e619fa2d9' ] && \
     ./config --release -fPIC --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw

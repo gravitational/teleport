@@ -160,9 +160,9 @@ tp-build-libcbor: fetch-git-libcbor
 # -----------------------------------------------------------------------------
 # openssl
 
-openssl_VERSION = 3.0.19
+openssl_VERSION = 3.0.22
 openssl_GIT_REF = openssl-$(openssl_VERSION)
-openssl_GIT_REF_HASH = a22063cd69a077cc68bb4c10e9f351f75899b194
+openssl_GIT_REF_HASH = a279090b9cd6b682a5a178410765a63e619fa2d9
 openssl_GIT_REPO = https://github.com/openssl/openssl
 openssl_SRCDIR = $(call tp-src-dir,openssl)
 
