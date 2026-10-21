@@ -17,5 +17,8 @@
  */
 export { SetupAccessWrapper } from './SetupAccessWrapper';
 export { useUserTraits, initSelectedOptionsHelper } from './useUserTraits';
+export { DatabaseTraitsForm } from './DatabaseTraitsForm';
+export { KubeTraitsForm } from './KubeTraitsForm';
+export { ServerTraitsForm } from './ServerTraitsForm';
 
 export type { State } from './useUserTraits';

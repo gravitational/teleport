@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Box, Flex, H3, Link, Mark, Text } from 'design';
 import { Info as InfoIcon } from 'design/Icon';
@@ -24,11 +24,9 @@ import { Info as InfoIcon } from 'design/Icon';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
 import { StyledBox } from 'teleport/Discover/Shared';
+import { Option } from 'teleport/Discover/Shared/SelectCreatable';
 import {
-  Option,
-  SelectCreatable,
-} from 'teleport/Discover/Shared/SelectCreatable';
-import {
+  DatabaseTraitsForm,
   SetupAccessWrapper,
   useUserTraits,
   type State,
@@ -54,10 +52,7 @@ export function SetupAccess(props: State) {
     agentMeta,
     ...restOfProps
   } = props;
-  const [nameInputValue, setNameInputValue] = useState('');
   const [selectedNames, setSelectedNames] = useState<Option[]>([]);
-
-  const [userInputValue, setUserInputValue] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<Option[]>([]);
 
   const wantAutoDiscover = !!agentMeta.autoDiscovery;
@@ -68,34 +63,6 @@ export function SetupAccess(props: State) {
       setSelectedUsers(initSelectedOptions('databaseUsers'));
     }
   }, [props.attempt.status, initSelectedOptions]);
-
-  function handleNameKeyDown(event: React.KeyboardEvent) {
-    if (!nameInputValue) return;
-    switch (event.key) {
-      case 'Enter':
-      case 'Tab':
-        setSelectedNames([
-          ...selectedNames,
-          { value: nameInputValue, label: nameInputValue },
-        ]);
-        setNameInputValue('');
-        event.preventDefault();
-    }
-  }
-
-  function handleUserKeyDown(event: React.KeyboardEvent) {
-    if (!userInputValue) return;
-    switch (event.key) {
-      case 'Enter':
-      case 'Tab':
-        setSelectedUsers([
-          ...selectedUsers,
-          { value: userInputValue, label: userInputValue },
-        ]);
-        setUserInputValue('');
-        event.preventDefault();
-    }
-  }
 
   function handleOnProceed() {
     let numStepsToIncrement;
@@ -149,54 +116,18 @@ export function SetupAccess(props: State) {
       onPrev={dbMeta.serviceDeploy?.method === 'manual' ? onPrev : null}
       wantAutoDiscover={wantAutoDiscover}
     >
-      {wantAutoDiscover && (
-        <Text mb={3}>
-          Since auto-discovery is enabled, make sure to include all database
-          users and names that will be used to connect to the discovered
-          databases.
-        </Text>
-      )}
-      <Box mb={4}>
-        Database Users
-        <SelectCreatable
-          inputValue={userInputValue}
-          isClearable={selectedUsers.some(v => !v.isFixed)}
-          onInputChange={setUserInputValue}
-          onKeyDown={handleUserKeyDown}
-          placeholder="Start typing database users and press enter"
-          value={selectedUsers}
-          isDisabled={!canAddTraits}
-          onChange={(value, action) => {
-            if (action.action === 'clear') {
-              setSelectedUsers(getFixedOptions('databaseUsers'));
-            } else {
-              setSelectedUsers(value || []);
-            }
-          }}
-          options={getSelectableOptions('databaseUsers')}
-          autoFocus
-        />
-      </Box>
-      <Box mb={2}>
-        Database Names
-        <SelectCreatable
-          inputValue={nameInputValue}
-          isClearable={selectedNames.some(v => !v.isFixed)}
-          onInputChange={setNameInputValue}
-          onKeyDown={handleNameKeyDown}
-          placeholder="Start typing database names and press enter"
-          value={selectedNames}
-          isDisabled={!canAddTraits}
-          onChange={(value, action) => {
-            if (action.action === 'clear') {
-              setSelectedNames(getFixedOptions('databaseNames'));
-            } else {
-              setSelectedNames(value || []);
-            }
-          }}
-          options={getSelectableOptions('databaseNames')}
-        />
-      </Box>
+      <DatabaseTraitsForm
+        databaseUsers={selectedUsers}
+        databaseNames={selectedNames}
+        fixedDatabaseUsers={getFixedOptions('databaseUsers')}
+        fixedDatabaseNames={getFixedOptions('databaseNames')}
+        selectableDatabaseUsers={getSelectableOptions('databaseUsers')}
+        selectableDatabaseNames={getSelectableOptions('databaseNames')}
+        disabled={!canAddTraits}
+        showAutoDiscoveryHint={wantAutoDiscover}
+        onDatabaseUsersChange={setSelectedUsers}
+        onDatabaseNamesChange={setSelectedNames}
+      />
     </SetupAccessWrapper>
   );
 }

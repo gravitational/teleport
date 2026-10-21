@@ -16,15 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { Box, Text } from 'design';
-
+import { Option } from 'teleport/Discover/Shared/SelectCreatable';
 import {
-  Option,
-  SelectCreatable,
-} from 'teleport/Discover/Shared/SelectCreatable';
-import {
+  KubeTraitsForm,
   SetupAccessWrapper,
   useUserTraits,
   type State,
@@ -44,10 +40,7 @@ export function SetupAccess(props: State) {
     agentMeta,
     ...restOfProps
   } = props;
-  const [groupInputValue, setGroupInputValue] = useState('');
   const [selectedGroups, setSelectedGroups] = useState<Option[]>([]);
-
-  const [userInputValue, setUserInputValue] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<Option[]>([]);
 
   const wantAutoDiscover = !!agentMeta.autoDiscovery;
@@ -57,34 +50,6 @@ export function SetupAccess(props: State) {
       setSelectedUsers(initSelectedOptions('kubeUsers'));
     }
   }, [props.attempt.status, initSelectedOptions]);
-
-  function handleGroupKeyDown(event: React.KeyboardEvent) {
-    if (!groupInputValue) return;
-    switch (event.key) {
-      case 'Enter':
-      case 'Tab':
-        setSelectedGroups([
-          ...selectedGroups,
-          { value: groupInputValue, label: groupInputValue },
-        ]);
-        setGroupInputValue('');
-        event.preventDefault();
-    }
-  }
-
-  function handleUserKeyDown(event: React.KeyboardEvent) {
-    if (!userInputValue) return;
-    switch (event.key) {
-      case 'Enter':
-      case 'Tab':
-        setSelectedUsers([
-          ...selectedUsers,
-          { value: userInputValue, label: userInputValue },
-        ]);
-        setUserInputValue('');
-        event.preventDefault();
-    }
-  }
 
   function handleOnProceed() {
     let numStepsToIncrement;
@@ -115,54 +80,18 @@ export function SetupAccess(props: State) {
       onProceed={handleOnProceed}
       wantAutoDiscover={wantAutoDiscover}
     >
-      {wantAutoDiscover && (
-        <Text mb={3}>
-          Since auto-discovery is enabled, make sure to include all Kubernetes
-          users and groups that will be used to connect to the discovered
-          clusters.
-        </Text>
-      )}
-      <Box mb={4}>
-        Kubernetes Groups
-        <SelectCreatable
-          inputValue={groupInputValue}
-          isClearable={selectedGroups.some(v => !v.isFixed)}
-          onInputChange={input => setGroupInputValue(input)}
-          onKeyDown={handleGroupKeyDown}
-          placeholder="Start typing groups and press enter"
-          value={selectedGroups}
-          isDisabled={!canAddTraits}
-          onChange={(value, action) => {
-            if (action.action === 'clear') {
-              setSelectedGroups(getFixedOptions('kubeGroups'));
-            } else {
-              setSelectedGroups(value || []);
-            }
-          }}
-          options={getSelectableOptions('kubeGroups')}
-          autoFocus
-        />
-      </Box>
-      <Box mb={2}>
-        Kubernetes Users
-        <SelectCreatable
-          inputValue={userInputValue}
-          isClearable={selectedUsers.some(v => !v.isFixed)}
-          onInputChange={setUserInputValue}
-          onKeyDown={handleUserKeyDown}
-          placeholder="Start typing users and press enter"
-          value={selectedUsers}
-          isDisabled={!canAddTraits}
-          onChange={(value, action) => {
-            if (action.action === 'clear') {
-              setSelectedUsers(getFixedOptions('kubeUsers'));
-            } else {
-              setSelectedUsers(value || []);
-            }
-          }}
-          options={getSelectableOptions('kubeUsers')}
-        />
-      </Box>
+      <KubeTraitsForm
+        kubeGroups={selectedGroups}
+        kubeUsers={selectedUsers}
+        fixedKubeGroups={getFixedOptions('kubeGroups')}
+        fixedKubeUsers={getFixedOptions('kubeUsers')}
+        selectableKubeGroups={getSelectableOptions('kubeGroups')}
+        selectableKubeUsers={getSelectableOptions('kubeUsers')}
+        disabled={!canAddTraits}
+        showAutoDiscoveryHint={wantAutoDiscover}
+        onKubeGroupsChange={setSelectedGroups}
+        onKubeUsersChange={setSelectedUsers}
+      />
     </SetupAccessWrapper>
   );
 }

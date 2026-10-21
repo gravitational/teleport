@@ -16,15 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { Box, Text } from 'design';
-
+import { Option } from 'teleport/Discover/Shared/SelectCreatable';
 import {
-  Option,
-  SelectCreatable,
-} from 'teleport/Discover/Shared/SelectCreatable';
-import {
+  ServerTraitsForm,
   SetupAccessWrapper,
   useUserTraits,
   type State,
@@ -44,7 +40,6 @@ export function SetupAccess(props: State) {
     agentMeta,
     ...restOfProps
   } = props;
-  const [loginInputValue, setLoginInputValue] = useState('');
   const [selectedLogins, setSelectedLogins] = useState<Option[]>([]);
 
   const wantAutoDiscover = !!agentMeta.autoDiscovery;
@@ -66,20 +61,6 @@ export function SetupAccess(props: State) {
     onProceed({ logins: selectedLogins }, numStepsToIncrement);
   }
 
-  function handleLoginKeyDown(event: React.KeyboardEvent) {
-    if (!loginInputValue) return;
-    switch (event.key) {
-      case 'Enter':
-      case 'Tab':
-        setSelectedLogins([
-          ...selectedLogins,
-          { value: loginInputValue, label: loginInputValue },
-        ]);
-        setLoginInputValue('');
-        event.preventDefault();
-    }
-  }
-
   const hasTraits = selectedLogins.length > 0;
   const canAddTraits = !props.isSsoUser && props.canEditUser;
   const headerSubtitle =
@@ -95,32 +76,14 @@ export function SetupAccess(props: State) {
       onProceed={handleOnProceed}
       wantAutoDiscover={wantAutoDiscover}
     >
-      {wantAutoDiscover && (
-        <Text mb={3}>
-          Since auto-discovery is enabled, make sure to include all OS users
-          that will be used to connect to the discovered EC2 instances.
-        </Text>
-      )}
-      <Box mb={2}>
-        OS Users
-        <SelectCreatable
-          inputValue={loginInputValue}
-          isClearable={selectedLogins.some(v => !v.isFixed)}
-          onInputChange={setLoginInputValue}
-          onKeyDown={handleLoginKeyDown}
-          placeholder="Start typing OS users and press enter"
-          value={selectedLogins}
-          isDisabled={!canAddTraits}
-          onChange={(value, action) => {
-            if (action.action === 'clear') {
-              setSelectedLogins(getFixedOptions('logins'));
-            } else {
-              setSelectedLogins(value || []);
-            }
-          }}
-          options={getSelectableOptions('logins')}
-        />
-      </Box>
+      <ServerTraitsForm
+        logins={selectedLogins}
+        fixedLogins={getFixedOptions('logins')}
+        selectableLogins={getSelectableOptions('logins')}
+        disabled={!canAddTraits}
+        showAutoDiscoveryHint={wantAutoDiscover}
+        onLoginsChange={setSelectedLogins}
+      />
     </SetupAccessWrapper>
   );
 }
