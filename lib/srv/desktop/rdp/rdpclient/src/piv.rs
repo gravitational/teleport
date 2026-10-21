@@ -23,12 +23,12 @@ use iso7816::response::Status;
 use iso7816_tlv::ber::{Tag, Tlv, Value};
 use log::{debug, warn};
 use rand::{RngCore, TryRngCore};
-use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 use rsa::{BigUint, RsaPrivateKey};
 use std::convert::TryFrom;
 use std::fmt::Write as _;
 use std::io::{Cursor, Read};
+use std::sync::Arc;
 use uuid::Uuid;
 
 // AID (Application ID) of PIV application, per:
@@ -55,7 +55,7 @@ pub struct Card<const S: usize> {
     // and encodes some agency information. In our case it's static.
     chuid: Vec<u8>,
     piv_auth_cert: Vec<u8>,
-    piv_auth_key: RsaPrivateKey,
+    piv_auth_key: Arc<RsaPrivateKey>,
     pin: String,
     // Pending command and response to receive/send over multiple messages when
     // they don't fit into one.
@@ -75,10 +75,12 @@ enum SecurityStatus {
 }
 
 impl<const S: usize> Card<S> {
-    pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> PduResult<Self> {
-        let piv_auth_key = RsaPrivateKey::from_pkcs1_der(key_der)
-            .map_err(|_e| pdu_other_err!("failed to parse private key from DER"))?;
-
+    pub fn new(
+        uuid: Uuid,
+        cert_der: &[u8],
+        piv_auth_key: Arc<RsaPrivateKey>,
+        pin: String,
+    ) -> PduResult<Self> {
         Ok(Self {
             ccc: Self::build_ccc(),
             chuid: Self::build_chuid(uuid),
@@ -601,27 +603,17 @@ fn len_to_vec(len: usize) -> Vec<u8> {
 mod tests {
     extern crate std;
 
-    use base64::{engine::general_purpose, Engine as _};
-    use picky::key::PrivateKey;
-
     use super::*;
+    use crate::test_util::rsa_2048_key;
 
     const MAX_APDU_SIZE: usize = 1024;
 
     fn new_test_card() -> Card<MAX_APDU_SIZE> {
         let uuid = Uuid::new_v4();
         let cert_der_stub = vec![0xff; 1024];
-        // Random RSA 2048 private key, encoded with Base64 for obfuscation.
-        // Hardcoded because generating it with `picky` is quite slow in debug builds.
-        let key_pem_base64 = "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcGdJQkFBS0NBUUVBelI3SFNYSEUvdHZHditCZ1A1amwxSGZtcTMxOGwvOEp2Q3lGdVo4MmRGNHN1OTlGCmdYU2hxS3NsaloxczNnZStuZlhzdVJ6TGN4N3ZGWDA5ajdXR254SmNsUENnMGFvUWJkSWxsMUlYWXprUDdwQlkKbkIwS09JalhNL2hEdXdjQ1VENldkOUtzWEVqQzYvS3lrSk5RbzhIWi9QU20zQm9CTFhTUUgwVUk1Z3N6Znk3egpoQU1NZksrRTJtbjlUVkRDMU1wekJ1aXZhaXZIQk5LV1BaYjJrYUV1STF0N0h0V01peGdycFJhQ1czdzNCVnFYCi9DQ3lxTzhBazFWdTh5NFc5ZlEwMWNMakZFN1BIK0lieElNblVwYWtNMmhsRDhVUTdydXN2ZzQydXR4OXN6ZVoKVW1seEJqTVRJS2xYNGZxQ2VSUHpJR2pTVFVmZUpPOEJOY2toNndJREFRQUJBb0lCQVFDOGRDNjh0NTQ2V1VtOQpPRFMxdVpCUEtPbnhYUlYvd0gzOU9ScVRkRWZmbWphWFZZYlNiWW1wSWJVYTZ5dit3amJMZ2dxLytFaWp1Q1FKCkprdk5JUVpTVjloZnJzVFNYT0ZEUlBQc2x5dU5xZnVOUDJscDVQUmpCTFpUdFNEbFVJYzdtb1U4Q1g3Nk9vOTcKb0R1V3dRSXhzZ1RKZHkxbXd5Mlp5YUl3V0lqWWNJUDVqMDIwMTJHaUVIUTFDRFBpT0tBSU9WWHd5ZG9FWGZyRgpVMVlXK2lncnE0Wno2ZmpCbk54Z2VGYUlsWTBodUUxb044V3U1RGtwWkw5VzhwVG9IQTIrL1RUUGhLTDFEY1hYCkF3RWk0a0l2bDNRdFQ5NDBEVE5mY2luV3R2MzY2WmNJSzg1eTVhckVQWm5FRk1yM3JCdUVSb1FYR0t4OVRhUjQKeXNISGZEM2hBb0dCQVBZQW1HTXlsWGhUcWZaNjhNaVJUSGRKWkplMXFLN29jdlBQRXliTnZwNnluQ25QeHkwWApsblNVUkJsYzZvZFByekV4QVloWGVnWm1jVytNRDRDd05BSnBDdUhmVENPWUREM1dsVTNwRWRjdytQeU02OW43Ckh4SkhzRkM1K1c1R28vUGZpd09hb2FEdVEybVk2WGM2NVUrRWkva2ZhYUdZdTNkNVFKTWJaT3JWQW9HQkFOVjAKMkxBOUluTS9FZ01tbWdxemJTR05PcERXS0VRUWZnREJxMEJBTldnbjNDelNUMzVMYy9WbXNkTU1MQmVuZlcrSwpSM3c0Qlo3UlVoUGNmbE04T0o5aEVxcjhWNHdpcGphNUZLWFZLM1pqWStzbGJHT2IxaE1raDRUY3JHVEpqOHAyCkcrRzV6Y1pzOTY1STgwcmZyMFBiclFoSVZnL0ZxajEwRGw3Sm9ybS9Bb0dCQVBKSlJjMDFqZGRUOTJybVRPNE4KaFJWYmVMS2UzVU5mZDVBL20rbzA2NUJiODhpT2R1b25lQ3pidG5LUWZBREc3NUp3Wk1VRyt3MEFxcXFsZE1OWApSL0l6eU44TDBXNmhHelZ3ZWQ2aE5jd08xTHZRZzU1T1laemNkSUFkbXRnTXhQKzFaTElwQXhXQWRXNjBod1RDClFnVmVVNG9LY1R3U05Ga0lXQnhLOThyOUFvR0JBSVNWamw1eHFxdFEycHhRWnRBTXdOVmRScXBlQ3lhejQ4QU8KaTVOZURvNUNhL1QvTU5jdWdMbEY3MkE2cUV5TkFWRzkzMGNkK1FlNzFySjFlNVd4eXkzYit0OXYyK1UwUkcrcgpLRk1WQkdrRnRUT0N6RDlXdFhLd2R1aWt0UVBwV3NJVCtKK05iRzQ2a3VHVGVHTGlhNWZIcEVPSHdzVUxMd0g2CnkwNC9DaTg3QW9HQkFMRmtKQWp4V3llRms1Q0lXNUpMRHhHTWZXRllDNm0zUnhXWFJmSGVEYWJWb08xSEk4RGkKcm85Wi9WZzFtN2xtM1VFSlZXTldTS0N1NkVoUnZMTUJlaHk5WC9CWkVJQ0JsSkxTamtHcGhvM1RhM1dLUjFTUApBb1dOTWw5ODJPeGlISzhXY1pMQ0h6ZlBIMHpyajJ2OHhKV3FsbjN6cEdyTEVpeGFBekl1ZXpHSAotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQ==";
-        let key_pem_bytes = general_purpose::STANDARD.decode(key_pem_base64).unwrap();
-        let key_pem = String::from_utf8(key_pem_bytes).unwrap();
-        let key_der = PrivateKey::from_pem_str(&key_pem)
-            .unwrap()
-            .to_pkcs1()
-            .unwrap();
+
         let pin = "12345678".to_string();
-        Card::new(uuid, cert_der_stub.as_slice(), key_der.as_slice(), pin).unwrap()
+        Card::new(uuid, cert_der_stub.as_slice(), rsa_2048_key(), pin).unwrap()
     }
 
     // Helper function for handling the `MoreAvailable` status by invoking the GET RESPONSE
