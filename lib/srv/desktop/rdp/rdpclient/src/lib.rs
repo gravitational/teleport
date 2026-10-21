@@ -54,6 +54,8 @@ mod network_client;
 mod piv;
 mod rdpdr;
 mod ssl;
+#[cfg(test)]
+mod test_util;
 mod util;
 
 /// rdpclient_init_log should be called at initialization time to set up
