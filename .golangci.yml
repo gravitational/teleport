@@ -282,6 +282,8 @@ linters:
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest
               desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/auth/userexternalcredentials/userexternalcredentialstest
+              desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
             - '!$test'

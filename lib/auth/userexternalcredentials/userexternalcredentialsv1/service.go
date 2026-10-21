@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -33,6 +34,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/credentialencryption"
+	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/userexternalcredentials"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -44,6 +46,9 @@ import (
 // Cache gets the resources used by the service, e.g. the Auth cache.
 type Cache interface {
 	services.AuthorityGetter
+	services.GitServerGetter
+	credentials.IntegrationGetter
+	credentials.ByLabelsGetter
 }
 
 // rateLimiter limits the rate of requests by token, e.g.
@@ -87,6 +92,11 @@ type ServiceConfig struct {
 	ClusterName string
 	// Clock is used to check token expiry.
 	Clock clockwork.Clock
+	// UpstreamTransport (optional) overrides the HTTP transport used for
+	// calling external services, e.g. GitHub. Used in tests.
+	UpstreamTransport http.RoundTripper
+	// httpClient is the client for calling external services, e.g. GitHub.
+	httpClient *http.Client
 }
 
 // Service implements the UserExternalCredentialService gRPC service.
@@ -128,6 +138,14 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "user-external-credentials"))
 	}
+	httpClient, err := defaults.HTTPClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.UpstreamTransport != nil {
+		httpClient.Transport = cfg.UpstreamTransport
+	}
+	cfg.httpClient = httpClient
 
 	// A per-user limit for decrypt calls for peace of mind. Callers are expected
 	// to cache decrypted credentials per resource for minutes. With 20 calls per
@@ -158,12 +176,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Service{
+	s := &Service{
 		cfg:            cfg,
 		decryptLimiter: decryptLimiter,
 		writeLimiter:   writeLimiter,
-		handlers:       map[string]resourceHandler{},
-	}, nil
+	}
+	s.handlers = map[string]resourceHandler{
+		types.KindGitServer: &gitServerHandler{cfg: &s.cfg},
+	}
+	return s, nil
 }
 
 func (s *Service) getResourceHandler(resourceKind string) (resourceHandler, error) {
