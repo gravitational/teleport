@@ -71,6 +71,12 @@ const (
 	// 24_000 matches the documented per-field cap for SSMRun stdout/stderr in the event schema,
 	// and also leaves room for the rest of the event under the 64KB stream message limit.
 	maxSSMRunOutputChars = 24_000
+	// ssmDescribeFailureStatus describes a failure to retrieve SSM metadata for
+	// the instances before starting the installation command.
+	ssmDescribeFailureStatus = "Failed to describe SSM instance information."
+	// ssmInvocationFailureStatus describes a failure to start the installation
+	// command for instances that passed SSM validation.
+	ssmInvocationFailureStatus = "Failed to invoke SSM command."
 )
 
 func getAWSInstallTimeout() time.Duration {
@@ -94,11 +100,14 @@ type commandWaiter interface {
 	Wait(ctx context.Context, params *ssm.GetCommandInvocationInput, maxWaitDur time.Duration, optFns ...func(*ssm.CommandExecutedWaiterOptions)) error
 }
 
+// SSMInstallationResultReporter reports a per-instance outcome determined by
+// one [SSMInstaller.Run] invocation. A reporting error is local to that
+// instance and must not prevent other determined outcomes from being reported.
+type SSMInstallationResultReporter func(context.Context, *SSMInstallationResult) error
+
 // SSMInstallerConfig represents configuration for an SSM install
 // script executor.
 type SSMInstallerConfig struct {
-	// ReportSSMInstallationResultFunc is a func that must be called after getting the result of running the Installer script in a single instance.
-	ReportSSMInstallationResultFunc func(context.Context, *SSMInstallationResult) error
 	// Logger is used to log messages.
 	// Optional. A logger is created if one not supplied.
 	Logger *slog.Logger
@@ -169,12 +178,9 @@ func (r *SSMRunRequest) InstallerScriptName() string {
 	return r.Params[ParamScriptName]
 }
 
-// CheckAndSetDefaults ensures the emitter is present and creates a default logger if one is not provided.
+// checkAndSetDefaults creates default optional dependencies when they are not
+// provided.
 func (c *SSMInstallerConfig) checkAndSetDefaults() error {
-	if c.ReportSSMInstallationResultFunc == nil {
-		return trace.BadParameter("missing report installation result function")
-	}
-
 	if c.Logger == nil {
 		c.Logger = slog.Default().With(teleport.ComponentKey, "ssminstaller")
 	}
@@ -198,8 +204,17 @@ func NewSSMInstaller(cfg SSMInstallerConfig) (*SSMInstaller, error) {
 	}, nil
 }
 
-// Run executes the SSM document and then blocks until the command has completed.
-func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
+// Run executes the SSM document and blocks while collecting command outcomes.
+// Every per-instance outcome determined by Run is passed to report. A returned
+// error describes the overall invocation and callers must not expand it into
+// failures for every requested instance. Caller cancellation may return before
+// some instance outcomes are known. A reporting error is instance-local and
+// does not cancel other result collection.
+func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest, report SSMInstallationResultReporter) error {
+	if report == nil {
+		return trace.BadParameter("missing report installation result function")
+	}
+
 	instances := make(map[string]string, len(req.Instances))
 	for _, inst := range req.Instances {
 		instances[inst.InstanceID] = inst.InstanceName
@@ -223,10 +238,16 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 			"error", err)
 
 	case err != nil:
+		// Preserve caller cancellation without reporting unknown per-instance
+		// outcomes as SSM failures.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return trace.Wrap(ctxErr)
+		}
+		si.reportInvocationFailures(ctx, req, instances, ssmDescribeFailureStatus, instancesState, report)
 		return trace.Wrap(err)
 
 	default:
-		if err := si.emitInvalidInstanceEvents(ctx, req, instancesState); err != nil {
+		if err := si.emitInvalidInstanceEvents(ctx, req, instancesState, report); err != nil {
 			si.Logger.ErrorContext(ctx,
 				"Failed to emit invalid instances",
 				"instances", instancesState,
@@ -253,42 +274,16 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	defer cancel()
 
 	validInstanceIDs := instanceIDsFrom(validInstances)
-	output, err := req.SSM.SendCommand(installCtx, &ssm.SendCommandInput{
-		DocumentName: aws.String(req.DocumentName),
-		InstanceIds:  validInstanceIDs,
-		Parameters:   params,
-	})
+	output, err := sendCommand(installCtx, req, validInstanceIDs, params)
 	if err != nil {
-		// This might happen when teleport sends Parameters that are not part of the Document.
-		const invalidParamErrorMessage = "InvalidParameters"
-		if !strings.Contains(err.Error(), invalidParamErrorMessage) {
-			return trace.Wrap(err)
+		// Preserve caller cancellation without reporting unknown per-instance
+		// outcomes as SSM failures.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return trace.Wrap(ctxErr)
 		}
 
-		// The env param was added in v18.2.x, so older versions of the Document will reject it.
-		// Handle this error gracefully and ask the user to update the SSM Document.
-		_, hasEnvParam := params[ParamEnvVars]
-		if hasEnvParam {
-			return trace.BadParameter("%q param is missing in the SSM Document %s (%s), refer to https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-manual/ to update the document to the latest version: %v", ParamEnvVars, req.DocumentName, req.Region, err)
-		}
-
-		// The sshdConfigPath param only exists for non-agent installations of teleport (ie, openssh agents).
-		// If the SSM Document does not support the sshdConfigPath param, but it was sent, the command will fail with an InvalidParameters error.
-		_, hasSSHDConfigParam := params[ParamSSHDConfigPath]
-		if !hasSSHDConfigParam {
-			return trace.Wrap(err)
-		}
-		// As a best effort, we try to call ssm.SendCommand again but this time without the "sshdConfigPath" param
-		// We must not remove the Param "sshdConfigPath" beforehand because customers might be using custom SSM Documents for ec2 auto discovery.
-		delete(params, ParamSSHDConfigPath)
-		output, err = req.SSM.SendCommand(installCtx, &ssm.SendCommandInput{
-			DocumentName: aws.String(req.DocumentName),
-			InstanceIds:  validInstanceIDs,
-			Parameters:   params,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		si.reportInvocationFailures(ctx, req, validInstances, ssmInvocationFailureStatus, instancesState, report)
+		return trace.Wrap(err)
 	}
 
 	installDeadline, _ := installCtx.Deadline()
@@ -297,17 +292,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	// waiter in the batch so the configured timeout bounds the whole batch.
 	g.SetLimit(awsEC2APIChunkSize)
 	for instanceID, instanceName := range validInstances {
-		instanceID := instanceID
-		instanceName := instanceName
-		metadata := instanceMetadata{
-			InstanceID:   instanceID,
-			InstanceName: instanceName,
-		}
-		if instancesState != nil {
-			if richMetadata, found := instancesState.instanceMetadataByID[instanceID]; found {
-				metadata = richMetadata
-			}
-		}
+		metadata := instanceMetadataFor(instanceID, instanceName, instancesState)
 		g.Go(func() error {
 			log := si.Logger.With(
 				"command_id", aws.ToString(output.Command.CommandId),
@@ -334,7 +319,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 				result = failedSSMCommandInstallationResult(req, output.Command.CommandId, metadata)
 			}
 
-			if err := si.ReportSSMInstallationResultFunc(groupCtx, result); err != nil {
+			if err := report(groupCtx, result); err != nil {
 				// Reporting is also instance-local. Returning this error would cause
 				// discovery to mark every instance in the batch as failed again.
 				log.ErrorContext(ctx,
@@ -346,6 +331,79 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		})
 	}
 	return trace.Wrap(g.Wait())
+}
+
+func sendCommand(ctx context.Context, req SSMRunRequest, instanceIDs []string, params map[string][]string) (*ssm.SendCommandOutput, error) {
+	output, err := req.SSM.SendCommand(ctx, &ssm.SendCommandInput{
+		DocumentName: aws.String(req.DocumentName),
+		InstanceIds:  instanceIDs,
+		Parameters:   params,
+	})
+	if err != nil {
+		// This might happen when teleport sends Parameters that are not part of the Document.
+		const invalidParamErrorMessage = "InvalidParameters"
+		if !strings.Contains(err.Error(), invalidParamErrorMessage) {
+			return nil, trace.Wrap(err)
+		}
+
+		// The env param was added in v18.2.x, so older versions of the Document will reject it.
+		// Handle this error gracefully and ask the user to update the SSM Document.
+		_, hasEnvParam := params[ParamEnvVars]
+		if hasEnvParam {
+			return nil, trace.BadParameter("%q param is missing in the SSM Document %s (%s), refer to https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-manual/ to update the document to the latest version: %v", ParamEnvVars, req.DocumentName, req.Region, err)
+		}
+
+		// The sshdConfigPath param only exists for non-agent installations of teleport (ie, openssh agents).
+		// If the SSM Document does not support the sshdConfigPath param, but it was sent, the command will fail with an InvalidParameters error.
+		_, hasSSHDConfigParam := params[ParamSSHDConfigPath]
+		if !hasSSHDConfigParam {
+			return nil, trace.Wrap(err)
+		}
+		// As a best effort, we try to call ssm.SendCommand again but this time without the "sshdConfigPath" param
+		// We must not remove the Param "sshdConfigPath" beforehand because customers might be using custom SSM Documents for ec2 auto discovery.
+		delete(params, ParamSSHDConfigPath)
+		output, err = req.SSM.SendCommand(ctx, &ssm.SendCommandInput{
+			DocumentName: aws.String(req.DocumentName),
+			InstanceIds:  instanceIDs,
+			Parameters:   params,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return output, nil
+}
+
+func (si *SSMInstaller) reportInvocationFailures(ctx context.Context, req SSMRunRequest, validInstances map[string]string, status string, instancesState *instanceIDsSSMState, report SSMInstallationResultReporter) {
+	for instanceID, instanceName := range validInstances {
+		result := invalidSSMInstanceInstallationResult(
+			req,
+			instanceMetadataFor(instanceID, instanceName, instancesState),
+			status,
+			usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+		)
+
+		if err := report(ctx, result); err != nil {
+			si.Logger.ErrorContext(ctx,
+				"Failed to report SSM invocation failure",
+				"instance_id", instanceID,
+				"error", err,
+			)
+		}
+	}
+}
+
+func instanceMetadataFor(instanceID string, instanceName string, instancesState *instanceIDsSSMState) instanceMetadata {
+	metadata := instanceMetadata{
+		InstanceID:   instanceID,
+		InstanceName: instanceName,
+	}
+	if instancesState != nil {
+		if richMetadata, found := instancesState.instanceMetadataByID[instanceID]; found {
+			metadata = richMetadata
+		}
+	}
+	return metadata
 }
 
 type instanceMetadata struct {
@@ -393,7 +451,7 @@ func failedSSMCommandInstallationResult(req SSMRunRequest, commandID *string, in
 	return result
 }
 
-func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRunRequest, instanceIDsState *instanceIDsSSMState) error {
+func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRunRequest, instanceIDsState *instanceIDsSSMState, report SSMInstallationResultReporter) error {
 	var errs []error
 	for instanceID, instanceName := range instanceIDsState.missing {
 		// For missing instances, we don't have platform info since they're not registered in SSM
@@ -406,7 +464,7 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 			"EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
 			usertasks.AutoDiscoverEC2IssueSSMInstanceNotRegistered,
 		)
-		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
+		if err := report(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
@@ -424,7 +482,7 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 			"SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
 			usertasks.AutoDiscoverEC2IssueSSMInstanceConnectionLost,
 		)
-		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
+		if err := report(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
@@ -442,7 +500,7 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 			"EC2 instance is running an unsupported Operating System. Only Linux is supported.",
 			usertasks.AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 		)
-		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
+		if err := report(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}

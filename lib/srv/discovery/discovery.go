@@ -108,8 +108,11 @@ func (m Matchers) IsEmpty() bool {
 }
 
 // ssmInstaller handles running SSM commands that install Teleport on EC2 instances.
+// Run reports every instance-specific outcome it determines through report. Its
+// returned error describes the overall run and must not be expanded into
+// per-instance failures. Caller cancellation can end a run without results.
 type ssmInstaller interface {
-	Run(ctx context.Context, req server.SSMRunRequest) error
+	Run(ctx context.Context, req server.SSMRunRequest, report server.SSMInstallationResultReporter) error
 }
 
 // gcpInstaller handles running commands that install Teleport on GCP
@@ -676,9 +679,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.ec2Watcher.SetFetchers(noDiscoveryConfig, staticFetchers)
 
 	if s.ec2Installer == nil {
-		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
-			ReportSSMInstallationResultFunc: s.ReportEC2SSMInstallationResult,
-		})
+		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1318,31 +1319,7 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 		IntegrationName:     instances.Integration,
 		DiscoveryConfigName: instances.DiscoveryConfigName,
 	}
-	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
-		s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
-			discoveryConfigName: instances.DiscoveryConfigName,
-			integration:         instances.Integration,
-		}, len(req.Instances))
-
-		for _, instance := range req.Instances {
-			s.awsEC2Tasks.addFailedEnrollment(
-				awsEC2TaskKey{
-					accountID:       instances.AccountID,
-					integration:     instances.Integration,
-					issueType:       usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
-					region:          instances.Region,
-					ssmDocument:     req.DocumentName,
-					installerScript: req.InstallerScriptName(),
-				},
-				&usertasksv1.DiscoverEC2Instance{
-					DiscoveryConfig: instances.DiscoveryConfigName,
-					DiscoveryGroup:  s.DiscoveryGroup,
-					InstanceId:      instance.InstanceID,
-					Name:            instance.InstanceName,
-					SyncTime:        timestamppb.New(s.clock.Now()),
-				},
-			)
-		}
+	if err := s.ec2Installer.Run(s.ctx, req, s.ReportEC2SSMInstallationResult); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
