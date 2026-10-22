@@ -19,12 +19,24 @@ DOCKER_IMAGE ?= teleport
 
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+include $(MAKE_DIR)/build.assets/versions.mk
 HELM_UNITTEST_VERSION := $(shell cat $(MAKE_DIR)/build.assets/helm-unittest.version)
-HELM_UNITTEST_OS := $(shell if [ "$(shell uname -s)" = Darwin ]; then echo macos; elif [ "$(shell uname -s)" = Linux ]; then echo linux; else echo unsupported; fi)
-HELM_UNITTEST_ARCH := $(shell if [ "$(shell uname -m)" = x86_64 ]; then echo amd64; elif [ "$(shell uname -m)" = arm64 ] || [ "$(shell uname -m)" = aarch64 ]; then echo arm64; else echo unsupported; fi)
+UNAME_SM := $(shell uname -s -m)
+UNAME_S := $(word 1,$(UNAME_SM))
+UNAME_M := $(word 2,$(UNAME_SM))
+
+HELM_UNITTEST_OS_Darwin := macos
+HELM_UNITTEST_OS_Linux := linux
+HELM_UNITTEST_OS := $(or $(HELM_UNITTEST_OS_$(UNAME_S)),unsupported)
+
+HELM_UNITTEST_ARCH_x86_64 := amd64
+HELM_UNITTEST_ARCH_arm64 := arm64
+HELM_UNITTEST_ARCH_aarch64 := arm64
+HELM_UNITTEST_ARCH := $(or $(HELM_UNITTEST_ARCH_$(UNAME_M)),unsupported)
 HELM_UNITTEST_PLATFORM := $(HELM_UNITTEST_OS)-$(HELM_UNITTEST_ARCH)
 HELM_UNITTEST_ARCHIVE := helm-unittest-$(HELM_UNITTEST_PLATFORM)-$(HELM_UNITTEST_VERSION:v%=%).tgz
-HELM_UNITTEST_CHECKSUM_CMD := $(shell if command -v sha256sum >/dev/null 2>&1; then echo sha256sum; else echo 'shasum -a 256'; fi)
+SHA256SUM_CMD := $(or $(shell command -v sha256sum),shasum -a 256)
+HELM_UNITTEST_CHECKSUM_CMD := $(SHA256SUM_CMD)
 
 # If set to 1, webassets are not built.
 WEBASSETS_SKIP_BUILD ?= 0
@@ -37,12 +49,12 @@ BUILDDIR ?= build
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
-PWD ?= $(shell pwd)
+PWD ?= $(CURDIR)
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
 KUSTOMIZE_NO_DYNAMIC_PLUGIN ?= kustomize_disable_go_plugin_support
-KUBECTL_VERSION := $(shell go list -m -f '{{.Version}}' k8s.io/kubectl | sed 's/v0/v1/')
+KUBECTL_VERSION := $(shell awk '$$1 == "k8s.io/kubectl" { sub(/^v0/, "v1", $$2); print $$2; exit }' go.mod)
 KUBECTL_SETVERSION := -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
 
 # RELEASE_DIR is where the release artifacts (tarballs, pacakges, etc) are put. It
@@ -64,10 +76,11 @@ BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=fals
 BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
 endif
 
-GO_ENV_OS := $(shell go env GOOS)
+GO_ENV := $(shell go env GOOS GOARCH)
+GO_ENV_OS := $(word 1,$(GO_ENV))
 OS ?= $(GO_ENV_OS)
 
-GO_ENV_ARCH := $(shell go env GOARCH)
+GO_ENV_ARCH := $(word 2,$(GO_ENV))
 ARCH ?= $(GO_ENV_ARCH)
 
 FIPS ?=
@@ -124,9 +137,10 @@ BUILDDIR_amd64 = $(BUILDDIR)/amd64
 # TARBINS is the path of the binaries in the release tarballs
 TARBINS = $(addprefix teleport/,$(BINS))
 
-# Check if rust and cargo are installed before compiling
-CHECK_CARGO := $(shell cargo --version 2>/dev/null)
-CHECK_RUST := $(shell rustc --version 2>/dev/null)
+# Check if rust and cargo are installed before compiling.
+# Only presence is needed here; avoid starting each tool just to read its version.
+CHECK_CARGO := $(shell command -v cargo 2>/dev/null)
+CHECK_RUST := $(shell command -v rustc 2>/dev/null)
 
 RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
 
@@ -431,11 +445,21 @@ ifneq ($(SESSIONHELPER_EMBED_TAG),)
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go -C session build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) gravitational_trace.nocrypto" -o '$(abspath $(BUILDDIR)/sessionhelper)' $(BUILDFLAGS) ./cmd/sessionhelper
 endif
 
+SESSIONHELPER_GZ := session/reexec/embed/sessionhelper_$(OS)_$(ARCH).gz
+SESSIONHELPER_GZ_SHA := $(BUILDDIR)/sessionhelper_$(OS)_$(ARCH).gz.sha256
+
 .PHONY: session/reexec/embed/sessionhelper
 session/reexec/embed/sessionhelper: $(BUILDDIR)/sessionhelper
 ifneq ($(SESSIONHELPER_EMBED_TAG),)
 	mkdir -p session/reexec/embed
-	gzip -9 -n < '$(BUILDDIR)/sessionhelper' > 'session/reexec/embed/sessionhelper_$(OS)_$(ARCH).gz'
+	@current_sha="$$($(SHA256SUM_CMD) '$(BUILDDIR)/sessionhelper' | awk '{print $$1}')"; \
+	if [[ -f '$(SESSIONHELPER_GZ)' && -f '$(SESSIONHELPER_GZ_SHA)' && "$$current_sha" = "$$(cat '$(SESSIONHELPER_GZ_SHA)')" ]]; then \
+		echo "$(SESSIONHELPER_GZ) is up to date."; \
+	else \
+		gzip -9 -n < '$(BUILDDIR)/sessionhelper' > '$(SESSIONHELPER_GZ).tmp'; \
+		mv '$(SESSIONHELPER_GZ).tmp' '$(SESSIONHELPER_GZ)'; \
+		echo "$$current_sha" > '$(SESSIONHELPER_GZ_SHA)'; \
+	fi
 endif
 
 ifneq ($(strip $(EXTLDFLAGS)),)
@@ -1969,12 +1993,12 @@ ensure-webassets:
 # sha and forces a rebuild.
 ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 	@echo "copying teleport logo assets (community)";
-	@cp web/packages/design/src/assets/images/community-light.svg web/packages/teleport/public/app/logo-light.svg
-	@cp web/packages/design/src/assets/images/community-dark.svg  web/packages/teleport/public/app/logo-dark.svg
+	@cmp -s web/packages/design/src/assets/images/community-light.svg web/packages/teleport/public/app/logo-light.svg || cp web/packages/design/src/assets/images/community-light.svg web/packages/teleport/public/app/logo-light.svg
+	@cmp -s web/packages/design/src/assets/images/community-dark.svg  web/packages/teleport/public/app/logo-dark.svg  || cp web/packages/design/src/assets/images/community-dark.svg  web/packages/teleport/public/app/logo-dark.svg
 else
 	@echo "copying teleport logo assets (agpl)";
-	@cp web/packages/design/src/assets/images/agpl-light.svg web/packages/teleport/public/app/logo-light.svg
-	@cp web/packages/design/src/assets/images/agpl-dark.svg  web/packages/teleport/public/app/logo-dark.svg
+	@cmp -s web/packages/design/src/assets/images/agpl-light.svg web/packages/teleport/public/app/logo-light.svg || cp web/packages/design/src/assets/images/agpl-light.svg web/packages/teleport/public/app/logo-light.svg
+	@cmp -s web/packages/design/src/assets/images/agpl-dark.svg  web/packages/teleport/public/app/logo-dark.svg  || cp web/packages/design/src/assets/images/agpl-dark.svg  web/packages/teleport/public/app/logo-dark.svg
 endif
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/teleport/app && cp web/packages/teleport/index.html webassets/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web; fi
@@ -2063,7 +2087,7 @@ else
 ensure-llvm:
 endif
 
-WASM_BINDGEN_VERSION = $(shell awk ' \
+WASM_BINDGEN_VERSION := $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
   in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
 ' Cargo.lock)
@@ -2082,11 +2106,7 @@ endif
 print-wasm-bindgen-version:
 	@echo $(WASM_BINDGEN_VERSION)
 
-RUST_TOOLCHAIN_VERSION = $(shell awk '$$1 == "channel" && $$2 == "=" { gsub(/"/, "", $$3); print $$3 }' rust-toolchain.toml )
-
-.PHONY: print-rust-toolchain-version
-print-rust-toolchain-version:
-	@echo $(RUST_TOOLCHAIN_VERSION)
+RUST_TOOLCHAIN_VERSION := $(shell awk '$$1 == "channel" && $$2 == "=" { gsub(/"/, "", $$3); print $$3 }' rust-toolchain.toml )
 
 ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell $(WASM_BINDGEN) --version 2>/dev/null))
@@ -2099,7 +2119,6 @@ ensure-wasm-bindgen:
 endif
 
 .PHONY: ensure-wasm-opt
-ensure-wasm-opt: WASM_OPT_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-wasm-opt-version)
 ensure-wasm-opt:
 	cargo install --locked wasm-opt@$(WASM_OPT_VERSION)
 
@@ -2152,7 +2171,7 @@ export rust_shadowed_warning
 # on PATH is not rustup-managed (e.g. the Homebrew 'rust' formula), which
 # silently bypasses the toolchain file even though the checks below pass.
 .PHONY: rustup-toolchain-warning
-rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) --no-print-directory print-rust-toolchain-version)
+rustup-toolchain-warning: EXPECTED = $(RUST_TOOLCHAIN_VERSION)
 rustup-toolchain-warning:
 	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
 		echo -en "\033[31m";\

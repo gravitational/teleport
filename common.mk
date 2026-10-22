@@ -9,7 +9,8 @@
 # Before GNU make 4.4, exported variables were not exported for $(shell ...)
 # expressions, so explicitly set PKG_CONFIG_PATH when running $(PKGCONF).
 
-PKGCONF := PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) $(firstword $(shell which pkgconf pkg-config false 2>/dev/null))
+PKGCONF_BIN := $(firstword $(shell which pkgconf pkg-config false 2>/dev/null))
+PKGCONF = PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) $(PKGCONF_BIN)
 
 # -----------------------------------------------------------------------------
 # Requirements for building with BPF support:
@@ -24,7 +25,8 @@ BPF_MESSAGE := without-BPF-support
 # Is this build targeting the same OS & architecture it is being compiled on, or
 # will it require cross-compilation? We need to know this (especially for ARM) so we
 # can set the cross-compiler path (and possibly feature flags) correctly.
-IS_NATIVE_BUILD ?= $(filter $(ARCH),$(shell go env GOARCH))
+NATIVE_GOARCH ?= $(or $(GO_ENV_ARCH),$(shell go env GOARCH))
+IS_NATIVE_BUILD ?= $(filter $(ARCH),$(NATIVE_GOARCH))
 IS_CROSS_COMPILE_BB = $(filter $(BUILDBOX_MODE),cross)
 
 # Only build with BPF for linux/amd64 and linux/arm64.

@@ -55,6 +55,12 @@ for i in "${!SRC_DIRECTORIES[@]}"; do
   SRC_DIRECTORIES[i]="$ROOT_PATH/${SRC_DIRECTORIES[i]}"
 done
 
+function walk_web() {
+  find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/pnpm-lock.yaml" \
+    -not \( -type d \( -name node_modules -o -name .swc -o -path '*ironrdp/pkg*' -o -name .storybook \) -prune \) \
+    "$@"
+}
+
 # Calculate the current hash-of-hashes of the given source directories, package.json, and pnpm-lock.yaml.
 # Excluded files and folders:
 # * node_modules: it's covered by package.json and pnpm-lock.yaml.
@@ -66,11 +72,21 @@ done
 function calculate_sha() {
   #shellcheck disable=SC2086
   #We want to split $SHASUM on spaces so we dont want it quoted.
-  find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/pnpm-lock.yaml" \
-    -not \( -type d \( -name node_modules -o -name .swc -o -path '*ironrdp/pkg*' -o -name .storybook \) -prune \) \
-    -type f -print0 | \
+  walk_web -type f -print0 | \
     LC_ALL=C sort -z | xargs -0 $SHASUM | awk '{print $1}' | $SHASUM | tr -d ' -'
 }
+
+function have_inputs_newer_than_last_sha() {
+  walk_web -newer "$LAST_SHA_FILE" -print -quit | grep -q .
+}
+
+# Fast path for the common case where no inputs have changed since the last successful build.
+# This avoids walking, sorting, and hashing the full web tree on every build. Directories are
+# included so file deletions are detected through the containing directory's mtime.
+if [ -f "$LAST_SHA_FILE" ] && ! have_inputs_newer_than_last_sha; then
+  print_for_user "$TYPE webassets up to date."
+  exit 0
+fi
 
 CURRENT_SHA="$(calculate_sha)"
 
@@ -82,6 +98,8 @@ if [ -f "$LAST_SHA_FILE" ]; then
   LAST_SHA="$(cat "$LAST_SHA_FILE")"
   if [ "$LAST_SHA" = "$CURRENT_SHA" ]; then
     BUILD=false
+    # Refresh the stamp so touched-but-unchanged files do not force the slow hash path on every run.
+    touch "$LAST_SHA_FILE"
   fi
 fi
 

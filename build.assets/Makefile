@@ -57,10 +57,17 @@ REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cr
 
 # Determine which version of wasm-bindgen should be installed on build containers
 # responsible for building webassets.
-WASM_BINDGEN_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory  print-wasm-bindgen-version)
+ifndef WASM_BINDGEN_VERSION
+WASM_BINDGEN_VERSION := $(shell awk ' \
+  $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
+  in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
+' ../Cargo.lock)
+endif
 
 # Determine which version of rust is required to build rust components.
-RUST_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory  print-rust-toolchain-version)
+ifndef RUST_VERSION
+RUST_VERSION := $(shell awk '$$1 == "channel" && $$2 == "=" { gsub(/"/, "", $$3); print $$3 }' ../rust-toolchain.toml )
+endif
 
 # This determines which make target we call in this repo's top level Makefile when
 # make release in this Makefile is called. Currently this supports its default value
@@ -742,13 +749,6 @@ print-rust-version:
 .PHONY:print-wasm-opt-version
 print-wasm-opt-version:
 	@echo $(WASM_OPT_VERSION)
-
-#
-# Print the wasm-bindgen version used to build Teleport.
-#
-.PHONY: print-wasm-bindgen-version
-print-wasm-bindgen-version:
-	@echo $(WASM_BINDGEN_VERSION)
 
 #
 # Print the Node version used to build Teleport Connect.
