@@ -119,8 +119,10 @@ type DecryptionWrapper interface {
 // ProtoStreamerConfig specifies configuration for the part
 type ProtoStreamerConfig struct {
 	Uploader MultipartUploader
-	// MinUploadBytes submits upload when they have reached min bytes (could be more,
-	// but not less), due to the nature of gzip writer
+	// MinUploadBytes is the minimum size of every non-last part of the upload.
+	// Smaller parts are padded up to it. When it is at least
+	// [MinUploadPartSizeBytes], slices are also cut early so that every non-last
+	// part is exactly MinUploadBytes long.
 	MinUploadBytes int64
 	// ConcurrentUploads sets concurrent uploads per stream
 	ConcurrentUploads int
@@ -252,8 +254,8 @@ type ProtoStreamConfig struct {
 	BufferPool *utils.BufferSyncPool
 	// SlicePool is a sync pool with allocated slices
 	SlicePool *utils.SliceSyncPool
-	// MinUploadBytes submits upload when they have reached min bytes (could be more,
-	// but not less), due to the nature of gzip writer
+	// MinUploadBytes is the minimum size of every non-last part of the upload,
+	// see [ProtoStreamerConfig.MinUploadBytes].
 	MinUploadBytes int64
 	// CompletedParts is a list of completed parts, used for resuming stream
 	CompletedParts []StreamPart
@@ -998,6 +1000,11 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			activeUpload.setError(err)
 			return
 		}
+		partSize := int64(slice.buffer.Len())
+		if !slice.isLast && slice.hasFixedSize() && partSize > w.proto.cfg.MinUploadBytes {
+			log.WarnContext(w.proto.cancelCtx, "Upload part is larger than MinUploadBytes, which S3-compatible services that require equal part sizes reject",
+				"part_size", partSize, "min_upload_bytes", w.proto.cfg.MinUploadBytes)
+		}
 
 		for i := range defaults.MaxIterationLimit {
 			log := log.With("attempt", i)
@@ -1140,10 +1147,36 @@ func (s *slice) Close() error {
 	return trace.Wrap(err)
 }
 
-// shouldUpload returns true if it's time to write the slice
-// (set to true when it has reached the min slice in bytes)
+// sliceCloseReserveBytes bounds how far a slice can grow past the threshold
+// checked by shouldUpload. The data that has not reached the buffer when the
+// event crossing the threshold is written is at most: the gzip writer's 64 KiB
+// input window, the crossing event itself ([constants.MaxProtoMessageSizeBytes]
+// plus its record header) and, with encryption, one buffered 64 KiB age chunk,
+// plus block headers, the gzip trailer and age tags. The gzip and age buffers
+// fill independently, so the worst case is about 192 KiB with encryption and
+// about 128 KiB without. Cutting a slice this far below MinUploadBytes keeps
+// every non-last part at or below MinUploadBytes, so that [slice.reader] pads
+// it to exactly MinUploadBytes. Some S3-compatible services, such as
+// Cloudflare R2, reject multipart uploads whose non-last parts differ in size.
+const sliceCloseReserveBytes = 256 * 1024
+
+// hasFixedSize reports whether non-last slices are cut early and padded to
+// exactly MinUploadBytes, which applies when MinUploadBytes is at least
+// MinUploadPartSizeBytes. Smaller configurations, such as the agent-side file
+// streamer, are padded but not cut early.
+func (s *slice) hasFixedSize() bool {
+	return s.proto.cfg.MinUploadBytes >= MinUploadPartSizeBytes
+}
+
+// shouldUpload returns true if it's time to write the slice. Fixed-size
+// slices are cut sliceCloseReserveBytes early so that, once closed and
+// padded, every non-last part is exactly MinUploadBytes long.
 func (s *slice) shouldUpload() bool {
-	return int64(s.buffer.Len()) >= s.proto.cfg.MinUploadBytes
+	threshold := s.proto.cfg.MinUploadBytes
+	if s.hasFixedSize() {
+		threshold -= sliceCloseReserveBytes
+	}
+	return int64(s.buffer.Len()) >= threshold
 }
 
 // isEmpty returns true if the slice hasn't had any events written to

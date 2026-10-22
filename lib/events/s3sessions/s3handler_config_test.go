@@ -137,6 +137,20 @@ func TestConfig_SetFromURL(t *testing.T) {
 			},
 		},
 		{
+			name: "versioning disabled via url",
+			url:  "s3://path/bucket/audit?disable_versioning=true",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.True(t, config.DisableVersioning)
+			},
+		},
+		{
+			name: "versioning enabled by default",
+			url:  "s3://path/bucket/audit",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.False(t, config.DisableVersioning)
+			},
+		},
+		{
 			name: "complete initiators",
 			url:  "s3://path/bucket/audit?complete_initiators=dev-usw2-role/tenant-foo&complete_initiators=dev-usw2-role/tenant-bar",
 			cfgAssertion: func(t *testing.T, config Config) {

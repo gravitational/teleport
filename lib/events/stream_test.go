@@ -24,11 +24,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"math/rand/v2"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"filippo.io/age"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
@@ -237,6 +239,104 @@ func makeBodyChunkEvent(dataSize int) *apievents.AppSessionHTTPResponseBodyChunk
 		IsLast:     true,
 		Data:       data,
 	}
+}
+
+// TestProtoStreamFixedSizeParts verifies that every non-last part of a
+// multipart upload is exactly MinUploadPartSizeBytes long, with and without
+// encryption. Some S3-compatible services, such as Cloudflare R2, reject
+// multipart uploads whose non-last parts differ in size.
+func TestProtoStreamFixedSizeParts(t *testing.T) {
+	identity, err := age.GenerateX25519Identity()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name        string
+		encryptedIO *ageEncryptedIO
+	}{
+		{name: "plain"},
+		{name: "encrypted", encryptedIO: &ageEncryptedIO{identity: identity}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			uploader := eventstest.NewMemoryUploader()
+			cfg := events.ProtoStreamerConfig{Uploader: uploader}
+			var decrypter events.DecryptionWrapper
+			if tc.encryptedIO != nil {
+				cfg.Encrypter = tc.encryptedIO
+				decrypter = tc.encryptedIO
+			}
+			streamer, err := events.NewProtoStreamer(cfg)
+			require.NoError(t, err)
+
+			sid := session.NewID()
+			stream, err := streamer.CreateAuditStream(ctx, sid)
+			require.NoError(t, err)
+
+			// A fixed seed keeps the sequence of part sizes reproducible. Two of
+			// every three payloads are incompressible and every third is
+			// compressible, each up to just under the event size cap, so that
+			// the gzip writer buffers varying amounts of data when a slice is cut.
+			const (
+				eventCount = 1200
+				maxPayload = constants.MaxProtoMessageSizeBytes - 4*1024
+			)
+			random := rand.NewChaCha8([32]byte{})
+			sizes := rand.New(random)
+			for i := range eventCount {
+				data := make([]byte, 1+sizes.IntN(maxPayload))
+				if i%3 != 0 {
+					_, err := random.Read(data)
+					require.NoError(t, err)
+				}
+				event := &apievents.SessionPrint{
+					Metadata: apievents.Metadata{
+						Type:  events.SessionPrintEvent,
+						Index: int64(i),
+					},
+					Data: data,
+				}
+				require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(event)))
+			}
+			require.NoError(t, stream.Complete(ctx))
+
+			uploads, err := uploader.ListUploads(ctx)
+			require.NoError(t, err)
+			require.Len(t, uploads, 1)
+			parts, err := uploader.GetParts(uploads[0].ID)
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(parts), 4)
+			for i, part := range parts[:len(parts)-1] {
+				require.Len(t, part, events.MinUploadPartSizeBytes, "part %d", i+1)
+			}
+			require.LessOrEqual(t, len(parts[len(parts)-1]), events.MinUploadPartSizeBytes)
+
+			rc, err := uploader.StreamSessionRecording(ctx, sid)
+			require.NoError(t, err)
+			defer rc.Close()
+			read, err := events.NewProtoReader(rc, decrypter).ReadAll(ctx)
+			require.NoError(t, err)
+			require.Len(t, read, eventCount)
+		})
+	}
+}
+
+// ageEncryptedIO encrypts with an X25519 age recipient. The Auth Service uses
+// RSA-4096 recipients, which are slow to generate, but the payload goes
+// through the same 64 KiB age chunks either way.
+type ageEncryptedIO struct {
+	identity *age.X25519Identity
+}
+
+func (a *ageEncryptedIO) WithEncryption(_ context.Context, writer io.WriteCloser) (io.WriteCloser, error) {
+	return events.NewTestAgeWriter(writer, a.identity.Recipient()), nil
+}
+
+func (a *ageEncryptedIO) WithDecryption(_ context.Context, reader io.Reader) (io.Reader, error) {
+	decrypter, err := age.Decrypt(reader, a.identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return decrypter, nil
 }
 
 // TestProtoStreamDefaultCapTrimsLargeEvent documents that a streamer trims

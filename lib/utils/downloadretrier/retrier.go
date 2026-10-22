@@ -92,7 +92,9 @@ func (r *Retrier) Read(p []byte) (_ int, err error) {
 			reader, err = r.download(r.ctx, r.offset)
 			if err != nil {
 				r.mu.Unlock()
-				if trace.IsAccessDenied(err) {
+				// Neither a denied access nor a failed precondition resolves
+				// on retry.
+				if trace.IsAccessDenied(err) || trace.IsCompareFailed(err) {
 					return 0, trace.Wrap(err)
 				} else if r.ctx.Err() != nil {
 					return 0, os.ErrClosed

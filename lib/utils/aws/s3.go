@@ -62,6 +62,10 @@ func ConvertS3Error(err error) error {
 	if errors.As(err, &notFound) {
 		return trace.NotFound("%s", notFound)
 	}
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) && apiErr.ErrorCode() == "PreconditionFailed" {
+		return trace.CompareFailed("%s", apiErr)
+	}
 
 	var opError *smithy.OperationError
 	if errors.As(err, &opError) && strings.Contains(opError.Err.Error(), "FIPS") {

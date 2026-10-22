@@ -411,6 +411,10 @@ const (
 	// to only complete uploads from the specified set of initiators.
 	S3CompleteInitiators = "complete_initiators"
 
+	// S3DisableVersioning is an optional switch for S3-compatible services
+	// without object versioning, such as Cloudflare R2.
+	S3DisableVersioning = "disable_versioning"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 

@@ -686,19 +686,15 @@ func TestUploadEncryptedRecordingSizes(t *testing.T) {
 			// raising the minimum in the test cases above.
 			maxFileSize := tc.minFileSize * 2
 
-			// We expect encrypted uploads to exceed the target size, unless the maximum prevents it,
-			// in which case we will be short one file part.
-			expectEncryptedSizeFloor := tc.encryptedTargetSize
-			if tc.encryptedMaxSize != 0 && tc.encryptedTargetSize+maxFileSize > tc.encryptedMaxSize {
-				expectEncryptedSizeFloor = tc.encryptedMaxSize - maxFileSize
+			// Encrypted uploads are aggregated up to the target size, less the header of the padding
+			// the final uploader may add, or up to the max size if that is smaller. An aggregate is
+			// yielded before the file part that would exceed the limit, so it is short at most one
+			// file part.
+			expectEncryptedSizeCeil := tc.encryptedTargetSize - events.ProtoStreamV2PartHeaderSize
+			if tc.encryptedMaxSize != 0 && tc.encryptedMaxSize < expectEncryptedSizeCeil {
+				expectEncryptedSizeCeil = tc.encryptedMaxSize
 			}
-
-			// We expect encrypted uploads to be below the max size if set. Otherwise, we expect it to
-			// be the target size + one additional file part.
-			expectEncryptedSizeCeil := tc.encryptedMaxSize
-			if tc.encryptedMaxSize == 0 {
-				expectEncryptedSizeCeil = tc.encryptedTargetSize + maxFileSize
-			}
+			expectEncryptedSizeFloor := expectEncryptedSizeCeil - maxFileSize
 
 			// the final upload is never smaller than the encrypted size, but always above the minimum.
 			expectFinalSizeFloor := max(tc.minUploadBytes, expectEncryptedSizeFloor)
@@ -772,8 +768,9 @@ func TestUploadEncryptedRecordingSizes(t *testing.T) {
 			err := clock.BlockUntilContext(ctx, 1)
 			require.NoError(t, err)
 
-			// Here we ensure at least 5 final upload parts so that we amply test the test case values, + some variance.
-			inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintUntilBytes: int64(expectFinalSizeCeil*5 + mathrand.IntN(512))})
+			// The generated print data compresses well, so print enough of it to get at least 5 final upload
+			// parts and amply test the test case values, + some variance.
+			inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintUntilBytes: int64(expectFinalSizeCeil*40 + mathrand.IntN(512))})
 			sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
 			p.emitEvents(ctx, t, inEvents)
 
@@ -815,6 +812,7 @@ func TestUploadEncryptedRecordingSizes(t *testing.T) {
 
 			uploadParts, err := p.memUploader.GetParts(event.UploadID)
 			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(uploadParts), 5)
 
 			// final uploads should be above the minimum upload size.
 			for i, part := range uploadParts {
@@ -824,6 +822,12 @@ func TestUploadEncryptedRecordingSizes(t *testing.T) {
 				} else {
 					require.GreaterOrEqual(t, len(part), expectFinalSizeFloor, "expected upload to be between %v and %v bytes, but was %v bytes", expectFinalSizeFloor, expectFinalSizeCeil, len(part))
 					require.LessOrEqual(t, len(part), expectFinalSizeCeil, "expected upload to be between %v and %v bytes, but was %v bytes", expectFinalSizeFloor, expectFinalSizeCeil, len(part))
+					// When the aggregates stay below the minimum upload size, the final uploader pads
+					// every non-last part to exactly that size, which S3-compatible services that
+					// require equal part sizes depend on.
+					if tc.minUploadBytes != 0 && tc.encryptedTargetSize <= tc.minUploadBytes {
+						require.Len(t, part, tc.minUploadBytes, "expected upload %v to be padded to exactly %v bytes", i, tc.minUploadBytes)
+					}
 				}
 			}
 
@@ -831,6 +835,36 @@ func TestUploadEncryptedRecordingSizes(t *testing.T) {
 			require.Len(t, recollectParts, len(uploadParts), "expected there to be an equal amount of final upload parts and transient upload parts, but got %v and %v respectively", len(uploadParts), len(recollectParts))
 		})
 	}
+}
+
+// TestEncryptedUploadAggregateLeavesRoomForPadding checks that an aggregate
+// never ends within the padding header's size of the target, where
+// PadUploadPart would push it past the target.
+func TestEncryptedUploadAggregateLeavesRoomForPadding(t *testing.T) {
+	const targetSize = 1024
+	var file bytes.Buffer
+	// The first two parts together fall 16 bytes short of the target, less
+	// than the padding header needs, so padding them would overshoot the
+	// target. They must therefore go out separately, with the third part
+	// joining the second.
+	for _, total := range []int{500, 508, 100} {
+		header := events.PartHeader{
+			ProtoVersion: events.ProtoStreamV2,
+			Flags:        events.ProtoStreamFlagEncrypted,
+			PartSize:     uint64(total - events.ProtoStreamV2PartHeaderSize),
+		}
+		file.Write(header.Bytes())
+		file.Write(make([]byte, header.PartSize))
+	}
+	var parts [][]byte
+	for part, err := range encryptedUploadAggregateIter(&file, targetSize, 0) {
+		require.NoError(t, err)
+		parts = append(parts, part)
+	}
+	require.Len(t, parts, 2)
+	require.Len(t, parts[0], 500)
+	require.Len(t, parts[1], 608)
+	require.Len(t, events.PadUploadPart(parts[0], targetSize), targetSize)
 }
 
 // TestUploadCorruptEncryptedRecording ensures that a single failed upload does not cause failures to upload

@@ -25,6 +25,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -118,6 +119,18 @@ func TestRead(t *testing.T) {
 				// Every attempt returns only the first 5 bytes then EOF.
 				return func(_ context.Context, offset int64) (io.ReadCloser, error) {
 					return io.NopCloser(bytes.NewReader(data[offset:5])), nil
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "does not retry a failed precondition",
+			makeFunc: func(t *testing.T) func(context.Context, int64) (io.ReadCloser, error) {
+				calls := 0
+				return func(_ context.Context, _ int64) (io.ReadCloser, error) {
+					calls++
+					assert.Equal(t, 1, calls)
+					return nil, trace.CompareFailed("object changed")
 				}
 			},
 			wantErr: true,

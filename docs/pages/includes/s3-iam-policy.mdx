@@ -9,9 +9,10 @@ enable the Auth Service to create and configure it for you:
 <Tabs>
 <TabItem label="Self-Managed">
 
-Note that Teleport will only use S3 buckets with versioning enabled. This
-ensures that a session log cannot be permanently altered or deleted, as
-Teleport will always look at the oldest version of a recording.
+Unless you set the `disable_versioning=true` URL parameter for an S3-compatible
+service without object versioning, use an S3 bucket with versioning enabled.
+This ensures that a session log cannot be permanently altered or deleted, as
+Teleport reads the oldest version of a recording.
 
 You'll need to replace these values in the policy example below:
 
