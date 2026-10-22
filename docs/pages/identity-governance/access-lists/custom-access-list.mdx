@@ -8,21 +8,22 @@ tags:
  - identity-governance
  - privileged-access
 enterprise: Identity Governance
+page_type: how-to
 ---
 
-{/* lint disable page-structure remark-lint */}
+The web UI's **Custom Form** creates an Access List by directly assigning
+existing roles to members and owners. Unlike the guided flows
+([Standing](./standing-access-list.mdx) and
+[Just-in-Time](./jit-access-list.mdx)), it does not generate roles for you —
+you pick from roles that already exist in the cluster.
 
-A custom Access List directly assigns existing roles to members and owners.
-Unlike [Standing](./standing-access-list.mdx) and
-[Just-in-Time](./jit-access-list.mdx) Access Lists, it does not generate
-supporting roles for you — you pick from roles that already exist in your
-cluster.
-
-This guide will help you:
+In this guide, you will:
 
 - Decide when to use existing roles in an Access List
 - Create an Access List using the Teleport Web UI, `tctl`, or Terraform
 - Verify that members get access on login
+
+{/* lint ignore page-structure remark-lint */}
 
 ## When to use a custom Access List
 

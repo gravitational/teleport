@@ -6,12 +6,16 @@ tags:
  - platform-wide
  - resiliency
 enterprise: Certificate Authority Overrides
+page_type: how-to
 ---
 
 Certificate Authority Overrides let a cluster administrator override a
 self-signed Teleport CA certificate with a certificate signed by an external
 certificate authority. In practice, that Teleport CA becomes a subordinate CA in
 an external trust chain.
+
+In this guide, you will complete a Certificate Authority Override in your
+Teleport cluster.
 
 <Admonition type="info">
 Certificate Authority Overrides are currently in active development. The

@@ -5,6 +5,7 @@ keywords: [user,display name,idp,sso,scim]
 tags:
  - reference
  - zero-trust
+page_type: conceptual
 ---
 
 A *display name* is a human-readable name that Teleport derives for a user at
@@ -13,6 +14,8 @@ attributes or a local user's traits.
 Display names are presentation only: the Teleport **username** remains the
 stable identifier and is always shown alongside the display name, so a user is
 never shown by a name alone.
+
+This page describes how Teleport determines which user display name to render.
 
 ## How Teleport derives a display name
 
