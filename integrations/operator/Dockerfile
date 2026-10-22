@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
+ARG BASE_IMAGE=gcr.io/distroless/cc-debian13
 
 # BUILDPLATFORM is provided by Docker/buildx
 FROM --platform=$BUILDPLATFORM docker.io/debian:12 AS builder

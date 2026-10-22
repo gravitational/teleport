@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=gcr.io/distroless/static-debian12
+ARG BASE_IMAGE=gcr.io/distroless/static-debian13
 
 FROM golang:bookworm AS builder
 

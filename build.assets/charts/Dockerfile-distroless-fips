@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
+ARG BASE_IMAGE=gcr.io/distroless/cc-debian13
 
 FROM debian:12 AS staging
 RUN apt-get update
