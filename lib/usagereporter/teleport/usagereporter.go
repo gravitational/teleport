@@ -74,8 +74,9 @@ const (
 // UsageReporter is a service that accepts Teleport usage events.
 type UsageReporter interface {
 	// AnonymizeAndSubmit submits a usage event. The payload will be
-	// anonymized by the reporter implementation.
-	AnonymizeAndSubmit(event ...Anonymizable)
+	// anonymized by the reporter implementation. Callers pass the request
+	// context, or the service context for background events.
+	AnonymizeAndSubmit(ctx context.Context, event ...Anonymizable)
 }
 
 // GracefulStopper is a UsageReporter that needs to do some work before
@@ -107,7 +108,7 @@ type StreamingUsageReporter struct {
 
 var _ UsageReporter = (*StreamingUsageReporter)(nil)
 
-func (t *StreamingUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
+func (t *StreamingUsageReporter) AnonymizeAndSubmit(_ context.Context, events ...Anonymizable) {
 	for _, e := range events {
 		req := e.Anonymize(t.anonymizer)
 		req.Timestamp = timestamppb.New(t.clock.Now())
@@ -216,12 +217,12 @@ type DiscardUsageReporter struct{}
 var _ UsageReporter = DiscardUsageReporter{}
 
 // AnonymizeAndSubmit implements [UsageReporter]
-func (DiscardUsageReporter) AnonymizeAndSubmit(...Anonymizable) {
+func (DiscardUsageReporter) AnonymizeAndSubmit(context.Context, ...Anonymizable) {
 	// do nothing
 }
 
 // EmitEditorChangeEvent emits an editor change event if the editor role was added or removed.
-func EmitEditorChangeEvent(username string, prevRoles, newRoles []string, submit func(...Anonymizable)) {
+func EmitEditorChangeEvent(ctx context.Context, username string, prevRoles, newRoles []string, submit func(context.Context, ...Anonymizable)) {
 	prevEditor := slices.Contains(prevRoles, teleport.PresetEditorRoleName)
 	newEditor := slices.Contains(newRoles, teleport.PresetEditorRoleName)
 
@@ -235,7 +236,7 @@ func EmitEditorChangeEvent(username string, prevRoles, newRoles []string, submit
 		eventType = prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED
 	}
 
-	submit(&EditorChangeEvent{
+	submit(ctx, &EditorChangeEvent{
 		UserName: username,
 		Status:   eventType,
 	})

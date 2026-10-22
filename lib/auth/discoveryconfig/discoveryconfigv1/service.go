@@ -230,7 +230,7 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		s.log.WarnContext(ctx, "Failed to emit discovery config create event.", "error", err)
 	}
 
-	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
+	s.emitUsageEvent(ctx, resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
 
 	return conv.ToProto(resp), nil
 }
@@ -282,7 +282,7 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		s.log.WarnContext(ctx, "Failed to emit discovery config update event.", "error", err)
 	}
 
-	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_UPDATE)
+	s.emitUsageEvent(ctx, resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_UPDATE)
 
 	return conv.ToProto(resp), nil
 }
@@ -331,7 +331,7 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		s.log.WarnContext(ctx, "Failed to emit discovery config create event.", "error", err)
 	}
 
-	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
+	s.emitUsageEvent(ctx, resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
 
 	return conv.ToProto(resp), nil
 }
@@ -374,7 +374,7 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	}
 
 	if dc != nil {
-		s.emitUsageEvent(dc, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_DELETE)
+		s.emitUsageEvent(ctx, dc, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_DELETE)
 	}
 
 	return &emptypb.Empty{}, nil
@@ -443,7 +443,7 @@ func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discover
 }
 
 // emitUsageEvent emits a DiscoveryConfigEvent usage event.
-func (s *Service) emitUsageEvent(dc *discoveryconfig.DiscoveryConfig, action prehogv1a.DiscoveryConfigAction) {
+func (s *Service) emitUsageEvent(ctx context.Context, dc *discoveryconfig.DiscoveryConfig, action prehogv1a.DiscoveryConfigAction) {
 	resourceTypes, cloudProviders := extractDiscoveryConfigMetadata(dc)
 
 	creationMethod := CreationMethodGuided
@@ -451,7 +451,7 @@ func (s *Service) emitUsageEvent(dc *discoveryconfig.DiscoveryConfig, action pre
 		creationMethod = CreationMethodIAC
 	}
 
-	s.usageReporter.AnonymizeAndSubmit(&usagereporter.DiscoveryConfigEvent{
+	s.usageReporter.AnonymizeAndSubmit(ctx, &usagereporter.DiscoveryConfigEvent{
 		Action:              action,
 		DiscoveryConfigName: dc.GetName(),
 		ResourceTypes:       resourceTypes,

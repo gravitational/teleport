@@ -41,7 +41,7 @@ func (a *Server) GenerateExternalAuditStorageOIDCToken(ctx context.Context, inte
 		return "", trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ExternalAuditStorageAuthenticateEvent{})
+	a.AnonymizeAndSubmit(ctx, &usagereporter.ExternalAuditStorageAuthenticateEvent{})
 
 	return token, nil
 }

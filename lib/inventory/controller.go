@@ -1382,7 +1382,7 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m *proto.Upstre
 		svcs = append(svcs, strings.ToLower(svc))
 	}
 
-	c.usageReporter.AnonymizeAndSubmit(&usagereporter.AgentMetadataEvent{
+	c.usageReporter.AnonymizeAndSubmit(c.closeContext, &usagereporter.AgentMetadataEvent{
 		Version:               handle.Hello().Version,
 		HostId:                handle.Hello().ServerID,
 		Services:              svcs,

@@ -184,7 +184,7 @@ func (r *Reporter) GracefulStop(ctx context.Context) error {
 }
 
 // AnonymizeAndSubmit implements [usagereporter.UsageReporter].
-func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
+func (r *Reporter) AnonymizeAndSubmit(_ context.Context, events ...usagereporter.Anonymizable) {
 	filtered := events[:0]
 	for _, event := range events {
 		// this should drop all events that we don't care about

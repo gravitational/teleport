@@ -69,7 +69,7 @@ func (a *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 		a.logger.WarnContext(ctx, "Failed to emit user update event", "error", err)
 	}
 
-	usagereporter.EmitEditorChangeEvent(new.GetName(), existing.GetRoles(), new.GetRoles(), a.AnonymizeAndSubmit)
+	usagereporter.EmitEditorChangeEvent(ctx, new.GetName(), existing.GetRoles(), new.GetRoles(), a.AnonymizeAndSubmit)
 
 	return nil
 }

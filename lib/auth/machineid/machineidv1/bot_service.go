@@ -405,7 +405,7 @@ func (bs *BotService) CreateBot(
 	// TODO(strideynet): the usage event carries no scope, so this reports the
 	// unscoped name even for a scoped bot. The unscoped form cannot fail.
 	botUserName, _ := services.BotResourceName(apiscopes.QualifiedName{Name: bot.GetMetadata().GetName()})
-	bs.reporter.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
+	bs.reporter.AnonymizeAndSubmit(ctx, &usagereporter.BotCreateEvent{
 		UserName:    authz.ClientUsername(ctx),
 		BotUserName: botUserName,
 		RoleName:    botUserName,
@@ -640,7 +640,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	// TODO(strideynet): the usage event carries no scope, so this reports the
 	// unscoped name even for a scoped bot. The unscoped form cannot fail.
 	botUserName, _ := services.BotResourceName(apiscopes.QualifiedName{Name: bot.GetMetadata().GetName()})
-	bs.reporter.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
+	bs.reporter.AnonymizeAndSubmit(ctx, &usagereporter.BotCreateEvent{
 		UserName:    authz.ClientUsername(ctx),
 		BotUserName: botUserName,
 		RoleName:    botUserName,

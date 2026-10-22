@@ -328,7 +328,7 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		s.logger.WarnContext(ctx, "Failed to emit user create event", "error", err)
 	}
 
-	usagereporter.EmitEditorChangeEvent(created.GetName(), nil, created.GetRoles(), s.reporter.AnonymizeAndSubmit)
+	usagereporter.EmitEditorChangeEvent(ctx, created.GetName(), nil, created.GetRoles(), s.reporter.AnonymizeAndSubmit)
 
 	v2, ok := created.(*types.UserV2)
 	if !ok {
@@ -418,7 +418,7 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 	}
 
 	if !omitEditorEvent {
-		usagereporter.EmitEditorChangeEvent(updated.GetName(), prevUser.GetRoles(), updated.GetRoles(), s.reporter.AnonymizeAndSubmit)
+		usagereporter.EmitEditorChangeEvent(ctx, updated.GetName(), prevUser.GetRoles(), updated.GetRoles(), s.reporter.AnonymizeAndSubmit)
 	}
 
 	v2, ok := updated.(*types.UserV2)
@@ -512,7 +512,7 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 	}
 
 	if !omitEditorEvent {
-		usagereporter.EmitEditorChangeEvent(upserted.GetName(), prevUser.GetRoles(), upserted.GetRoles(), s.reporter.AnonymizeAndSubmit)
+		usagereporter.EmitEditorChangeEvent(ctx, upserted.GetName(), prevUser.GetRoles(), upserted.GetRoles(), s.reporter.AnonymizeAndSubmit)
 	}
 
 	v2, ok := upserted.(*types.UserV2)
@@ -588,7 +588,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 	}
 
 	if !omitEditorEvent {
-		usagereporter.EmitEditorChangeEvent(req.Name, prevUser.GetRoles(), nil, s.reporter.AnonymizeAndSubmit)
+		usagereporter.EmitEditorChangeEvent(ctx, req.Name, prevUser.GetRoles(), nil, s.reporter.AnonymizeAndSubmit)
 	}
 
 	return &emptypb.Empty{}, nil
