@@ -1583,7 +1583,7 @@ func (s *Server) startAzureServerDiscovery() {
 		s.Log.ErrorContext(s.ctx, "Failed to initialize nodeWatcher", "error", err)
 		return
 	}
-	backoff, err := newInstallerBackoff(s.PollInterval*2, retryutils.SeventhJitter)
+	backoff, err := newAzureInstallerBackoff(s.PollInterval*2, retryutils.SeventhJitter)
 	if err != nil {
 		s.Log.ErrorContext(s.ctx, "Failed to initialize installer backoff (this is a bug)", "error", err)
 		return
@@ -1762,9 +1762,9 @@ func (s *Server) reconcileAzureServers(instances *server.AzureInstances) (discov
 	return status, nil
 }
 
-func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks, status discoveryGroupStatus, backoff *installerBackoff, sem *semaphore.Weighted) discoveryGroupStatus {
+func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks, status discoveryGroupStatus, backoff *azureInstallerBackoff, sem *semaphore.Weighted) discoveryGroupStatus {
 	log := s.Log.With("group", instances)
-	addFailedAzureEnrollment := func(entry installerBackoffEntry, syncTime time.Time) {
+	addFailedAzureEnrollment := func(entry installerBackoffEntry[*azure.VirtualMachine], syncTime time.Time) {
 		// Static matchers don't have a discovery config resource, so skip creating user tasks
 		// because validation requires a discovery config name.
 		if instances.Metadata.DiscoveryConfigName == noDiscoveryConfig {
@@ -1787,9 +1787,9 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 				region:         instances.Metadata.Region,
 			},
 			&usertasksv1.DiscoverAzureVMInstance{
-				VmId:            entry.vm.VMID,
-				ResourceId:      entry.vm.ID,
-				Name:            entry.vm.Name,
+				VmId:            entry.target.VMID,
+				ResourceId:      entry.target.ID,
+				Name:            entry.target.Name,
 				DiscoveryConfig: instances.Metadata.DiscoveryConfigName,
 				DiscoveryGroup:  s.DiscoveryGroup,
 				SyncTime:        timestamppb.New(syncTime),
