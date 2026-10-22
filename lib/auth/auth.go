@@ -3168,6 +3168,16 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	// TODO(greedy52) if GenerateUserTestCertsWithContext needs to skip
+	// encryption key registration, add ExistingEncryptionKeyID to
+	// GenerateUserTestCertsRequest similar to SessionCertsRequest.
+	if len(req.EncryptionPublicKey) > 0 {
+		if err := a.registerUserSessionEncryptionKey(ctx, req.Username, req.EncryptionPublicKey, certs.TLS); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
 	return certs.SSH, certs.TLS, nil
 }
 

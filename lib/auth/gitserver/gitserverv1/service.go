@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -40,6 +41,10 @@ type Backend interface {
 
 	// GetIntegration returns the specified integration resources.
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+
+	// GetUserExternalCredentials returns the user external credentials
+	// session for the given encryption key ID.
+	GetUserExternalCredentials(ctx context.Context, keyID *usercredpb.EncryptionKeyID) (*usercredpb.UserExternalCredentials, error)
 }
 
 // GitHubAuthRequestCreator creates a new auth request for GitHub OAuth2 flow.

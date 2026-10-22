@@ -801,6 +801,10 @@ type SessionCertsRequest struct {
 	LoginIP                 string
 	Scope                   string
 	EncryptionPublicKey     []byte
+
+	// ExistingEncryptionKeyID is set to carry an existing encryption key ID for
+	// the new certs. If non-empty, EncryptionPublicKey is ignored.
+	ExistingEncryptionKeyID string
 }
 
 // CreateSessionCerts returns new user certs. The user must already be
@@ -812,6 +816,11 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 	checker, err := a.AccessCheckerForScope(ctx, req.Scope, req.UserState, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
+	}
+
+	encryptionKeyID := req.ExistingEncryptionKeyID
+	if encryptionKeyID == "" {
+		encryptionKeyID = services.MakeUserEncryptionKeyID(req.EncryptionPublicKey)
 	}
 
 	certs, err := a.GenerateUserCerts(ctx, cert.Request{
@@ -827,13 +836,13 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		RouteToCluster:                   req.RouteToCluster,
 		KubernetesCluster:                req.KubernetesCluster,
 		LoginIP:                          req.LoginIP,
-		EncryptionKeyID:                  services.MakeUserEncryptionKeyID(req.EncryptionPublicKey),
+		EncryptionKeyID:                  encryptionKeyID,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	if len(req.EncryptionPublicKey) > 0 {
+	if req.ExistingEncryptionKeyID == "" && len(req.EncryptionPublicKey) > 0 {
 		if err := a.registerUserSessionEncryptionKey(ctx, req.UserState.GetName(), req.EncryptionPublicKey, certs.TLS); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

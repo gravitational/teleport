@@ -26,8 +26,10 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitHubAuthRequestRequest) (*types.GithubAuthRequest, error) {
@@ -50,6 +52,10 @@ func (s *Service) createGitHubAuthRequestForUser(ctx context.Context, in *pb.Cre
 
 	authCtx, gitServer, err := s.authAndFindServer(ctx, in.GetRequest().ConnectorID, in.GetOrganization())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.checkAndResolveEncryptionPublicKey(ctx, authCtx, in.GetRequest()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -145,6 +151,29 @@ func (s *Service) authAndFindServer(ctx context.Context, name, org string) (*aut
 		return nil, nil, trace.BadParameter("git server %q is not for organization %q", name, org)
 	}
 	return authCtx, server, nil
+}
+
+// checkAndResolveEncryptionPublicKey ensures the right encryption public key is
+// set in the request.
+func (s *Service) checkAndResolveEncryptionPublicKey(ctx context.Context, authCtx *authz.Context, req *types.GithubAuthRequest) error {
+	identityKeyID := authCtx.Identity.GetIdentity().EncryptionKeyID
+	if identityKeyID == "" || len(req.EncryptionPublicKey) != 0 {
+		if services.MakeUserEncryptionKeyID(req.EncryptionPublicKey) != identityKeyID {
+			return trace.AccessDenied("encryption public key does not match the caller's session")
+		}
+		// Match or both empty.
+		return nil
+	}
+
+	session, err := s.cfg.Backend.GetUserExternalCredentials(ctx, usercredpb.EncryptionKeyID_builder{
+		User:  authCtx.User.GetName(),
+		KeyId: identityKeyID,
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err, "loading session encryption key")
+	}
+	req.EncryptionPublicKey = session.GetSpec().GetEncryptionPublicKey()
+	return nil
 }
 
 func (s *Service) authAndFindServerByOrg(ctx context.Context, org string) (*authz.Context, types.Server, error) {

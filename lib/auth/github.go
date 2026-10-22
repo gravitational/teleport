@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
+	"github.com/gravitational/teleport/lib/auth/userexternalcredentials"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -509,7 +510,8 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 
 func (a *Server) getGithubConnector(ctx context.Context, request types.GithubAuthRequest) (types.GithubConnector, error) {
 	if request.AuthenticatedUser != "" {
-		return a.githubConnectorFromIntegration(ctx, request)
+		connector, _, err := a.githubConnectorFromIntegration(ctx, request)
+		return connector, trace.Wrap(err)
 	}
 
 	if request.SSOTestFlow {
@@ -543,7 +545,7 @@ func (a *Server) getGithubConnector(ctx context.Context, request types.GithubAut
 	return connector, nil
 }
 
-func (a *Server) githubConnectorFromIntegration(ctx context.Context, request types.GithubAuthRequest) (types.GithubConnector, error) {
+func (a *Server) githubConnectorFromIntegration(ctx context.Context, request types.GithubAuthRequest) (types.GithubConnector, types.Integration, error) {
 	if request.Integration == "" {
 		// For backward compatibility where an old auth node created the request
 		// with ConnectorSpec instead of Integration.
@@ -552,31 +554,32 @@ func (a *Server) githubConnectorFromIntegration(ctx context.Context, request typ
 		// integration is created, so the license check is skipped here.
 		// TODO(greedy52) DELETE IN v20
 		if request.ConnectorSpec != nil {
-			return services.NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
+			connector, err := services.NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
+			return connector, nil, trace.Wrap(err)
 		}
-		return nil, trace.BadParameter("integration name is required for authenticated user flow")
+		return nil, nil, trace.BadParameter("integration name is required for authenticated user flow")
 	}
 
 	ig, ref, err := credentials.GetIntegrationWithCredRef(ctx, request.Integration, a.Cache)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	spec := ig.GetGitHubIntegrationSpec()
 	if spec == nil {
-		return nil, trace.BadParameter("integration %q is not a GitHub integration", request.Integration)
+		return nil, nil, trace.BadParameter("integration %q is not a GitHub integration", request.Integration)
 	}
 	// This is checked when the integration is created or updated, but check
 	// again in case the organization enabled external SSO afterwards.
 	if err := a.checkGitHubIntegrationLicense(ctx, spec); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	cred, err := credentials.GetByPurpose(ctx, ref, credentials.PurposeGitHubOAuth, a.Cache)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	clientID, clientSecret := cred.GetOAuthClientSecret()
 	if clientID == "" || clientSecret == "" {
-		return nil, trace.BadParameter("no OAuth client ID or secret found for integration %q", request.Integration)
+		return nil, nil, trace.BadParameter("no OAuth client ID or secret found for integration %q", request.Integration)
 	}
 
 	redirectURL := fmt.Sprintf("https://%s/v1/webapi/github/callback", a.getProxyPublicAddr(ctx))
@@ -587,11 +590,11 @@ func (a *Server) githubConnectorFromIntegration(ctx context.Context, request typ
 	// Without a client redirect, the flow is started from the web UI and
 	// requires the authenticated callback to display the result.
 	if request.ClientRedirectURL == "" && !strings.HasSuffix(redirectURL, types.IntegrationGitHubOAuthCallbackPath) {
-		return nil, trace.BadParameter("integration %q uses the legacy OAuth callback URL, contact your Teleport administrator to migrate it", request.Integration)
+		return nil, nil, trace.BadParameter("integration %q uses the legacy OAuth callback URL, contact your Teleport administrator to migrate it", request.Integration)
 	}
 
 	connectorID := cmp.Or(request.ConnectorID, request.Integration)
-	return services.NewGithubConnector(connectorID, types.GithubConnectorSpecV3{
+	connector, err := services.NewGithubConnector(connectorID, types.GithubConnectorSpecV3{
 		ClientID:       clientID,
 		ClientSecret:   clientSecret,
 		RedirectURL:    redirectURL,
@@ -606,6 +609,7 @@ func (a *Server) githubConnectorFromIntegration(ctx context.Context, request typ
 			Roles:        []string{connectorID},
 		}},
 	})
+	return connector, ig, trace.Wrap(err)
 }
 
 func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
@@ -795,6 +799,15 @@ func (a *Server) makeGithubAuthResponse(
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.SshPublicKey) != 0 || len(req.TlsPublicKey) != 0 {
+		// Register EncryptionPubicKey for sso logins or set
+		// ExistingEncryptionKeyID for Authenticated user.
+		encryptionPubicKey := req.EncryptionPublicKey
+		existingEncryptionKeyID := ""
+		if req.AuthenticatedUser != "" && len(encryptionPubicKey) != 0 {
+			existingEncryptionKeyID = services.MakeUserEncryptionKeyID(req.EncryptionPublicKey)
+			encryptionPubicKey = nil
+		}
+
 		sshCert, tlsCert, err := a.CreateSessionCerts(ctx, &SessionCertsRequest{
 			UserState:               userState,
 			SessionTTL:              sessionTTL,
@@ -807,7 +820,8 @@ func (a *Server) makeGithubAuthResponse(
 			KubernetesCluster:       req.KubernetesCluster,
 			LoginIP:                 req.ClientLoginIP,
 			Scope:                   req.Scope,
-			EncryptionPublicKey:     req.EncryptionPublicKey,
+			EncryptionPublicKey:     encryptionPubicKey,
+			ExistingEncryptionKeyID: existingEncryptionKeyID,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
@@ -850,6 +864,15 @@ func (a *Server) getGitHubAPIClient(
 ) (*githubAPIClient, error) {
 	config := newGithubOAuth2Config(connector)
 
+	if a.upstreamTransport != nil { // go tests only
+		httpClient, err := defaults.HTTPClient()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		httpClient.Transport = a.upstreamTransport
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, httpClient)
+	}
+
 	// exchange the authorization code received by the callback for an access token
 	token, err := config.Exchange(ctx, code)
 	if err != nil {
@@ -877,6 +900,7 @@ func (a *Server) getGitHubAPIClient(
 	}
 	return &githubAPIClient{
 		token:       token.AccessToken,
+		oauthToken:  token,
 		authServer:  a,
 		apiEndpoint: apiEndpoint,
 	}, nil
@@ -964,10 +988,16 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 	diagCtx *SSODiagContext,
 	logger *slog.Logger,
 ) (*authclient.GithubAuthResponse, error) {
-	connector, err := a.githubConnectorFromIntegration(ctx, *req)
+	connector, integration, err := a.githubConnectorFromIntegration(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	ghClient, err := a.getGitHubAPIClient(ctx, connector, code, diagCtx, logger)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	oauthToken := ghClient.oauthToken
 
 	var githubUser *GithubUserResponse
 	if a.GithubUserAndTeamsOverride != nil { // tests only
@@ -977,10 +1007,6 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 		}
 		githubUser = user
 	} else {
-		ghClient, err := a.getGitHubAPIClient(ctx, connector, code, diagCtx, logger)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		githubUser, err = ghClient.getUser()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1018,7 +1044,35 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 		return nil, trace.Wrap(err)
 	}
 
-	return a.makeGithubAuthResponse(ctx, req, userState, githubUser, req.CertTTL)
+	resp, err := a.makeGithubAuthResponse(ctx, req, userState, githubUser, req.CertTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.saveGitHubUserExternalCredentialForHTTPS(ctx, req.AuthenticatedUser, req.ConnectorID, integration, oauthToken); err != nil {
+		return nil, trace.Wrap(err, "saving GitHub credentials")
+	}
+	return resp, nil
+}
+
+func (a *Server) saveGitHubUserExternalCredentialForHTTPS(ctx context.Context, username, gitServerName string, integration types.Integration, token *oauth2.Token) error {
+	// ConnectorSpec from old Auth predates HTTPS support.
+	// TODO(greedy52) DELETE IN v20
+	if integration == nil {
+		return nil
+	}
+	if !types.IsGitProtocolAllowed(integration.GetGitHubIntegrationSpec().AllowProtocols, types.GitProtocolHTTPS) {
+		return nil
+	}
+	if token.Expiry.IsZero() {
+		return trace.BadParameter("GitHub App token does not expire. Please contact your Teleport administrator to opt-in \"User-to-server token expiration\" feature on the Github App.")
+	}
+
+	authEncrypted, err := userexternalcredentials.MakeAuthEncryptedOAuthCredential(ctx, a.credentialEncryptor, username, types.KindGitServer, gitServerName, token)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(userexternalcredentials.Distribute(ctx, a.Services.UserExternalCredentials, username, authEncrypted))
 }
 
 // buildAPIEndpoint takes a URL of a GitHub API endpoint and returns only
@@ -1209,6 +1263,8 @@ func populateGithubClaims(user *GithubUserResponse, teams []GithubTeamResponse) 
 type githubAPIClient struct {
 	// token is the access token retrieved during OAuth2 flow
 	token string
+	// oauthToken is the full OAuth2 token retrieved during the OAuth2 flow.
+	oauthToken *oauth2.Token
 	// authServer points to the Auth Server.
 	authServer *Server
 	// apiEndpoint is the API endpoint of the Github instance
