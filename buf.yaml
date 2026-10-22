@@ -106,6 +106,8 @@ breaking:
     # "teleport/scopes" is transitively imported by the "proto/" module, so we
     # need an explicit ignore path. Could be replaced by --exclude-imports in CI.
     - proto/teleport/scopes
+    # TODO(gabrielcorado): Remove ignore once the new LLM API is stable.
+    - api/proto/teleport/llm/v1
 
 plugins:
   - plugin:

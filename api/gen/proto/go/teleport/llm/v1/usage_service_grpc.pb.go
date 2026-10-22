@@ -25,7 +25,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -46,9 +45,9 @@ const (
 // UsageService is the service used to control LLM usage using quotas.
 type UsageServiceClient interface {
 	// ReportUsage reports an amount of tokens used for an LLM endpoint.
-	ReportUsage(ctx context.Context, in *ReportUsageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ReportUsage(ctx context.Context, in *ReportUsageRequest, opts ...grpc.CallOption) (*ReportUsageResponse, error)
 	// GetLLMEndpointQuota returns the specified LLMEndpointQuota.
-	GetLLMEndpointQuota(ctx context.Context, in *GetLLMEndpointQuotaRequest, opts ...grpc.CallOption) (*LLMEndpointQuota, error)
+	GetLLMEndpointQuota(ctx context.Context, in *GetLLMEndpointQuotaRequest, opts ...grpc.CallOption) (*GetLLMEndpointQuotaResponse, error)
 	// ListLLMEndpointQuotas lists LLMEndpointQuota resources.
 	ListLLMEndpointQuotas(ctx context.Context, in *ListLLMEndpointQuotasRequest, opts ...grpc.CallOption) (*ListLLMEndpointQuotasResponse, error)
 }
@@ -61,9 +60,9 @@ func NewUsageServiceClient(cc grpc.ClientConnInterface) UsageServiceClient {
 	return &usageServiceClient{cc}
 }
 
-func (c *usageServiceClient) ReportUsage(ctx context.Context, in *ReportUsageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *usageServiceClient) ReportUsage(ctx context.Context, in *ReportUsageRequest, opts ...grpc.CallOption) (*ReportUsageResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(ReportUsageResponse)
 	err := c.cc.Invoke(ctx, UsageService_ReportUsage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -71,9 +70,9 @@ func (c *usageServiceClient) ReportUsage(ctx context.Context, in *ReportUsageReq
 	return out, nil
 }
 
-func (c *usageServiceClient) GetLLMEndpointQuota(ctx context.Context, in *GetLLMEndpointQuotaRequest, opts ...grpc.CallOption) (*LLMEndpointQuota, error) {
+func (c *usageServiceClient) GetLLMEndpointQuota(ctx context.Context, in *GetLLMEndpointQuotaRequest, opts ...grpc.CallOption) (*GetLLMEndpointQuotaResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(LLMEndpointQuota)
+	out := new(GetLLMEndpointQuotaResponse)
 	err := c.cc.Invoke(ctx, UsageService_GetLLMEndpointQuota_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -98,9 +97,9 @@ func (c *usageServiceClient) ListLLMEndpointQuotas(ctx context.Context, in *List
 // UsageService is the service used to control LLM usage using quotas.
 type UsageServiceServer interface {
 	// ReportUsage reports an amount of tokens used for an LLM endpoint.
-	ReportUsage(context.Context, *ReportUsageRequest) (*emptypb.Empty, error)
+	ReportUsage(context.Context, *ReportUsageRequest) (*ReportUsageResponse, error)
 	// GetLLMEndpointQuota returns the specified LLMEndpointQuota.
-	GetLLMEndpointQuota(context.Context, *GetLLMEndpointQuotaRequest) (*LLMEndpointQuota, error)
+	GetLLMEndpointQuota(context.Context, *GetLLMEndpointQuotaRequest) (*GetLLMEndpointQuotaResponse, error)
 	// ListLLMEndpointQuotas lists LLMEndpointQuota resources.
 	ListLLMEndpointQuotas(context.Context, *ListLLMEndpointQuotasRequest) (*ListLLMEndpointQuotasResponse, error)
 	mustEmbedUnimplementedUsageServiceServer()
@@ -113,10 +112,10 @@ type UsageServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedUsageServiceServer struct{}
 
-func (UnimplementedUsageServiceServer) ReportUsage(context.Context, *ReportUsageRequest) (*emptypb.Empty, error) {
+func (UnimplementedUsageServiceServer) ReportUsage(context.Context, *ReportUsageRequest) (*ReportUsageResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReportUsage not implemented")
 }
-func (UnimplementedUsageServiceServer) GetLLMEndpointQuota(context.Context, *GetLLMEndpointQuotaRequest) (*LLMEndpointQuota, error) {
+func (UnimplementedUsageServiceServer) GetLLMEndpointQuota(context.Context, *GetLLMEndpointQuotaRequest) (*GetLLMEndpointQuotaResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLLMEndpointQuota not implemented")
 }
 func (UnimplementedUsageServiceServer) ListLLMEndpointQuotas(context.Context, *ListLLMEndpointQuotasRequest) (*ListLLMEndpointQuotasResponse, error) {

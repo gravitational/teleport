@@ -256,7 +256,6 @@ func (b0 LLMEndpointQuotaSpec_builder) Build() *LLMEndpointQuotaSpec {
 type LLMEndpointQuotaStatus struct {
 	state                    protoimpl.MessageState            `protogen:"opaque.v1"`
 	xxx_hidden_ActiveWindows *[]*LLMEndpointQuotaStatus_Window `protobuf:"bytes,1,rep,name=active_windows,json=activeWindows,proto3"`
-	xxx_hidden_Acks          *[]*LLMEndpointQuotaStatus_Ack    `protobuf:"bytes,2,rep,name=acks,proto3"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -295,21 +294,8 @@ func (x *LLMEndpointQuotaStatus) GetActiveWindows() []*LLMEndpointQuotaStatus_Wi
 	return nil
 }
 
-func (x *LLMEndpointQuotaStatus) GetAcks() []*LLMEndpointQuotaStatus_Ack {
-	if x != nil {
-		if x.xxx_hidden_Acks != nil {
-			return *x.xxx_hidden_Acks
-		}
-	}
-	return nil
-}
-
 func (x *LLMEndpointQuotaStatus) SetActiveWindows(v []*LLMEndpointQuotaStatus_Window) {
 	x.xxx_hidden_ActiveWindows = &v
-}
-
-func (x *LLMEndpointQuotaStatus) SetAcks(v []*LLMEndpointQuotaStatus_Ack) {
-	x.xxx_hidden_Acks = &v
 }
 
 type LLMEndpointQuotaStatus_builder struct {
@@ -317,8 +303,6 @@ type LLMEndpointQuotaStatus_builder struct {
 
 	// List of current active windows.
 	ActiveWindows []*LLMEndpointQuotaStatus_Window
-	// List of consumption reports acknowledged.
-	Acks []*LLMEndpointQuotaStatus_Ack
 }
 
 func (b0 LLMEndpointQuotaStatus_builder) Build() *LLMEndpointQuotaStatus {
@@ -326,17 +310,17 @@ func (b0 LLMEndpointQuotaStatus_builder) Build() *LLMEndpointQuotaStatus {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_ActiveWindows = &b.ActiveWindows
-	x.xxx_hidden_Acks = &b.Acks
 	return m0
 }
 
 // Window is a time window where tokens are consumed.
 type LLMEndpointQuotaStatus_Window struct {
 	state                   protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_StartsAt     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=starts_at,json=startsAt,proto3"`
-	xxx_hidden_EndsAt       *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=ends_at,json=endsAt,proto3"`
-	xxx_hidden_InputTokens  uint64                 `protobuf:"varint,3,opt,name=input_tokens,json=inputTokens,proto3"`
-	xxx_hidden_OutputTokens uint64                 `protobuf:"varint,4,opt,name=output_tokens,json=outputTokens,proto3"`
+	xxx_hidden_IntervalName string                 `protobuf:"bytes,1,opt,name=interval_name,json=intervalName,proto3"`
+	xxx_hidden_StartsAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=starts_at,json=startsAt,proto3"`
+	xxx_hidden_EndsAt       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=ends_at,json=endsAt,proto3"`
+	xxx_hidden_InputTokens  uint64                 `protobuf:"varint,4,opt,name=input_tokens,json=inputTokens,proto3"`
+	xxx_hidden_OutputTokens uint64                 `protobuf:"varint,5,opt,name=output_tokens,json=outputTokens,proto3"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -366,6 +350,13 @@ func (x *LLMEndpointQuotaStatus_Window) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+func (x *LLMEndpointQuotaStatus_Window) GetIntervalName() string {
+	if x != nil {
+		return x.xxx_hidden_IntervalName
+	}
+	return ""
+}
+
 func (x *LLMEndpointQuotaStatus_Window) GetStartsAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.xxx_hidden_StartsAt
@@ -392,6 +383,10 @@ func (x *LLMEndpointQuotaStatus_Window) GetOutputTokens() uint64 {
 		return x.xxx_hidden_OutputTokens
 	}
 	return 0
+}
+
+func (x *LLMEndpointQuotaStatus_Window) SetIntervalName(v string) {
+	x.xxx_hidden_IntervalName = v
 }
 
 func (x *LLMEndpointQuotaStatus_Window) SetStartsAt(v *timestamppb.Timestamp) {
@@ -435,6 +430,10 @@ func (x *LLMEndpointQuotaStatus_Window) ClearEndsAt() {
 type LLMEndpointQuotaStatus_Window_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// Name of the interval type name of this window. For example, "lifetime".
+	//
+	// It must match the supported values from app configuration.
+	IntervalName string
 	// Time when the window started.
 	StartsAt *timestamppb.Timestamp
 	// Time when the window ends.
@@ -449,99 +448,11 @@ func (b0 LLMEndpointQuotaStatus_Window_builder) Build() *LLMEndpointQuotaStatus_
 	m0 := &LLMEndpointQuotaStatus_Window{}
 	b, x := &b0, m0
 	_, _ = b, x
+	x.xxx_hidden_IntervalName = b.IntervalName
 	x.xxx_hidden_StartsAt = b.StartsAt
 	x.xxx_hidden_EndsAt = b.EndsAt
 	x.xxx_hidden_InputTokens = b.InputTokens
 	x.xxx_hidden_OutputTokens = b.OutputTokens
-	return m0
-}
-
-// Ack contains information about the processed consumption reports.
-type LLMEndpointQuotaStatus_Ack struct {
-	state                         protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_HostId             string                 `protobuf:"bytes,1,opt,name=host_id,json=hostId,proto3"`
-	xxx_hidden_InternalReference  string                 `protobuf:"bytes,2,opt,name=internal_reference,json=internalReference,proto3"`
-	xxx_hidden_LastSequenceNumber uint64                 `protobuf:"varint,3,opt,name=last_sequence_number,json=lastSequenceNumber,proto3"`
-	unknownFields                 protoimpl.UnknownFields
-	sizeCache                     protoimpl.SizeCache
-}
-
-func (x *LLMEndpointQuotaStatus_Ack) Reset() {
-	*x = LLMEndpointQuotaStatus_Ack{}
-	mi := &file_teleport_llm_v1_llm_endpoint_quota_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *LLMEndpointQuotaStatus_Ack) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*LLMEndpointQuotaStatus_Ack) ProtoMessage() {}
-
-func (x *LLMEndpointQuotaStatus_Ack) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_llm_v1_llm_endpoint_quota_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *LLMEndpointQuotaStatus_Ack) GetHostId() string {
-	if x != nil {
-		return x.xxx_hidden_HostId
-	}
-	return ""
-}
-
-func (x *LLMEndpointQuotaStatus_Ack) GetInternalReference() string {
-	if x != nil {
-		return x.xxx_hidden_InternalReference
-	}
-	return ""
-}
-
-func (x *LLMEndpointQuotaStatus_Ack) GetLastSequenceNumber() uint64 {
-	if x != nil {
-		return x.xxx_hidden_LastSequenceNumber
-	}
-	return 0
-}
-
-func (x *LLMEndpointQuotaStatus_Ack) SetHostId(v string) {
-	x.xxx_hidden_HostId = v
-}
-
-func (x *LLMEndpointQuotaStatus_Ack) SetInternalReference(v string) {
-	x.xxx_hidden_InternalReference = v
-}
-
-func (x *LLMEndpointQuotaStatus_Ack) SetLastSequenceNumber(v uint64) {
-	x.xxx_hidden_LastSequenceNumber = v
-}
-
-type LLMEndpointQuotaStatus_Ack_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Host ID of the app service.
-	HostId string
-	// App service internal reference.
-	InternalReference string
-	// Sequence number of the last consumption report processed.
-	LastSequenceNumber uint64
-}
-
-func (b0 LLMEndpointQuotaStatus_Ack_builder) Build() *LLMEndpointQuotaStatus_Ack {
-	m0 := &LLMEndpointQuotaStatus_Ack{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.xxx_hidden_HostId = b.HostId
-	x.xxx_hidden_InternalReference = b.InternalReference
-	x.xxx_hidden_LastSequenceNumber = b.LastSequenceNumber
 	return m0
 }
 
@@ -557,43 +468,37 @@ const file_teleport_llm_v1_llm_endpoint_quota_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x129\n" +
 	"\x04spec\x18\x05 \x01(\v2%.teleport.llm.v1.LLMEndpointQuotaSpecR\x04spec\x12?\n" +
 	"\x06status\x18\x06 \x01(\v2'.teleport.llm.v1.LLMEndpointQuotaStatusR\x06status\"\x16\n" +
-	"\x14LLMEndpointQuotaSpec\"\xf2\x03\n" +
+	"\x14LLMEndpointQuotaSpec\"\xd5\x02\n" +
 	"\x16LLMEndpointQuotaStatus\x12U\n" +
-	"\x0eactive_windows\x18\x01 \x03(\v2..teleport.llm.v1.LLMEndpointQuotaStatus.WindowR\ractiveWindows\x12?\n" +
-	"\x04acks\x18\x02 \x03(\v2+.teleport.llm.v1.LLMEndpointQuotaStatus.AckR\x04acks\x1a\xbe\x01\n" +
-	"\x06Window\x127\n" +
-	"\tstarts_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\bstartsAt\x123\n" +
-	"\aends_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06endsAt\x12!\n" +
-	"\finput_tokens\x18\x03 \x01(\x04R\vinputTokens\x12#\n" +
-	"\routput_tokens\x18\x04 \x01(\x04R\foutputTokens\x1a\x7f\n" +
-	"\x03Ack\x12\x17\n" +
-	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12-\n" +
-	"\x12internal_reference\x18\x02 \x01(\tR\x11internalReference\x120\n" +
-	"\x14last_sequence_number\x18\x03 \x01(\x04R\x12lastSequenceNumberBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/llm/v1;llmv1b\x06proto3"
+	"\x0eactive_windows\x18\x01 \x03(\v2..teleport.llm.v1.LLMEndpointQuotaStatus.WindowR\ractiveWindows\x1a\xe3\x01\n" +
+	"\x06Window\x12#\n" +
+	"\rinterval_name\x18\x01 \x01(\tR\fintervalName\x127\n" +
+	"\tstarts_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bstartsAt\x123\n" +
+	"\aends_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x06endsAt\x12!\n" +
+	"\finput_tokens\x18\x04 \x01(\x04R\vinputTokens\x12#\n" +
+	"\routput_tokens\x18\x05 \x01(\x04R\foutputTokensBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/llm/v1;llmv1b\x06proto3"
 
-var file_teleport_llm_v1_llm_endpoint_quota_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_llm_v1_llm_endpoint_quota_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_llm_v1_llm_endpoint_quota_proto_goTypes = []any{
 	(*LLMEndpointQuota)(nil),              // 0: teleport.llm.v1.LLMEndpointQuota
 	(*LLMEndpointQuotaSpec)(nil),          // 1: teleport.llm.v1.LLMEndpointQuotaSpec
 	(*LLMEndpointQuotaStatus)(nil),        // 2: teleport.llm.v1.LLMEndpointQuotaStatus
 	(*LLMEndpointQuotaStatus_Window)(nil), // 3: teleport.llm.v1.LLMEndpointQuotaStatus.Window
-	(*LLMEndpointQuotaStatus_Ack)(nil),    // 4: teleport.llm.v1.LLMEndpointQuotaStatus.Ack
-	(*v1.Metadata)(nil),                   // 5: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),         // 6: google.protobuf.Timestamp
+	(*v1.Metadata)(nil),                   // 4: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),         // 5: google.protobuf.Timestamp
 }
 var file_teleport_llm_v1_llm_endpoint_quota_proto_depIdxs = []int32{
-	5, // 0: teleport.llm.v1.LLMEndpointQuota.metadata:type_name -> teleport.header.v1.Metadata
+	4, // 0: teleport.llm.v1.LLMEndpointQuota.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.llm.v1.LLMEndpointQuota.spec:type_name -> teleport.llm.v1.LLMEndpointQuotaSpec
 	2, // 2: teleport.llm.v1.LLMEndpointQuota.status:type_name -> teleport.llm.v1.LLMEndpointQuotaStatus
 	3, // 3: teleport.llm.v1.LLMEndpointQuotaStatus.active_windows:type_name -> teleport.llm.v1.LLMEndpointQuotaStatus.Window
-	4, // 4: teleport.llm.v1.LLMEndpointQuotaStatus.acks:type_name -> teleport.llm.v1.LLMEndpointQuotaStatus.Ack
-	6, // 5: teleport.llm.v1.LLMEndpointQuotaStatus.Window.starts_at:type_name -> google.protobuf.Timestamp
-	6, // 6: teleport.llm.v1.LLMEndpointQuotaStatus.Window.ends_at:type_name -> google.protobuf.Timestamp
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	5, // 4: teleport.llm.v1.LLMEndpointQuotaStatus.Window.starts_at:type_name -> google.protobuf.Timestamp
+	5, // 5: teleport.llm.v1.LLMEndpointQuotaStatus.Window.ends_at:type_name -> google.protobuf.Timestamp
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_llm_v1_llm_endpoint_quota_proto_init() }
@@ -607,7 +512,7 @@ func file_teleport_llm_v1_llm_endpoint_quota_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_llm_v1_llm_endpoint_quota_proto_rawDesc), len(file_teleport_llm_v1_llm_endpoint_quota_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

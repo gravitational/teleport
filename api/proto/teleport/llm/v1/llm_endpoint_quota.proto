@@ -47,28 +47,20 @@ message LLMEndpointQuotaSpec {}
 message LLMEndpointQuotaStatus {
   // Window is a time window where tokens are consumed.
   message Window {
+    // Name of the interval type name of this window. For example, "lifetime".
+    //
+    // It must match the supported values from app configuration.
+    string interval_name = 1;
     // Time when the window started.
-    google.protobuf.Timestamp starts_at = 1;
+    google.protobuf.Timestamp starts_at = 2;
     // Time when the window ends.
-    google.protobuf.Timestamp ends_at = 2;
+    google.protobuf.Timestamp ends_at = 3;
     // Number of input tokens consumed in the window.
-    uint64 input_tokens = 3;
+    uint64 input_tokens = 4;
     // Number of output tokens consumed in the window.
-    uint64 output_tokens = 4;
-  }
-
-  // Ack contains information about the processed consumption reports.
-  message Ack {
-    // Host ID of the app service.
-    string host_id = 1;
-    // App service internal reference.
-    string internal_reference = 2;
-    // Sequence number of the last consumption report processed.
-    uint64 last_sequence_number = 3;
+    uint64 output_tokens = 5;
   }
 
   // List of current active windows.
   repeated Window active_windows = 1;
-  // List of consumption reports acknowledged.
-  repeated Ack acks = 2;
 }

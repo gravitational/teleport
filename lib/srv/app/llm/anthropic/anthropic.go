@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	llmquota "github.com/gravitational/teleport/lib/llm/quota"
 	"github.com/gravitational/teleport/lib/srv/app/llm/bedrock"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	llmlimiter "github.com/gravitational/teleport/lib/srv/app/llm/limiter"
@@ -156,7 +157,7 @@ func NewRequest(cfg *llmrequest.Config) (*llmrequest.Request, error) {
 	// to rely on making assumptions on the values provided.
 	_, settleFunc, err := cfg.Reserve(cfg.DownstreamRequest.Context(), llmlimiter.ReserveRequest{
 		App: cfg.App,
-		Usage: &llmlimiter.Usage{
+		Usage: &llmquota.Usage{
 			// TODO(gabrielcorado): add reservation for input tokens.
 			OutputTokens: uint(req.MaxTokens),
 		},

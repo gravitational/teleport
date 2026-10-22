@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	llmquota "github.com/gravitational/teleport/lib/llm/quota"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 )
 
@@ -33,7 +34,7 @@ import (
 // implementations like distributed solutions.
 type InMemory struct {
 	mu      sync.Mutex
-	storage map[appKey]Usage
+	storage map[appKey]llmquota.Usage
 
 	inputTokensLimit  uint
 	outputTokensLimit uint
@@ -44,7 +45,7 @@ func NewInMemory(input, output uint) *InMemory {
 	return &InMemory{
 		inputTokensLimit:  input,
 		outputTokensLimit: output,
-		storage:           make(map[appKey]Usage),
+		storage:           make(map[appKey]llmquota.Usage),
 	}
 }
 
@@ -69,7 +70,7 @@ func (i *InMemory) Reserve(ctx context.Context, req ReserveRequest) (ReserveInfo
 	outputLeft := i.outputTokensLimit - curr.OutputTokens
 
 	if req.MaxUsage != nil {
-		req.Usage = &Usage{}
+		req.Usage = &llmquota.Usage{}
 		req.Usage.OutputTokens = min(
 			outputLeft,
 			req.MaxUsage.OutputTokens,
@@ -95,7 +96,7 @@ func (i *InMemory) Reserve(ctx context.Context, req ReserveRequest) (ReserveInfo
 	var settleOnce sync.Once
 
 	// TODO(gabrielcorado): cancel reservations using context.
-	return ReserveInfo{OutputTokens: req.Usage.OutputTokens}, func(ctx context.Context, u Usage) {
+	return ReserveInfo{OutputTokens: req.Usage.OutputTokens}, func(ctx context.Context, u llmquota.Usage) {
 		settleOnce.Do(func() {
 			i.mu.Lock()
 			defer i.mu.Unlock()
@@ -124,7 +125,7 @@ func (i *InMemory) Reserve(ctx context.Context, req ReserveRequest) (ReserveInfo
 }
 
 // Consumption retrieves the current app limit consumption.
-func (i *InMemory) Consumption(app types.Application) Usage {
+func (i *InMemory) Consumption(app types.Application) llmquota.Usage {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.storage[newAppKey(app)]

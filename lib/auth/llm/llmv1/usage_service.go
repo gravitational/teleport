@@ -22,7 +22,6 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -71,13 +70,18 @@ func NewUsageService(cfg UsageServiceConfig) (*UsageService, error) {
 }
 
 // GetLLMEndpointQuota implements [llmv1.UsageServiceServer].
-func (u *UsageService) GetLLMEndpointQuota(ctx context.Context, req *llmv1.GetLLMEndpointQuotaRequest) (*llmv1.LLMEndpointQuota, error) {
+func (u *UsageService) GetLLMEndpointQuota(ctx context.Context, req *llmv1.GetLLMEndpointQuotaRequest) (*llmv1.GetLLMEndpointQuotaResponse, error) {
 	if err := u.authorizeView(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	quota, err := u.cache.GetLLMEndpointQuota(ctx, req.GetName())
-	return quota, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return llmv1.GetLLMEndpointQuotaResponse_builder{
+		Quota: quota,
+	}.Build(), trace.Wrap(err)
 }
 
 // ListLLMEndpointQuotas implements [llmv1.UsageServiceServer].
@@ -103,7 +107,7 @@ func (u *UsageService) ListLLMEndpointQuotas(ctx context.Context, req *llmv1.Lis
 }
 
 // ReportUsage implements [llmv1.UsageServiceServer].
-func (u *UsageService) ReportUsage(ctx context.Context, _ *llmv1.ReportUsageRequest) (*emptypb.Empty, error) {
+func (u *UsageService) ReportUsage(ctx context.Context, _ *llmv1.ReportUsageRequest) (*llmv1.ReportUsageResponse, error) {
 	if _, err := u.authorizeReport(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	llmquota "github.com/gravitational/teleport/lib/llm/quota"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/app/llm/anthropic"
@@ -388,7 +389,7 @@ func (h *Handler) handleRequest(
 			resp.OutputTokenCount = rec.OutputTokensCount()
 		}
 		if settleFunc != nil {
-			settleFunc(h.closeContext, llmlimiter.Usage{
+			settleFunc(h.closeContext, llmquota.Usage{
 				InputTokens:  uint(resp.InputTokenCount),
 				OutputTokens: uint(resp.OutputTokenCount),
 			})

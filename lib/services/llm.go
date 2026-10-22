@@ -37,7 +37,7 @@ type LLMEndpointQuotaGetter interface {
 // LLMUsageReporter defines interface used to report LLM usage.
 type LLMUsageReporter interface {
 	// ReportUsage reports an amount of LLM tokens consumed.
-	ReportUsage(ctx context.Context, usages []*llmv1.ReportUsageRequest_Usage) error
+	ReportUsage(ctx context.Context, usages []*llmv1.EndpointUsage) (*llmv1.ReportUsageResponse, error)
 }
 
 // LLMEndpointQuotaService defines interface to manage LLM endpoint quotas.

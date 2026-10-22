@@ -42,7 +42,10 @@ func (l *LLMUsageClient) GetLLMEndpointQuota(ctx context.Context, name string) (
 	resp, err := l.grpcClient.GetLLMEndpointQuota(ctx, llmv1.GetLLMEndpointQuotaRequest_builder{
 		Name: name,
 	}.Build())
-	return resp, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetQuota(), trace.Wrap(err)
 }
 
 // ListLLMEndpointQuotas lists LLMEndpointQuota resources.
@@ -59,9 +62,9 @@ func (l *LLMUsageClient) ListLLMEndpointQuotas(ctx context.Context, limit int, s
 }
 
 // ReportUsage reports an amount of LLM tokens consumed.
-func (l *LLMUsageClient) ReportUsage(ctx context.Context, usages []*llmv1.ReportUsageRequest_Usage) error {
-	_, err := l.grpcClient.ReportUsage(ctx, llmv1.ReportUsageRequest_builder{
-		Usages: usages,
+func (l *LLMUsageClient) ReportUsage(ctx context.Context, usages []*llmv1.EndpointUsage) (*llmv1.ReportUsageResponse, error) {
+	resp, err := l.grpcClient.ReportUsage(ctx, llmv1.ReportUsageRequest_builder{
+		Endpoints: usages,
 	}.Build())
-	return trace.Wrap(err)
+	return resp, trace.Wrap(err)
 }
