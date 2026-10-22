@@ -103,12 +103,17 @@ func (s *JWTOutputService) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "getting trust bundle set")
 	}
+	renewalInterval := cmp.Or(
+		s.cfg.CredentialLifetime, s.defaultCredentialLifetime,
+	).RenewalInterval
 
 	jitter := retryutils.DefaultJitter
 	var cred *workloadidentityv1pb.Credential
 	var failures int
 	firstRun := make(chan struct{}, 1)
 	firstRun <- struct{}{}
+	renewalTimer := time.NewTimer(renewalInterval)
+	defer renewalTimer.Stop()
 	for {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
@@ -142,7 +147,7 @@ func (s *JWTOutputService) Run(ctx context.Context) error {
 				cred = nil
 			}
 			bundleSet = newBundleSet
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval):
+		case <-renewalTimer.C:
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			cred = nil
 		case <-firstRun:
@@ -156,6 +161,8 @@ func (s *JWTOutputService) Run(ctx context.Context) error {
 				failures++
 				continue
 			}
+			// Reset the renewal timer to the configured interval.
+			renewalTimer.Reset(renewalInterval)
 		}
 		if err := s.render(ctx, cred); err != nil {
 			s.log.ErrorContext(ctx, "Failed to render output", "error", err)
