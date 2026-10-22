@@ -78,7 +78,6 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	mfa "github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/scopes"
@@ -7009,36 +7008,35 @@ func (a *Server) getCache() (c *cache.Cache, ok bool) {
 	return
 }
 
-func (a *Server) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
+func (a *Server) NewStream(ctx context.Context, watch types.Watch) iterstream.Stream[types.Event] {
 	if cache, ok := a.getCache(); ok {
 		// cache exposes a native stream implementation
 		return cache.NewStream(ctx, watch)
 	}
 
-	// fallback to wrapping a watcher in a stream.Stream adapter
-	watcher, err := a.Cache.NewWatcher(ctx, watch)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	closer := func() {
-		watcher.Close()
-	}
-
-	return stream.Func(func() (types.Event, error) {
-		select {
-		case event := <-watcher.Events():
-			return event, nil
-		case <-watcher.Done():
-			err := watcher.Error()
-			if err == nil {
-				// stream.Func needs an error to signal end of stream. io.EOF is
-				// the expected "happy" end of stream singnal.
-				err = io.EOF
-			}
-			return types.Event{}, trace.Wrap(err)
+	return func(yield func(types.Event, error) bool) {
+		// fallback to wrapping a watcher in an iterator
+		watcher, err := a.Cache.NewWatcher(ctx, watch)
+		if err != nil {
+			yield(types.Event{}, trace.Wrap(err))
+			return
 		}
-	}, closer), nil
+		defer watcher.Close()
+
+		for {
+			select {
+			case event := <-watcher.Events():
+				if !yield(event, nil) {
+					return
+				}
+			case <-watcher.Done():
+				if err := watcher.Error(); err != nil {
+					yield(types.Event{}, trace.Wrap(err))
+				}
+				return
+			}
+		}
+	}
 }
 
 // NewKeepAliver returns a new instance of keep aliver
@@ -9410,31 +9408,6 @@ func (a *Server) getProxyPublicAddr(ctx context.Context) string {
 		}
 	}
 	return ""
-}
-
-// GetNodeStream streams a list of registered servers.
-func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
-	var done bool
-	startKey := ""
-	return stream.PageFunc(func() ([]types.Server, error) {
-		if done {
-			return nil, io.EOF
-		}
-		resp, err := a.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindNode,
-			Namespace:    namespace,
-			Limit:        apidefaults.DefaultChunkSize,
-			StartKey:     startKey,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		startKey = resp.NextKey
-		done = startKey == ""
-		resources := types.ResourcesWithLabels(resp.Resources)
-		servers, err := resources.AsServers()
-		return servers, trace.Wrap(err)
-	})
 }
 
 // SetWorkloadIdentityX509CAOverrideGetter sets the underlying

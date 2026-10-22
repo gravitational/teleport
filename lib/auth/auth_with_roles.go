@@ -50,7 +50,6 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
@@ -1186,11 +1185,11 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 
 // NewStream returns a new event stream (equivalent to NewWatcher, but with slightly different
 // performance characteristics).
-func (a *ScopedServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (apistream.Stream[types.Event], error) {
+func (a *ScopedServerWithRoles) NewStream(ctx context.Context, watch types.Watch) stream.Stream[types.Event] {
 	// NOTE: authorizeWatchRequest modifies requests inflight in order to apply proper scope filtering to the
 	// event stream and to apply partial success subselection (if appropriate).
 	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
-		return nil, trace.Wrap(err)
+		return stream.Fail[types.Event](trace.Wrap(err))
 	}
 
 	return a.authServer.NewStream(ctx, watch)

@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	fb "github.com/gravitational/teleport/lib/utils/fanoutbuffer"
 )
@@ -84,23 +84,89 @@ func NewFanoutV2(cfg FanoutV2Config) *FanoutV2 {
 	return f
 }
 
+// fanoutV2Subscription is a cursor registered with a fanout instance. Creating
+// a subscription synchronously establishes the point from which events will be
+// observed, while iteration over the subscription may start later.
+type fanoutV2Subscription struct {
+	cursor *fb.Cursor[fanoutV2Entry]
+	init   *fanoutV2Init
+	watch  types.Watch
+}
+
+func (f *FanoutV2) subscribe(watch types.Watch) (*fanoutV2Subscription, error) {
+	f.rw.RLock()
+	defer f.rw.RUnlock()
+
+	if f.closed {
+		return nil, errFanoutClosed
+	}
+
+	return &fanoutV2Subscription{
+		cursor: f.buf.NewCursor(),
+		init:   f.init,
+		watch:  watch,
+	}, nil
+}
+
+func (s *fanoutV2Subscription) stream(ctx context.Context) stream.Stream[types.Event] {
+	return func(yield func(types.Event, error) bool) {
+		defer s.cursor.Close()
+
+		initEvent, err := fanoutV2InitEvent(ctx, s.init, s.watch)
+		if err != nil {
+			yield(types.Event{}, trace.Wrap(err))
+			return
+		}
+		if !yield(initEvent, nil) {
+			return
+		}
+
+		var rbuf [16]fanoutV2Entry
+		for {
+			// read a new batch of events into the read buffer
+			n, err := s.cursor.Read(ctx, rbuf[:])
+			if err != nil {
+				if errors.Is(err, fb.ErrBufferClosed) {
+					err = errFanoutReset
+				}
+				yield(types.Event{}, err)
+				return
+			}
+
+			// emit the events that match our specific watch parameters
+			for _, entry := range rbuf[:n] {
+				event, ok, err := matchFanoutEntry(entry, s.watch)
+				if err != nil {
+					yield(types.Event{}, trace.Wrap(err))
+					return
+				}
+				if !ok {
+					continue
+				}
+				if !yield(event, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // NewStream gets a new event stream. The provided context will form the basis of
-// the stream's close context. Note that streams *must* be explicitly closed when
-// completed in order to avoid performance issues.
+// the stream's close context. The stream registers with the fanout when iteration
+// begins and must be consumed in order to release its underlying cursor.
 func (f *FanoutV2) NewStream(ctx context.Context, watch types.Watch) stream.Stream[types.Event] {
 	if err := types.ValidateWatch(watch); err != nil {
 		return stream.Fail[types.Event](err)
 	}
-	f.rw.RLock()
-	defer f.rw.RUnlock()
-	if f.closed {
-		return stream.Fail[types.Event](errFanoutClosed)
-	}
-	return &fanoutV2Stream{
-		closeContext: ctx,
-		cursor:       f.buf.NewCursor(),
-		init:         f.init,
-		watch:        watch,
+
+	return func(yield func(types.Event, error) bool) {
+		subscription, err := f.subscribe(watch)
+		if err != nil {
+			yield(types.Event{}, trace.Wrap(err))
+			return
+		}
+
+		subscription.stream(ctx)(yield)
 	}
 }
 
@@ -108,8 +174,15 @@ func (f *FanoutV2) NewWatcher(ctx context.Context, watch types.Watch) (types.Wat
 	if err := types.ValidateWatch(watch); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(ctx)
 
+	// Register the subscription before returning so that events emitted after
+	// NewWatcher returns cannot be missed while the watcher goroutine starts.
+	subscription, err := f.subscribe(watch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
 	w := &streamWatcher{
 		cancel: cancel,
 		events: make(chan types.Event, 16),
@@ -119,7 +192,7 @@ func (f *FanoutV2) NewWatcher(ctx context.Context, watch types.Watch) (types.Wat
 		done: make(chan struct{}),
 	}
 
-	go w.run(ctx, f.NewStream(ctx, watch))
+	go w.run(ctx, subscription.stream(ctx))
 
 	return w, nil
 }
@@ -132,19 +205,19 @@ type streamWatcher struct {
 	err    error
 }
 
-func (w *streamWatcher) run(ctx context.Context, stream stream.Stream[types.Event]) {
-	defer func() {
-		if err := stream.Done(); err != nil {
+func (w *streamWatcher) run(ctx context.Context, events stream.Stream[types.Event]) {
+	defer close(w.done)
+
+	for event, err := range events {
+		if err != nil {
 			w.emux.Lock()
 			w.err = err
 			w.emux.Unlock()
+			return
 		}
-		close(w.done)
-	}()
 
-	for stream.Next() {
 		select {
-		case w.events <- stream.Item():
+		case w.events <- event:
 		case <-ctx.Done():
 			return
 		}
@@ -253,66 +326,18 @@ func (f *FanoutV2) SetInit(kinds []types.WatchKind) {
 	f.init.setInit(km)
 }
 
-// fanoutV2Stream is a stream.Stream implementation that streams events from a FanoutV2 instance. It handles filtering
-// out events that don't match the provided watch parameters, and construction of custom init events.
-type fanoutV2Stream struct {
-	closeContext context.Context
-	cursor       *fb.Cursor[fanoutV2Entry]
-	init         *fanoutV2Init
-	watch        types.Watch
-	rbuf         [16]fanoutV2Entry
-	n, next      int
-	event        types.Event
-	err          error
-}
-
-func (s *fanoutV2Stream) Next() (ok bool) {
-	if s.init != nil {
-		s.event, s.err = s.waitInit(s.closeContext)
-		s.init = nil
-		return s.err == nil
-	}
-	for {
-		// try finding the next matching event within read buffer
-		var ok bool
-		s.event, ok, s.err = s.advance()
-		if ok {
-			return true
-		}
-
-		// read a new batch of events into the read buffer
-		s.next = 0
-		s.n, s.err = s.cursor.Read(s.closeContext, s.rbuf[:])
-		if s.err != nil {
-			if errors.Is(s.err, fb.ErrBufferClosed) {
-				s.err = errFanoutReset
-			}
-			return false
-		}
-	}
-}
-
-func (s *fanoutV2Stream) Item() types.Event {
-	return s.event
-}
-
-func (s *fanoutV2Stream) Done() error {
-	s.cursor.Close()
-	return s.err
-}
-
-// waitInit waits for fanout initialization and builds an appropriate init event.
-func (s *fanoutV2Stream) waitInit(ctx context.Context) (types.Event, error) {
-	confirmedKinds, err := s.init.wait(ctx)
+// fanoutV2InitEvent waits for fanout initialization and builds an appropriate init event.
+func fanoutV2InitEvent(ctx context.Context, init *fanoutV2Init, watch types.Watch) (types.Event, error) {
+	confirmedKinds, err := init.wait(ctx)
 	if err != nil {
 		return types.Event{}, trace.Wrap(err)
 	}
 
-	validKinds := make([]types.WatchKind, 0, len(s.watch.Kinds))
-	for _, requested := range s.watch.Kinds {
+	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
+	for _, requested := range watch.Kinds {
 		k := resourceKind{kind: requested.Kind, subKind: requested.SubKind}
 		if configured, ok := confirmedKinds[k]; !ok || !configured.Contains(requested) {
-			if s.watch.AllowPartialSuccess {
+			if watch.AllowPartialSuccess {
 				continue
 			}
 			return types.Event{}, trace.BadParameter("resource type %q is not supported by this event stream", requested.Kind)
@@ -327,40 +352,35 @@ func (s *fanoutV2Stream) waitInit(ctx context.Context) (types.Event, error) {
 	return types.Event{Type: types.OpInit, Resource: types.NewWatchStatus(validKinds)}, nil
 }
 
-// advance advances through the stream's internal read buffer looking for the
-// next event that matches our specific watch parameters.
-func (f *fanoutV2Stream) advance() (event types.Event, ok bool, err error) {
-	for f.next < f.n {
-		entry := f.rbuf[f.next]
-		f.next++
+// matchFanoutEntry checks an entry against the provided watch parameters, returning
+// the event to emit (with or without secrets) and whether it matched.
+func matchFanoutEntry(entry fanoutV2Entry, watch types.Watch) (event types.Event, ok bool, err error) {
+	if entry.Event.Resource == nil {
+		// events with no associated resources are special cases (e.g. OpUnreliable), and are
+		// emitted to all watchers.
+		return entry.Event, true, nil
+	}
 
-		if entry.Event.Resource == nil {
-			// events with no associated resources are special cases (e.g. OpUnreliable), and are
-			// emitted to all watchers.
-			return entry.Event, true, nil
+	for _, kind := range watch.Kinds {
+		match, err := kind.Matches(entry.Event)
+		if err != nil {
+			return types.Event{}, false, trace.Wrap(err)
 		}
 
-		for _, kind := range f.watch.Kinds {
-			match, err := kind.Matches(entry.Event)
-			if err != nil {
-				return types.Event{}, false, trace.Wrap(err)
-			}
-
-			if !match {
-				continue
-			}
-
-			// scope filtering is applied here rather than inside kind.Matches because the scope-matching
-			// logic lives in lib/scopes, which the api/types package that defines Matches cannot import.
-			if !WatchKindMatchesScope(kind, entry.Event.Resource) {
-				continue
-			}
-
-			if kind.LoadSecrets {
-				return entry.EventWithSecrets, true, nil
-			}
-			return entry.Event, true, nil
+		if !match {
+			continue
 		}
+
+		// scope filtering is applied here rather than inside kind.Matches because the scope-matching
+		// logic lives in lib/scopes, which the api/types package that defines Matches cannot import.
+		if !WatchKindMatchesScope(kind, entry.Event.Resource) {
+			continue
+		}
+
+		if kind.LoadSecrets {
+			return entry.EventWithSecrets, true, nil
+		}
+		return entry.Event, true, nil
 	}
 
 	return types.Event{}, false, nil

@@ -41,7 +41,6 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -49,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/lib/defaults"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -1038,24 +1038,26 @@ func (c *Cache) Start() error {
 // stream as a stream.Stream rather than a channel. Watcher style event handling
 // is generally more common, but this API may be preferable for usecases where
 // *many* event streams need to be allocated as it is slightly more resource-efficient.
-func (c *Cache) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
+func (c *Cache) NewStream(ctx context.Context, watch types.Watch) iterstream.Stream[types.Event] {
 	ctx, span := c.Tracer.Start(ctx, "cache/NewStream")
 	defer span.End()
 
 	validKinds, highVolume, err := c.validateWatchRequest(watch)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return iterstream.Fail[types.Event](trace.Wrap(err))
 	}
 
 	watch.Kinds = validKinds
+
 	if highVolume {
 		// watch request includes high volume resources, register with the
 		// full fanout instance.
-		return c.eventsFanout.NewStream(ctx, watch), nil
+		return c.eventsFanout.NewStream(ctx, watch)
 	}
+
 	// watch request does not contain high volume resources, register with
 	// the low volume fanout instance (improves performance at scale).
-	return c.lowVolumeEventsFanout.Next().NewStream(ctx, watch), nil
+	return c.lowVolumeEventsFanout.Next().NewStream(ctx, watch)
 }
 
 // NewWatcher returns a new event watcher. In case of a cache

@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 )
@@ -65,12 +64,6 @@ type DatabaseServersGetter interface {
 // AppServersGetter is a service that gets application servers.
 type AppServersGetter interface {
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
-}
-
-// NodesStreamGetter is a service that gets nodes.
-type NodesStreamGetter interface {
-	// GetNodeStream returns a list of registered servers.
-	GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server]
 }
 
 // Presence records and reports the presence of all components

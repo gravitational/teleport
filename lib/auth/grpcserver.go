@@ -99,7 +99,6 @@ import (
 	workloadclusterv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	userpreferencesv1pb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
@@ -604,7 +603,7 @@ type WatchEvent interface {
 }
 
 type Watcher interface {
-	NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error)
+	NewStream(ctx context.Context, watch types.Watch) iterstream.Stream[types.Event]
 }
 
 var enterpriseOnlyWatchKinds = []string{
@@ -660,20 +659,11 @@ func WatchEvents(
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
-	events, err := auth.NewStream(stream.Context(), servicesWatch)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	defer func() {
-		serr := events.Done()
-		if err == nil {
-			err = serr
+	for event, err := range auth.NewStream(stream.Context(), servicesWatch) {
+		if err != nil {
+			return trace.Wrap(err)
 		}
-	}()
 
-	for events.Next() {
-		event := events.Item()
 		// TODO(espadolini): remove in v19
 		if removedNamespaceWatch {
 			if status, ok := event.Resource.(*types.WatchStatusV1); ok {
@@ -715,7 +705,6 @@ func WatchEvents(
 		}
 	}
 
-	// deferred cleanup func will inject stream error if needed
 	return nil
 }
 
