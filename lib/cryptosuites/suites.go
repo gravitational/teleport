@@ -521,6 +521,12 @@ func GeneratePrivateKeyWithAlgorithm(alg Algorithm) (*keys.PrivateKey, error) {
 	return privateKey, trace.Wrap(err)
 }
 
+// GenerateUserEncryptionKey generates a user-session-owned encryption key.
+// Currently uses ECIES P-256.
+func GenerateUserEncryptionKey() (*ecdsa.PrivateKey, error) {
+	return generateECDSAP256()
+}
+
 func generateRSA2048() (*rsa.PrivateKey, error) {
 	key, err := internalrsa.GenerateKey()
 	return key, trace.Wrap(err)

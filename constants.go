@@ -932,6 +932,10 @@ const (
 	// UsageAccessGraphAPIOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Access Graph API access.
 	UsageAccessGraphAPIOnly = "usage:access_graph_api"
+
+	// UsageGitOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Git access.
+	UsageGitOnly = "usage:git"
 )
 
 // ErrNodeIsAmbiguous serves as an identifying error string indicating that
@@ -1014,6 +1018,10 @@ const UserSystem = "system"
 const (
 	// internal application being proxied.
 	AppJWTHeader = "teleport-jwt-assertion"
+
+	// GitTokenHeader is the header used to pass the encrypted access
+	// token for git HTTP proxying.
+	GitTokenHeader = "teleport-git-token"
 
 	// HostHeader is the name of the Host header.
 	HostHeader = "Host"

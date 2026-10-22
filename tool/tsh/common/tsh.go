@@ -1642,6 +1642,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
 
 	gitCmd := newGitCommands(app)
+	ghCmd := newGHCommand(app)
 	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
@@ -2117,6 +2118,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case gitCmd.remoteHTTP.FullCommand():
+		err = gitCmd.remoteHTTP.run(&cf)
+	case ghCmd.FullCommand():
+		err = ghCmd.run(&cf)
 	case beamsCmd.ls.FullCommand():
 		err = beamsCmd.ls.run(&cf)
 	case beamsCmd.add.FullCommand():
@@ -5760,6 +5765,9 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 			}
 			first = false
 		}
+		if p.EncryptionKeyID != "" {
+			fmt.Fprintf(w, "  Encryption key ID:  %s\n", p.EncryptionKeyID)
+		}
 	}
 
 	fmt.Fprintf(w, "\n")
@@ -5916,6 +5924,7 @@ type profileInfo struct {
 	CriticalOptions          map[string]string        `json:"critical_options,omitempty"`
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
+	EncryptionKeyID          string                   `json:"encryption_key_id,omitempty"`
 	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
 }
 
@@ -5970,6 +5979,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		CriticalOptions:          p.CriticalOptions,
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 		GitHubIdentity:           p.GitHubIdentity,
+		EncryptionKeyID:          p.EncryptionKeyID,
 		DelegationSessionID:      p.DelegationSessionID,
 	}
 

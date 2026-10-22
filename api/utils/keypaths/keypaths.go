@@ -65,6 +65,8 @@ const (
 	kubeDirSuffix = "-kube"
 	// windowsDesktopDirSuffix is the suffix of a subdirectory where Windows desktop TLS certs are stored.
 	windowsDesktopDirSuffix = "-windowsdesktop"
+	// gitDirSuffix is the suffix of a sub-directory where git TLS certs are stored.
+	gitDirSuffix = "-git"
 	// kubeConfigSuffix is the suffix of a kubeconfig file stored under the keys directory.
 	kubeConfigSuffix = "-kubeconfig"
 	// accessGraphSuffix is the suffix of a user's Access Graph TLS certificate
@@ -123,6 +125,8 @@ const (
 //    │   ├── foo-access-graph.crt     --> TLS client certificate for Access Graph (direct proxy communication)
 //    │   ├── foo                      --> SSH Private Key for user "foo"
 //    │   ├── foo.pub                  --> SSH Public Key
+//    │   ├── foo-encryption.key       --> User-session-owned encryption key
+//    │   ├── foo-cred.json            --> Cached user external credentials of the session
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
 //    │   ├── kube_credentials.lock    --> Kube credential lockfile, used to prevent excessive relogin attempts
 //    │   ├── proxy_ssh_retryer.lock   --> Proxy SSH retryer lockfile, used to synchronize relogin in 'tsh proxy ssh'
@@ -169,6 +173,10 @@ const (
 //    │   │    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
 //    │   │        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
 //    │   │        └── kubeC.cred       --> TLS private key and cert for Kubernetes cluster "kubeC"
+//    │   ├── foo-git                   --> Git server certs for user "foo"
+//    │   │    └── root                 --> Git server certs for cluster "root"
+//    │   │        ├── github-org.crt   --> TLS cert for git server "github-org"
+//    │   │        └── github-org.key   --> private key for git server "github-org"
 //    │   └── cas                       --> Trusted clusters certificates
 //    │        ├── root.pem             --> TLS CA for teleport cluster "root"
 //    │        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
@@ -378,6 +386,37 @@ func AppLocalCAPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+fileExtLocalCA)
 }
 
+// GitDir returns the path to the user's git directory for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-git
+func GitDir(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+gitDirSuffix)
+}
+
+// GitCredentialDir returns the path to the user's git credential directory for
+// the given proxy and cluster.
+//
+// <baseDir>/keys/<proxy>/<username>-git/<cluster>
+func GitCredentialDir(baseDir, proxy, username, cluster string) string {
+	return filepath.Join(GitDir(baseDir, proxy, username), cluster)
+}
+
+// GitCertPath returns the path to the user's TLS certificate for the given
+// proxy, cluster, and git server.
+//
+// <baseDir>/keys/<proxy>/<username>-git/<cluster>/<gitserver>.crt
+func GitCertPath(baseDir, proxy, username, cluster, gitServer string) string {
+	return filepath.Join(GitCredentialDir(baseDir, proxy, username, cluster), gitServer+FileExtTLSCert)
+}
+
+// GitKeyPath returns the path to the user's private key for the given proxy,
+// cluster, and git server.
+//
+// <baseDir>/keys/<proxy>/<username>-git/<cluster>/<gitserver>.key
+func GitKeyPath(baseDir, proxy, username, cluster, gitServer string) string {
+	return filepath.Join(GitCredentialDir(baseDir, proxy, username, cluster), gitServer+fileExtTLSKey)
+}
+
 // WindowsDesktopDir returns the path to the user's Windows desktop directory
 // for the given proxy.
 //
@@ -538,4 +577,20 @@ func VNetSSHConfigPath(baseDir string) string {
 // TrimKeyPathSuffix returns the given path with any key suffix/extension trimmed off.
 func TrimKeyPathSuffix(path string) string {
 	return strings.TrimSuffix(path, fileExtTLSKey)
+}
+
+// UserEncryptionKeyPath returns the path to the user's session encryption
+// private key for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-encryption.key
+func UserEncryptionKeyPath(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+"-encryption.key")
+}
+
+// UserExternalCredentialPath returns the path to the cached user external credentials
+// of the user's session for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-cred.json
+func UserExternalCredentialPath(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+"-cred.json")
 }

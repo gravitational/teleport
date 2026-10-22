@@ -134,10 +134,15 @@ Example:
 ```yaml
 organization: "string"
 integration: "string"
+allow_protocols: 
+  - "string"
+  - "string"
+  - "string"
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
+|allow_protocols|The list of allowed protocols (e.g. "ssh", "http").|[]string|
 |integration|The integration that is associated with this Server.|string|
 |organization|Specifies the name of the organization for the GitHub integration.|string|
 

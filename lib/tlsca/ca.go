@@ -254,6 +254,13 @@ type Identity struct {
 
 	// WebSessionID is the session ID of the web session associated with this identity, if any.
 	WebSessionID string
+
+	// RouteToGit holds routing information for Git proxying.
+	RouteToGit RouteToGit
+	// GitHubUserID is the GitHub numeric user ID from the OAuth flow.
+	GitHubUserID string
+	// EncryptionKeyID identifies the user's session encryption key.
+	EncryptionKeyID string
 }
 
 // RouteToApp holds routing information for applications.
@@ -340,6 +347,14 @@ func (r RouteToDatabase) Empty() bool {
 		r.Username == "" &&
 		r.Database == "" &&
 		len(r.Roles) == 0
+}
+
+// RouteToGit holds routing information for Git proxying.
+type RouteToGit struct {
+	// Name is the name of the git server resource.
+	Name string
+	// SessionID is the ID of the git session.
+	SessionID string
 }
 
 // DeviceExtensions holds device-aware extensions for the identity.
@@ -437,6 +452,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		BotScopeOfOrigin:         id.BotScope,
 		BotInternal:              id.BotInternal,
 		JoinToken:                id.JoinToken,
+		EncryptionKeyID:          id.EncryptionKeyID,
 	}
 }
 
@@ -695,6 +711,16 @@ var (
 	// certificates are only issued for one resource at a time.
 	// If this is changed, we will need additional per protocol target scopes.
 	TargetScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 34}
+
+	// GitHubUserIDASN1ExtensionOID encodes the GitHub numeric user ID.
+	GitHubUserIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 35}
+	// GitServerNameASN1ExtensionOID encodes the git server name for Git routing.
+	GitServerNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 36}
+	// GitSessionIDASN1ExtensionOID encodes the git session ID for audit correlation.
+	GitSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 37}
+	// EncryptionKeyIDASN1ExtensionOID is an extension OID that contains the
+	// session encryption key ID for double-encrypted credential storage.
+	EncryptionKeyIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 39}
 
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
@@ -1265,6 +1291,38 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.GitHubUserID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  GitHubUserIDASN1ExtensionOID,
+				Value: id.GitHubUserID,
+			})
+	}
+
+	if id.RouteToGit.Name != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  GitServerNameASN1ExtensionOID,
+				Value: id.RouteToGit.Name,
+			})
+	}
+
+	if id.RouteToGit.SessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  GitSessionIDASN1ExtensionOID,
+				Value: id.RouteToGit.SessionID,
+			})
+	}
+
+	if id.EncryptionKeyID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  EncryptionKeyIDASN1ExtensionOID,
+				Value: id.EncryptionKeyID,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -1610,6 +1668,22 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(WebSessionIDASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.WebSessionID = val
+			}
+		case attr.Type.Equal(GitHubUserIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.GitHubUserID = val
+			}
+		case attr.Type.Equal(GitServerNameASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.RouteToGit.Name = val
+			}
+		case attr.Type.Equal(GitSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.RouteToGit.SessionID = val
+			}
+		case attr.Type.Equal(EncryptionKeyIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.EncryptionKeyID = val
 			}
 		}
 	}

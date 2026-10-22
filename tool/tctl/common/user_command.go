@@ -74,6 +74,7 @@ type UserCommand struct {
 	hostUserGIDProvided       bool
 	defaultRelayAddr          string
 	defaultRelayAddrProvided  bool
+	allowedGitHubOrgs         []string
 
 	ttl time.Duration
 
@@ -112,6 +113,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userAdd.Flag("host-user-gid", "GID for auto provisioned host users to use").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
 	u.userAdd.Flag("mcp-tools", "List of allowed MCP tools for the new user").StringsVar(&u.allowedMCPTools)
 	u.userAdd.Flag("default-relay-addr", "Relay address that clients should use by default").StringVar(&u.defaultRelayAddr)
+	u.userAdd.Flag("github-orgs", "List of allowed GitHub organizations for the new user").StringsVar(&u.allowedGitHubOrgs)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
@@ -151,6 +153,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userUpdate.Flag("set-host-user-gid", "GID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
 	u.userUpdate.Flag("set-mcp-tools", "List of allowed MCP tools for the user, replaces current allowed MCP tools.").StringsVar(&u.allowedMCPTools)
 	u.userUpdate.Flag("set-default-relay-addr", "Relay address that clients should use by default. Value can be reset by providing an empty string").IsSetByUser(&u.defaultRelayAddrProvided).StringVar(&u.defaultRelayAddr)
+	u.userUpdate.Flag("set-github-orgs", "List of allowed GitHub organizations for the user, replaces current GitHub organizations").StringsVar(&u.allowedGitHubOrgs)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
@@ -333,6 +336,11 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 		}
 	}
 
+	gitHubOrgs, err := flattenGitHubOrgs(u.allowedGitHubOrgs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	traits := map[string][]string{
 		constants.TraitLogins:             u.allowedLogins,
 		constants.TraitWindowsLogins:      u.allowedWindowsLogins,
@@ -348,6 +356,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 		constants.TraitHostUserUID:        {u.hostUserUID},
 		constants.TraitHostUserGID:        {u.hostUserGID},
 		constants.TraitMCPTools:           flattenSlice(u.allowedMCPTools),
+		constants.TraitGitHubOrgs:         gitHubOrgs,
 	}
 
 	if u.defaultRelayAddr != "" {
@@ -405,6 +414,16 @@ func flattenSlice(slice []string) (retval []string) {
 		}
 	}
 	return retval
+}
+
+func flattenGitHubOrgs(slice []string) ([]string, error) {
+	orgs := flattenSlice(slice)
+	for _, org := range orgs {
+		if err := types.ValidateGitHubOrganizationName(org); err != nil {
+			return nil, trace.Wrap(err, "GitHub organization %q is invalid", org)
+		}
+	}
+	return orgs, nil
 }
 
 func printTokenAsJSON(token types.UserToken) error {
@@ -545,6 +564,15 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 	if u.defaultRelayAddrProvided {
 		user.SetDefaultRelayAddr(u.defaultRelayAddr)
 		updateMessages["default relay address"] = []string{u.defaultRelayAddr}
+	}
+
+	if len(u.allowedGitHubOrgs) > 0 {
+		gitHubOrgs, err := flattenGitHubOrgs(u.allowedGitHubOrgs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		user.SetGitHubOrgs(gitHubOrgs)
+		updateMessages["GitHub organizations"] = gitHubOrgs
 	}
 
 	if len(updateMessages) == 0 {

@@ -87,6 +87,7 @@ func (tc *TeleportClient) loginInitFn(ctx context.Context, keyRing *KeyRing, cli
 			TLSPubKey:               sshLogin.TLSPubKey,
 			SSHAttestationStatement: sshLogin.SSHAttestationStatement,
 			TLSAttestationStatement: sshLogin.TLSAttestationStatement,
+			EncryptionPublicKey:     sshLogin.EncryptionPublicKey,
 		},
 		CertTTL:           sshLogin.TTL,
 		ConnectorID:       connectorID,

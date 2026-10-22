@@ -148,6 +148,8 @@ type User interface {
 	SetMCPTools(mcpTools []string)
 	// SetDefaultRelayAddr sets the trait for the default relay address.
 	SetDefaultRelayAddr(addr string)
+	// SetGitHubOrgs sets a list of allowed GitHub organizations for the user
+	SetGitHubOrgs(orgs []string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -515,6 +517,11 @@ func (u *UserV2) SetDefaultRelayAddr(addr string) {
 		u.Spec.Traits = make(map[string][]string)
 	}
 	u.Spec.Traits[constants.TraitDefaultRelayAddr] = []string{addr}
+}
+
+// SetGitHubOrgs sets a list of allowed GitHub organizations for the user
+func (u *UserV2) SetGitHubOrgs(orgs []string) {
+	u.setTrait(constants.TraitGitHubOrgs, orgs)
 }
 
 // GetStatus returns login status of the user

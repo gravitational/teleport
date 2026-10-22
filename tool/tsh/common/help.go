@@ -135,4 +135,12 @@ Examples:
   Create a beam without connecting and save its ID:
   $ BEAM_ID=$(tsh beams add -f json | jq -r '.id')
   $ tsh beams exec $BEAM_ID -- ls examples`
+
+	ghHelp = `
+Examples:
+  Show the GitHub user:
+  $ tsh gh -- api /user
+
+  View a repository when more than one GitHub organization is available:
+  $ tsh gh --github-org my-org -- repo view my-org/my-repo`
 )

@@ -5502,6 +5502,8 @@ message Identity {
   // BotScopeOfOrigin indicates the scope of origin of the Machine ID bot
   // this identity was issued to, if any.
   string BotScopeOfOrigin = 34 [(gogoproto.jsontag) = "bot_scope_of_origin,omitempty"];
+  // EncryptionKeyID identifies the user's session encryption key.
+  string EncryptionKeyID = 35 [(gogoproto.jsontag) = "encryption_key_id,omitempty"];
 }
 
 // ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant

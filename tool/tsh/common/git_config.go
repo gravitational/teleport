@@ -32,9 +32,6 @@ import (
 // This command internally executes `git` commands like `git config xxx`.
 // can generally assume the user has `git` binary installed (otherwise there is
 // no point using the `git` proxy feature).
-//
-// TODO(greedy52) investigate using `go-git` library instead of calling `git
-// config`.
 type gitConfigCommand struct {
 	*kingpin.CmdClause
 
@@ -51,6 +48,13 @@ const (
 	//
 	// https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresshCommand
 	gitCoreSSHCommand = "core.sshcommand"
+	// gitRemoteHelperScheme is the URL scheme of git remotes that go through
+	// Teleport over HTTPS, e.g. teleport://github.com/org/repo.git. For these
+	// remotes, git runs `git remote-teleport <remote> <url>`, which is an
+	// alias of the git repository that runs `tsh git remote-http`.
+	gitRemoteHelperScheme = "teleport"
+	// gitRemoteHelperAliasKey is the git config of the alias.
+	gitRemoteHelperAliasKey = "alias.remote-" + gitRemoteHelperScheme
 )
 
 func newGitConfigCommand(parent *kingpin.CmdClause) *gitConfigCommand {
@@ -89,24 +93,48 @@ func (c *gitConfigCommand) run(cf *CLIConf) error {
 }
 
 func (c *gitConfigCommand) doCheck(cf *CLIConf) error {
+	w := cf.Stdout()
+	remotes, err := listGitRemotes(cf)
+	switch {
+	case err != nil:
+		return trace.Wrap(err)
+	case len(remotes) == 0:
+		fmt.Fprintln(w, "No remote found.")
+		return nil
+	}
+
 	sshCommand, err := c.getCoreSSHCommand(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	wantPrefix := makeGitCoreSSHCommand(cf.executablePath, "")
-	if strings.HasPrefix(sshCommand, wantPrefix) {
-		_, org, _ := strings.Cut(sshCommand, wantPrefix)
-		fmt.Fprintf(cf.Stdout(), "The current Git directory is configured with Teleport for GitHub organization %q.\n", org)
-		return nil
+	sshOrg, sshConfigured := strings.CutPrefix(sshCommand, wantPrefix)
+
+	var notConfigured bool
+	var existingSSHCommand string
+	for _, remote := range remotes {
+		switch {
+		case remote.isGitHub() && remote.hasSeparatePushURLs:
+			fmt.Fprintf(w, "Remote %q has a separate push URL, which is not supported by Teleport yet.\n", remote.name)
+		case remote.matches(gitRemoteHelperScheme, "github.com"):
+			fmt.Fprintf(w, "Remote %q is configured with Teleport over HTTPS.\n", remote.name)
+		case remote.matches("https", "github.com"):
+			fmt.Fprintf(w, "Remote %q is not configured with Teleport.\n", remote.name)
+			notConfigured = true
+		case remote.matches("ssh", "github.com"):
+			if sshConfigured {
+				fmt.Fprintf(w, "Remote %q is configured with Teleport over SSH for GitHub organization %q.\n", remote.name, sshOrg)
+				continue
+			}
+			fmt.Fprintf(w, "Remote %q is not configured with Teleport.\n", remote.name)
+			notConfigured = true
+			existingSSHCommand = sshCommand
+		default:
+			fmt.Fprintf(w, "Remote %q is not supported by Teleport.\n", remote.name)
+		}
 	}
 
-	c.printDirNotConfigured(cf.Stdout(), true, sshCommand)
-	return nil
-}
-
-func (c *gitConfigCommand) printDirNotConfigured(w io.Writer, withUpdate bool, existingSSHCommand string) {
-	fmt.Fprintln(w, "The current Git directory is not configured with Teleport.")
-	if withUpdate {
+	if notConfigured {
 		if existingSSHCommand != "" {
 			fmt.Fprintf(w, "%q currently has value %q.\n", gitCoreSSHCommand, existingSSHCommand)
 			fmt.Fprintf(w, "Run 'tsh git config update' to configure Git directory with Teleport but %q will be overwritten.\n", gitCoreSSHCommand)
@@ -114,52 +142,89 @@ func (c *gitConfigCommand) printDirNotConfigured(w io.Writer, withUpdate bool, e
 			fmt.Fprintln(w, "Run 'tsh git config update' to configure it.")
 		}
 	}
+	return nil
 }
 
 func (c *gitConfigCommand) doUpdate(cf *CLIConf) error {
-	urls, err := execGitAndCaptureStdout(cf, "ls-remote", "--get-url")
+	remotes, err := listGitRemotes(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, url := range strings.Split(urls, "\n") {
-		u, err := parseGitSSHURL(url)
-		if err != nil {
-			logger.DebugContext(cf.Context, "Skipping URL", "error", err, "url", url)
-			continue
-		}
-		if !u.isGitHub() {
-			logger.DebugContext(cf.Context, "Skipping non-GitHub host", "host", u.Host)
-			continue
-		}
-
-		logger.DebugContext(cf.Context, "Configuring repo to use tsh.", "url", url, "owner", u.owner())
-		args := []string{
-			"config", "--local",
-			"--replace-all", gitCoreSSHCommand,
-			makeGitCoreSSHCommand(cf.executablePath, u.owner()),
-		}
-		if err := execGit(cf, args...); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Fprintln(cf.Stdout(), "Teleport configuration added.")
-		return trace.Wrap(c.doCheck(cf))
+	// TODO(greedy52) support multiple remotes and push URLs, e.g. a fork of
+	// another owner. Fetch the git servers to check whether the organization
+	// of each remote is served by Teleport and which protocols it allows.
+	// Consider offering a cross-protocol update (e.g. SSH to HTTPS) with a
+	// warning that reset cannot restore the original URL, or printing
+	// instructions to run `git remote set-url` first.
+	const singleRemoteHint = "Make sure the repository has a single remote with an SSH or https://github.com URL and no separate push URL, " +
+		"then run 'tsh git config update' again."
+	switch len(remotes) {
+	case 0:
+		fmt.Fprintln(cf.Stdout(), "No remote found.")
+		return nil
+	case 1:
+	default:
+		return trace.BadParameter("multiple remotes are not supported yet. %s", singleRemoteHint)
 	}
-	return trace.NotFound("no GitHub SSH URL found from 'git ls-remote --get-url'")
+
+	remote := remotes[0]
+	switch {
+	case remote.isGitHub() && remote.hasSeparatePushURLs:
+		return trace.BadParameter("remote %q has a separate push URL, which is not supported yet. %s", remote.name, singleRemoteHint)
+	case remote.matches(gitRemoteHelperScheme, "github.com"), remote.matches("https", "github.com"):
+		return trace.Wrap(c.updateHTTPSRemote(cf, remote))
+	case remote.matches("ssh", "github.com"):
+		return trace.Wrap(c.updateSSHRemote(cf, remote))
+	default:
+		return trace.BadParameter("remote %q is not supported by Teleport. %s", remote.name, singleRemoteHint)
+	}
 }
 
-func (c *gitConfigCommand) doReset(cf *CLIConf) error {
+// updateSSHRemote configures core.sshCommand for the GitHub organization of
+// the remote.
+func (c *gitConfigCommand) updateSSHRemote(cf *CLIConf, remote gitRemote) error {
+	args := []string{
+		"config", "--local",
+		"--replace-all", gitCoreSSHCommand,
+		makeGitCoreSSHCommand(cf.executablePath, remote.owner()),
+	}
+	if err := execGit(cf, args...); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintf(cf.Stdout(), "Remote %q is updated to use Teleport over SSH.\n", remote.name)
+	return nil
+}
+
+// resetSSHRemotes removes core.sshCommand set by Teleport, and returns true if
+// it was set.
+func (c *gitConfigCommand) resetSSHRemotes(cf *CLIConf) (bool, error) {
 	sshCommand, err := c.getCoreSSHCommand(cf)
 	if err != nil {
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 	wantPrefix := makeGitCoreSSHCommand(cf.executablePath, "")
 	if !strings.HasPrefix(sshCommand, wantPrefix) {
-		c.printDirNotConfigured(cf.Stdout(), false, sshCommand)
-		return nil
+		return false, nil
+	}
+	if err := execGit(cf, "config", "--local", "--unset-all", gitCoreSSHCommand); err != nil {
+		return false, trace.Wrap(err)
+	}
+	return true, nil
+}
+
+func (c *gitConfigCommand) doReset(cf *CLIConf) error {
+	httpsReset, err := c.resetHTTPSRemotes(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sshReset, err := c.resetSSHRemotes(cf)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	if err := execGit(cf, "config", "--local", "--unset-all", gitCoreSSHCommand); err != nil {
-		return trace.Wrap(err)
+	if !sshReset && !httpsReset {
+		fmt.Fprintln(cf.Stdout(), "The current Git directory is not configured with Teleport.")
+		return nil
 	}
 	fmt.Fprintln(cf.Stdout(), "Teleport configuration removed.")
 	return nil
@@ -181,4 +246,69 @@ func makeGitCoreSSHCommand(tshBin, githubOrg string) string {
 		tshBin,
 		githubOrg,
 	)
+}
+
+func (c *gitConfigCommand) updateHTTPSRemote(cf *CLIConf, remote gitRemote) error {
+	profile, err := cf.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkSessionEncryptionKey(profile); err != nil {
+		return trace.Wrap(err)
+	}
+	for _, args := range [][]string{
+		{"remote", "set-url", remote.name, gitRemoteHelperScheme + "://github.com/" + remote.repoPath()},
+		{"config", "--local", gitRemoteHelperAliasKey, makeGitRemoteHelperAlias(cf.executablePath, profile.ProxyURL.Host)},
+	} {
+		if err := execGit(cf, args...); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	fmt.Fprintf(cf.Stdout(), "Remote %q is updated to use Teleport over HTTPS.\n", remote.name)
+	return nil
+}
+
+func (c *gitConfigCommand) resetHTTPSRemotes(cf *CLIConf) (reset bool, err error) {
+	remotes, err := listGitRemotes(cf)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, remote := range remotes {
+		if remote.matches(gitRemoteHelperScheme, "github.com") {
+			if err := c.resetHTTPSRemote(cf, remote); err != nil {
+				return false, trace.Wrap(err)
+			}
+			reset = true
+		}
+	}
+	if reset {
+		if err := execGit(cf, "config", "--local", "--unset", gitRemoteHelperAliasKey); err != nil {
+			return false, trace.Wrap(err)
+		}
+	}
+	return reset, nil
+}
+
+func (c *gitConfigCommand) resetHTTPSRemote(cf *CLIConf, remote gitRemote) error {
+	httpsURL := "https://github.com/" + remote.repoPath()
+	if err := execGit(cf, "remote", "set-url", remote.name, httpsURL); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintf(cf.Stdout(), "Remote %q is reset to %s.\n", remote.name, httpsURL)
+	return nil
+}
+
+// makeGitRemoteHelperAlias returns the value of the git alias that runs the
+// remote helper. For teleport://<address> remotes, git runs
+// `git remote-teleport <remote> <url>`, and without a git-remote-teleport
+// executable, git runs the alias of the same name.
+//
+// https://git-scm.com/docs/gitremote-helpers#_invocation
+// https://git-scm.com/docs/git-config#Documentation/git-config.txt-alias
+//
+// The alias pins the Teleport proxy, so the remote helper always uses the
+// cluster that configured the repository.
+func makeGitRemoteHelperAlias(tshBin, proxyAddr string) string {
+	// Quote the path in case it has spaces
+	return fmt.Sprintf("!\"%s\" --proxy=%s git remote-http", tshBin, proxyAddr)
 }

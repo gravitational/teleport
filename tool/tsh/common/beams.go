@@ -159,7 +159,8 @@ func beamNodeID(beam *beamsv1.Beam) (string, error) {
 	// TODO(boxofrad): Right now, we expect the CreateBeam call to block until
 	// it's ready to accept SSH connections - which can lead to timeouts when
 	// we need to spin up more nodes. We should make this non-blocking and have
-	// the retry loop re-read the beam.
+	// the retry loop re-read the beam. The credentials sync of `tsh beams add`
+	// must then happen after the beam is ready too.
 	nodeID := beam.GetStatus().GetNodeId()
 	if nodeID == "" {
 		return "", trace.Errorf("beam %q is not ready to accept SSH connections", beam.GetStatus().GetAlias())

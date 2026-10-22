@@ -17,6 +17,7 @@ package types
 
 import (
 	"regexp"
+	"slices"
 
 	"github.com/gravitational/trace"
 )
@@ -37,4 +38,14 @@ func ValidateGitHubOrganizationName(name string) error {
 		return trace.BadParameter("GitHub organization name cannot exceed %d characters", maxGitHubOrgNameLength)
 	}
 	return ValidateResourceName(validGitHubOrganizationName, name)
+}
+
+// IsGitProtocolAllowed returns true if the protocol is in the allowed list.
+// An empty list allows only SSH for backwards compatibility with integrations
+// and Git servers created before HTTP support.
+func IsGitProtocolAllowed(allowProtocols []string, protocol string) bool {
+	if len(allowProtocols) == 0 {
+		return protocol == GitProtocolSSH
+	}
+	return slices.Contains(allowProtocols, protocol)
 }

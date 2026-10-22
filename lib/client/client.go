@@ -140,6 +140,7 @@ type ReissueParams struct {
 	RouteToApp            proto.RouteToApp
 	RouteToWindowsDesktop proto.RouteToWindowsDesktop
 	RouteToLinuxDesktop   proto.RouteToLinuxDesktop
+	RouteToGit            proto.RouteToGit
 
 	// ExistingCreds is a gross hack for lib/web/terminal.go to pass in
 	// existing user credentials. The TeleportClient in lib/web/terminal.go
@@ -205,6 +206,10 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// Linux desktop means a request for a TLS certificate for access to a specific
 		// desktop, as specified by RouteToLinuxDesktop.
 		return proto.UserCertsRequest_LinuxDesktop
+	case p.RouteToGit.Name != "":
+		// Git means a request for a TLS certificate for access to a specific
+		// git server, as specified by RouteToGit.
+		return proto.UserCertsRequest_Git
 	default:
 		// All means a request for both SSH and TLS certificates for the
 		// overall user session. These certificates are not specific to any SSH

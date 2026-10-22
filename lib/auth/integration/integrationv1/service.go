@@ -282,6 +282,9 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if spec == nil {
 			return nil, trace.BadParameter("missing GitHub integration spec")
 		}
+		if len(spec.AllowProtocols) > 0 {
+			return nil, trace.NotImplemented("your Teleport cluster does not support allow_protocols %v for GitHub integrations", spec.AllowProtocols)
+		}
 		if err := s.validateGitHubOAuthCallbackURL(ctx, spec.OAuthCallbackURL); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -352,6 +355,9 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		spec := req.GetIntegration().GetGitHubIntegrationSpec()
 		if spec == nil {
 			return nil, trace.BadParameter("missing GitHub integration spec")
+		}
+		if len(spec.AllowProtocols) > 0 {
+			return nil, trace.NotImplemented("your Teleport cluster does not support allow_protocols %v for GitHub integrations", spec.AllowProtocols)
 		}
 		// Allow empty oauth_callback_url for backwards compatibility or
 		// temporary rollback.

@@ -314,6 +314,9 @@ type ProfileStatus struct {
 	// SSOHost is the host of the SSO provider used to log in.
 	SSOHost string
 
+	// EncryptionKeyID identifies the user's session encryption key.
+	EncryptionKeyID string
+
 	// GitHubIdentity is the GitHub identity attached to the user.
 	GitHubIdentity *GitHubIdentity
 
@@ -456,6 +459,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		SAMLSingleLogoutEnabled:  opts.SAMLSingleLogoutEnabled,
 		SSOHost:                  opts.SSOHost,
 		GitHubIdentity:           gitHubIdentity,
+		EncryptionKeyID:          tlsID.EncryptionKeyID,
 		TLSRoutingEnabled:        opts.TLSRoutingEnabled,
 		DelegationSessionID:      sshIdent.DelegationSessionID,
 	}, nil

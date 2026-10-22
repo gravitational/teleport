@@ -176,6 +176,9 @@ type UserPublicKeys struct {
 	// TLSAttestationStatement is an attestation statement associated with the
 	// given TLS public key.
 	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+	// EncryptionPublicKey is the DER-encoded user-session-owned encryption
+	// public key.
+	EncryptionPublicKey []byte `json:"encryption_public_key,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -273,6 +276,9 @@ type SSHLogin struct {
 	TLSAttestationStatement *hardwarekey.AttestationStatement
 	// ExtraHeaders is a map of extra HTTP headers to be included in requests.
 	ExtraHeaders map[string]string
+	// EncryptionPublicKey is the DER-encoded user-session-owned encryption
+	// public key.
+	EncryptionPublicKey []byte
 }
 
 // SSHLoginSSO contains SSH login parameters for SSO login.
@@ -452,6 +458,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 			TLSPubKey:               login.TLSPubKey,
 			SSHAttestationStatement: login.SSHAttestationStatement,
 			TLSAttestationStatement: login.TLSAttestationStatement,
+			EncryptionPublicKey:     login.EncryptionPublicKey,
 		},
 		TTL: login.TTL,
 		// TODO(fspmarshall/scopes): add scope support to headless login
@@ -538,6 +545,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 				TLSPubKey:               login.TLSPubKey,
 				SSHAttestationStatement: login.SSHAttestationStatement,
 				TLSAttestationStatement: login.TLSAttestationStatement,
+				EncryptionPublicKey:     login.EncryptionPublicKey,
 			},
 			TTL:               login.TTL,
 			Compatibility:     login.Compatibility,
@@ -579,6 +587,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.CLILo
 			TLSPubKey:               login.TLSPubKey,
 			SSHAttestationStatement: login.SSHAttestationStatement,
 			TLSAttestationStatement: login.TLSAttestationStatement,
+			EncryptionPublicKey:     login.EncryptionPublicKey,
 		},
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,

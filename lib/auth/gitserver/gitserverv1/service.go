@@ -106,6 +106,9 @@ func (s *Service) CreateGitServer(ctx context.Context, req *pb.CreateGitServerRe
 	if _, err := s.authorize(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if github := req.Server.GetGitHub(); github != nil && len(github.AllowProtocols) > 0 {
+		return nil, trace.NotImplemented("your Teleport cluster does not support allow_protocols %v for GitHub integrations", github.AllowProtocols)
+	}
 	server, err := s.cfg.Backend.CreateGitServer(ctx, req.Server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -165,6 +168,9 @@ func (s *Service) UpdateGitServer(ctx context.Context, req *pb.UpdateGitServerRe
 	if _, err := s.authorize(ctx, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if github := req.Server.GetGitHub(); github != nil && len(github.AllowProtocols) > 0 {
+		return nil, trace.NotImplemented("your Teleport cluster does not support allow_protocols %v for GitHub integrations", github.AllowProtocols)
+	}
 	server, err := s.cfg.Backend.UpdateGitServer(ctx, req.Server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -175,6 +181,9 @@ func (s *Service) UpdateGitServer(ctx context.Context, req *pb.UpdateGitServerRe
 func (s *Service) UpsertGitServer(ctx context.Context, req *pb.UpsertGitServerRequest) (*types.ServerV2, error) {
 	if _, err := s.authorize(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if github := req.Server.GetGitHub(); github != nil && len(github.AllowProtocols) > 0 {
+		return nil, trace.NotImplemented("your Teleport cluster does not support allow_protocols %v for GitHub integrations", github.AllowProtocols)
 	}
 	server, err := s.cfg.Backend.UpsertGitServer(ctx, req.Server)
 	if err != nil {

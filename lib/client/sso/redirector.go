@@ -356,6 +356,25 @@ func OpenURLInBrowser(browser string, URL string) error {
 	return nil
 }
 
+// OpenBrowserPathAvailable reports whether the command OpenURLInBrowser runs
+// to open a browser can be found. lookPath is usually exec.LookPath.
+func OpenBrowserPathAvailable(browser string, lookPath func(string) (string, error)) bool {
+	if browser == teleport.BrowserNone {
+		return false
+	}
+	var command string
+	switch runtime.GOOS {
+	case constants.DarwinOS:
+		command = teleport.OpenBrowserDarwin
+	case constants.WindowsOS:
+		command = teleport.OpenBrowserWindows
+	default:
+		command = teleport.OpenBrowserLinux
+	}
+	_, err := lookPath(command)
+	return err == nil
+}
+
 // WaitForResponse waits for a response from the callback handler.
 func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.CLILoginResponse, error) {
 	slog.InfoContext(ctx, "Waiting for response", "callback_url", rd.server.URL)

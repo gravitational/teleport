@@ -24,6 +24,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -40,21 +41,53 @@ func newGitLoginCommand(parent *kingpin.CmdClause) *gitLoginCommand {
 		CmdClause: parent.Command("login", "Opens a browser and retrieves your login from GitHub."),
 	}
 
-	// TODO(greedy52) make "github-org" optional. Most likely there is only a
-	// single Git server configured anyway so do a "list" op then use the
-	// organization from that Git server. If more than one Git servers are
-	// found, prompt the user to pick one.
-	cmd.Flag("github-org", "GitHub organization.").Required().StringVar(&cmd.gitHubOrganization)
+	cmd.Flag("github-org", "GitHub organization. Required when more than one GitHub organization is available.").StringVar(&cmd.gitHubOrganization)
 	cmd.Flag("force", "Force a login.").BoolVar(&cmd.force)
 	return cmd
 }
 
 func (c *gitLoginCommand) run(cf *CLIConf) error {
-	identity, err := getGitHubIdentity(cf, c.gitHubOrganization, withForceOAuthFlow(c.force))
+	gitCtx, err := newGitContextForGitHubOrg(cf, c.gitHubOrganization)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer gitCtx.close()
+
+	logger.DebugContext(cf.Context, "Found git server for GitHub organization",
+		"git_server", gitCtx.gitServer.GetName(),
+		"allow_protocols", gitCtx.gitServer.GetGitHub().AllowProtocols,
+	)
+
+	if types.IsGitProtocolAllowed(gitCtx.gitServer.GetGitHub().AllowProtocols, types.GitProtocolHTTPS) {
+		return trace.Wrap(c.runHTTP(gitCtx))
+	}
+
+	identity, err := getGitHubIdentity(cf, gitCtx.gitServer.GetGitHub().Organization, withForceOAuthFlow(c.force))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Fprintf(cf.Stdout(), "Your GitHub username is %s.\n", identity.Username)
+	return nil
+}
+
+func (c *gitLoginCommand) runHTTP(gitCtx *gitContext) error {
+	if err := gitCtx.checkGitOverHTTPS(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var err error
+	if c.force {
+		_, err = gitCtx.getUserGitCredentialFromOAuth()
+	} else {
+		_, err = gitCtx.getUserGitCredentialWithFallbacks(
+			gitCtx.getUserGitCredentialFromBackend,
+			gitCtx.getUserGitCredentialFromOAuth,
+		)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintf(gitCtx.Stdout(), "Your GitHub credentials for Git over HTTPS are saved.\n")
 	return nil
 }
 

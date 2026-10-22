@@ -648,3 +648,45 @@ func (r *EphemeralLocalCertGenerator) GetCertificate(clientHello *tls.ClientHell
 	r.certsByHost[host] = cert
 	return cert, nil
 }
+
+// NewGitCertChecker creates a new CertChecker for the given git server.
+func NewGitCertChecker(tc *TeleportClient, gitRoute proto.RouteToGit, clock clockwork.Clock) *CertChecker {
+	return NewCertChecker(&GitCertIssuer{
+		Client:     tc,
+		RouteToGit: gitRoute,
+	}, clock)
+}
+
+// GitCertIssuer checks and issues git certs.
+type GitCertIssuer struct {
+	// Client is a TeleportClient used to issue certificates when necessary.
+	Client *TeleportClient
+	// RouteToGit contains git server routing information.
+	RouteToGit proto.RouteToGit
+}
+
+func (c *GitCertIssuer) CheckCert(*x509.Certificate) error {
+	return nil
+}
+
+func (c *GitCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
+	if err := RetryWithRelogin(ctx, c.Client, func() error {
+		clusterClient, err := c.Client.ConnectToCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+		return trace.Wrap(clusterClient.ReissueUserCerts(ctx, CertCacheKeep, ReissueParams{
+			RouteToCluster: c.Client.SiteName,
+			RouteToGit:     c.RouteToGit,
+		}))
+	}); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	keyRing, err := c.Client.LocalAgent().GetKeyRing(c.Client.SiteName, WithGitCerts{})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return keyRing.GitTLSCert(c.RouteToGit.Name)
+}

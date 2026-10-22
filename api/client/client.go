@@ -116,6 +116,7 @@ import (
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -6835,4 +6836,10 @@ func (c *Client) ListCertAuthorityOverrides(
 // IssuanceClient returns an [issuancev1pb.IssuanceServiceClient].
 func (c *Client) IssuanceClient() issuancev1pb.IssuanceServiceClient {
 	return issuancev1pb.NewIssuanceServiceClient(c.conn)
+}
+
+// UserExternalCredentialClient returns a client for the
+// UserExternalCredentialService.
+func (c *Client) UserExternalCredentialClient() usercredpb.UserExternalCredentialServiceClient {
+	return usercredpb.NewUserExternalCredentialServiceClient(c.conn)
 }

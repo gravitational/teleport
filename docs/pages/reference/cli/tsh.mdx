@@ -278,6 +278,7 @@ Flags:
 |---|---|---|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--[no-]console`|`true`|Connect to the beam via SSH after creation.|
+|`--[no-]share-connected-accounts`|`true`|Share your connected accounts (such as GitHub) with the beam. Defaults to true.|
 |`--region`|*no default*|Region where the beam should live. If not specified, the closest region is selected.|
 
 ## tsh beams exec
@@ -744,6 +745,28 @@ Arguments:
 |---|---|---|
 |command|*no default* (optional)|`gcloud` command and subcommands arguments.|
 
+## tsh gh
+
+Run gh CLI commands through Teleport.
+
+Usage:
+
+```code
+$ tsh gh [<flags>] [<args>...]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--github-org`|*no default*|GitHub organization. Required when more than one GitHub organization is available.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|args|*no default* (optional)|Arguments for the gh CLI, after '--'.|
+
 ## tsh git clone
 
 Clone a Git repository.
@@ -785,14 +808,14 @@ Opens a browser and retrieves your login from GitHub.
 Usage:
 
 ```code
-$ tsh git login --github-org=GITHUB-ORG [<flags>]
+$ tsh git login [<flags>]
 ```
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--github-org`|*no default*|GitHub organization.|
+|`--github-org`|*no default*|GitHub organization. Required when more than one GitHub organization is available.|
 |`--[no-]force`|`false`|Force a login.|
 
 ## tsh git ls

@@ -152,8 +152,14 @@ type KeyRing struct {
 	// LinuxDesktopTLSCredentials are TLS credentials for desktop access.
 	// Map key is the desktop name.
 	LinuxDesktopTLSCredentials map[string]TLSCredential
+	// GitTLSCredentials are TLS credentials for git server access.
+	// Map key is the git server name.
+	GitTLSCredentials map[string]TLSCredential
 	// TrustedCerts is a list of trusted certificate authorities
 	TrustedCerts []authclient.TrustedCerts
+	// EncryptionPrivateKey is the user-session-owned ECIES P-256 encryption
+	// private key.
+	EncryptionPrivateKey *ecdsa.PrivateKey
 }
 
 // Copy returns a shallow copy of k, or nil if k is nil.
@@ -202,6 +208,7 @@ func NewKeyRing(sshPriv, tlsPriv *keys.PrivateKey) *KeyRing {
 		AppTLSCredentials:            make(map[string]TLSCredential),
 		WindowsDesktopTLSCredentials: make(map[string]TLSCredential),
 		LinuxDesktopTLSCredentials:   make(map[string]TLSCredential),
+		GitTLSCredentials:            make(map[string]TLSCredential),
 	}
 }
 
@@ -753,5 +760,23 @@ func (k *KeyRing) EqualPrivateKey(other *KeyRing) bool {
 	return bytes.Equal(k.SSHPrivateKey.MarshalSSHPublicKey(), other.SSHPrivateKey.MarshalSSHPublicKey()) &&
 		bytes.Equal(k.TLSPrivateKey.MarshalSSHPublicKey(), other.TLSPrivateKey.MarshalSSHPublicKey()) &&
 		subtle.ConstantTimeCompare(k.SSHPrivateKey.PrivateKeyPEM(), other.SSHPrivateKey.PrivateKeyPEM()) == 1 &&
-		subtle.ConstantTimeCompare(k.TLSPrivateKey.PrivateKeyPEM(), other.TLSPrivateKey.PrivateKeyPEM()) == 1
+		subtle.ConstantTimeCompare(k.TLSPrivateKey.PrivateKeyPEM(), other.TLSPrivateKey.PrivateKeyPEM()) == 1 &&
+		equalEncryptionKey(k.EncryptionPrivateKey, other.EncryptionPrivateKey)
+}
+
+func equalEncryptionKey(a, b *ecdsa.PrivateKey) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(b)
+}
+
+// GitTLSCert returns the tls.Certificate for authentication against a named git
+// server.
+func (k *KeyRing) GitTLSCert(gitServerName string) (tls.Certificate, error) {
+	cred, ok := k.GitTLSCredentials[gitServerName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("TLS certificate for git server %q not found", gitServerName)
+	}
+	return cred.TLSCertificate()
 }
