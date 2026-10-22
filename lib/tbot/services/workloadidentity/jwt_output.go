@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -107,7 +106,6 @@ func (s *JWTOutputService) Run(ctx context.Context) error {
 		s.cfg.CredentialLifetime, s.defaultCredentialLifetime,
 	).RenewalInterval
 
-	jitter := retryutils.DefaultJitter
 	var cred *workloadidentityv1pb.Credential
 	var failures int
 	firstRun := make(chan struct{}, 1)
@@ -118,15 +116,15 @@ func (s *JWTOutputService) Run(ctx context.Context) error {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
 			s.statusReporter.Report(readyz.Unhealthy)
-			backoffTime := min(time.Second*time.Duration(math.Pow(2, float64(failures-1))), time.Minute)
-			backoffTime = jitter(backoffTime)
+			backoffTime := min(retryutils.NewExponentialDriver(time.Second).Duration(int64(failures)), time.Minute)
+			backoffTime = retryutils.HalfJitter(backoffTime)
 			s.log.WarnContext(
 				ctx,
 				"Last attempt to generate output failed, will retry",
 				"retry_after", backoffTime,
 				"failures", failures,
 			)
-			retryAfter = time.After(time.Duration(failures) * time.Second)
+			retryAfter = time.After(backoffTime)
 		}
 		select {
 		case <-ctx.Done():
@@ -161,8 +159,14 @@ func (s *JWTOutputService) Run(ctx context.Context) error {
 				failures++
 				continue
 			}
-			// Reset the renewal timer to the configured interval.
-			renewalTimer.Reset(renewalInterval)
+			renewalWait := retryutils.SeventhJitter(renewalInterval)
+			renewalTimer.Reset(renewalWait)
+			s.log.InfoContext(
+				ctx,
+				"Issued JWT SVID, waiting for next renewal",
+				"next_renewal", time.Now().Add(renewalWait),
+				"wait", renewalWait.Round(time.Millisecond),
+			)
 		}
 		if err := s.render(ctx, cred); err != nil {
 			s.log.ErrorContext(ctx, "Failed to render output", "error", err)

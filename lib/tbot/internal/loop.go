@@ -127,16 +127,18 @@ func RunOnInterval(ctx context.Context, cfg RunOnIntervalConfig) error {
 		}
 	}
 
-	ticker := time.NewTicker(cfg.Interval)
-	defer ticker.Stop()
-	jitter := retryutils.DefaultJitter
+	nextRun := time.Now().Add(retryutils.SeventhJitter(cfg.Interval))
+	timer := time.NewTimer(time.Until(nextRun))
+	defer timer.Stop()
 	firstRun := true
 	for {
 		if !firstRun || (firstRun && cfg.WaitBeforeFirstRun) {
 			select {
 			case <-ctx.Done():
 				return nil
-			case <-ticker.C:
+			case <-timer.C:
+				nextRun = time.Now().Add(retryutils.SeventhJitter(cfg.Interval))
+				timer.Reset(time.Until(nextRun))
 			case <-cfg.ReloadCh:
 			}
 		}
@@ -163,8 +165,8 @@ func RunOnInterval(ctx context.Context, cfg RunOnIntervalConfig) error {
 			if attempt != cfg.RetryLimit {
 				// exponentially back off with jitter, starting at 1 second.
 				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
-				backoffTime = jitter(backoffTime)
-				cfg.Log.WarnContext(
+				backoffTime = retryutils.HalfJitter(backoffTime)
+				log.WarnContext(
 					ctx,
 					"Task failed. Backing off and retrying",
 					"attempt", attempt,
@@ -200,15 +202,17 @@ func RunOnInterval(ctx context.Context, cfg RunOnIntervalConfig) error {
 			}
 			log.WarnContext(
 				ctx,
-				"All retry attempts exhausted. Will wait for next interval",
+				"All retry attempts exhausted. Will wait for next run",
 				"retry_limit", cfg.RetryLimit,
-				"interval", cfg.Interval,
+				"next_run", nextRun,
+				"wait", max(time.Until(nextRun), 0).Round(time.Millisecond),
 			)
 		} else {
 			log.InfoContext(
 				ctx,
-				"Task succeeded. Waiting interval",
-				"interval", cfg.Interval,
+				"Task succeeded. Waiting for next run",
+				"next_run", nextRun,
+				"wait", max(time.Until(nextRun), 0).Round(time.Millisecond),
 			)
 		}
 	}

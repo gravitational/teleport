@@ -44,6 +44,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
@@ -373,8 +374,8 @@ func (s *WorkloadAPIService) FetchX509SVID(
 				return trace.Wrap(err)
 			}
 			// Reset our renewal timer to renew these freshly fetched SVIDs
-			// renewal_interval from now.
-			renewalTimer.Reset(renewalInterval)
+			// just under renewal_interval from now.
+			renewalTimer.Reset(retryutils.SeventhJitter(renewalInterval))
 
 			// The SPIFFE Workload API (5.2.1):
 			//

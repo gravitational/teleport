@@ -25,7 +25,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log/slog"
-	"math"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -145,7 +144,6 @@ func (s *X509OutputService) Run(ctx context.Context) error {
 		s.cfg.CredentialLifetime, s.defaultCredentialLifetime,
 	).RenewalInterval
 
-	jitter := retryutils.DefaultJitter
 	var x509Cred *workloadidentityv1pb.Credential
 	var privateKey crypto.Signer
 	var failures int
@@ -157,15 +155,15 @@ func (s *X509OutputService) Run(ctx context.Context) error {
 		var retryAfter <-chan time.Time
 		if failures > 0 {
 			s.statusReporter.Report(readyz.Unhealthy)
-			backoffTime := min(time.Second*time.Duration(math.Pow(2, float64(failures-1))), time.Minute)
-			backoffTime = jitter(backoffTime)
+			backoffTime := min(retryutils.NewExponentialDriver(time.Second).Duration(int64(failures)), time.Minute)
+			backoffTime = retryutils.HalfJitter(backoffTime)
 			s.log.WarnContext(
 				ctx,
 				"Last attempt to generate output failed, will retry",
 				"retry_after", backoffTime,
 				"failures", failures,
 			)
-			retryAfter = time.After(time.Duration(failures) * time.Second)
+			retryAfter = time.After(backoffTime)
 		}
 		select {
 		case <-ctx.Done():
@@ -207,8 +205,14 @@ func (s *X509OutputService) Run(ctx context.Context) error {
 				failures++
 				continue
 			}
-			// Reset the renewal timer to the configured interval.
-			renewalTimer.Reset(renewalInterval)
+			renewalWait := retryutils.SeventhJitter(renewalInterval)
+			renewalTimer.Reset(renewalWait)
+			s.log.InfoContext(
+				ctx,
+				"Issued SVID, waiting for next renewal",
+				"next_renewal", time.Now().Add(renewalWait),
+				"wait", renewalWait.Round(time.Millisecond),
+			)
 		}
 		if err := s.render(
 			ctx, bundleSet, x509Cred, privateKey, crlSet,
