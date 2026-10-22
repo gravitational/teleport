@@ -69,9 +69,10 @@ type UploaderConfig struct {
 	EncryptedRecordingUploader events.EncryptedRecordingUploader
 	// EncryptedRecordingUploadTargetSize is the target size used when aggregating
 	// encrypted recording parts before sending them to EncryptedRecordingUploader.
-	// Encrypted uploads should slightly exceed this target size unless limited by the maximum.
+	// Aggregated uploads stay at or below this target size, less the padding header, or the maximum
+	// if that is smaller.
 	EncryptedRecordingUploadTargetSize int
-	// EncryptedRecordingUploadTargetSize is the maximum size used when aggregating
+	// EncryptedRecordingUploadMaxSize is the maximum size used when aggregating
 	// encrypted recording parts before sending them to EncryptedRecordingUploader.
 	// If set to 0, then no maximum is enforced.
 	EncryptedRecordingUploadMaxSize int
@@ -408,11 +409,20 @@ func (u *upload) removeFiles() error {
 var errSkipEncryptedUpload = errors.New("skip encrypted upload")
 
 // encryptedUploadAggregateIter returns an iterator that aggregates upload parts from the given reader
-// into larger upload with size greater than targetSize, or as near targetSize as possible without exceeding
-// the maxSize.
+// into larger upload parts as close to targetSize, less the padding header, as possible without exceeding
+// it, or to maxSize if that is smaller. Staying below targetSize lets the final uploader pad every
+// aggregated part to exactly its minimum part size, which S3-compatible services that require equal part
+// sizes depend on.
 func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) iter.Seq2[[]byte, error] {
 	// buf holds aggregated upload parts that will be uploaded as a single upload part.
 	var buf bytes.Buffer
+
+	// Leave room for the header of the padding the final uploader adds, so that an aggregated part can
+	// always be padded to exactly targetSize.
+	limit := targetSize - events.ProtoStreamV2PartHeaderSize
+	if maxSize != 0 && maxSize < limit {
+		limit = maxSize
+	}
 
 	readNextPartHeader := func() (events.PartHeader, error) {
 		header, err := events.ParsePartHeader(in)
@@ -500,23 +510,19 @@ func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) ite
 				return
 			}
 
-			// If a max size is configured and the aggregate buffer is not empty, check if there is
-			// room to add this upload part. If not, yield the current aggregate before continuing.
+			// If the aggregate buffer is not empty and this upload part does not fit within the limit,
+			// yield the current aggregate before continuing. A single part larger than the limit is
+			// yielded on its own; file parts are far smaller than any limit used in practice.
 			totalPartSize := len(partHeader.Bytes()) + int(partHeader.PartSize)
-			if maxSize != 0 && buf.Len() > 0 && buf.Len()+totalPartSize > maxSize {
+			if buf.Len() > 0 && buf.Len()+totalPartSize > limit {
 				if !yieldCurrent() {
 					return
 				}
 			}
 
-			writePartToBuffer(partHeader)
-
-			// If we've reached the target upload size, yield the current
-			// aggregated upload part before continuing.
-			if buf.Len() > targetSize {
-				if !yieldCurrent() {
-					return
-				}
+			if err := writePartToBuffer(partHeader); err != nil {
+				yield(nil, trace.Wrap(err))
+				return
 			}
 		}
 	}
