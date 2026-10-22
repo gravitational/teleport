@@ -33,6 +33,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -63,6 +64,13 @@ type AccessPoint interface {
 	GetSessionRecordingConfig(context.Context) (types.SessionRecordingConfig, error)
 }
 
+// AuthClient is the subset of authclient.ClientI used by the git HTTP
+// handler.
+type AuthClient interface {
+	events.Streamer
+	UserExternalCredentialClient() usercredpb.UserExternalCredentialServiceClient
+}
+
 // HandlerConfig is the configuration for the git HTTP handler.
 type HandlerConfig struct {
 	// Clock is used to control time.
@@ -82,13 +90,12 @@ type HandlerConfig struct {
 	ClusterName string
 	// HostID is the proxy host ID for audit events.
 	HostID string
-	// UpstreamAuth provides access tokens for upstream git providers.
-	UpstreamAuth UpstreamAuth
 	// Transport is the HTTP transport for upstream requests. If nil,
 	// http.DefaultTransport is used.
 	Transport http.RoundTripper
-	// AuthClient is used for streaming session recordings to the auth server.
-	AuthClient events.Streamer
+	// AuthClient is used for streaming session recordings and decrypting
+	// user external credentials.
+	AuthClient AuthClient
 	// DataDir is the data directory for temporary session recording storage.
 	DataDir string
 	// Logger is the logger.
@@ -123,9 +130,6 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-	if c.UpstreamAuth == nil {
-		c.UpstreamAuth = upstreamAuth{}
-	}
 	if c.Transport == nil {
 		tr, err := defaults.Transport()
 		if err != nil {
@@ -145,6 +149,7 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 type Handler struct {
 	cfg            HandlerConfig
 	authMiddleware *authz.Middleware
+	upstreamAuth   upstreamAuth
 	sessionChunks  *utils.FnCache
 	closeContext   context.Context
 	closeCancel    context.CancelFunc
@@ -182,12 +187,20 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 	}
 
 	closeContext, closeCancel := context.WithCancel(ctx)
+
+	upstreamAuth, err := newUpstreamAuth(closeContext, cfg.Clock, cfg.AuthClient, cfg.Logger)
+	if err != nil {
+		closeCancel()
+		return nil, trace.Wrap(err)
+	}
+
 	h := &Handler{
 		cfg: cfg,
 		authMiddleware: &authz.Middleware{
 			ClusterName:   cfg.ClusterName,
 			AcceptedUsage: []string{teleport.UsageGitOnly},
 		},
+		upstreamAuth:        upstreamAuth,
 		closeContext:        closeContext,
 		closeCancel:         closeCancel,
 		sessionChunkLimiter: sessionChunkLimiter,
@@ -216,7 +229,8 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 	h.sessionChunks = sessionChunks
 
 	// FnCache only removes expired entries when accessed, so remove them
-	// periodically to close session chunks of idle sessions.
+	// periodically to close session chunks of idle sessions, and to avoid
+	// keeping decrypted secrets in cache in memory longer than necessary.
 	h.closeWG.Go(func() {
 		cleanup := interval.New(interval.Config{
 			Duration: time.Minute,
@@ -228,6 +242,7 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 			select {
 			case <-cleanup.Next():
 				sessionChunks.RemoveExpired()
+				upstreamAuth.removeExpiredCache()
 			case <-closeContext.Done():
 				return
 			}

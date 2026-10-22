@@ -20,23 +20,73 @@ package githttp
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// UpstreamAuth decrypts service-encrypted tokens for authenticating to the
+// upstreamAuth decrypts service-encrypted tokens for authenticating to the
 // upstream git provider.
-type UpstreamAuth interface {
-	// DecryptToken decrypts the service-encrypted token using the user's
-	// certificate and returns a plaintext access token for the upstream git
-	// provider.
-	DecryptToken(ctx context.Context, userCertDER []byte, encryptedToken string) (string, error)
+type upstreamAuth struct {
+	client AuthClient
+	cache  *utils.FnCache
+	logger *slog.Logger
 }
 
-// upstreamAuth is the default UpstreamAuth implementation.
-// TODO(greedy52) implement real decryption via auth server gRPC and caching.
-type upstreamAuth struct{}
+func newUpstreamAuth(ctx context.Context, clock clockwork.Clock, client AuthClient, logger *slog.Logger) (upstreamAuth, error) {
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         10 * time.Minute,
+		Clock:       clock,
+		Context:     ctx,
+		ReloadOnErr: true,
+	})
+	if err != nil {
+		return upstreamAuth{}, trace.Wrap(err)
+	}
+	return upstreamAuth{client: client, cache: cache, logger: logger}, nil
+}
 
-func (upstreamAuth) DecryptToken(context.Context, []byte, string) (string, error) {
-	return "", trace.NotImplemented("token decryption not yet implemented")
+func (u *upstreamAuth) removeExpiredCache() {
+	u.cache.RemoveExpired()
+}
+
+type decryptCacheKey struct {
+	// certSHA256 binds the cache entry to the exact certificate.
+	certSHA256     [sha256.Size]byte
+	encryptedToken string
+}
+
+// DecryptToken decrypts encrypted token to plaintext for upstream use.
+func (u *upstreamAuth) DecryptToken(ctx context.Context, userCertDER []byte, encryptedToken string) (string, error) {
+	// A real encrypted credential is well under 1KB; this just keeps an
+	// oversized, likely-malformed value from being cached at all.
+	if len(encryptedToken) > 4096 {
+		return "", trace.BadParameter("encrypted token exceeds 4096 bytes")
+	}
+	certSHA256 := sha256.Sum256(userCertDER)
+	key := decryptCacheKey{certSHA256: certSHA256, encryptedToken: encryptedToken}
+	return u.cache.Get(ctx, key, func(ctx context.Context) (string, error) {
+		u.logger.DebugContext(ctx, "Decrypting user external credential", "cert_sha256", hex.EncodeToString(certSHA256[:]))
+
+		blob, err := base64.StdEncoding.DecodeString(encryptedToken)
+		if err != nil {
+			return "", trace.BadParameter("invalid encrypted token: %v", err)
+		}
+		resp, err := u.client.UserExternalCredentialClient().DecryptUserExternalCredential(ctx, usercredpb.DecryptUserExternalCredentialRequest_builder{
+			AuthEncryptedBlob: blob,
+			UserCertificate:   userCertDER,
+		}.Build())
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return string(resp.GetPlaintext()), nil
+	})
 }

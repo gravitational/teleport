@@ -149,7 +149,7 @@ func (h *Handler) forwardToGitHub(ctx context.Context, logger *slog.Logger, w ht
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	accessToken, err := h.cfg.UpstreamAuth.DecryptToken(ctx, userCert.Raw, encryptedToken)
+	accessToken, err := h.upstreamAuth.DecryptToken(ctx, userCert.Raw, encryptedToken)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
