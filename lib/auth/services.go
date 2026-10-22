@@ -104,6 +104,7 @@ type Services struct {
 	services.EnrollPairing
 	services.LLMEndpointQuotaService
 	services.OAuthProxyAuthRequests
+	services.UserExternalCredentials
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.

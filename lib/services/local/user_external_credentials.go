@@ -144,8 +144,8 @@ func (s *UserExternalCredentialsService) serviceForKeyID(keyID *pb.EncryptionKey
 	}), nil
 }
 
-// Create creates a new UserExternalCredentials resource.
-func (s *UserExternalCredentialsService) Create(ctx context.Context, resource *pb.UserExternalCredentials) (*pb.UserExternalCredentials, error) {
+// CreateUserExternalCredentials creates a new UserExternalCredentials resource.
+func (s *UserExternalCredentialsService) CreateUserExternalCredentials(ctx context.Context, resource *pb.UserExternalCredentials) (*pb.UserExternalCredentials, error) {
 	if resource == nil {
 		return nil, trace.BadParameter("missing user external credentials")
 	}
@@ -164,8 +164,8 @@ func (s *UserExternalCredentialsService) Create(ctx context.Context, resource *p
 	return created, trace.Wrap(err)
 }
 
-// Update conditionally updates a UserExternalCredentials resource.
-func (s *UserExternalCredentialsService) Update(ctx context.Context, resource *pb.UserExternalCredentials) (*pb.UserExternalCredentials, error) {
+// UpdateUserExternalCredentials conditionally updates a UserExternalCredentials resource.
+func (s *UserExternalCredentialsService) UpdateUserExternalCredentials(ctx context.Context, resource *pb.UserExternalCredentials) (*pb.UserExternalCredentials, error) {
 	svc, err := s.serviceForKeyID(resource.GetSpec().GetEncryptionKeyId())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -174,8 +174,8 @@ func (s *UserExternalCredentialsService) Update(ctx context.Context, resource *p
 	return updated, trace.Wrap(err)
 }
 
-// Get returns a UserExternalCredentials by key ID.
-func (s *UserExternalCredentialsService) Get(ctx context.Context, keyID *pb.EncryptionKeyID) (*pb.UserExternalCredentials, error) {
+// GetUserExternalCredentials returns a UserExternalCredentials by key ID.
+func (s *UserExternalCredentialsService) GetUserExternalCredentials(ctx context.Context, keyID *pb.EncryptionKeyID) (*pb.UserExternalCredentials, error) {
 	svc, err := s.serviceForKeyID(keyID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -184,8 +184,8 @@ func (s *UserExternalCredentialsService) Get(ctx context.Context, keyID *pb.Encr
 	return resource, trace.Wrap(err)
 }
 
-// Delete removes a UserExternalCredentials resource.
-func (s *UserExternalCredentialsService) Delete(ctx context.Context, keyID *pb.EncryptionKeyID) error {
+// DeleteUserExternalCredentials removes a UserExternalCredentials resource.
+func (s *UserExternalCredentialsService) DeleteUserExternalCredentials(ctx context.Context, keyID *pb.EncryptionKeyID) error {
 	svc, err := s.serviceForKeyID(keyID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -193,9 +193,10 @@ func (s *UserExternalCredentialsService) Delete(ctx context.Context, keyID *pb.E
 	return trace.Wrap(svc.DeleteResource(ctx, ""))
 }
 
-// List returns a page of UserExternalCredentials matching the filter. The user
-// field is required. Other fields narrow results by key path prefix.
-func (s *UserExternalCredentialsService) List(ctx context.Context, pageSize int, pageToken string, filter *pb.EncryptionKeyID) ([]*pb.UserExternalCredentials, string, error) {
+// ListUserExternalCredentials returns a page of UserExternalCredentials
+// matching the filter. The user field is required. Other fields narrow
+// results by key path prefix.
+func (s *UserExternalCredentialsService) ListUserExternalCredentials(ctx context.Context, pageSize int, pageToken string, filter *pb.EncryptionKeyID) ([]*pb.UserExternalCredentials, string, error) {
 	if err := validateUserExternalCredentialsKeyIDForList(filter); err != nil {
 		return nil, "", trace.Wrap(err)
 	}

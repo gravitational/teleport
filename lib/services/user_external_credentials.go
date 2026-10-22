@@ -30,11 +30,11 @@ import (
 // UserExternalCredentials manages user external credentials for encrypted
 // credential storage.
 type UserExternalCredentials interface {
-	Create(ctx context.Context, resource *userexternalcredentialsv1.UserExternalCredentials) (*userexternalcredentialsv1.UserExternalCredentials, error)
-	Update(ctx context.Context, resource *userexternalcredentialsv1.UserExternalCredentials) (*userexternalcredentialsv1.UserExternalCredentials, error)
-	Get(ctx context.Context, keyID *userexternalcredentialsv1.EncryptionKeyID) (*userexternalcredentialsv1.UserExternalCredentials, error)
-	Delete(ctx context.Context, keyID *userexternalcredentialsv1.EncryptionKeyID) error
-	List(ctx context.Context, pageSize int, pageToken string, filter *userexternalcredentialsv1.EncryptionKeyID) ([]*userexternalcredentialsv1.UserExternalCredentials, string, error)
+	CreateUserExternalCredentials(ctx context.Context, resource *userexternalcredentialsv1.UserExternalCredentials) (*userexternalcredentialsv1.UserExternalCredentials, error)
+	UpdateUserExternalCredentials(ctx context.Context, resource *userexternalcredentialsv1.UserExternalCredentials) (*userexternalcredentialsv1.UserExternalCredentials, error)
+	GetUserExternalCredentials(ctx context.Context, keyID *userexternalcredentialsv1.EncryptionKeyID) (*userexternalcredentialsv1.UserExternalCredentials, error)
+	DeleteUserExternalCredentials(ctx context.Context, keyID *userexternalcredentialsv1.EncryptionKeyID) error
+	ListUserExternalCredentials(ctx context.Context, pageSize int, pageToken string, filter *userexternalcredentialsv1.EncryptionKeyID) ([]*userexternalcredentialsv1.UserExternalCredentials, string, error)
 }
 
 // MakeUserEncryptionKeyID derives a deterministic encryption key ID from the

@@ -90,6 +90,7 @@ import (
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userexternalcredentialsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningv2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usersv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -144,6 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	"github.com/gravitational/teleport/lib/auth/userexternalcredentials/userexternalcredentialsv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
 	"github.com/gravitational/teleport/lib/auth/userprovisioning/userprovisioningv2"
@@ -6963,6 +6965,20 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	gitserverv1pb.RegisterGitServerServiceServer(server, gitServerService)
+
+	userExternalCredentialService, err := userexternalcredentialsv1.NewService(userexternalcredentialsv1.ServiceConfig{
+		Authorizer:        cfg.Authorizer,
+		Backend:           cfg.AuthServer.Services,
+		Encryptor:         cfg.AuthServer.credentialEncryptor,
+		Cache:             cfg.AuthServer.Cache,
+		ClusterName:       clusterName.GetClusterName(),
+		Clock:             cfg.AuthServer.GetClock(),
+		UpstreamTransport: cfg.AuthServer.upstreamTransport,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userexternalcredentialsv1pb.RegisterUserExternalCredentialServiceServer(server, userExternalCredentialService)
 
 	// Only register the following services if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

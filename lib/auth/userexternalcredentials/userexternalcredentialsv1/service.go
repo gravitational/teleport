@@ -220,7 +220,7 @@ func (s *Service) getUserExternalCredentials(ctx context.Context, authCtx *authz
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := s.cfg.Backend.Get(ctx, keyID)
+	session, err := s.cfg.Backend.GetUserExternalCredentials(ctx, keyID)
 	return session, trace.Wrap(err)
 }
 
@@ -242,9 +242,9 @@ func (s *Service) ListUserExternalCredentials(ctx context.Context, req *pb.ListU
 		return nil, trace.BadParameter("filtering by key_id is not supported")
 	}
 
-	resources, nextPageToken, err := s.cfg.Backend.List(ctx, int(req.GetPageSize()), req.GetPageToken(), pb.EncryptionKeyID_builder{
-		User: username,
-		// TODO(greedy52) support filter by delegate
+	resources, nextPageToken, err := s.cfg.Backend.ListUserExternalCredentials(ctx, int(req.GetPageSize()), req.GetPageToken(), pb.EncryptionKeyID_builder{
+		User:     username,
+		Delegate: req.GetFilter().GetDelegate(),
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -390,7 +390,7 @@ func (s *Service) SyncUserExternalCredentials(ctx context.Context, req *pb.SyncU
 		return nil, trace.Wrap(err)
 	}
 
-	existing, err := s.cfg.Backend.Get(ctx, targetKeyID)
+	existing, err := s.cfg.Backend.GetUserExternalCredentials(ctx, targetKeyID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -401,7 +401,7 @@ func (s *Service) SyncUserExternalCredentials(ctx context.Context, req *pb.SyncU
 		return &pb.SyncUserExternalCredentialsResponse{}, nil
 	}
 
-	if _, err := s.cfg.Backend.Update(ctx, merged); err != nil {
+	if _, err := s.cfg.Backend.UpdateUserExternalCredentials(ctx, merged); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &pb.SyncUserExternalCredentialsResponse{}, nil

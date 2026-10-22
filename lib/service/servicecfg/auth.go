@@ -128,6 +128,24 @@ type AuthConfig struct {
 	// Empty value means the controller uses its default.
 	// Used in tests.
 	AgentRolloutControllerSyncPeriod time.Duration
+
+	// UserExternalCredentials configures user external credentials.
+	UserExternalCredentials UserExternalCredentialsConfig
+}
+
+// UserExternalCredentialsEncryptionModeSoftware forces the Auth encryption
+// key of user external credentials to be a software key stored in the
+// backend, instead of using the same keystore as the keys defined in
+// "ca_key_params". For Auth servers that do not share an HSM or KMS.
+const UserExternalCredentialsEncryptionModeSoftware = "software"
+
+// UserExternalCredentialsConfig configures user external credentials.
+type UserExternalCredentialsConfig struct {
+	// EncryptionMode configures how the Auth encryption key of user external
+	// credentials is managed. "" (default) uses the same keystore as the
+	// keys defined in "ca_key_params". UserExternalCredentialsEncryptionModeSoftware
+	// uses a software key stored in the backend instead.
+	EncryptionMode string
 }
 
 // AccessMonitoringOptions configures access monitoring.

@@ -2595,6 +2595,9 @@ func (process *TeleportProcess) initAuthService() error {
 			SessionSummarizerProvider:   sessionSummarizerProvider,
 			RecordingMetadataProvider:   recordingMetadataProvider,
 			InsecureMode:                cfg.InsecureMode,
+
+			UserExternalCredentialsConfig: cfg.Auth.UserExternalCredentials,
+			UpstreamTransport:             cfg.Testing.HTTPTransport,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil

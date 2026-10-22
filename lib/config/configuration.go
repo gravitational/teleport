@@ -1075,6 +1075,15 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Auth.AccessMonitoring = fc.Auth.AccessMonitoring
 	}
 
+	if fc.Auth.UserExternalCredentials != nil {
+		switch mode := fc.Auth.UserExternalCredentials.EncryptionMode; mode {
+		case "", servicecfg.UserExternalCredentialsEncryptionModeSoftware:
+			cfg.Auth.UserExternalCredentials.EncryptionMode = mode
+		default:
+			return trace.BadParameter("invalid user_external_credentials.encryption_mode %q, the only supported value is %q", mode, servicecfg.UserExternalCredentialsEncryptionModeSoftware)
+		}
+	}
+
 	return nil
 }
 

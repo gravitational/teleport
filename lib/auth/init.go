@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -498,6 +499,14 @@ type InitConfig struct {
 
 	// LLMEndpointQuotaService defines interface to manage LLM endpoint quotas.
 	LLMEndpointQuotaService services.LLMEndpointQuotaService
+
+	// UserExternalCredentialsConfig configures user external credentials.
+	UserExternalCredentialsConfig servicecfg.UserExternalCredentialsConfig
+
+	// UpstreamTransport is an optional HTTP transport that overrides the one
+	// Auth uses when calling third-party upstream services directly (e.g.
+	// GitHub). Used in tests to avoid real network calls.
+	UpstreamTransport http.RoundTripper
 }
 
 // UnstableFeatures contains feature-flags for unstable auth features.

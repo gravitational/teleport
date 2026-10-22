@@ -908,7 +908,7 @@ func (a *Server) registerUserSessionEncryptionKey(ctx context.Context, username 
 		}.Build(),
 	}.Build()
 
-	if _, err := a.userExternalCredentials.Create(ctx, resource); err != nil {
+	if _, err := a.Services.UserExternalCredentials.CreateUserExternalCredentials(ctx, resource); err != nil {
 		return trace.Wrap(err)
 	}
 

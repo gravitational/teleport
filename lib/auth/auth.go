@@ -40,6 +40,7 @@ import (
 	"log/slog"
 	mathrand "math/rand/v2"
 	"net"
+	"net/http"
 	"os"
 	"regexp"
 	"slices"
@@ -94,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/credentialencryption"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -622,6 +624,38 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err, "creating UserExternalCredentials service")
 		}
 	}
+	credentialEncryptionKeys, err := local.NewCredentialEncryptionKeyService(cfg.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating CredentialEncryptionKey service")
+	}
+	credentialEncryptionKeyStore := cfg.KeyStore
+	if cfg.UserExternalCredentialsConfig.EncryptionMode == servicecfg.UserExternalCredentialsEncryptionModeSoftware {
+		credentialEncryptionKeyStore, err = keystore.NewManager(context.Background(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+			HostUUID:             cfg.HostUUID,
+			ClusterName:          cfg.ClusterName,
+			AuthPreferenceGetter: cfg.ClusterConfiguration,
+			FIPS:                 cfg.FIPS,
+			Clock:                cfg.Clock,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating software keystore for user external credentials")
+		}
+	}
+	credentialEncryptor, err := credentialencryption.NewManager(credentialencryption.ManagerConfig{
+		KeyStore: credentialEncryptionKeyStore,
+		Backend:  credentialEncryptionKeys,
+		LockConfig: backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:            cfg.Backend,
+				LockNameComponents: []string{"credential_encryption_key"},
+				TTL:                30 * time.Second,
+			},
+		},
+		FIPS: cfg.FIPS,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating credential encryptor")
+	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -785,6 +819,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		PendingCSRRequestService:        cfg.PendingCSRRequestService,
 		EnrollPairing:                   cfg.EnrollPairing,
 		LLMEndpointQuotaService:         cfg.LLMEndpointQuotaService,
+		UserExternalCredentials:         cfg.UserExternalCredentials,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -830,7 +865,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		insecureMode:                 cfg.InsecureMode,
 		remoteClusterRefreshLimit:    cmp.Or(cfg.RemoteClusterRefreshLimit, defaultRemoteClusterRefreshLimit),
 		remoteClusterRefreshBuckets:  cmp.Or(cfg.RemoteClusterRefreshBuckets, defaultRemoteClusterRefreshBuckets),
-		userExternalCredentials:      cfg.UserExternalCredentials,
+		credentialEncryptor:          credentialEncryptor,
+		upstreamTransport:            cfg.UpstreamTransport,
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -1394,8 +1430,13 @@ type Server struct {
 	// scopedAccessBackend is the backend service for scoped access control resources.
 	scopedAccessBackend services.ScopedAccess
 
-	// userExternalCredentials manages user session encryption keys.
-	userExternalCredentials services.UserExternalCredentials
+	// credentialEncryptor encrypts and decrypts the Auth-layer of user
+	// external credentials.
+	credentialEncryptor *credentialencryption.Manager
+
+	// upstreamTransport overrides the HTTP transport used when calling
+	// third-party upstream services directly (e.g. GitHub).
+	upstreamTransport http.RoundTripper
 
 	// ReadOnlyCache is a specialized cache that provides read-only shared references
 	// in certain performance-critical paths where deserialization/cloning may be too

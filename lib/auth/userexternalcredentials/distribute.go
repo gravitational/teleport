@@ -109,7 +109,7 @@ func Distribute(ctx context.Context, clt services.UserExternalCredentials, usern
 	// option is to only update caller's session and do the rest in a background
 	// go-routine with a jitter.
 	const maxSessions = 25
-	sessions, nextPageToken, err := clt.List(ctx, maxSessions, "", usercredpb.EncryptionKeyID_builder{
+	sessions, nextPageToken, err := clt.ListUserExternalCredentials(ctx, maxSessions, "", usercredpb.EncryptionKeyID_builder{
 		User: username,
 	}.Build())
 	if err != nil {
@@ -155,13 +155,13 @@ func addToSession(ctx context.Context, clt services.UserExternalCredentials, ses
 		})
 		session.GetSpec().SetCredentials(append(credentials, credential))
 
-		if _, err := clt.Update(ctx, session); !trace.IsCompareFailed(err) || attempt >= maxAttempts {
+		if _, err := clt.UpdateUserExternalCredentials(ctx, session); !trace.IsCompareFailed(err) || attempt >= maxAttempts {
 			return trace.Wrap(err)
 		}
 
 		// Someone else updated the session. This should be rare but fetch the
 		// latest and try again.
-		session, err = clt.Get(ctx, session.GetSpec().GetEncryptionKeyId())
+		session, err = clt.GetUserExternalCredentials(ctx, session.GetSpec().GetEncryptionKeyId())
 		if err != nil {
 			return trace.Wrap(err)
 		}

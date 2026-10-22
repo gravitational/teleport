@@ -1031,6 +1031,19 @@ type Auth struct {
 
 	// AccessMonitoring is a set of options related to the Access Monitoring feature.
 	AccessMonitoring *servicecfg.AccessMonitoringOptions `yaml:"access_monitoring,omitempty"`
+
+	// UserExternalCredentials configures user external credentials, e.g.
+	// GitHub credentials for Git over HTTPS.
+	UserExternalCredentials *UserExternalCredentials `yaml:"user_external_credentials,omitempty"`
+}
+
+// UserExternalCredentials configures user external credentials.
+type UserExternalCredentials struct {
+	// EncryptionMode configures how the Auth encryption key of user external
+	// credentials is managed. "" (default) uses the same keystore as the keys
+	// defined in "ca_key_params". "software" uses a software key stored in
+	// the backend instead, for Auth servers that do not share an HSM or KMS.
+	EncryptionMode string `yaml:"encryption_mode,omitempty"`
 }
 
 // PluginService represents the configuration for the plugin service.
