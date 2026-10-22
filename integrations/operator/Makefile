@@ -225,7 +225,7 @@ $(LOCALBIN):
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 
 ## Tool Versions
-CONTROLLER_TOOLS_VERSION ?= v0.20.0
+CONTROLLER_TOOLS_VERSION ?= v0.23.0
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
@@ -258,7 +258,7 @@ TIMESTAMP := $(shell date +%Y%m%d%H%M%S)
 TELEPORT_VERSION ?= 19.0.0-dev
 TELEPORT_IMAGE_DEFAULT := public.ecr.aws/gravitational/teleport-distroless
 TELEPORT_IMAGE ?= $(TELEPORT_IMAGE_DEFAULT)
-TELEPORT_IMAGE_VERSION ?= 18.8.1
+TELEPORT_IMAGE_VERSION ?= 18.11.7
 LOCAL_BUILD := $(if $(filter-out $(TELEPORT_IMAGE_DEFAULT),$(TELEPORT_IMAGE)),1,)
 ARCH ?= $(shell go env GOARCH)
 
@@ -274,9 +274,9 @@ k3d-deploy: generate docker-build
 	cat "$(KUBECONFIG)"
 	# Import container images
 ifeq ($(LOCAL_BUILD),1)
-	k3d image import -c $(K3D_CLUSTER_NAME) $(IMG) $(TELEPORT_IMAGE):$(TELEPORT_IMAGE_VERSION)
+	k3d image import -c $(K3D_CLUSTER_NAME) $(IMG) $(TELEPORT_IMAGE):$(TELEPORT_IMAGE_VERSION) --mode direct
 else
-	k3d image import -c $(K3D_CLUSTER_NAME) $(IMG)
+	k3d image import -c $(K3D_CLUSTER_NAME) $(IMG) --mode direct
 endif
 	kubectl create namespace test --dry-run=client -o yaml | kubectl apply -f -
 

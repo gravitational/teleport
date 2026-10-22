@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=gcr.io/distroless/static-debian12
+ARG BASE_IMAGE=gcr.io/distroless/static-debian13
 
 # BUILDPLATFORM is provided by Docker/buildx
 # Extract the built tarball to reduce the final image size
