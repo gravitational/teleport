@@ -339,7 +339,7 @@ message SessionStartMCPMetadata {
 
 // SessionStartBeamMetadata contains additional information about a beam session.
 message SessionStartBeamMetadata {
-  // anonymized beam ID
+  // anonymized beam ID (beam metadata.name)
   //
   // PostHog property: tp.beam.beam_id
   string beam_id = 1;
@@ -1537,12 +1537,10 @@ enum LicenseLimit {
   LICENSE_LIMIT_UNSPECIFIED = 0;
   // LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF is emitted if license does not
   // allow Jamf integration (e.g. Team Plan)
-  // DEPRECATED: Device trust and its MDM integrations are no longer limited for Enterprise/Cloud.
-  LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1 [deprecated = true];
+  LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1;
   // LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE is emitted when allowed enrolled device
   // limit is reached
-  // DEPRECATED: Device trust usage is no longer limited for Enterprise/Cloud.
-  LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2 [deprecated = true];
+  LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2;
 }
 
 // DesktopDirectoryShareEvent is emitted when directory sharing is used
@@ -2160,8 +2158,6 @@ message UIAccessListIntegrateEvent {
 }
 
 // UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
-//
-// PostHog event: tp.ui.interaction
 message UIInteractionEvent {
   // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64; it
   // can be the username of a bot user rather than of a regular user
@@ -2182,6 +2178,54 @@ message UIInteractionEvent {
   //
   // PostHog properties: tp.ui_interaction.<key> for each entry
   map<string, string> params = 4;
+}
+
+// AgentTool is a known AI agent tool identified as likely causing the usage event.
+enum AgentTool {
+  AGENT_TOOL_UNSPECIFIED = 0;
+  AGENT_TOOL_CLAUDE_CODE = 1;
+  AGENT_TOOL_CODEX_CLI = 2;
+  AGENT_TOOL_GEMINI_CLI = 3;
+  AGENT_TOOL_CURSOR_AGENT = 4;
+  AGENT_TOOL_GITHUB_COPILOT_CLI = 5;
+  AGENT_TOOL_OPENCODE = 6;
+  AGENT_TOOL_CHATGPT = 7;
+  AGENT_TOOL_CLAUDE = 8;
+  AGENT_TOOL_PERPLEXITY = 9;
+  AGENT_TOOL_GOOGLE_AGENT = 10;
+  AGENT_TOOL_GEMINI_NOTEBOOK = 11;
+}
+
+// AgentUsageEvidence holds signals that an AI agent caused a usage event.
+// It is used only for product analysis.
+message AgentUsageEvidence {
+  // teleport_skill is the name of the Teleport skill in use.
+  //
+  // PostHog property: tp.agent_usage.teleport_skill
+  string teleport_skill = 1;
+  // known_agent_environment lists agent tools found in the client environment.
+  //
+  // PostHog property: tp.agent_usage.known_agent_environment
+  repeated AgentTool known_agent_environment = 2;
+  // known_agent_parent_process lists agent tools found among the client's
+  // parent processes.
+  //
+  // PostHog property: tp.agent_usage.known_agent_parent_process
+  repeated AgentTool known_agent_parent_process = 3;
+  // declared_web_driver is true when the browser reported navigator.webdriver.
+  //
+  // PostHog property: tp.agent_usage.declared_web_driver
+  bool declared_web_driver = 4;
+  // interactive_terminal is true when the client ran in an interactive
+  // terminal.
+  //
+  // PostHog property: tp.agent_usage.interactive_terminal
+  bool interactive_terminal = 5;
+  // known_agent_user_agent lists agent tools found in the User-Agent header of
+  // a web request.
+  //
+  // PostHog property: tp.agent_usage.known_agent_user_agent
+  repeated AgentTool known_agent_user_agent = 6;
 }
 
 message SubmitEventRequest {
@@ -2380,11 +2424,15 @@ message SubmitEventRequest {
     UIPageViewEvent ui_page_view = 119;
     UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120;
     SessionSummarySearchEvent session_summary_search_event = 121;
+
     UIInteractionEvent ui_interaction = 122;
 
     BeamsCreatedEvent beams_created = 123;
+
     BeamsDestroyedEvent beams_destroyed = 124;
+
     BeamsPublishedEvent beams_published = 125;
+
     BeamsUnpublishedEvent beams_unpublished = 126;
   }
 
@@ -2394,6 +2442,12 @@ message SubmitEventRequest {
   reserved 97, 98; // AccessRequestEvent
   reserved "access_request_create_event";
   reserved "access_request_review_event";
+
+  // agent_usage_evidence is set when the request that produced the event
+  // showed signs of an AI agent.
+  //
+  // PostHog properties: tp.agent_usage.*
+  AgentUsageEvidence agent_usage_evidence = 127;
 }
 message SubmitEventResponse {}
 

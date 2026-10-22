@@ -472,7 +472,7 @@ export interface SessionStartMCPMetadata {
  */
 export interface SessionStartBeamMetadata {
     /**
-     * anonymized beam ID
+     * anonymized beam ID (beam metadata.name)
      *
      * PostHog property: tp.beam.beam_id
      *
@@ -3692,8 +3692,6 @@ export interface UIAccessListIntegrateEvent {
 /**
  * UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
  *
- * PostHog event: tp.ui.interaction
- *
  * @generated from protobuf message prehog.v1alpha.UIInteractionEvent
  */
 export interface UIInteractionEvent {
@@ -3734,6 +3732,65 @@ export interface UIInteractionEvent {
     params: {
         [key: string]: string;
     };
+}
+/**
+ * AgentUsageEvidence holds signals that an AI agent caused a usage event.
+ * It is used only for product analysis.
+ *
+ * @generated from protobuf message prehog.v1alpha.AgentUsageEvidence
+ */
+export interface AgentUsageEvidence {
+    /**
+     * teleport_skill is the name of the Teleport skill in use.
+     *
+     * PostHog property: tp.agent_usage.teleport_skill
+     *
+     * @generated from protobuf field: string teleport_skill = 1;
+     */
+    teleportSkill: string;
+    /**
+     * known_agent_environment lists agent tools found in the client environment.
+     *
+     * PostHog property: tp.agent_usage.known_agent_environment
+     *
+     * @generated from protobuf field: repeated prehog.v1alpha.AgentTool known_agent_environment = 2;
+     */
+    knownAgentEnvironment: AgentTool[];
+    /**
+     * known_agent_parent_process lists agent tools found among the client's
+     * parent processes.
+     *
+     * PostHog property: tp.agent_usage.known_agent_parent_process
+     *
+     * @generated from protobuf field: repeated prehog.v1alpha.AgentTool known_agent_parent_process = 3;
+     */
+    knownAgentParentProcess: AgentTool[];
+    /**
+     * declared_web_driver is true when the browser reported navigator.webdriver.
+     *
+     * PostHog property: tp.agent_usage.declared_web_driver
+     *
+     * @generated from protobuf field: bool declared_web_driver = 4;
+     */
+    declaredWebDriver: boolean;
+    /**
+     * interactive_terminal is true when the client ran in an interactive
+     * terminal.
+     *
+     * PostHog property: tp.agent_usage.interactive_terminal
+     *
+     * @generated from protobuf field: bool interactive_terminal = 5;
+     */
+    interactiveTerminal: boolean;
+    /**
+     * known_agent_user_agent lists agent tools found in the User-Agent header of
+     * a web request.
+     *
+     * PostHog property: tp.agent_usage.known_agent_user_agent
+     *
+     * @generated from protobuf field: repeated prehog.v1alpha.AgentTool known_agent_user_agent = 6;
+     */
+    knownAgentUserAgent: AgentTool[];
 }
 /**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
@@ -4500,6 +4557,15 @@ export interface SubmitEventRequest {
     } | {
         oneofKind: undefined;
     };
+    /**
+     * agent_usage_evidence is set when the request that produced the event
+     * showed signs of an AI agent.
+     *
+     * PostHog properties: tp.agent_usage.*
+     *
+     * @generated from protobuf field: prehog.v1alpha.AgentUsageEvidence agent_usage_evidence = 127;
+     */
+    agentUsageEvidence?: AgentUsageEvidence;
 }
 /**
  * @generated from protobuf message prehog.v1alpha.SubmitEventResponse
@@ -5440,19 +5506,15 @@ export enum LicenseLimit {
     /**
      * LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF is emitted if license does not
      * allow Jamf integration (e.g. Team Plan)
-     * DEPRECATED: Device trust and its MDM integrations are no longer limited for Enterprise/Cloud.
      *
-     * @deprecated
-     * @generated from protobuf enum value: LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1 [deprecated = true];
+     * @generated from protobuf enum value: LICENSE_LIMIT_DEVICE_TRUST_TEAM_JAMF = 1;
      */
     DEVICE_TRUST_TEAM_JAMF = 1,
     /**
      * LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE is emitted when allowed enrolled device
      * limit is reached
-     * DEPRECATED: Device trust usage is no longer limited for Enterprise/Cloud.
      *
-     * @deprecated
-     * @generated from protobuf enum value: LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2 [deprecated = true];
+     * @generated from protobuf enum value: LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2;
      */
     DEVICE_TRUST_TEAM_USAGE = 2
 }
@@ -5551,6 +5613,61 @@ export enum AccessListIntegrate {
      * @generated from protobuf enum value: ACCESS_LIST_INTEGRATE_OKTA = 1;
      */
     OKTA = 1
+}
+/**
+ * AgentTool is a known AI agent tool identified as likely causing the usage event.
+ *
+ * @generated from protobuf enum prehog.v1alpha.AgentTool
+ */
+export enum AgentTool {
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_CLAUDE_CODE = 1;
+     */
+    CLAUDE_CODE = 1,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_CODEX_CLI = 2;
+     */
+    CODEX_CLI = 2,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_GEMINI_CLI = 3;
+     */
+    GEMINI_CLI = 3,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_CURSOR_AGENT = 4;
+     */
+    CURSOR_AGENT = 4,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_GITHUB_COPILOT_CLI = 5;
+     */
+    GITHUB_COPILOT_CLI = 5,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_OPENCODE = 6;
+     */
+    OPENCODE = 6,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_CHATGPT = 7;
+     */
+    CHATGPT = 7,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_CLAUDE = 8;
+     */
+    CLAUDE = 8,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_PERPLEXITY = 9;
+     */
+    PERPLEXITY = 9,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_GOOGLE_AGENT = 10;
+     */
+    GOOGLE_AGENT = 10,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_GEMINI_NOTEBOOK = 11;
+     */
+    GEMINI_NOTEBOOK = 11
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
@@ -13954,6 +14071,117 @@ class UIInteractionEvent$Type extends MessageType<UIInteractionEvent> {
  */
 export const UIInteractionEvent = new UIInteractionEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class AgentUsageEvidence$Type extends MessageType<AgentUsageEvidence> {
+    constructor() {
+        super("prehog.v1alpha.AgentUsageEvidence", [
+            { no: 1, name: "teleport_skill", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "known_agent_environment", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["prehog.v1alpha.AgentTool", AgentTool, "AGENT_TOOL_"] },
+            { no: 3, name: "known_agent_parent_process", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["prehog.v1alpha.AgentTool", AgentTool, "AGENT_TOOL_"] },
+            { no: 4, name: "declared_web_driver", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "interactive_terminal", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 6, name: "known_agent_user_agent", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["prehog.v1alpha.AgentTool", AgentTool, "AGENT_TOOL_"] }
+        ]);
+    }
+    create(value?: PartialMessage<AgentUsageEvidence>): AgentUsageEvidence {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.teleportSkill = "";
+        message.knownAgentEnvironment = [];
+        message.knownAgentParentProcess = [];
+        message.declaredWebDriver = false;
+        message.interactiveTerminal = false;
+        message.knownAgentUserAgent = [];
+        if (value !== undefined)
+            reflectionMergePartial<AgentUsageEvidence>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AgentUsageEvidence): AgentUsageEvidence {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string teleport_skill */ 1:
+                    message.teleportSkill = reader.string();
+                    break;
+                case /* repeated prehog.v1alpha.AgentTool known_agent_environment */ 2:
+                    if (wireType === WireType.LengthDelimited)
+                        for (let e = reader.int32() + reader.pos; reader.pos < e;)
+                            message.knownAgentEnvironment.push(reader.int32());
+                    else
+                        message.knownAgentEnvironment.push(reader.int32());
+                    break;
+                case /* repeated prehog.v1alpha.AgentTool known_agent_parent_process */ 3:
+                    if (wireType === WireType.LengthDelimited)
+                        for (let e = reader.int32() + reader.pos; reader.pos < e;)
+                            message.knownAgentParentProcess.push(reader.int32());
+                    else
+                        message.knownAgentParentProcess.push(reader.int32());
+                    break;
+                case /* bool declared_web_driver */ 4:
+                    message.declaredWebDriver = reader.bool();
+                    break;
+                case /* bool interactive_terminal */ 5:
+                    message.interactiveTerminal = reader.bool();
+                    break;
+                case /* repeated prehog.v1alpha.AgentTool known_agent_user_agent */ 6:
+                    if (wireType === WireType.LengthDelimited)
+                        for (let e = reader.int32() + reader.pos; reader.pos < e;)
+                            message.knownAgentUserAgent.push(reader.int32());
+                    else
+                        message.knownAgentUserAgent.push(reader.int32());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AgentUsageEvidence, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string teleport_skill = 1; */
+        if (message.teleportSkill !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.teleportSkill);
+        /* repeated prehog.v1alpha.AgentTool known_agent_environment = 2; */
+        if (message.knownAgentEnvironment.length) {
+            writer.tag(2, WireType.LengthDelimited).fork();
+            for (let i = 0; i < message.knownAgentEnvironment.length; i++)
+                writer.int32(message.knownAgentEnvironment[i]);
+            writer.join();
+        }
+        /* repeated prehog.v1alpha.AgentTool known_agent_parent_process = 3; */
+        if (message.knownAgentParentProcess.length) {
+            writer.tag(3, WireType.LengthDelimited).fork();
+            for (let i = 0; i < message.knownAgentParentProcess.length; i++)
+                writer.int32(message.knownAgentParentProcess[i]);
+            writer.join();
+        }
+        /* bool declared_web_driver = 4; */
+        if (message.declaredWebDriver !== false)
+            writer.tag(4, WireType.Varint).bool(message.declaredWebDriver);
+        /* bool interactive_terminal = 5; */
+        if (message.interactiveTerminal !== false)
+            writer.tag(5, WireType.Varint).bool(message.interactiveTerminal);
+        /* repeated prehog.v1alpha.AgentTool known_agent_user_agent = 6; */
+        if (message.knownAgentUserAgent.length) {
+            writer.tag(6, WireType.LengthDelimited).fork();
+            for (let i = 0; i < message.knownAgentUserAgent.length; i++)
+                writer.int32(message.knownAgentUserAgent[i]);
+            writer.join();
+        }
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AgentUsageEvidence
+ */
+export const AgentUsageEvidence = new AgentUsageEvidence$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventRequest", [
@@ -14079,7 +14307,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 123, name: "beams_created", kind: "message", oneof: "event", T: () => BeamsCreatedEvent },
             { no: 124, name: "beams_destroyed", kind: "message", oneof: "event", T: () => BeamsDestroyedEvent },
             { no: 125, name: "beams_published", kind: "message", oneof: "event", T: () => BeamsPublishedEvent },
-            { no: 126, name: "beams_unpublished", kind: "message", oneof: "event", T: () => BeamsUnpublishedEvent }
+            { no: 126, name: "beams_unpublished", kind: "message", oneof: "event", T: () => BeamsUnpublishedEvent },
+            { no: 127, name: "agent_usage_evidence", kind: "message", T: () => AgentUsageEvidence }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -14825,6 +15054,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         beamsUnpublished: BeamsUnpublishedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).beamsUnpublished)
                     };
                     break;
+                case /* prehog.v1alpha.AgentUsageEvidence agent_usage_evidence */ 127:
+                    message.agentUsageEvidence = AgentUsageEvidence.internalBinaryRead(reader, reader.uint32(), options, message.agentUsageEvidence);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -15206,6 +15438,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.BeamsUnpublishedEvent beams_unpublished = 126; */
         if (message.event.oneofKind === "beamsUnpublished")
             BeamsUnpublishedEvent.internalBinaryWrite(message.event.beamsUnpublished, writer.tag(126, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AgentUsageEvidence agent_usage_evidence = 127; */
+        if (message.agentUsageEvidence)
+            AgentUsageEvidence.internalBinaryWrite(message.agentUsageEvidence, writer.tag(127, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
