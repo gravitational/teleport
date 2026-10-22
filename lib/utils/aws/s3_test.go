@@ -30,8 +30,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
+
+func TestConvertS3Error(t *testing.T) {
+	require.NoError(t, ConvertS3Error(nil))
+	require.True(t, trace.IsNotFound(ConvertS3Error(&s3types.NoSuchKey{})))
+	require.True(t, trace.IsAlreadyExists(ConvertS3Error(&s3types.BucketAlreadyOwnedByYou{})))
+	require.True(t, trace.IsCompareFailed(ConvertS3Error(&smithy.GenericAPIError{Code: "PreconditionFailed"})))
+	require.False(t, trace.IsCompareFailed(ConvertS3Error(&smithy.GenericAPIError{Code: "AccessDenied"})))
+}
 
 func TestNewS3V2FileWriter(t *testing.T) {
 	t.Run("writer.Close waits for upload to finish", func(t *testing.T) {

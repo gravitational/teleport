@@ -701,8 +701,10 @@ For information on using S3 for audit logs, see the [Athena](#Athena)
 section.
 
 S3 buckets must have versioning enabled, which ensures that a session log cannot
-be permanently altered or deleted. Teleport will always look at the oldest
-version of a recording.
+be permanently altered or deleted. Teleport reads the oldest version of a
+recording. For S3-compatible services without object versioning, such as
+Cloudflare R2, set the `disable_versioning=true` URL parameter described below.
+Session logs are then not protected against being altered or deleted.
 
 ### S3-compatible services
 
@@ -720,6 +722,24 @@ following environment variable assignments:
 AWS_REQUEST_CHECKSUM_CALCULATION=WHEN_REQUIRED
 AWS_RESPONSE_CHECKSUM_VALIDATION=WHEN_REQUIRED
 ```
+
+Cloudflare R2 does not support object versioning or AWS KMS server-side
+encryption ([R2 encrypts all objects at
+rest](https://developers.cloudflare.com/r2/reference/data-security/) on its
+own), so it requires the `disable_versioning` and `disablesse` parameters
+described below. Create the bucket in advance, because an R2 API token with the
+Object Read & Write permission can read and write objects in a bucket but cannot
+create buckets. Then configure the Auth Service:
+
+```yaml
+teleport:
+  storage:
+    audit_sessions_uri: "s3://<Var name="r2-bucket-name" />/records?endpoint=<Var name="cloudflare-account-id" />.r2.cloudflarestorage.com&region=auto&disablesse=true&disable_versioning=true"
+```
+
+For a bucket in a jurisdiction, use the jurisdiction-specific endpoint, such as
+`endpoint=<Var name="cloudflare-account-id" />.eu.r2.cloudflarestorage.com` for
+the EU jurisdiction.
 
 We recommend testing backend operations between Teleport and your S3-compatible
 solution in a non-production environment before deploying to production.
@@ -793,6 +813,23 @@ initiated by the specified set of initiators. This is helpful in scenarios where
 software other than Teleport is initiating multipart uploads in the recordings
 bucket. This should be set to the display name of the initiator(s) you want to
 allow.
+
+- `disable_versioning=true` - set to `true` or `false`. Set to `true` for
+  S3-compatible services without object versioning, such as Cloudflare R2.
+  The Auth Service then reads the current object instead of its oldest version,
+  completes a recording upload only if no object with that name exists yet
+  (the service must support `If-None-Match: *` on `CompleteMultipartUpload`,
+  as R2 does), and does not enable versioning on buckets it creates. Default
+  value is `false`.
+
+<Admonition type="warning" title="IMPORTANT">
+With `disable_versioning=true`, the Auth Service never overwrites a completed
+recording: it aborts a later upload for the same session, deleting its data,
+and logs a warning. Nothing prevents other clients with write access to the
+bucket from overwriting or deleting a recording after upload. Restrict write
+access to the bucket to the Teleport Auth Service, and do not set this parameter
+for buckets that support versioning.
+</Admonition>
 
 ### S3 IAM policy
 

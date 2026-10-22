@@ -103,6 +103,13 @@ type Config struct {
 	Insecure bool
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
+	// DisableVersioning is an optional switch for providers without object
+	// versioning, such as Cloudflare R2. When set, Teleport reads the current
+	// object instead of its oldest version, completes a recording upload only
+	// if no object exists yet, and does not enable versioning on buckets it
+	// creates. Without versioning, any other client with write access to the
+	// bucket can overwrite or delete a recording after upload.
+	DisableVersioning bool
 
 	// UseVirtualStyleAddressing use a virtual-hosted–style URI.
 	// Path style e.g. https://s3.region-code.amazonaws.com/bucket-name/key-name
@@ -143,6 +150,13 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 			return trace.BadParameter(boolErrorTemplate, in.String(), teleport.DisableServerSideEncryption, val)
 		}
 		s.DisableServerSideEncryption = disableServerSideEncryption
+	}
+	if val := in.Query().Get(teleport.S3DisableVersioning); val != "" {
+		disableVersioning, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter(boolErrorTemplate, in.String(), teleport.S3DisableVersioning, val)
+		}
+		s.DisableVersioning = disableVersioning
 	}
 	if acl := in.Query().Get(teleport.ACL); acl != "" {
 		if !isCannedACL(acl) {
@@ -535,6 +549,13 @@ func (h *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.
 }
 
 func (h *Handler) downloadOriginalFile(ctx context.Context, path string) (io.ReadCloser, error) {
+	if h.DisableVersioning {
+		// Without object versioning only the current object exists, so read it
+		// directly.
+		h.logger.DebugContext(ctx, "Downloading file from S3", "bucket", h.Bucket, "path", path)
+		return h.downloadFileRetrier(ctx, path, nil /* versionID */)
+	}
+
 	// Get the oldest version of this object. This has to be done because S3
 	// allows overwriting objects in a bucket. To prevent corruption of recording
 	// data, get all versions and always return the first.
@@ -568,12 +589,21 @@ func (h *Handler) downloadFileRetrier(ctx context.Context, path string, versionI
 		return io.NopCloser(bytes.NewBuffer(nil)), nil
 	}
 
+	// Without object versioning, pin the range reads to the object that
+	// HeadObject saw, so that a retry after a concurrent overwrite fails
+	// instead of splicing two objects together.
+	var ifMatch *string
+	if h.DisableVersioning {
+		ifMatch = headOutput.ETag
+	}
+
 	return downloadretrier.New(ctx, contentLength, func(ctx context.Context, offset int64) (io.ReadCloser, error) {
 		rangeStr := fmt.Sprintf("bytes=%d-%d", offset, contentLength-1)
 		output, err := h.client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket:    aws.String(h.Bucket),
 			Key:       aws.String(path),
 			VersionId: versionID,
+			IfMatch:   ifMatch,
 			Range:     aws.String(rangeStr),
 		})
 		if err != nil {
@@ -731,14 +761,16 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 	}
 
 	// Turn on versioning.
-	_, err = h.client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
-		Bucket: aws.String(h.Bucket),
-		VersioningConfiguration: &awstypes.VersioningConfiguration{
-			Status: awstypes.BucketVersioningStatusEnabled,
-		},
-	})
-	if err := awsutils.ConvertS3Error(err); err != nil {
-		return trace.Wrap(err, "failed to set versioning state for bucket %q", h.Bucket)
+	if !h.DisableVersioning {
+		_, err = h.client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
+			Bucket: aws.String(h.Bucket),
+			VersioningConfiguration: &awstypes.VersioningConfiguration{
+				Status: awstypes.BucketVersioningStatusEnabled,
+			},
+		})
+		if err := awsutils.ConvertS3Error(err); err != nil {
+			return trace.Wrap(err, "failed to set versioning state for bucket %q", h.Bucket)
+		}
 	}
 
 	// Turn on server-side encryption for the bucket.

@@ -198,10 +198,27 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		UploadId:        aws.String(upload.ID),
 		MultipartUpload: &types.CompletedMultipartUpload{Parts: completedParts},
 	}
+	if h.DisableVersioning {
+		// Without object versioning, completing a second upload for the same
+		// session would replace the recording, so complete only if no object
+		// exists yet. A 409 conflict with a concurrent delete is returned as
+		// an error rather than treated as an existing recording.
+		params.IfNoneMatch = aws.String("*")
+	}
 	_, err := h.client.CompleteMultipartUpload(ctx, params)
 	if err != nil {
-		return trace.Wrap(awsutils.ConvertS3Error(err),
-			"CompleteMultipartUpload(upload %v) session(%v)", upload.ID, upload.SessionID)
+		err = awsutils.ConvertS3Error(err)
+		if !trace.IsCompareFailed(err) {
+			return trace.Wrap(err, "CompleteMultipartUpload(upload %v) session(%v)", upload.ID, upload.SessionID)
+		}
+		log.WarnContext(ctx, "Upload attempted to replace a completed recording, will not overwrite", "parts", len(parts))
+		// The upload may already be gone: a retried or concurrent completion
+		// of it may have succeeded, and Cloudflare R2 treats an upload whose
+		// completion failed a precondition as aborted.
+		if err := h.abortUpload(ctx, upload); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
 	log.InfoContext(ctx, "Completed upload", "duration", time.Since(start))

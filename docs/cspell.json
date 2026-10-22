@@ -423,6 +423,7 @@
     "cloudallow",
     "cloudbuild",
     "cloudflared",
+    "cloudflarestorage",
     "cloudhsmv2",
     "cloudkms",
     "cloudspanner",
