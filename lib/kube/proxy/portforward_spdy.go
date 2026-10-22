@@ -28,8 +28,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
+	"k8s.io/streaming/pkg/httpstream"
+	spdystream "k8s.io/streaming/pkg/httpstream/spdy"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
