@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.identitycenter.v1;
 
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1";
@@ -207,11 +209,43 @@ message AccountAssignmentRef {
   string permission_set_name = 4;
 }
 
-// PrincipalAssignmentAssignmentStatus holds frequently-changing iinformation
+// PrincipalGrant is the combined set of resources and access constraints granted
+// to a given principal
+message PrincipalGrant {
+  // ProvisioningState describes the current provisioning state of the access grant
+  // PermissionSet
+  ProvisioningState provisioning_state = 1;
+
+  // Error holds any error that occurred during the last attempt to provision the
+  // Principal Grant's policy
+  string error = 2;
+
+  // LastProvisionedAt holds the timestamp of the last successful provisioning
+  // attempt for the Principal Grant's policy
+  google.protobuf.Timestamp last_provisioned_at = 3;
+
+  // PermissionSetName is the name of the permission set
+  string permission_set_name = 4;
+
+  // PermissionSetARN is the unique ARN of the permission set as assigned by AWS
+  string permission_set_arn = 5;
+
+  // Description is the permission set description
+  string description = 6;
+
+  // InlinePolicy holds any inline policy associated with the Principal Grant
+  google.protobuf.Struct inline_policy = 7;
+}
+
+// PrincipalAssignmentAssignmentStatus holds frequently-changing information
 // about the PrincipalAssignment
 message PrincipalAssignmentStatus {
   ProvisioningState provisioning_state = 1;
   repeated AccountAssignmentRef assignments = 2;
   repeated string applications = 3;
   string error = 4;
+
+  // PrincipalGrant holds the current status of the principal's resource access
+  // grant
+  PrincipalGrant principal_grant = 5;
 }

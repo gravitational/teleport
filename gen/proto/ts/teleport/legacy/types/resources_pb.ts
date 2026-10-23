@@ -162,8 +162,8 @@ export interface ResourceAccessIDList {
     resources: ResourceAccessID[];
 }
 /**
- * IdentityCenterResourceConstraints constrains the users access to an
- * Identity Center resource to the specified access profiles
+ * IdentityCenterResourceConstraints constrains a user's access to an
+ * Identity Center resource by the specified access policies
  *
  * @generated from protobuf message types.IdentityCenterResourceConstraints
  */

@@ -349,8 +349,8 @@ func (m *ResourceAccessIDList) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ResourceAccessIDList proto.InternalMessageInfo
 
-// IdentityCenterResourceConstraints constrains the users access to an
-// Identity Center resource to the specified access profiles
+// IdentityCenterResourceConstraints constrains a user's access to an
+// Identity Center resource by the specified access policies
 type IdentityCenterResourceConstraints struct {
 	AccessPolicies       []string `protobuf:"bytes,1,rep,name=access_policies,json=accessPolicies,proto3" json:"access_policies,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

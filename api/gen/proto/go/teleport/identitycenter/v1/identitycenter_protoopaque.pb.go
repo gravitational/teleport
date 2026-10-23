@@ -26,6 +26,8 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	unsafe "unsafe"
 )
@@ -1470,7 +1472,182 @@ func (b0 AccountAssignmentRef_builder) Build() *AccountAssignmentRef {
 	return m0
 }
 
-// PrincipalAssignmentAssignmentStatus holds frequently-changing iinformation
+// PrincipalGrant is the combined set of resources and access constraints granted
+// to a given principal
+type PrincipalGrant struct {
+	state                        protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ProvisioningState ProvisioningState      `protobuf:"varint,1,opt,name=provisioning_state,json=provisioningState,proto3,enum=teleport.identitycenter.v1.ProvisioningState"`
+	xxx_hidden_Error             string                 `protobuf:"bytes,2,opt,name=error,proto3"`
+	xxx_hidden_LastProvisionedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_provisioned_at,json=lastProvisionedAt,proto3"`
+	xxx_hidden_PermissionSetName string                 `protobuf:"bytes,4,opt,name=permission_set_name,json=permissionSetName,proto3"`
+	xxx_hidden_PermissionSetArn  string                 `protobuf:"bytes,5,opt,name=permission_set_arn,json=permissionSetArn,proto3"`
+	xxx_hidden_Description       string                 `protobuf:"bytes,6,opt,name=description,proto3"`
+	xxx_hidden_InlinePolicy      *structpb.Struct       `protobuf:"bytes,7,opt,name=inline_policy,json=inlinePolicy,proto3"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
+}
+
+func (x *PrincipalGrant) Reset() {
+	*x = PrincipalGrant{}
+	mi := &file_teleport_identitycenter_v1_identitycenter_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrincipalGrant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrincipalGrant) ProtoMessage() {}
+
+func (x *PrincipalGrant) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_identitycenter_v1_identitycenter_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *PrincipalGrant) GetProvisioningState() ProvisioningState {
+	if x != nil {
+		return x.xxx_hidden_ProvisioningState
+	}
+	return ProvisioningState_PROVISIONING_STATE_UNSPECIFIED
+}
+
+func (x *PrincipalGrant) GetError() string {
+	if x != nil {
+		return x.xxx_hidden_Error
+	}
+	return ""
+}
+
+func (x *PrincipalGrant) GetLastProvisionedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.xxx_hidden_LastProvisionedAt
+	}
+	return nil
+}
+
+func (x *PrincipalGrant) GetPermissionSetName() string {
+	if x != nil {
+		return x.xxx_hidden_PermissionSetName
+	}
+	return ""
+}
+
+func (x *PrincipalGrant) GetPermissionSetArn() string {
+	if x != nil {
+		return x.xxx_hidden_PermissionSetArn
+	}
+	return ""
+}
+
+func (x *PrincipalGrant) GetDescription() string {
+	if x != nil {
+		return x.xxx_hidden_Description
+	}
+	return ""
+}
+
+func (x *PrincipalGrant) GetInlinePolicy() *structpb.Struct {
+	if x != nil {
+		return x.xxx_hidden_InlinePolicy
+	}
+	return nil
+}
+
+func (x *PrincipalGrant) SetProvisioningState(v ProvisioningState) {
+	x.xxx_hidden_ProvisioningState = v
+}
+
+func (x *PrincipalGrant) SetError(v string) {
+	x.xxx_hidden_Error = v
+}
+
+func (x *PrincipalGrant) SetLastProvisionedAt(v *timestamppb.Timestamp) {
+	x.xxx_hidden_LastProvisionedAt = v
+}
+
+func (x *PrincipalGrant) SetPermissionSetName(v string) {
+	x.xxx_hidden_PermissionSetName = v
+}
+
+func (x *PrincipalGrant) SetPermissionSetArn(v string) {
+	x.xxx_hidden_PermissionSetArn = v
+}
+
+func (x *PrincipalGrant) SetDescription(v string) {
+	x.xxx_hidden_Description = v
+}
+
+func (x *PrincipalGrant) SetInlinePolicy(v *structpb.Struct) {
+	x.xxx_hidden_InlinePolicy = v
+}
+
+func (x *PrincipalGrant) HasLastProvisionedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_LastProvisionedAt != nil
+}
+
+func (x *PrincipalGrant) HasInlinePolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_InlinePolicy != nil
+}
+
+func (x *PrincipalGrant) ClearLastProvisionedAt() {
+	x.xxx_hidden_LastProvisionedAt = nil
+}
+
+func (x *PrincipalGrant) ClearInlinePolicy() {
+	x.xxx_hidden_InlinePolicy = nil
+}
+
+type PrincipalGrant_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ProvisioningState describes the current provisioning state of the access grant
+	// PermissionSet
+	ProvisioningState ProvisioningState
+	// Error holds any error that occurred during the last attempt to provision the
+	// Principal Grant's policy
+	Error string
+	// LastProvisionedAt holds the timestamp of the last successful provisioning
+	// attempt for the Principal Grant's policy
+	LastProvisionedAt *timestamppb.Timestamp
+	// PermissionSetName is the name of the permission set
+	PermissionSetName string
+	// PermissionSetARN is the unique ARN of the permission set as assigned by AWS
+	PermissionSetArn string
+	// Description is the permission set description
+	Description string
+	// InlinePolicy holds any inline policy associated with the Principal Grant
+	InlinePolicy *structpb.Struct
+}
+
+func (b0 PrincipalGrant_builder) Build() *PrincipalGrant {
+	m0 := &PrincipalGrant{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_ProvisioningState = b.ProvisioningState
+	x.xxx_hidden_Error = b.Error
+	x.xxx_hidden_LastProvisionedAt = b.LastProvisionedAt
+	x.xxx_hidden_PermissionSetName = b.PermissionSetName
+	x.xxx_hidden_PermissionSetArn = b.PermissionSetArn
+	x.xxx_hidden_Description = b.Description
+	x.xxx_hidden_InlinePolicy = b.InlinePolicy
+	return m0
+}
+
+// PrincipalAssignmentAssignmentStatus holds frequently-changing information
 // about the PrincipalAssignment
 type PrincipalAssignmentStatus struct {
 	state                        protoimpl.MessageState   `protogen:"opaque.v1"`
@@ -1478,13 +1655,14 @@ type PrincipalAssignmentStatus struct {
 	xxx_hidden_Assignments       *[]*AccountAssignmentRef `protobuf:"bytes,2,rep,name=assignments,proto3"`
 	xxx_hidden_Applications      []string                 `protobuf:"bytes,3,rep,name=applications,proto3"`
 	xxx_hidden_Error             string                   `protobuf:"bytes,4,opt,name=error,proto3"`
+	xxx_hidden_PrincipalGrant    *PrincipalGrant          `protobuf:"bytes,5,opt,name=principal_grant,json=principalGrant,proto3"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *PrincipalAssignmentStatus) Reset() {
 	*x = PrincipalAssignmentStatus{}
-	mi := &file_teleport_identitycenter_v1_identitycenter_proto_msgTypes[11]
+	mi := &file_teleport_identitycenter_v1_identitycenter_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1496,7 +1674,7 @@ func (x *PrincipalAssignmentStatus) String() string {
 func (*PrincipalAssignmentStatus) ProtoMessage() {}
 
 func (x *PrincipalAssignmentStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_identitycenter_proto_msgTypes[11]
+	mi := &file_teleport_identitycenter_v1_identitycenter_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1537,6 +1715,13 @@ func (x *PrincipalAssignmentStatus) GetError() string {
 	return ""
 }
 
+func (x *PrincipalAssignmentStatus) GetPrincipalGrant() *PrincipalGrant {
+	if x != nil {
+		return x.xxx_hidden_PrincipalGrant
+	}
+	return nil
+}
+
 func (x *PrincipalAssignmentStatus) SetProvisioningState(v ProvisioningState) {
 	x.xxx_hidden_ProvisioningState = v
 }
@@ -1553,6 +1738,21 @@ func (x *PrincipalAssignmentStatus) SetError(v string) {
 	x.xxx_hidden_Error = v
 }
 
+func (x *PrincipalAssignmentStatus) SetPrincipalGrant(v *PrincipalGrant) {
+	x.xxx_hidden_PrincipalGrant = v
+}
+
+func (x *PrincipalAssignmentStatus) HasPrincipalGrant() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_PrincipalGrant != nil
+}
+
+func (x *PrincipalAssignmentStatus) ClearPrincipalGrant() {
+	x.xxx_hidden_PrincipalGrant = nil
+}
+
 type PrincipalAssignmentStatus_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1560,6 +1760,9 @@ type PrincipalAssignmentStatus_builder struct {
 	Assignments       []*AccountAssignmentRef
 	Applications      []string
 	Error             string
+	// PrincipalGrant holds the current status of the principal's resource access
+	// grant
+	PrincipalGrant *PrincipalGrant
 }
 
 func (b0 PrincipalAssignmentStatus_builder) Build() *PrincipalAssignmentStatus {
@@ -1570,6 +1773,7 @@ func (b0 PrincipalAssignmentStatus_builder) Build() *PrincipalAssignmentStatus {
 	x.xxx_hidden_Assignments = &b.Assignments
 	x.xxx_hidden_Applications = b.Applications
 	x.xxx_hidden_Error = b.Error
+	x.xxx_hidden_PrincipalGrant = b.PrincipalGrant
 	return m0
 }
 
@@ -1577,7 +1781,7 @@ var File_teleport_identitycenter_v1_identitycenter_proto protoreflect.FileDescri
 
 const file_teleport_identitycenter_v1_identitycenter_proto_rawDesc = "" +
 	"\n" +
-	"/teleport/identitycenter/v1/identitycenter.proto\x12\x1ateleport.identitycenter.v1\x1a!teleport/header/v1/metadata.proto\"r\n" +
+	"/teleport/identitycenter/v1/identitycenter.proto\x12\x1ateleport.identitycenter.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"r\n" +
 	"\x11PermissionSetInfo\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -1639,12 +1843,21 @@ const file_teleport_identitycenter_v1_identitycenter_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
 	"\faccount_name\x18\x02 \x01(\tR\vaccountName\x12,\n" +
 	"\x12permission_set_arn\x18\x03 \x01(\tR\x10permissionSetArn\x12.\n" +
-	"\x13permission_set_name\x18\x04 \x01(\tR\x11permissionSetName\"\x87\x02\n" +
+	"\x13permission_set_name\x18\x04 \x01(\tR\x11permissionSetName\"\x8e\x03\n" +
+	"\x0ePrincipalGrant\x12\\\n" +
+	"\x12provisioning_state\x18\x01 \x01(\x0e2-.teleport.identitycenter.v1.ProvisioningStateR\x11provisioningState\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12J\n" +
+	"\x13last_provisioned_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x11lastProvisionedAt\x12.\n" +
+	"\x13permission_set_name\x18\x04 \x01(\tR\x11permissionSetName\x12,\n" +
+	"\x12permission_set_arn\x18\x05 \x01(\tR\x10permissionSetArn\x12 \n" +
+	"\vdescription\x18\x06 \x01(\tR\vdescription\x12<\n" +
+	"\rinline_policy\x18\a \x01(\v2\x17.google.protobuf.StructR\finlinePolicy\"\xdc\x02\n" +
 	"\x19PrincipalAssignmentStatus\x12\\\n" +
 	"\x12provisioning_state\x18\x01 \x01(\x0e2-.teleport.identitycenter.v1.ProvisioningStateR\x11provisioningState\x12R\n" +
 	"\vassignments\x18\x02 \x03(\v20.teleport.identitycenter.v1.AccountAssignmentRefR\vassignments\x12\"\n" +
 	"\fapplications\x18\x03 \x03(\tR\fapplications\x12\x14\n" +
-	"\x05error\x18\x04 \x01(\tR\x05error*h\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\x12S\n" +
+	"\x0fprincipal_grant\x18\x05 \x01(\v2*.teleport.identitycenter.v1.PrincipalGrantR\x0eprincipalGrant*h\n" +
 	"\rPrincipalType\x12\x1e\n" +
 	"\x1aPRINCIPAL_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13PRINCIPAL_TYPE_USER\x10\x01\x12\x1e\n" +
@@ -1656,7 +1869,7 @@ const file_teleport_identitycenter_v1_identitycenter_proto_rawDesc = "" +
 	"\x1aPROVISIONING_STATE_DELETED\x10\x03B`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1b\x06proto3"
 
 var file_teleport_identitycenter_v1_identitycenter_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_identitycenter_v1_identitycenter_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_teleport_identitycenter_v1_identitycenter_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_identitycenter_v1_identitycenter_proto_goTypes = []any{
 	(PrincipalType)(0),                // 0: teleport.identitycenter.v1.PrincipalType
 	(ProvisioningState)(0),            // 1: teleport.identitycenter.v1.ProvisioningState
@@ -1671,30 +1884,37 @@ var file_teleport_identitycenter_v1_identitycenter_proto_goTypes = []any{
 	(*PrincipalAssignment)(nil),       // 10: teleport.identitycenter.v1.PrincipalAssignment
 	(*PrincipalAssignmentSpec)(nil),   // 11: teleport.identitycenter.v1.PrincipalAssignmentSpec
 	(*AccountAssignmentRef)(nil),      // 12: teleport.identitycenter.v1.AccountAssignmentRef
-	(*PrincipalAssignmentStatus)(nil), // 13: teleport.identitycenter.v1.PrincipalAssignmentStatus
-	(*v1.Metadata)(nil),               // 14: teleport.header.v1.Metadata
+	(*PrincipalGrant)(nil),            // 13: teleport.identitycenter.v1.PrincipalGrant
+	(*PrincipalAssignmentStatus)(nil), // 14: teleport.identitycenter.v1.PrincipalAssignmentStatus
+	(*v1.Metadata)(nil),               // 15: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),     // 16: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),           // 17: google.protobuf.Struct
 }
 var file_teleport_identitycenter_v1_identitycenter_proto_depIdxs = []int32{
-	14, // 0: teleport.identitycenter.v1.Account.metadata:type_name -> teleport.header.v1.Metadata
+	15, // 0: teleport.identitycenter.v1.Account.metadata:type_name -> teleport.header.v1.Metadata
 	5,  // 1: teleport.identitycenter.v1.Account.spec:type_name -> teleport.identitycenter.v1.AccountSpec
 	3,  // 2: teleport.identitycenter.v1.Account.status:type_name -> teleport.identitycenter.v1.AccountStatus
 	2,  // 3: teleport.identitycenter.v1.AccountSpec.permission_set_info:type_name -> teleport.identitycenter.v1.PermissionSetInfo
-	14, // 4: teleport.identitycenter.v1.PermissionSet.metadata:type_name -> teleport.header.v1.Metadata
+	15, // 4: teleport.identitycenter.v1.PermissionSet.metadata:type_name -> teleport.header.v1.Metadata
 	7,  // 5: teleport.identitycenter.v1.PermissionSet.spec:type_name -> teleport.identitycenter.v1.PermissionSetSpec
-	14, // 6: teleport.identitycenter.v1.AccountAssignment.metadata:type_name -> teleport.header.v1.Metadata
+	15, // 6: teleport.identitycenter.v1.AccountAssignment.metadata:type_name -> teleport.header.v1.Metadata
 	9,  // 7: teleport.identitycenter.v1.AccountAssignment.spec:type_name -> teleport.identitycenter.v1.AccountAssignmentSpec
 	2,  // 8: teleport.identitycenter.v1.AccountAssignmentSpec.permission_set:type_name -> teleport.identitycenter.v1.PermissionSetInfo
-	14, // 9: teleport.identitycenter.v1.PrincipalAssignment.metadata:type_name -> teleport.header.v1.Metadata
+	15, // 9: teleport.identitycenter.v1.PrincipalAssignment.metadata:type_name -> teleport.header.v1.Metadata
 	11, // 10: teleport.identitycenter.v1.PrincipalAssignment.spec:type_name -> teleport.identitycenter.v1.PrincipalAssignmentSpec
-	13, // 11: teleport.identitycenter.v1.PrincipalAssignment.status:type_name -> teleport.identitycenter.v1.PrincipalAssignmentStatus
+	14, // 11: teleport.identitycenter.v1.PrincipalAssignment.status:type_name -> teleport.identitycenter.v1.PrincipalAssignmentStatus
 	0,  // 12: teleport.identitycenter.v1.PrincipalAssignmentSpec.principal_type:type_name -> teleport.identitycenter.v1.PrincipalType
-	1,  // 13: teleport.identitycenter.v1.PrincipalAssignmentStatus.provisioning_state:type_name -> teleport.identitycenter.v1.ProvisioningState
-	12, // 14: teleport.identitycenter.v1.PrincipalAssignmentStatus.assignments:type_name -> teleport.identitycenter.v1.AccountAssignmentRef
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	1,  // 13: teleport.identitycenter.v1.PrincipalGrant.provisioning_state:type_name -> teleport.identitycenter.v1.ProvisioningState
+	16, // 14: teleport.identitycenter.v1.PrincipalGrant.last_provisioned_at:type_name -> google.protobuf.Timestamp
+	17, // 15: teleport.identitycenter.v1.PrincipalGrant.inline_policy:type_name -> google.protobuf.Struct
+	1,  // 16: teleport.identitycenter.v1.PrincipalAssignmentStatus.provisioning_state:type_name -> teleport.identitycenter.v1.ProvisioningState
+	12, // 17: teleport.identitycenter.v1.PrincipalAssignmentStatus.assignments:type_name -> teleport.identitycenter.v1.AccountAssignmentRef
+	13, // 18: teleport.identitycenter.v1.PrincipalAssignmentStatus.principal_grant:type_name -> teleport.identitycenter.v1.PrincipalGrant
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_teleport_identitycenter_v1_identitycenter_proto_init() }
@@ -1708,7 +1928,7 @@ func file_teleport_identitycenter_v1_identitycenter_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_identitycenter_v1_identitycenter_proto_rawDesc), len(file_teleport_identitycenter_v1_identitycenter_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

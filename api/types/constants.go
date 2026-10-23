@@ -679,6 +679,10 @@ const (
 	// access within controlled by Teleport.
 	KindIdentityCenterResource = "aws_ic_resource"
 
+	// KindIdentityCenterAccessPolicy indicates a set of AWS permissions that
+	// can be granted to a specific user for a specific resource.
+	KindIdentityCenterAccessPolicy = "aws_ic_access_policy"
+
 	// KindContact is a resource that holds contact information
 	// for Teleport Enterprise customers.
 	KindContact = "contact"

@@ -83,8 +83,8 @@ message ResourceAccessIDList {
   repeated ResourceAccessID resources = 1 [(gogoproto.nullable) = false];
 }
 
-// IdentityCenterResourceConstraints constrains the users access to an
-// Identity Center resource to the specified access profiles
+// IdentityCenterResourceConstraints constrains a user's access to an
+// Identity Center resource by the specified access policies
 message IdentityCenterResourceConstraints {
   repeated string access_policies = 1;
 }
