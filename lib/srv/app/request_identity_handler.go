@@ -20,10 +20,14 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -209,7 +213,12 @@ func (h *requestIdentityHandler) serve(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	if err := h.c.serveAuthorizedHTTP(w, req); err != nil {
+	cfg, err := h.chunkConfig(req)
+	if err != nil {
+		h.c.writeHTTPError(w, r, err)
+		return
+	}
+	if err := h.c.serveAuthorizedHTTP(w, req, cfg); err != nil {
 		h.c.writeHTTPError(w, r, err)
 	}
 }
@@ -253,6 +262,40 @@ func (h *requestIdentityHandler) authorize(r *http.Request) (authorizedRequest, 
 		return authorizedRequest{}, trace.Wrap(err)
 	}
 	return authorizedRequest{r: r, authCtx: authCtx, app: app}, nil
+}
+
+// maxForwardedIdentityAge is how long after its source certificate's NotBefore
+// a forwarded identity can start or join a session chunk. Forwarded session
+// chunks count event indexes in nanoseconds from NotBefore, and indexes past
+// 2^53 lose precision as JSON numbers. A day of margin covers chunks and
+// requests already in flight.
+const maxForwardedIdentityAge = time.Duration(1<<53) - 24*time.Hour
+
+// chunkConfig gives chunks and their JWTs a fixed lifetime, since a forwarded connection may outlive the certificate
+// its identity came from.
+func (h *requestIdentityHandler) chunkConfig(req authorizedRequest) (chunkConfig, error) {
+	identity := req.authCtx.Identity.GetIdentity()
+	// A zero NotBefore is too long ago, and one in the future fails as a
+	// route-bound certificate's would at the TLS handshake.
+	if age := h.c.cfg.Clock.Since(identity.NotBefore); age < 0 || age > maxForwardedIdentityAge {
+		return chunkConfig{}, trace.Errorf("forwarded identity's NotBefore %v is in the future or too long ago for exact event indexes", identity.NotBefore)
+	}
+	// The Proxy defines the session ID. We guard against a bug on the Proxy that produces conflicting
+	// session IDs by combining the session ID with a SHA256 of the identity.
+	encoded, err := json.Marshal(identity)
+	if err != nil {
+		return chunkConfig{}, trace.Wrap(err)
+	}
+	digest := sha256.Sum256(encoded)
+	expires := h.c.cfg.Clock.Now().Add(common.MaxSessionChunkDuration)
+	return chunkConfig{
+		key:        identity.RouteToApp.SessionID + "/" + hex.EncodeToString(digest[:]),
+		expires:    expires,
+		jwtExpires: expires.Add(jwtExpiryMargin),
+		// As on the route-bound path, every chunk of the session counts event
+		// indexes from the source certificate's NotBefore.
+		startTime: identity.NotBefore,
+	}, nil
 }
 
 // writeError gives authorization failures an [common.AppErrorCode], so a client can tell them apart from the

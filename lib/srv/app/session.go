@@ -23,7 +23,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -52,9 +51,9 @@ var errSessionChunkAlreadyClosed = errors.New("session chunk already closed")
 
 // sessionChunk holds an open request handler and stream closer for an app session.
 //
-// An app session is only bounded by the lifetime of the certificate in
-// the caller's identity, so we create sessionChunks to track and record
-// chunks of live app session activity.
+// An app session can last as long as the certificate in the caller's
+// identity, and one with a forwarded identity can outlive it, so we create
+// sessionChunks to track and record chunks of live app session activity.
 //
 // Each chunk will emit an "app.session.chunk" event with the chunk ID
 // corresponding to the session chunk's uploaded recording. These emitted
@@ -165,64 +164,58 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 // jwtExpiryMargin keeps a JWT valid until its chunk ends, unless creating the chunk takes longer than the margin.
 const jwtExpiryMargin = 5 * time.Minute
 
-// jwtExpiresWithCertEnv makes JWTs expire with the client's certificate rather than with their session chunk, as they
-// did before v19
-const jwtExpiresWithCertEnv = "TELEPORT_UNSTABLE_APP_JWT_EXPIRES_WITH_CERT"
+// withJWTTokenForwarder returns a sessionOpt that creates a forwarder that
+// attaches a generated JWT token to all requests.
+func (c *ConnectionsHandler) withJWTTokenForwarder(expires time.Time) sessionOpt {
+	return func(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+		jwt, rewriteTraits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient, expires)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-// withJWTTokenForwarder is a sessionOpt that creates a forwarder that attaches
-// a generated JWT token to all requests.
-func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
-	expires := c.cfg.Clock.Now().Add(common.MaxSessionChunkDuration + jwtExpiryMargin)
-	if identity.Expires.Before(expires) || os.Getenv(jwtExpiresWithCertEnv) == "yes" {
-		expires = identity.Expires
-	}
-	jwt, rewriteTraits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient, expires)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		// Create a rewriting transport that will be used to forward requests.
+		transport, err := newTransport(c.closeContext,
+			&transportConfig{
+				clock:         c.cfg.Clock,
+				app:           app,
+				publicPort:    c.proxyPort,
+				cipherSuites:  c.cfg.CipherSuites,
+				jwt:           jwt,
+				rewriteTraits: rewriteTraits,
+				log:           c.log,
+				hostID:        c.cfg.HostID,
+				insecureMode:  c.cfg.InsecureMode,
+				clusterName:   c.clusterName,
+				accessPoint:   c.cfg.AccessPoint,
+				authClient:    c.cfg.AuthClient,
+				getUserCertFunc: func() ([]byte, error) {
+					userCert, err := authz.UserCertificateFromContext(ctx)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					return userCert.Raw, nil
+				},
+				emitter:          c.cfg.Emitter,
+				identity:         identity,
+				targetHostPolicy: c.cfg.TargetHostPolicy,
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	// Create a rewriting transport that will be used to forward requests.
-	transport, err := newTransport(c.closeContext,
-		&transportConfig{
-			clock:         c.cfg.Clock,
-			app:           app,
-			publicPort:    c.proxyPort,
-			cipherSuites:  c.cfg.CipherSuites,
-			jwt:           jwt,
-			rewriteTraits: rewriteTraits,
-			log:           c.log,
-			hostID:        c.cfg.HostID,
-			insecureMode:  c.cfg.InsecureMode,
-			clusterName:   c.clusterName,
-			accessPoint:   c.cfg.AccessPoint,
-			authClient:    c.cfg.AuthClient,
-			getUserCertFunc: func() ([]byte, error) {
-				userCert, err := authz.UserCertificateFromContext(ctx)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				return userCert.Raw, nil
-			},
-			emitter:          c.cfg.Emitter,
-			identity:         identity,
-			targetHostPolicy: c.cfg.TargetHostPolicy,
-		})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		delegate := reverseproxy.NewHeaderRewriter()
+		sess.handler, err = reverseproxy.New(
+			reverseproxy.WithFlushInterval(100*time.Millisecond),
+			reverseproxy.WithRoundTripper(transport),
+			reverseproxy.WithLogger(sess.log),
+			reverseproxy.WithRewriter(common.NewHeaderRewriter(delegate)),
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	delegate := reverseproxy.NewHeaderRewriter()
-	sess.handler, err = reverseproxy.New(
-		reverseproxy.WithFlushInterval(100*time.Millisecond),
-		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(sess.log),
-		reverseproxy.WithRewriter(common.NewHeaderRewriter(delegate)),
-	)
-	if err != nil {
-		return trace.Wrap(err)
+		return nil
 	}
-
-	return nil
 }
 
 // withAWSSigner is a sessionOpt that uses an AWS signing service handler.

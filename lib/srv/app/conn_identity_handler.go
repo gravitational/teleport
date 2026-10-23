@@ -24,12 +24,14 @@ import (
 	"crypto/x509"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -246,7 +248,7 @@ func (h *connIdentityHandler) serve(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	if err := h.c.serveAuthorizedHTTP(w, req); err != nil {
+	if err := h.c.serveAuthorizedHTTP(w, req, h.chunkConfig(req)); err != nil {
 		h.writeError(w, r, err)
 	}
 }
@@ -276,6 +278,31 @@ func (h *connIdentityHandler) authorize(r *http.Request) (authorizedRequest, err
 		return authorizedRequest{}, trace.Wrap(err)
 	}
 	return authorizedRequest{r: r, authCtx: authCtx, app: app}, nil
+}
+
+// jwtExpiresWithCertEnv makes JWTs expire with the client's certificate rather than with their session chunk, as they
+// did before v19
+const jwtExpiresWithCertEnv = "TELEPORT_UNSTABLE_APP_JWT_EXPIRES_WITH_CERT"
+
+// chunkConfig keys chunks by app session, which ends when its certificate expires. Its chunks and JWTs never outlive
+// the certificate.
+func (h *connIdentityHandler) chunkConfig(req authorizedRequest) chunkConfig {
+	identity := req.authCtx.Identity.GetIdentity()
+	now := h.c.cfg.Clock.Now()
+	cfg := chunkConfig{
+		key:     identity.RouteToApp.SessionID,
+		expires: now.Add(min(identity.Expires.Sub(now), common.MaxSessionChunkDuration)),
+	}
+	cfg.jwtExpires = cfg.expires.Add(jwtExpiryMargin)
+	if identity.Expires.Before(cfg.jwtExpires) || os.Getenv(jwtExpiresWithCertEnv) == "yes" {
+		cfg.jwtExpires = identity.Expires
+	}
+	// The certificate's issue time is shared by every chunk of the app session. serveSession logs a missing
+	// certificate.
+	if userCert, _ := authz.UserCertificateFromContext(req.r.Context()); userCert != nil {
+		cfg.startTime = userCert.NotBefore
+	}
+	return cfg
 }
 
 func (h *connIdentityHandler) getAndDeleteConnAuth(conn net.Conn) error {

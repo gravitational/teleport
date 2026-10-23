@@ -443,32 +443,43 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	waitConn.Wait()
 }
 
+// chunkConfig is how a handler groups its requests into session chunks. Each handler sets it, because an identity
+// taken from a certificate and one forwarded with each request last differently. Only key applies to every request.
+// The other fields apply only when the request creates a chunk.
+type chunkConfig struct {
+	// Requests with the same key share a chunk.
+	key string
+	// expires is when the chunk stops accepting new requests, delayed by however long creating the chunk took, because
+	// the cache counts the chunk's lifetime from when it was created.
+	expires    time.Time
+	jwtExpires time.Time
+	// startTime is when the chunk's recording starts counting event indexes. Events keep the identity's session ID
+	// rather than the chunk's, so the chunks of one session must share it, or their event indexes collide.
+	startTime time.Time
+}
+
 // serveSession finds the app session and forwards the request.
-func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) error {
+func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, req authorizedRequest, cfg chunkConfig, opts ...sessionOpt) error {
+	r, app := req.r, req.app
+	identity := req.authCtx.Identity.GetIdentity()
 	// The user certificate is set on the request context by authz middleware.
-	// It's needed both to derive the session start time and to issue managed
-	// upstream client certificates, so read it once here.
+	// It's needed to issue managed upstream client certificates.
 	userCert, err := authz.UserCertificateFromContext(r.Context())
 	if err != nil {
 		c.log.WarnContext(r.Context(), "Unable to retrieve session user certificate.", "error", err)
 	}
 
-	var startTime time.Time
-	if userCert != nil {
-		startTime = userCert.NotBefore
-	}
-
 	// Fetch a cached request forwarder (or create one) that lives about 5
 	// minutes. Used to stream session chunks to the Audit Log.
-	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), common.MaxSessionChunkDuration)
-	session, err := c.cache.GetWithTTL(r.Context(), identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
+	ttl := cfg.expires.Sub(c.cfg.Clock.Now())
+	session, err := c.cache.GetWithTTL(r.Context(), cfg.key, ttl, func(ctx context.Context) (*sessionChunk, error) {
 		// The FnCache loader runs on a context detached from the request, which
 		// drops request-scoped values. Re-inject the user certificate so
 		// session opts (e.g. managed upstream client certs) can read it.
 		if userCert != nil {
 			ctx = authz.ContextWithUserCertificate(ctx, userCert)
 		}
-		return c.newSessionChunk(ctx, identity, app, startTime, opts...)
+		return c.newSessionChunk(ctx, &identity, app, cfg.startTime, opts...)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -481,7 +492,7 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 
 	// Create session context.
 	sessionCtx := &common.SessionContext{
-		Identity: identity,
+		Identity: &identity,
 		App:      app,
 		ChunkID:  session.id,
 		Audit:    session.audit,
@@ -553,7 +564,7 @@ type authorizedRequest struct {
 
 // serveAuthorizedHTTP forwards req to its application. Both handlers' requests rejoin here, so everything from here on
 // applies to both.
-func (c *ConnectionsHandler) serveAuthorizedHTTP(w http.ResponseWriter, req authorizedRequest) error {
+func (c *ConnectionsHandler) serveAuthorizedHTTP(w http.ResponseWriter, req authorizedRequest, cfg chunkConfig) error {
 	r, app := req.r, req.app
 	identity := req.authCtx.Identity.GetIdentity()
 	// Access is recorded before the app_resources rules below, which authorize individual request paths rather than
@@ -570,7 +581,7 @@ func (c *ConnectionsHandler) serveAuthorizedHTTP(w http.ResponseWriter, req auth
 		// Also check header common.TeleportAWSAssumedRole which is added by
 		// the local proxy for AWS requests signed by assumed roles.
 		if awsutils.IsSignedByAWSSigV4(r) || r.Header.Get(common.TeleportAWSAssumedRole) != "" {
-			return c.serveSession(w, r, &identity, app, c.withAWSSigner)
+			return c.serveSession(w, req, cfg, c.withAWSSigner)
 		}
 
 		// Request for AWS console access originated from Teleport Proxy WebUI
@@ -578,13 +589,13 @@ func (c *ConnectionsHandler) serveAuthorizedHTTP(w http.ResponseWriter, req auth
 		return c.serveAWSWebConsole(w, r, &identity, app)
 
 	case app.IsAzureCloud():
-		return c.serveSession(w, r, &identity, app, c.withAzureHandler)
+		return c.serveSession(w, req, cfg, c.withAzureHandler)
 
 	case app.IsGCP():
-		return c.serveSession(w, r, &identity, app, c.withGCPHandler)
+		return c.serveSession(w, req, cfg, c.withGCPHandler)
 
 	case app.IsLLM():
-		return c.serveSession(w, r, &identity, app, c.withLLMHandler)
+		return c.serveSession(w, req, cfg, c.withLLMHandler)
 
 	default:
 		// The default case is a plain HTTP app. app_resources rules are
@@ -599,7 +610,7 @@ func (c *ConnectionsHandler) serveAuthorizedHTTP(w http.ResponseWriter, req auth
 				return nil
 			}
 		}
-		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
+		return c.serveSession(w, req, cfg, c.withJWTTokenForwarder(cfg.jwtExpires))
 	}
 }
 
@@ -893,14 +904,8 @@ func (c *ConnectionsHandler) authenticateConn(ctx context.Context, conn net.Conn
 	return tlsConn, user, nil
 }
 
-// CopyAndConfigureTLS can be used to copy and modify an existing *tls.Config
-// for Teleport application proxy servers.
-func CopyAndConfigureTLS(log *slog.Logger, client authclient.AccessCache, config *tls.Config) *tls.Config {
-	return CopyAndConfigureTLSForCluster(log, client, "", config)
-}
-
-// CopyAndConfigureTLSForCluster is like [CopyAndConfigureTLS] but accepts the local cluster name.
-// Prefer this variant in new code.
+// CopyAndConfigureTLSForCluster copies config and modifies it for Teleport
+// application proxy servers in the local cluster clusterName.
 func CopyAndConfigureTLSForCluster(log *slog.Logger, client authclient.AccessCache, clusterName string, config *tls.Config) *tls.Config {
 	tlsConfig := config.Clone()
 	if log == nil {
