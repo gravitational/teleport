@@ -49,6 +49,7 @@ import (
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
+	"github.com/gravitational/teleport/lib/migrate"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
@@ -103,6 +104,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDiscoveryBootstrapFlags configureDiscoveryBootstrapFlags
 		dbConfigCreateFlags              createDatabaseConfigFlags
 		systemdInstallFlags              installSystemdFlags
+		migrateFlags                     migrateFlags
 		installAutoDiscoverNodeFlags     installAutoDiscoverNodeFlags
 		waitFlags                        waitFlags
 		rawVersion                       bool
@@ -457,6 +459,34 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
+	migrateCmd := app.Command("migrate", "Migrate agents from an unscoped cluster into a scoped one.").Hidden()
+	migrateCmd.Alias(`
+Examples:
+
+  Every command reads a migration configuration file:
+
+  > teleport migrate --config migrate.yaml plan
+
+  This configuration moves the source cluster's hosts labeled team=team-a
+  into the target cluster's /org/team-a scope:
+
+  source:
+    proxy_server: old.example.com:443
+    identity_file: ./source-identity
+  target:
+    proxy_server: new.example.com:443
+    identity_file: ./target-identity
+  migrations:
+    - source_labels: team=team-a         # "*" selects every host
+      target_scope: /org/team-a
+  # state_dir: the state file's directory; defaults to ~/.teleport-migrate
+`)
+	migrateCmd.Flag("config", "Migration configuration file in YAML format naming both clusters, the state directory and one or more source-labels to target-scope mappings.").Short('c').Required().ExistingFileVar(&migrateFlags.configPath)
+
+	migratePlanCmd := migrateCmd.Command("plan", "Read both clusters and report which hosts can migrate.").Hidden()
+	migratePlanCmd.Flag("show", "List the hosts in one state, or the unmatched target agents.").EnumVar(&migrateFlags.subset, migrate.ShowValues()...)
+	migratePlanCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&migrateFlags.format, teleport.Text, teleport.JSON, teleport.CSV)
+
 	reconf := app.Command("reconfigure", "Generate a new agent config file from an existing one, applying changes given by flags.").Hidden()
 	reconf.Flag("input", "Path to the source config file.").Default(defaults.ConfigFilePath).StringVar(&reconfigureFlags.input)
 	reconf.Flag("output", "Path to write the new config file to. Writes to stdout when omitted.").StringVar(&reconfigureFlags.output)
@@ -787,6 +817,8 @@ Examples:
 		err = onConfigDump(dumpFlags)
 	case reconf.FullCommand():
 		err = onReconfigure(reconfigureFlags)
+	case migratePlanCmd.FullCommand():
+		err = onMigratePlan(ctx, &migrateFlags)
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)

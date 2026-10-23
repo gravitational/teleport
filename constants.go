@@ -357,6 +357,9 @@ const (
 	// Text means text serialization format
 	Text = "text"
 
+	// CSV means CSV serialization format
+	CSV = "csv"
+
 	// PTY is a raw PTY session capture format
 	PTY = "pty"
 
