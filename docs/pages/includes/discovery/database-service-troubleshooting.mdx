@@ -35,6 +35,10 @@ spec:
         verbs: [read, list]
 ```
 
+For steps to inspect running Database Services and compare their selectors with
+the database labels, see [No Database
+Service](../../enroll-resources/database-access/troubleshooting.mdx#no-database-service).
+
 #### Errors when connecting to a database
 
 <Admonition type="note">
@@ -43,22 +47,29 @@ Teleport RBAC for that database user by following the appropriate
 [database enrollment guide](../../enroll-resources/database-access/enrollment/enrollment.mdx).
 </Admonition>
 
-If there are connection errors when you try to connect to a database, then
-first check if there are multiple `db_server` heartbeat resources for the target
-database: `tctl get db_server/yourDatabaseName`.
-If there are, it means that multiple Teleport Database Service instances are
-proxying the database - this is an HA setup that will complicate
-troubleshooting.
-Teleport will choose one of those Database Service instances at random to proxy
-the connection and if one of them can't reach the database endpoint or lacks 
-permissions, then you will see random connection errors.
-{/* TODO(gavin): once we add healthchecks, we can remove this advice. HA shouldn't make connections randomly fail. */}
+Inspect the `db_server` heartbeat resources for the target database:
 
-Even if connection errors are consistent, you should scale down or reconfigure
-your Teleport Database Service instances such that only one matches the target `db`
-while you are troubleshooting errors.
-Verify that there is only one `db_server` with `tctl get db_server/yourDatabaseName`
-and then try the connection again.
+{/* lint ignore page-structure remark-lint */}
+```code
+$ tctl get db_server/<Var name="database-name" />
+```
+
+Multiple resources mean that multiple Database Service instances proxy the
+database. Inspect each instance's `status.target_health`, including
+`transition_error`, to identify connectivity failures. Teleport prioritizes
+instances that can reach the database when [health
+checks](../../enroll-resources/database-access/guides/health-checks.mdx) are enabled.
+Disabled or initializing health checks report an `unknown` status.
+
+Ensure that every matching Database Service can reach the database. Refine the
+`db_service.resources` label selectors on services that should not proxy it, for
+example by matching `vpc-id` and `region` for AWS databases. Follow the
+[connection timeout troubleshooting
+steps](../../enroll-resources/database-access/troubleshooting.mdx#timeout-errors)
+to check network routes and firewall rules.
+
+Health checks verify connectivity, so successful checks do not establish that
+database users, Teleport RBAC, or cloud IAM permissions are correctly configured.
 
 Check the Teleport Database Service logs with DEBUG level logging enabled and
 look for network or permissions errors.
