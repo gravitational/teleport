@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -73,6 +74,21 @@ type host struct {
 	// UpdatedAt is when State, Reason or the pairing last changed.
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// How a host was paired with its target agent; see host.MatchedBy.
+const (
+	// matchedByLabel pairs a host by the migration labels on the target agent.
+	matchedByLabel = "label"
+)
+
+// Correlation labels: the labels a migrated scoped agent carries, so plan can
+// pair a target node with its source host.
+const (
+	// sourceClusterLabel names the source cluster the agent migrated from.
+	sourceClusterLabel = types.TeleportInternalLabelPrefix + "migrate-source-cluster"
+	// sourceHostLabel holds the UUID of the source host the agent migrated from.
+	sourceHostLabel = types.TeleportInternalLabelPrefix + "migrate-source-host-uuid"
+)
 
 // targetAgent identifies a target-side agent.
 type targetAgent struct {
