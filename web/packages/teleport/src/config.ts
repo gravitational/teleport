@@ -227,11 +227,17 @@ const ossRoutes = {
   integrationSetupComplete: '/web/msg/info/integration_setup_complete',
 };
 
+/**
+ * Mirrors the proxy's web config `edition`, a bare string on the Go side.
+ * Keep in sync with the `Build*` constants in `lib/modules/modules.go`.
+ */
+type Edition = 'oss' | 'community' | 'ent';
+
 export type Cfg = typeof cfg;
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,
-  edition: 'oss', // oss, community, ent
+  edition: 'oss' as Edition,
   isCloud: false,
   automaticUpgrades: false,
   // TODO (avatus) this is a temporary escape hatch. Delete in v18

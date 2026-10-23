@@ -27,27 +27,19 @@ export interface RecordingWithMetadataProps {
   sessionId: string;
 }
 
-function getGridTemplateAreas(hasSummary: boolean, sidebarHidden: boolean) {
-  if (hasSummary) {
-    return sidebarHidden
-      ? `'recording recording' 'sidebar timeline'`
-      : `'sidebar recording' 'sidebar timeline'`;
-  }
-
+function getGridTemplateAreas(sidebarHidden: boolean) {
   return sidebarHidden
-    ? `'recording recording' 'timeline timeline'`
-    : `'sidebar recording' 'timeline timeline'`;
+    ? `'recording' 'timeline'`
+    : `'sidebar recording' 'sidebar timeline'`;
 }
 
 export const SessionRecordingGrid = styled.div<{
-  hasSummary?: boolean;
   sidebarHidden: boolean;
   sidebarWidth?: number;
 }>`
   background: ${p => p.theme.colors.levels.sunken};
   display: grid;
-  grid-template-areas: ${p =>
-    getGridTemplateAreas(!!p.hasSummary, p.sidebarHidden)};
+  grid-template-areas: ${p => getGridTemplateAreas(p.sidebarHidden)};
   grid-template-columns: ${p =>
     p.sidebarHidden
       ? '1fr'

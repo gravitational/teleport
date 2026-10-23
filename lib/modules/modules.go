@@ -311,6 +311,9 @@ type Modules interface {
 	LicenseExpiry() time.Time
 }
 
+// Build types are surfaced to the web UI via
+// [github.com/gravitational/teleport/api/client/webclient.WebConfig.Edition].
+// Keep in sync with the `Edition` type in web/packages/teleport/src/config.ts.
 const (
 	// BuildOSS specifies open source build type
 	BuildOSS = "oss"
