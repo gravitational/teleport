@@ -21,7 +21,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"sync"
 	"time"
@@ -30,10 +29,10 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
@@ -220,44 +219,54 @@ func (c *UserNotificationCache) StreamUserNotifications(ctx context.Context, use
 		return stream.Fail[*notificationsv1.Notification](trace.BadParameter("username is required for fetching user notifications"))
 	}
 
-	endKey := username + string(backend.Separator)
-	// Get the initial startKey if it wasn't provided.
-	if startKey == "" {
-		startKey = sortcache.NextKey(endKey)
-	} else {
-		// The sortcache expects the key to be in <username>/<uuid> format, so we prepend the username since the startKey passed into this function will just be a UUID.
-		startKey = username + "/" + startKey
-	}
-
-	const limit = 50
-	var done bool
-	return stream.PageFunc(func() ([]*notificationsv1.Notification, error) {
-		if done {
-			return nil, io.EOF
+	initialStartKey := startKey
+	return func(yield func(*notificationsv1.Notification, error) bool) {
+		startKey := initialStartKey
+		endKey := username + string(backend.Separator)
+		// Get the initial startKey if it wasn't provided.
+		if startKey == "" {
+			startKey = sortcache.NextKey(endKey)
+		} else {
+			// The sortcache expects the key to be in <username>/<uuid> format, so we prepend the username since the startKey passed into this function will just be a UUID.
+			startKey = username + "/" + startKey
 		}
 
-		cache, err := c.read(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if !cache.HasIndex(notificationKey) {
-			return nil, trace.Errorf("user notifications cache was not configured with index \"" + string(notificationKey) + "\" (this is a bug)")
-		}
-
-		notifications := make([]*notificationsv1.Notification, 0, limit)
-		for n := range cache.Descend(notificationKey, startKey, endKey) {
-			if len(notifications) == limit {
-				startKey = cache.KeyOf(notificationKey, n)
-				return notifications, nil
+		for {
+			cache, err := c.read(ctx)
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
 			}
 
-			notifications = append(notifications, apiutils.CloneProtoMsg(n))
-		}
+			if !cache.HasIndex(notificationKey) {
+				yield(nil, trace.Errorf("user notifications cache was not configured with index \""+string(notificationKey)+"\" (this is a bug)"))
+				return
+			}
 
-		done = true
-		return notifications, nil
-	})
+			const limit = 50
+			notifications := make([]*notificationsv1.Notification, 0, limit)
+			var hasMore bool
+			for n := range cache.Descend(notificationKey, startKey, endKey) {
+				if len(notifications) == limit {
+					startKey = cache.KeyOf(notificationKey, n)
+					hasMore = true
+					break
+				}
+
+				notifications = append(notifications, apiutils.CloneProtoMsg(n))
+			}
+
+			for _, notification := range notifications {
+				if !yield(notification, nil) {
+					return
+				}
+			}
+
+			if !hasMore {
+				return
+			}
+		}
+	}
 }
 
 // fetch initializes a sortcache with all existing user-specific notifications. This is used to set up the initialize the primary cache, and
@@ -338,35 +347,43 @@ func (c *UserNotificationCache) read(ctx context.Context) (*sortcache.SortCache[
 
 // StreamGlobalNotifications returns a stream with all the global notifications in the cache, sorted from newest to oldest.
 func (c *GlobalNotificationCache) StreamGlobalNotifications(ctx context.Context, startKey string) stream.Stream[*notificationsv1.GlobalNotification] {
-	const limit = 50
-	var done bool
-	return stream.PageFunc(func() ([]*notificationsv1.GlobalNotification, error) {
-		if done {
-			return nil, io.EOF
-		}
-
-		cache, err := c.read(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if !cache.HasIndex(notificationID) {
-			return nil, trace.Errorf("global notifications cache was not configured with index \"" + string(notificationID) + "\" (this is a bug)")
-		}
-
-		notifications := make([]*notificationsv1.GlobalNotification, 0, limit)
-		for n := range cache.Descend(notificationID, startKey, "") {
-			if len(notifications) == limit {
-				startKey = cache.KeyOf(notificationID, n)
-				return notifications, nil
+	initialStartKey := startKey
+	return func(yield func(*notificationsv1.GlobalNotification, error) bool) {
+		startKey := initialStartKey
+		var done bool
+		for !done {
+			cache, err := c.read(ctx)
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
 			}
 
-			notifications = append(notifications, apiutils.CloneProtoMsg(n))
-		}
+			if !cache.HasIndex(notificationID) {
+				yield(nil, trace.Errorf("global notifications cache was not configured with index \""+string(notificationID)+"\" (this is a bug)"))
+				return
+			}
 
-		done = true
-		return notifications, nil
-	})
+			const limit = 50
+			notifications := make([]*notificationsv1.GlobalNotification, 0, limit)
+			var hasMore bool
+			for n := range cache.Descend(notificationID, startKey, "") {
+				if len(notifications) == limit {
+					startKey = cache.KeyOf(notificationID, n)
+					hasMore = true
+					break
+				}
+
+				notifications = append(notifications, apiutils.CloneProtoMsg(n))
+			}
+
+			done = !hasMore
+			for _, notification := range notifications {
+				if !yield(notification, nil) {
+					return
+				}
+			}
+		}
+	}
 }
 
 // fetch initializes a sortcache with all existing global notifications. This is used to set up the initialize the primary cache, and

@@ -21,6 +21,7 @@ package notificationsv1
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"slices"
 	"strings"
@@ -32,9 +33,9 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -171,7 +172,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 		return nil, trace.BadParameter("invalid page token provided")
 	}
 
-	userNotifsStream := stream.Slice[*notificationsv1.Notification](nil)
+	userNotifsStream := stream.Empty[*notificationsv1.Notification]()
 	if userKey != "" || !found {
 		userNotifsStream = stream.FilterMap(
 			s.userNotificationCache.StreamUserNotifications(ctx, username, userKey),
@@ -192,7 +193,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 			})
 	}
 
-	globalNotifsStream := stream.Slice[*notificationsv1.GlobalNotification](nil)
+	globalNotifsStream := stream.Empty[*notificationsv1.GlobalNotification]()
 	if globalKey != "" || !found {
 		globalNotifsStream = stream.FilterMap(
 			s.globalNotificationCache.StreamGlobalNotifications(ctx, globalKey),
@@ -213,62 +214,51 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 			})
 	}
 
-	notifStream := stream.MergeStreams(
-		userNotifsStream,
-		globalNotifsStream,
-		isMoreRecent,
-		func(notification *notificationsv1.Notification) *notificationsv1.Notification {
-			return notification
-		},
-		func(globalNotification *notificationsv1.GlobalNotification) *notificationsv1.Notification {
-			notification := globalNotification.GetSpec().GetNotification()
-			notification.GetMetadata().SetName(globalNotification.GetMetadata().GetName())
-			return notification
-		},
-	)
+	// merge the two streams by recency, keeping track of the next unconsumed item
+	// from each source so that the next page tokens can be derived once the page fills.
+	nextUserNotif, stopUserNotifs := iter.Pull2(userNotifsStream)
+	defer stopUserNotifs()
+	nextGlobalNotif, stopGlobalNotifs := iter.Pull2(globalNotifsStream)
+	defer stopGlobalNotifs()
+
+	userItem, err, userOK := nextUserNotif()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	globalItem, err, globalOK := nextGlobalNotif()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	var notifications []*notificationsv1.Notification
 	var nextGlobalKey, nextUserKey string
-	for notifStream.Next() {
-		item := notifStream.Item()
+	for userOK || globalOK {
+		var item *notificationsv1.Notification
+		if userOK && (!globalOK || isMoreRecent(userItem, globalItem)) {
+			item = userItem
+			userItem, err, userOK = nextUserNotif()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			item = globalItem.GetSpec().GetNotification()
+			item.GetMetadata().SetName(globalItem.GetMetadata().GetName())
+			globalItem, err, globalOK = nextGlobalNotif()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		if item != nil {
 			notifications = append(notifications, item)
 		}
 		if len(notifications) == int(req.GetPageSize()) {
 			// The nextKeys should represent the next unconsumed items in their respective lists.
-			// If the last item in this page (ie. the current item in the stream) was a user-specific notification,
-			// then the userNotificationsNextKey should be the next item in the userNotifsStream, and
-			// the globalNotificationsNextKey should be the current (and unconsumed) item in the globalNotifsStream. And vice-versa.
-			if item.GetMetadata().GetLabels()[types.NotificationScope] == "user" {
-				// If the provided globalKey was "", then return that as the nextGlobalKey again.
-				if globalKey != "" || !found {
-					nextGlobalKey = globalNotifsStream.Item().GetMetadata().GetName()
-				} else {
-					nextGlobalKey = ""
-				}
-				// Advance to the next user-specific notification.
-				ok := userNotifsStream.Next()
-				if ok {
-					// If it exists, set it as the userNotificationsNextKey, otherwise set it to ""
-					nextUserKey = userNotifsStream.Item().GetMetadata().GetName()
-				} else {
-					nextUserKey = ""
-				}
-			} else {
-				// If the provided userKey was "", then return that as the nextUserKey again.
-				if userKey != "" || !found {
-					nextUserKey = userNotifsStream.Item().GetMetadata().GetName()
-				} else {
-					nextUserKey = ""
-				}
-				// Advance to the next global notification.
-				ok := globalNotifsStream.Next()
-				if ok {
-					// If it exists, set it as the globalNotificationsNextKey.
-					nextGlobalKey = globalNotifsStream.Item().GetMetadata().GetName()
-				} else {
-					nextGlobalKey = ""
-				}
+			if userOK {
+				nextUserKey = userItem.GetMetadata().GetName()
+			}
+			if globalOK {
+				nextGlobalKey = globalItem.GetMetadata().GetName()
 			}
 			break
 		}
@@ -657,8 +647,10 @@ func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, req 
 	var notifications []*notificationsv1.Notification
 	var nextKey string
 
-	for stream.Next() {
-		item := stream.Item()
+	for item, err := range stream {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if item != nil {
 			notifications = append(notifications, item)
 			if len(notifications) == int(req.GetPageSize()) {
@@ -710,8 +702,10 @@ func (s *Service) listGlobalNotifications(ctx context.Context, req *notification
 	var notifications []*notificationsv1.Notification
 	var nextKey string
 
-	for stream.Next() {
-		item := stream.Item()
+	for item, err := range stream {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if item != nil {
 			notification := item.GetSpec().GetNotification()
 			notification.GetMetadata().SetName(item.GetMetadata().GetName())
