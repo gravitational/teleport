@@ -811,7 +811,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsProxySessionInfo) error {
 	case cf.AWSEndpointURLMode:
 		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	default:
-		if len(apps) > 1 {
+		if shouldUseMultiplexedAWSSession(cf) {
 			templates = append(templates, awsMultiplexedHTTPSProxyEnvVarTemplate)
 		} else {
 			templates = append(templates, awsHTTPSProxyTemplate)
@@ -835,7 +835,7 @@ func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
 	}
 	// Multiplexed sessions currently support only environment-variable output
 	// formats.
-	if len(cf.AppSQNs) > 1 && (cf.Format == awsProxyFormatAthenaODBC || cf.Format == awsProxyFormatAthenaJDBC) {
+	if shouldUseMultiplexedAWSSession(cf) && (cf.Format == awsProxyFormatAthenaODBC || cf.Format == awsProxyFormatAthenaJDBC) {
 		return trace.BadParameter("--format=%s is not supported when proxying multiple AWS applications; use an environment-variable format instead", cf.Format)
 	}
 	return nil

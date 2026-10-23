@@ -40,6 +40,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
@@ -111,10 +112,10 @@ type awsProxySession interface {
 }
 
 // Creates an aws proxy session.
-// If 0 or 1 App SQNs are passed in, we use the legacy behavior.
-// If > 1 App SQNs are passed in, we use the new multiplexed proxy.
+// If explicit discovery flags or multiple App SQNs are used, we use "multiplexed mode".
+// Otherwise, we use the legacy single-app behavior.
 func newAWSProxySession(cf *CLIConf) (awsProxySession, error) {
-	if len(cf.AppSQNs) <= 1 {
+	if !shouldUseMultiplexedAWSSession(cf) {
 		awsApp, err := pickAWSApp(cf)
 		return awsApp, trace.Wrap(err)
 	}
@@ -288,6 +289,14 @@ type multiplexedAWSSession struct {
 	mfa            *clientmfa.ReusableMFA
 }
 
+func shouldUseMultiplexedAWSSession(cf *CLIConf) bool {
+	return len(cf.AppSQNs) > 1 || shouldDiscoverAWSApps(cf)
+}
+
+func shouldDiscoverAWSApps(cf *CLIConf) bool {
+	return cf.ProxyAllApps || cf.Labels != "" || cf.PredicateExpression != ""
+}
+
 func newAWSProxyRoute(name scopes.QualifiedName, route proto.RouteToApp, profile string) (awsProxyRoute, error) {
 	return awsProxyRoute{
 		name:        name,
@@ -407,15 +416,55 @@ func newMultiplexedAWSProxySession(cf *CLIConf) (*multiplexedAWSSession, error) 
 	}
 
 	var profile *client.ProfileStatus
+	var routes []tlsca.RouteToApp
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		var err error
+		clt, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clt.Close()
+
 		profile, err = tc.ProfileStatus()
-		return trace.Wrap(err)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		activeRoutes, err := profile.AppsForCluster(tc.SiteName, tc.ClientStore)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if shouldDiscoverAWSApps(cf) {
+			allApps, lookupApp, err := loadAllAuthorizedAWSApps(cf.Context, clt.AuthClient, tc.Labels, cf.PredicateExpression)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			routes, err = selectProxyableAWSRoutes(allApps, lookupApp, activeRoutes, tc.SiteName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			queryApp := func(app scopes.QualifiedName) (types.Application, []string, error) {
+				return getApp(cf.Context, clt.AuthClient, app)
+			}
+
+			routes, err = selectProxyableAWSRoutes(cf.AppSQNs, queryApp, activeRoutes, tc.SiteName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		return nil
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	routes, err := pickAWSApps(cf, profile)
+	if len(routes) == 0 {
+		return nil, trace.NotFound("no AWS applications match the selection")
+	}
+
+	proxyRoutes, err := routesToAWSProxyRoutes(cf, routes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -426,7 +475,7 @@ func newMultiplexedAWSProxySession(cf *CLIConf) (*multiplexedAWSSession, error) 
 		cf:              cf,
 		tc:              tc,
 		profile:         profile,
-		routes:          routes,
+		routes:          proxyRoutes,
 		sharedArtifacts: newAWSSharedSessionArtifacts(awsDir),
 		mfa:             clientmfa.NewReusableMFA(proto.UserCertsRequest_TSH_APP_LOCAL_PROXY_MULTI, proto.UserCertsRequest_TSH_APP_LOCAL_PROXY),
 	}, nil
@@ -846,9 +895,78 @@ func pickAWSApp(cf *CLIConf) (*awsApp, error) {
 	return newAWSApp(tc, cf, appInfo)
 }
 
-// Filter activeRoutes, the list of logged in routes, to get only AWS apps and only apps specified by the
-// QualifiedNames in requestedRoutes
-func selectLoggedInAWSRoutes(activeRoutes []tlsca.RouteToApp, requestedRoutes []scopes.QualifiedName) ([]tlsca.RouteToApp, error) {
+type getAppFunc func(scopes.QualifiedName) (types.Application, []string, error)
+
+// loadAllAuthorizedAWSApps queries the server for all authorized AWS applications, potentially
+// filtered by labels and/or a predicate expression and returns the list
+// of qualified names and a lookup function backed by those results
+func loadAllAuthorizedAWSApps(
+	ctx context.Context,
+	clt apiclient.ListUnifiedResourcesClient,
+	labels map[string]string,
+	predicateExpression string,
+) ([]scopes.QualifiedName, getAppFunc, error) {
+	resources, err := apiclient.GetAllUnifiedResources(
+		ctx, clt, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindApp},
+			IncludeLogins:       true,
+			Labels:              labels,
+			PredicateExpression: makePredicateConjunction(predicateExpression, `resource.spec.cloud == "AWS"`),
+		},
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	type appWithLogins struct {
+		app    types.Application
+		logins []string
+	}
+
+	apps := make(map[scopes.QualifiedName]appWithLogins)
+	var names []scopes.QualifiedName
+
+	for _, resource := range resources {
+		server, ok := resource.ResourceWithLabels.(types.AppServer)
+		if !ok {
+			continue
+		}
+
+		app := server.GetApp()
+		if !app.IsAWSConsole() {
+			continue
+		}
+
+		name := scopes.QualifiedName{Name: app.GetName(), Scope: app.GetScope()}
+		if _, exists := apps[name]; !exists {
+			names = append(names, name)
+		}
+		apps[name] = appWithLogins{app: app, logins: resource.Logins}
+	}
+
+	lookup := func(name scopes.QualifiedName) (types.Application, []string, error) {
+		entry, ok := apps[name]
+		if !ok {
+			return nil, nil, trace.NotFound("AWS app %q not found", name)
+		}
+		return entry.app, entry.logins, nil
+	}
+
+	return names, lookup, nil
+}
+
+// selectProxyableAWSRoutes returns the selected AWS routes as a list of RouteToApps
+// It takes the apps the user selected and for each one, tries to create a RouteToApp
+// by:
+// 1. checking if the app is already logged in and using that active route or if not,
+// 2. querying the server and building the route if the role is unambiguous
+// 3. else, return an error saying that certain apps need a role selection
+func selectProxyableAWSRoutes(
+	selectedApps []scopes.QualifiedName,
+	getAppFn getAppFunc,
+	activeRoutes []tlsca.RouteToApp,
+	siteName string,
+) ([]tlsca.RouteToApp, error) {
 	activeAWSRoutes := map[scopes.QualifiedName]tlsca.RouteToApp{}
 	for _, route := range activeRoutes {
 		if matchAWSApp(route) {
@@ -857,45 +975,76 @@ func selectLoggedInAWSRoutes(activeRoutes []tlsca.RouteToApp, requestedRoutes []
 	}
 
 	selectedProxyRoutes := make([]tlsca.RouteToApp, 0)
-	missing := make([]string, 0)
-	for _, requestedRoute := range requestedRoutes {
-		name := scopes.QualifiedName{Name: requestedRoute.Name, Scope: requestedRoute.Scope}
-		route, ok := activeAWSRoutes[name]
-
-		if !ok {
-			missing = append(missing, name.String())
+	var ambiguousApps []string
+	for _, appSQN := range selectedApps {
+		// Check if this app is already logged in
+		route, ok := activeAWSRoutes[appSQN]
+		if ok {
+			selectedProxyRoutes = append(selectedProxyRoutes, route)
 			continue
 		}
 
-		selectedProxyRoutes = append(selectedProxyRoutes, route)
+		// No logged in profile, so fetch app from server and check if it only has 1 applicable login
+		app, logins, err := getAppFn(appSQN)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles := awsutils.FilterAWSRoles(logins, app.GetAWSAccountID())
+		if len(roles) == 1 {
+			selectedProxyRoutes = append(selectedProxyRoutes, tlsca.RouteToApp{
+				Name:        app.GetName(),
+				PublicAddr:  app.GetPublicAddr(),
+				ClusterName: siteName,
+				URI:         app.GetURI(),
+				Scope:       app.GetScope(),
+				AWSRoleARN:  roles[0].ARN,
+			})
+			continue
+		}
+
+		// Not logged in and role selection is ambiguous
+		if len(roles) == 0 {
+			ambiguousApps = append(ambiguousApps, fmt.Sprintf("%s (no allowed AWS roles)", appSQN))
+		} else {
+			roleARNs := make([]string, 0, len(roles))
+			for _, role := range roles {
+				roleARNs = append(roleARNs, role.ARN)
+			}
+			ambiguousApps = append(ambiguousApps, fmt.Sprintf("%s (%s)", appSQN, strings.Join(roleARNs, ", ")))
+		}
 	}
 
-	if len(missing) > 0 {
-		return nil, trace.BadParameter(
-			"not logged into AWS apps %q; log in with `tsh apps login <app>` first", strings.Join(missing, ", "),
-		)
+	if len(ambiguousApps) > 0 {
+		return nil, &client.NonRetryableError{
+			Err: trace.BadParameter(
+				"cannot proxy selected AWS apps because these apps require an explicit role selection: %s; log in with `tsh apps login <app> --aws-role <role>` first",
+				strings.Join(ambiguousApps, "; "),
+			),
+		}
 	}
 
 	return selectedProxyRoutes, nil
 }
 
-func pickAWSApps(cf *CLIConf, profile *client.ProfileStatus) ([]awsProxyRoute, error) {
-	if len(cf.AppSQNs) < 1 {
-		return nil, trace.BadParameter("you must specify at least one app via CLI argument")
+// routesToAWSProxyRoutes creates proxy routes using the configured AWS profile mappings.
+func routesToAWSProxyRoutes(cf *CLIConf, routes []tlsca.RouteToApp) ([]awsProxyRoute, error) {
+	routeQualifiedNames := make([]scopes.QualifiedName, 0, len(routes))
+	for _, route := range routes {
+		routeQualifiedNames = append(routeQualifiedNames, scopes.QualifiedName{Name: route.Name, Scope: route.Scope})
 	}
 
-	selectedRoutes, err := selectLoggedInAWSRoutes(profile.Apps, cf.AppSQNs)
-	if err != nil {
+	if err := validateAWSProfileMappings(routeQualifiedNames, cf.AWSProfileMappings); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	proxyRoutes := make([]awsProxyRoute, len(selectedRoutes))
-	for i, route := range selectedRoutes {
-		name := scopes.QualifiedName{Name: route.Name, Scope: route.Scope}
-		profileName := cf.AWSProfileMappings[name]
+
+	proxyRoutes := make([]awsProxyRoute, len(routes))
+	for i, route := range routes {
+		routeQualifiedName := routeQualifiedNames[i]
+		profileName := cf.AWSProfileMappings[routeQualifiedName]
 		if profileName == "" {
-			profileName = name.String()
+			profileName = routeQualifiedName.String()
 		}
-		proxyRoute, err := newAWSProxyRoute(name, tlscaRouteToAppToProto(route), profileName)
+		proxyRoute, err := newAWSProxyRoute(routeQualifiedName, tlscaRouteToAppToProto(route), profileName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -908,18 +1057,19 @@ func pickAWSApps(cf *CLIConf, profile *client.ProfileStatus) ([]awsProxyRoute, e
 // configureAWSAppSelection parses and validates the AWS application and profile
 // mapping flags used by tsh aws and tsh proxy aws.
 func configureAWSAppSelection(cf *CLIConf, rawAppNames, rawProfileMappings []string) error {
+	if len(rawAppNames) > 0 && shouldDiscoverAWSApps(cf) {
+		return trace.BadParameter("cannot use --app with --all, --labels, or --query")
+	}
+
 	appSQNs, err := scopes.ParseSQNs(rawAppNames)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateUniqueAWSApps(appSQNs); err != nil {
+	if err := validateUniqueAWSApps(appSQNs, "--app"); err != nil {
 		return trace.Wrap(err)
 	}
 	profileMappings, err := parseAWSProfileMappings(rawProfileMappings)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := validateAWSProfileMappings(appSQNs, profileMappings); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -929,15 +1079,19 @@ func configureAWSAppSelection(cf *CLIConf, rawAppNames, rawProfileMappings []str
 		cf.AppSQN = appSQNs[0]
 	}
 
+	if !shouldUseMultiplexedAWSSession(cf) && len(profileMappings) > 0 {
+		return trace.BadParameter("AWS profile mappings should only be specified when using a multiplexed AWS proxy session")
+	}
+
 	return nil
 }
 
 // validateUniqueAWSApps ensures each AWS application is specified at most once.
-func validateUniqueAWSApps(apps []scopes.QualifiedName) error {
+func validateUniqueAWSApps(apps []scopes.QualifiedName, flag string) error {
 	seen := make(map[scopes.QualifiedName]struct{}, len(apps))
 	for _, app := range apps {
 		if _, found := seen[app]; found {
-			return trace.BadParameter("AWS application %q was specified more than once with --app", app)
+			return trace.BadParameter("AWS application %q was specified more than once with %s", app, flag)
 		}
 		seen[app] = struct{}{}
 	}
@@ -968,15 +1122,10 @@ func parseAWSProfileMappings(rawMappings []string) (map[scopes.QualifiedName]str
 	return mappings, nil
 }
 
-// validateAWSProfileMappings ensures every mapped application was selected
-// with --app.
+// validateAWSProfileMappings ensures every mapping specified applies to an
+// app that was selected by the command (either via --app or --all) and that
+// there are not duplicate profiles after applying the mapping
 func validateAWSProfileMappings(apps []scopes.QualifiedName, mappings map[scopes.QualifiedName]string) error {
-	// Profile mappings only apply to multiplexed AWS proxy sessions. The legacy
-	// single-app flow does not write an AWS config file.
-	if len(mappings) > 0 && len(apps) <= 1 {
-		return trace.BadParameter("AWS profile mappings require more than one app selected with --app")
-	}
-
 	selectedApps := make(map[scopes.QualifiedName]struct{}, len(apps))
 	for _, app := range apps {
 		selectedApps[app] = struct{}{}
@@ -984,7 +1133,7 @@ func validateAWSProfileMappings(apps []scopes.QualifiedName, mappings map[scopes
 
 	for app := range mappings {
 		if _, selected := selectedApps[app]; !selected {
-			return trace.BadParameter("AWS profile mapping for app %q requires the app to be selected with --app", app)
+			return trace.BadParameter("AWS profile mapping for app %q requires the app to be selected with --app, --all, --labels, or --query", app)
 		}
 	}
 

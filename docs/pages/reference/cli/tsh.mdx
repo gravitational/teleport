@@ -213,7 +213,10 @@ Flags:
 |`--app`|*no default*|Optional Name of the AWS application to use. Can be specified multiple times.|
 |`--aws-role`|*no default*|(For AWS CLI access only) Amazon IAM role ARN or role name.|
 |`--exec`|*no default*|Execute different commands (e.g. terraform) under Teleport credentials.|
+|`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
+|`--[no-]all`|`false`|Proxy all authorized AWS apps. AWS role for each must be unambiguous.|
 |`--profile`|*no default*|Map an AWS app to a different AWS profile name when proxying multiple apps. Specify as \<app\>=\<profile\> and repeat for each desired mapping. By default, each app uses its own name as the profile name.|
+|`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"').|
 
 Arguments:
 
@@ -1456,9 +1459,12 @@ Flags:
 |---|---|---|
 |`--app`|*no default*|Optional Name of the AWS application to use. Can be specified multiple times.|
 |`-f`, `--format`|`unix` (one of: `unix`, `command-prompt`, `powershell`, `text`, `athena-odbc`, `athena-jdbc`)|Optional format to print the commands for setting environment variables, one of: unix, command-prompt, powershell, text. Default is unix. Or specify a service format, one of: athena-odbc, athena-jdbc.|
+|`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
+|`--[no-]all`|`false`|Proxy all authorized AWS apps. AWS role for each must be unambiguous.|
 |`-p`, `--port`|*no default*|Specifies the source port used by the proxy listener.|
 |`--profile`|*no default*|AWS profile name mapping in the form \<app\>=\<profile\>. Can be specified multiple times.|
 |`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
+|`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"').|
 
 ## tsh proxy azure
 
