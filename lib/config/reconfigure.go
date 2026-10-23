@@ -19,9 +19,13 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
+	"math"
+	"net"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -74,12 +78,25 @@ type ReconfigureRequest struct {
 	KubeListenAddr string
 	// MetricsListenAddr sets metrics_service.listen_addr.
 	MetricsListenAddr string
+	// ShiftPorts raises the ports of the addresses the input pins and no field
+	// above sets; see shiftedListenAddrs.
+	ShiftPorts bool
 }
+
+// ShiftedPortOffset is how far ShiftPorts raises each port.
+const ShiftedPortOffset = 10000
 
 // Reconfigure applies req to fc in place, leaving everything not named by a
 // request field untouched. It rejects cases where an unspecified request
 // field would cause a collision with a second agent on the same host.
 func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
+	if req.ShiftPorts {
+		var err error
+		req, err = shiftedListenAddrs(fc, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	if req.ProxyServer != "" && req.AuthServer != "" {
 		return trace.BadParameter("--proxy-server and --auth-server are mutually exclusive")
 	}
@@ -256,6 +273,77 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
 	}
 
 	return trace.Wrap(collisionError(fc, req))
+}
+
+// requirePort is shiftPort's defaultPort for an address that must carry its
+// own port.
+const requirePort = -1
+
+// shiftedListenAddrs returns req with each empty address field set to the
+// input's address raised by ShiftedPortOffset, for the addresses that
+// ReconfigureRequest.ShiftPorts names: diag_addr, and the listen_addr of an
+// enabled SSH, Kubernetes or metrics service. An SSH service that binds with no
+// listen_addr, under force_listen or joining auth directly, binds the default
+// address, which is raised too. ssh_service.public_addr is left alone: the
+// proxy dials the address the agent registered, and public_addr only names the
+// node for lookup and supplies its host-certificate principals, so shifting it
+// would be a guess about what sits in front.
+func shiftedListenAddrs(fc *FileConfig, req ReconfigureRequest) (ReconfigureRequest, error) {
+	if err := shiftListenAddr(fc.DiagAddr, &req.DiagAddr, requirePort, fc.DiagAddr != ""); err != nil {
+		return req, trace.Wrap(err, "shifting diag_addr")
+	}
+
+	// The output agent binds SSH under force_listen or when it joins auth
+	// directly, which a v3 config without proxy_server does; v1 and v2 configs
+	// only decide at runtime, so they count as tunneled.
+	proxyServer := fc.ProxyServer
+	if req.ProxyServer != "" || req.AuthServer != "" {
+		proxyServer = req.ProxyServer
+	}
+	directDial := fc.Version == defaults.TeleportConfigVersionV3 && proxyServer == ""
+	sshAddr := cmp.Or(fc.SSH.ListenAddress, defaults.SSHServerListenAddr().String())
+	sshPinned := fc.SSH.Enabled() && (fc.SSH.ListenAddress != "" || fc.SSH.ForceListen || directDial)
+	if err := shiftListenAddr(sshAddr, &req.SSHListenAddr, defaults.SSHServerListenPort, sshPinned); err != nil {
+		return req, trace.Wrap(err, "shifting ssh_service.listen_addr")
+	}
+
+	// Not a typo: applyKubeConfig uses the SSH proxy port as kube's default.
+	if err := shiftListenAddr(fc.Kube.ListenAddress, &req.KubeListenAddr, defaults.SSHProxyListenPort, listenAddrCollides(fc.Kube.Service)); err != nil {
+		return req, trace.Wrap(err, "shifting kubernetes_service.listen_addr")
+	}
+
+	if err := shiftListenAddr(fc.Metrics.ListenAddress, &req.MetricsListenAddr, defaults.MetricsListenPort, listenAddrCollides(fc.Metrics.Service)); err != nil {
+		return req, trace.Wrap(err, "shifting metrics_service.listen_addr")
+	}
+	return req, nil
+}
+
+// shiftListenAddr sets *dst to src shifted by shiftPort when src is pinned and
+// *dst is empty, so an explicit request field wins.
+func shiftListenAddr(src string, dst *string, defaultPort int, pinned bool) error {
+	if !pinned || *dst != "" {
+		return nil
+	}
+	shifted, err := shiftPort(src, defaultPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	*dst = shifted
+	return nil
+}
+
+// shiftPort returns addr with its port raised by ShiftedPortOffset.
+// defaultPort fills a portless addr; requirePort requires an explicit port.
+func shiftPort(addr string, defaultPort int) (string, error) {
+	parsed, err := utils.ParseHostPortAddr(addr, defaultPort)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	port := parsed.Port(defaultPort) + ShiftedPortOffset
+	if port > math.MaxUint16 {
+		return "", trace.BadParameter("shifting %q by %d exceeds port 65535", addr, ShiftedPortOffset)
+	}
+	return net.JoinHostPort(parsed.Host(), strconv.Itoa(port)), nil
 }
 
 // collisionError rejects values kept from the input that a second agent on

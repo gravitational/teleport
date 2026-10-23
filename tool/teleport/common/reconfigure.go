@@ -50,6 +50,7 @@ type reconfigureFlags struct {
 	sshListenAddr                      string
 	kubeListenAddr                     string
 	metricsListenAddr                  string
+	shiftPorts                         bool
 }
 
 // onReconfigure is the handler for the "reconfigure" CLI command.
@@ -89,6 +90,7 @@ func runReconfigure(flags reconfigureFlags, stdout io.Writer) error {
 		SSHListenAddr:                      flags.sshListenAddr,
 		KubeListenAddr:                     flags.kubeListenAddr,
 		MetricsListenAddr:                  flags.metricsListenAddr,
+		ShiftPorts:                         flags.shiftPorts,
 	}); err != nil {
 		return trace.Wrap(err)
 	}

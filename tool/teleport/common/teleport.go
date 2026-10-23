@@ -475,6 +475,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	reconf.Flag("ssh-listen-addr", "Listen address for the new agent's SSH service.").StringVar(&reconfigureFlags.sshListenAddr)
 	reconf.Flag("kube-listen-addr", "Listen address for the new agent's Kubernetes service.").StringVar(&reconfigureFlags.kubeListenAddr)
 	reconf.Flag("metrics-listen-addr", "Listen address for the new agent's metrics service.").StringVar(&reconfigureFlags.metricsListenAddr)
+	reconf.Flag("shift-ports", fmt.Sprintf("Raise by %d the port of every address the input pins and --diag-addr and the --*-listen-addr flags do not set: diag_addr and the SSH, Kubernetes and metrics listen addresses, so the new agent can run beside the original on one host.", config.ShiftedPortOffset)).BoolVar(&reconfigureFlags.shiftPorts)
 
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
 
