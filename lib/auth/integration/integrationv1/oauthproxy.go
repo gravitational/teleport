@@ -37,11 +37,14 @@ import (
 
 	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
+	"github.com/gravitational/teleport/lib/auth/userexternalcredentials"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -61,24 +64,17 @@ const (
 // oauthProxyHostIDNamespace is a UUID that represents the name space to be used for generating UUIDs for OAuth Proxy integration app servers.
 var oauthProxyHostIDNamespace = uuid.NewSHA1(uuid.Nil, []byte("oauth-proxy"))
 
-// OAuthProxyUserCredentialsStore is used to store the credential from the OAuth Authorization grant exchange.
-// TODO(nixpig): Implement this interface for the double-encrypted user credentials store.
-// See: RFD 0340 https://github.com/gravitational/rfd/blob/727e7f3ee5f92b630f64ca8cbc01cd40e90ea603/rfd/0340-user-encrypted-secret-storage.md
-type OAuthProxyUserCredentialsStore interface {
-	// StoreOAuthProxyCredential persists the credential to the backend.
-	StoreOAuthProxyCredential(ctx context.Context, integration, user string, tok *oauth2.Token) error
-}
-
 // OAuthProxyServiceConfig holds configuration options for the OAuth Proxy Integration gRPC service.
 type OAuthProxyServiceConfig struct {
-	Authorizer            authz.Authorizer
-	Clock                 clockwork.Clock
-	Logger                *slog.Logger
-	Backend               Backend
-	Cache                 Cache
-	ProxyPublicAddrGetter func(context.Context) string
-	UserCredentialsStore  OAuthProxyUserCredentialsStore
-	Client                *http.Client
+	Authorizer              authz.Authorizer
+	Clock                   clockwork.Clock
+	Logger                  *slog.Logger
+	Backend                 Backend
+	Cache                   Cache
+	ProxyPublicAddrGetter   func(context.Context) string
+	UserExternalCredentials services.UserExternalCredentials
+	Encryptor               userexternalcredentials.Encryptor
+	Client                  *http.Client
 }
 
 // CheckAndSetDefaults checks the OAuthProxyServiceConfig fields and returns an error if a required param is not provided,
@@ -93,10 +89,10 @@ func (cfg *OAuthProxyServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("backend is required")
 	case cfg.Cache == nil:
 		return trace.BadParameter("cache is required")
-	case cfg.UserCredentialsStore == nil:
-		// TODO(nixpig): Require an actual credentials store and fail on omission, once implemented.
-		// See: RFD 0340 https://github.com/gravitational/rfd/blob/727e7f3ee5f92b630f64ca8cbc01cd40e90ea603/rfd/0340-user-encrypted-secret-storage.md
-		// return trace.BadParameter("credential store is required")
+	case cfg.UserExternalCredentials == nil:
+		return trace.BadParameter("user external credentials is required")
+	case cfg.Encryptor == nil:
+		return trace.BadParameter("encryptor is required")
 	}
 
 	if cfg.Client == nil {
@@ -122,14 +118,15 @@ func (cfg *OAuthProxyServiceConfig) CheckAndSetDefaults() error {
 type OAuthProxyService struct {
 	integrationpb.UnimplementedOAuthProxyServiceServer
 
-	authorizer            authz.Authorizer
-	logger                *slog.Logger
-	clock                 clockwork.Clock
-	backend               Backend
-	cache                 Cache
-	proxyPublicAddrGetter func(context.Context) string
-	userCredentialsStore  OAuthProxyUserCredentialsStore
-	client                *http.Client
+	authorizer              authz.Authorizer
+	logger                  *slog.Logger
+	clock                   clockwork.Clock
+	backend                 Backend
+	cache                   Cache
+	proxyPublicAddrGetter   func(context.Context) string
+	userExternalCredentials services.UserExternalCredentials
+	encryptor               userexternalcredentials.Encryptor
+	client                  *http.Client
 }
 
 // NewOAuthProxyService returns a new OAuthProxyService.
@@ -139,13 +136,14 @@ func NewOAuthProxyService(cfg *OAuthProxyServiceConfig) (*OAuthProxyService, err
 	}
 
 	return &OAuthProxyService{
-		logger:                cfg.Logger,
-		authorizer:            cfg.Authorizer,
-		clock:                 cfg.Clock,
-		backend:               cfg.Backend,
-		cache:                 cfg.Cache,
-		proxyPublicAddrGetter: cfg.ProxyPublicAddrGetter,
-		userCredentialsStore:  cfg.UserCredentialsStore,
+		logger:                  cfg.Logger,
+		authorizer:              cfg.Authorizer,
+		clock:                   cfg.Clock,
+		backend:                 cfg.Backend,
+		cache:                   cfg.Cache,
+		proxyPublicAddrGetter:   cfg.ProxyPublicAddrGetter,
+		userExternalCredentials: cfg.UserExternalCredentials,
+		encryptor:               cfg.Encryptor,
 		client: &http.Client{
 			Transport:     liboidc.NewOIDCRoundTripper(cfg.Client.Transport),
 			CheckRedirect: cfg.Client.CheckRedirect,
@@ -276,12 +274,7 @@ func (s *OAuthProxyService) CompleteOAuthProxyAuthorization(ctx context.Context,
 		return nil, trace.BadParameter("invalid response")
 	}
 
-	// TODO(nixpig): Remove nil check once credentials store is implemented.
-	// See: RFD 0340 https://github.com/gravitational/rfd/blob/727e7f3ee5f92b630f64ca8cbc01cd40e90ea603/rfd/0340-user-encrypted-secret-storage.md
-	if s.userCredentialsStore == nil {
-		return nil, trace.NotImplemented("credential storage not implemented")
-	}
-	if err := s.userCredentialsStore.StoreOAuthProxyCredential(ctx, authReq.Integration, authReq.User, tok); err != nil {
+	if err := s.storeUserCredentials(ctx, authReq.Integration, authReq.User, tok); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -386,6 +379,43 @@ func (s *OAuthProxyService) oauthProxyClientSecret(ctx context.Context, ig types
 	clientID, clientSecret := cred.GetOAuthClientSecret()
 
 	return clientID, clientSecret, nil
+}
+
+func (s *OAuthProxyService) storeUserCredentials(ctx context.Context, integration, user string, tok *oauth2.Token) error {
+	switch {
+	case integration == "":
+		return trace.BadParameter("integration is required")
+	case user == "":
+		return trace.BadParameter("user is required")
+	case tok == nil:
+		return trace.BadParameter("token is required")
+	}
+
+	if err := s.requireUserSession(ctx, user); err != nil {
+		return trace.Wrap(err)
+	}
+
+	authEncrypted, err := userexternalcredentials.MakeAuthEncryptedOAuthCredential(ctx, s.encryptor, user, types.KindIntegration, integration, tok)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(userexternalcredentials.Distribute(ctx, s.userExternalCredentials, user, authEncrypted))
+}
+
+func (s *OAuthProxyService) requireUserSession(ctx context.Context, user string) error {
+	sessions, _, err := s.userExternalCredentials.ListUserExternalCredentials(ctx, 1, "", usercredpb.EncryptionKeyID_builder{
+		User: user,
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(sessions) == 0 {
+		return trace.NotFound("no sessions for user %q", user)
+	}
+
+	return nil
 }
 
 // validateHTTPSEndpoint ensures the given endpoint is a valid HTTPS URL.

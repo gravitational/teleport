@@ -332,6 +332,10 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 			return nil, trace.BadParameter("missing OAuth Proxy integration spec")
 		}
 
+		if err := validateOAuthProxyFIPS(s.fips); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if err := integrations.ValidName(req.GetIntegration().GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -416,6 +420,10 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 			return nil, trace.Wrap(err)
 		}
 	case types.IntegrationSubKindOAuthProxy:
+		if err := validateOAuthProxyFIPS(s.fips); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if err := services.CheckAndSetDefaults(req.GetIntegration()); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -498,6 +506,15 @@ func (s *Service) validateGitHubOAuthCallbackURL(ctx context.Context, callbackUR
 	if !slices.Contains(allowed, callbackURL) {
 		return trace.BadParameter("oauth_callback_url %q does not match expected %q", callbackURL, allowed[len(allowed)-1])
 	}
+	return nil
+}
+
+// validateOAuthProxyFIPS returns an error when FIPS enabled.
+func validateOAuthProxyFIPS(fips bool) error {
+	if fips {
+		return trace.BadParameter("OAuth Proxy integration not supported in FIPS mode")
+	}
+
 	return nil
 }
 
