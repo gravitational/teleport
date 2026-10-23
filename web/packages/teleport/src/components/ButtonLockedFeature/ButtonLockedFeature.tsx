@@ -46,7 +46,8 @@ export function ButtonLockedFeature({
   ...rest
 }: Props) {
   const ctx = useTeleport();
-  const version = ctx.storeUser.state.cluster.authVersion;
+  // Null on the player route, which mounts outside Main.
+  const version = ctx.storeUser.state?.cluster.authVersion ?? '';
 
   function handleClick() {
     if (cfg.isEnterprise) {

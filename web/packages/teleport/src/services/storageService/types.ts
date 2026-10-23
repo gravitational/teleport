@@ -45,8 +45,8 @@ export const KeysEnum = {
   ENABLE_TELEMETRY: 'grv_teleport_enable_telemetry',
   SESSION_RECORDINGS_VIEW_MODE: 'grv_teleport_session_recordings_view_mode',
   SESSION_RECORDINGS_DENSITY: 'grv_teleport_session_recordings_density',
-  SESSION_RECORDINGS_DISMISSED_CTA:
-    'grv_teleport_session_recordings_dismissed_cta',
+  SESSION_SUMMARIES_PROMO_COLLAPSED:
+    'grv_teleport_session_summaries_promo_collapsed',
   SESSION_RECORDINGS_DISMISSED_SETUP:
     'grv_teleport_session_recordings_dismissed_setup',
   SESSION_SUMMARIES_COLLAPSED_CLASSIFIER_SECTIONS:

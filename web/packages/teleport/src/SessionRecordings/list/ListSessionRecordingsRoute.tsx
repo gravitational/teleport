@@ -37,13 +37,12 @@ import {
   getRangeOptions,
   type EventRange,
 } from 'teleport/components/EventRangePicker';
-import { ExternalAuditStorageCta } from 'teleport/components/ExternalAuditStorageCta';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { SessionSummariesCta } from 'teleport/SessionRecordings/list/SessionSummariesCta';
+import { SessionSummariesHeaderCta } from 'teleport/SessionRecordings/list/SessionSummariesHeaderCta';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
@@ -62,7 +61,9 @@ interface ListSessionRecordingsRouteProps {
 }
 
 export function ListSessionRecordingsRoute() {
-  return <ListSessionRecordings headerElement={<SessionSummariesCta />} />;
+  return (
+    <ListSessionRecordings headerElement={<SessionSummariesHeaderCta />} />
+  );
 }
 
 export function ListSessionRecordings({
@@ -125,8 +126,6 @@ export function ListSessionRecordings({
 
         {headerElement}
       </FeatureHeader>
-
-      <ExternalAuditStorageCta mx="40px" mb={3} />
 
       <Flex flex={1} minHeight={0} overflow="hidden" width="100%">
         <QueryErrorResetBoundary>

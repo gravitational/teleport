@@ -37,8 +37,10 @@ import {
   RECORDING_TYPES_WITH_METADATA,
   VALID_RECORDING_TYPES,
 } from 'teleport/services/recordings/recordings';
+import { UpgradeButton } from 'teleport/SessionRecordings/sessionSummaries';
 import type { RecordingWithSummaryProps } from 'teleport/SessionRecordings/view/RecordingWithSummary';
 import { SessionRecordingDetails } from 'teleport/SessionRecordings/view/SessionRecordingDetails';
+import { SessionSummariesPromo } from 'teleport/SessionRecordings/view/SessionSummariesPromo';
 import { RecordingTimeline } from 'teleport/SessionRecordings/view/Timeline/RecordingTimeline';
 import { useRecording } from 'teleport/SessionRecordings/view/useRecording';
 
@@ -217,6 +219,12 @@ function RecordingWithMetadata({
             recordingType={data.metadata.type}
             metadata={data.metadata}
           />
+
+          <SessionSummariesPromo
+            needsUpgrade
+            primaryAction={<UpgradeButton size="medium" />}
+          />
+
           <SidebarResizeHandle
             width={sidebarWidth}
             onChange={setSidebarWidth}
