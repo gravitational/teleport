@@ -21,7 +21,6 @@ package filesessions
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -171,62 +170,51 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.Wrap(err)
 	}
 
+	// use a separate lock because publication removes the staging path
+	unlock, err := utils.FSTryWriteLock(filepath.Join(h.uploadPath(upload), "recording.lock"))
+	if err != nil {
+		return trace.Wrap(err, "failed to acquire upload lock")
+	}
+	unlock = sync.OnceValue(unlock)
+	defer func() {
+		if err := unlock(); err != nil {
+			h.logger.ErrorContext(ctx, "Failed to unlock upload", "upload_id", upload.ID, "error", err)
+		}
+	}()
+
 	// If there are no parts to complete, move to cleanup
 	if len(parts) == 0 {
+		if err := unlock(); err != nil {
+			return trace.Wrap(err)
+		}
 		return h.cleanupUpload(ctx, upload)
 	}
 
-	uploadPath := h.recordingPath(upload.SessionID)
-
-	// Prevent other processes from accessing this file until the write is completed
-	f, err := GetOpenFileFunc()(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
+	// assemble alongside the parts so scans only see complete recordings
+	// ListParts ignores the .tmp file, and ListUploads can still find the upload
+	// after a crash. linking below publishes it on the same filesystem
+	stagedPath := filepath.Join(h.uploadPath(upload), "recording.tmp")
+	// detach stale staging files before rebuilding to change the inode
+	// instead of truncating it.
+	if err := os.Remove(stagedPath); err != nil && !os.IsNotExist(err) {
+		return trace.ConvertSystemError(err)
+	}
+	f, err := h.OpenFile(stagedPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	unlock, err := utils.FSTryWriteLock(uploadPath)
-Loop:
-	for range 3 {
-		switch {
-		case err == nil:
-			break Loop
-		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
-			// If unable to lock the file, try again with some backoff
-			// to allow the UploadCompleter to finish and remove its
-			// file lock before giving up.
-			select {
-			case <-ctx.Done():
-				if err := f.Close(); err != nil {
-					h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
-				}
-
-				return nil
-			case <-time.After(50 * time.Millisecond):
-				unlock, err = utils.FSTryWriteLock(uploadPath)
-				continue
-			}
-		default:
-			if err := f.Close(); err != nil {
-				h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath)
-			}
-
-			return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
+	closeFile := sync.OnceValue(f.Close)
+	cleanupStage := sync.OnceValue(func() error {
+		closeErr := closeFile()
+		removeErr := os.Remove(stagedPath)
+		if os.IsNotExist(removeErr) {
+			removeErr = nil
 		}
-	}
-
-	if unlock == nil {
-		if err := f.Close(); err != nil {
-			h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
-		}
-
-		return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
-	}
-
+		return trace.NewAggregate(trace.ConvertSystemError(closeErr), trace.ConvertSystemError(removeErr))
+	})
 	defer func() {
-		if err := unlock(); err != nil {
-			h.logger.ErrorContext(ctx, "Failed to unlock filesystem lock.", "error", err)
-		}
-		if err := f.Close(); err != nil {
-			h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
+		if err := cleanupStage(); err != nil {
+			h.logger.WarnContext(ctx, "Failed to clean up staged recording", "file", stagedPath, "error", err)
 		}
 	}()
 
@@ -245,11 +233,51 @@ Loop:
 		return trace.Wrap(err)
 	}
 
+	if err := f.Sync(); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	// check close errors before publishing
+	if err := closeFile(); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
 	err = h.Config.OnBeforeComplete(ctx, upload)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	recordingPath := h.recordingPath(upload.SessionID)
+	unlockRecording, err := utils.FSTryWriteLockExistingFile(recordingPath)
+	switch {
+	case err == nil:
+		defer func() {
+			if err := unlockRecording(); err != nil {
+				h.logger.WarnContext(ctx, "Failed to unlock recording", "file", recordingPath, "error", err)
+			}
+		}()
+	case trace.IsNotFound(err):
+	default:
+		return trace.Wrap(err)
+	}
+	if err := os.Rename(stagedPath, recordingPath); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	// finish staged-file cleanup before another completer can acquire the lock
+	if err := cleanupStage(); err != nil {
+		return trace.Wrap(err)
+	}
+	// remove the source parts under lock so a waiting completer cannot publish
+	// them again while we remove the upload directory
+	for _, part := range parts {
+		if err := os.Remove(h.partPath(upload, part.Number)); err != nil && !os.IsNotExist(err) {
+			return trace.ConvertSystemError(err)
+		}
+	}
+	if err := unlock(); err != nil {
+		return trace.Wrap(err)
+	}
 	err = os.RemoveAll(h.uploadRootPath(upload))
 	if err != nil {
 		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
@@ -288,6 +316,10 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 			return err
 		}
 		if info.IsDir() {
+			return nil
+		}
+		// incomplete recordings can remain here after a crash
+		if ext := filepath.Ext(path); ext == ".tmp" || ext == ".lock" {
 			return nil
 		}
 		part, err := partFromFileName(path)
