@@ -34,6 +34,7 @@ package pam
 // extern struct pam_conv *make_pam_conv(int);
 // extern int _pam_start(void *, const char *, const char *, const struct pam_conv *, pam_handle_t **);
 // extern int _pam_putenv(void *, pam_handle_t *, const char *);
+// extern int _pam_set_item(void *, pam_handle_t *, int, const void *);
 // extern int _pam_end(void *, pam_handle_t *, int);
 // extern int _pam_authenticate(void *, pam_handle_t *, int);
 // extern int _pam_acct_mgmt(void *, pam_handle_t *, int);
@@ -324,6 +325,25 @@ func Open(config *servicecfg.PAMConfig) (*PAM, error) {
 	p.retval = C._pam_start(pamHandle, p.service_name, p.login, p.conv, &p.pamh)
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError(p.retval)
+	}
+
+	// Set tty and remote host so pam_systemd can classify the session correctly.
+	if config.TTYName != "" {
+		pamTTY := C.CString(config.TTYName)
+		defer C.free(unsafe.Pointer(pamTTY))
+		p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_TTY, unsafe.Pointer(pamTTY))
+		if p.retval != C.PAM_SUCCESS {
+			return nil, p.codeToError(p.retval)
+		}
+	}
+
+	if config.RemoteHost != "" {
+		pamRHost := C.CString(config.RemoteHost)
+		defer C.free(unsafe.Pointer(pamRHost))
+		p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_RHOST, unsafe.Pointer(pamRHost))
+		if p.retval != C.PAM_SUCCESS {
+			return nil, p.codeToError(p.retval)
+		}
 	}
 
 	for k, v := range config.Env {

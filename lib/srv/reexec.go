@@ -308,11 +308,21 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			stderr = io.Discard
 		}
 
+		// PAM_RHOST conventionally holds the host without the port.
+		remoteHost := c.ClientAddress
+		if host, _, err := net.SplitHostPort(remoteHost); err == nil {
+			remoteHost = host
+		}
+
 		// Open the PAM context.
 		pamContext, err := pam.Open(&servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
+			// Describe where the session comes from, so that pam_systemd can
+			// classify it. TTYName is empty for non-interactive requests.
+			TTYName:    c.TerminalName,
+			RemoteHost: remoteHost,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
@@ -570,6 +580,12 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
+	// PAM_RHOST conventionally holds the host without the port.
+	remoteHost := c.ClientAddress
+	if host, _, err := net.SplitHostPort(remoteHost); err == nil {
+		remoteHost = host
+	}
+
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used for
 	// networking requests.
@@ -579,6 +595,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		pamContext, err := pam.Open(&servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
+			RemoteHost:  remoteHost,
 			Stdin:       os.Stdin,
 			Stdout:      io.Discard,
 			Stderr:      io.Discard,
