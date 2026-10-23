@@ -3,7 +3,7 @@
 # Minimal container for generating BPF bytecode
 # This Dockerfile is used to generate BPF bytecode used
 # by enhanced recording.
-FROM docker.io/library/debian:12
+FROM docker.io/library/debian:13
 
 ENV LANGUAGE="en_US.UTF-8" \
     LANG="en_US.UTF-8" \
