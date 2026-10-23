@@ -253,8 +253,8 @@ func (h *Handler) StreamSecrets(
 	}()
 
 	renewalTimer := time.NewTimer(h.renewalInterval)
-	// Stop the timer immediately so we can start timing after the first
-	// response is sent.
+	// Stop the timer immediately so we can start timing once SVIDs are first
+	// fetched.
 	renewalTimer.Stop()
 	defer renewalTimer.Stop()
 
@@ -356,6 +356,9 @@ func (h *Handler) StreamSecrets(
 			if err != nil {
 				return trace.Wrap(err, "fetching X509 SVIDs")
 			}
+			// Only reset on a fresh fetch, so responses that reuse cached
+			// SVIDs don't postpone their renewal.
+			renewalTimer.Reset(retryutils.SeventhJitter(h.renewalInterval))
 		}
 
 		resp, err := h.generateResponse(
@@ -387,8 +390,6 @@ func (h *Handler) StreamSecrets(
 				"version_info", resp.VersionInfo,
 			),
 		)
-
-		renewalTimer.Reset(retryutils.SeventhJitter(h.renewalInterval))
 	}
 }
 
