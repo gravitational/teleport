@@ -41,6 +41,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -387,7 +388,7 @@ func (h *Handler) StreamSecrets(
 			),
 		)
 
-		renewalTimer.Reset(h.renewalInterval)
+		renewalTimer.Reset(retryutils.SeventhJitter(h.renewalInterval))
 	}
 }
 
