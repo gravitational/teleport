@@ -110,8 +110,8 @@ type ConnectionsHandlerConfig struct {
 	// for this process.
 	CipherSuites []uint16
 
-	// ServiceComponent is the Teleport Component identifier used for tracing and logging.
-	// Must be one of teleport.Component* values.
+	// ServiceComponent is the Teleport Component identifier used for tracing
+	// and logging. Must be one of teleport.Component* values.
 	// Eg, teleport.ComponentApp
 	ServiceComponent string
 
@@ -130,8 +130,9 @@ type ConnectionsHandlerConfig struct {
 	// TargetHostPolicy restricts application target dials by resolved IP.
 	TargetHostPolicy common.TargetHostPolicy
 
-	// AcceptForwardedIdentity allows a local Proxy to forward a client identity with each request instead of
-	// presenting it as the connection's client certificate (RFD 0341). Only the Application Service sets it.
+	// AcceptForwardedIdentity allows a local Proxy to forward a client identity
+	// with each request instead of presenting it as the connection's client
+	// certificate (RFD 0341). Only the Application Service sets it.
 	AcceptForwardedIdentity bool
 }
 
@@ -187,8 +188,9 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// ConnectionsHandler handles Connections for the ApplicationService.
-// It authenticates requests from the web proxy and forwards them to internal applications.
+// ConnectionsHandler handles Connections for the ApplicationService. It
+// authenticates requests from the web proxy and forwards them to
+// internal applications.
 type ConnectionsHandler struct {
 	cfg *ConnectionsHandlerConfig
 	log *slog.Logger
@@ -206,10 +208,12 @@ type ConnectionsHandler struct {
 	tlsConfig *tls.Config
 	limiter   *limiter.Limiter
 
-	// connIdentityHandler serves every connection that requestIdentityHandler doesn't accept.
+	// connIdentityHandler serves every connection that requestIdentityHandler
+	// doesn't accept.
 	connIdentityHandler *connIdentityHandler
-	// requestIdentityHandler serves connections from a local Proxy that forwards client identities. It is nil unless
-	// AcceptForwardedIdentity is set.
+	// requestIdentityHandler serves connections from a local Proxy that
+	// forwards client identities. It is nil unless AcceptForwardedIdentity
+	// is set.
 	requestIdentityHandler *requestIdentityHandler
 
 	// cache holds sessionChunk objects for in-flight app sessions.
@@ -226,14 +230,15 @@ type ConnectionsHandler struct {
 	gcpHandler   http.Handler
 	llmHandler   *appllm.Handler
 
-	// authMiddleware reads the identity in a client certificate, and rejects a certificate restricted to a service
-	// other than apps.
+	// authMiddleware reads the identity in a client certificate, and rejects a
+	// certificate restricted to a service other than apps.
 	authMiddleware *authz.Middleware
 
 	proxyPort   string
 	clusterName string
 
-	// resolveApp returns a types.Application using the name and public address as matchers.
+	// resolveApp returns a types.Application using the name and public address
+	// as matchers.
 	resolveApp func(ctx context.Context, name, addr string) (types.Application, error)
 
 	// v9Warned dedupes the v9 enforcement warnings to once per warning kind,
@@ -379,8 +384,9 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	return c, nil
 }
 
-// SetApplicationsProvider sets the internal state for the monitored applications.
-// This method must be called before the ConnectionsHandler is able to handle connections.
+// SetApplicationsProvider sets the internal state for the monitored
+// applications. This method must be called before the ConnectionsHandler is
+// able to handle connections.
 func (c *ConnectionsHandler) SetApplicationsProvider(
 	fn func(context.Context, string, string) (types.Application, error)) {
 	c.resolveApp = fn
@@ -420,13 +426,7 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	// httpServer will initiate the close call.
 	waitConn := utils.NewWaitConn(conn)
 
-	cleanup, err := c.handleConnection(ctx, cancel, waitConn)
-	// Make sure that the cleanup function is run
-	if cleanup != nil {
-		defer cleanup()
-	}
-
-	if err != nil {
+	if err := c.handleConnection(ctx, cancel, waitConn); err != nil {
 		if !utils.IsOKNetworkError(err) {
 			c.log.WarnContext(ctx, "Failed to handle client connection.", "error", err)
 		}
@@ -436,25 +436,27 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 		return
 	}
 
-	// Wait for the connection to close. TCP and MCP handlers block until
-	// done, so waitConn is already closed by the time we get here. The HTTP
-	// handler returns immediately after handing the conn to http.Server, so
-	// this is where we block until the HTTP server closes it.
+	// The reverse tunnel closes the connection's channel when this returns, so
+	// wait until the connection is closed. An http.Server may still be
+	// serving it.
 	waitConn.Wait()
 }
 
-// chunkConfig is how a handler groups its requests into session chunks. Each handler sets it, because an identity
-// taken from a certificate and one forwarded with each request last differently. Only key applies to every request.
-// The other fields apply only when the request creates a chunk.
+// chunkConfig is how a handler groups its requests into session chunks. Each
+// handler sets it, because an identity taken from a certificate and one
+// forwarded with each request last differently. Only key applies to every
+// request. The other fields apply only when the request creates a chunk.
 type chunkConfig struct {
 	// Requests with the same key share a chunk.
 	key string
-	// expires is when the chunk stops accepting new requests, delayed by however long creating the chunk took, because
-	// the cache counts the chunk's lifetime from when it was created.
+	// expires is when the chunk stops accepting new requests, delayed by
+	// however long creating the chunk took, because the cache counts the
+	// chunk's lifetime from when it was created.
 	expires    time.Time
 	jwtExpires time.Time
-	// startTime is when the chunk's recording starts counting event indexes. Events keep the identity's session ID
-	// rather than the chunk's, so the chunks of one session must share it, or their event indexes collide.
+	// startTime is when the chunk's recording starts counting event indexes.
+	// Events keep the identity's session ID rather than the chunk's, so the
+	// chunks of one session must share it, or their event indexes collide.
 	startTime time.Time
 }
 
@@ -504,10 +506,12 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, req authorizedR
 	return nil
 }
 
-// recordAccess emits app.access for authorized access to app. Failing to record access does not deny it.
+// recordAccess emits app.access for authorized access to app. Failing to record
+// access does not deny it.
 func (c *ConnectionsHandler) recordAccess(ctx context.Context, identity *tlsca.Identity, app types.Application, identitySource common.AppAccessIdentitySource) {
-	// Logged at debug because a failed emission is returned to every later access to the session until the
-	// deduplication period ends, and the audit emitter already reports its own failures.
+	// Logged at debug because a failed emission is returned to every later
+	// access to the session until the deduplication period ends, and the audit
+	// emitter already reports its own failures.
 	if err := c.accessRecorder.RecordAccess(ctx, identity, app, identitySource); err != nil && ctx.Err() == nil {
 		c.log.DebugContext(ctx, "Failed to emit app access audit event", "app", app.GetName(), "error", err)
 	}
@@ -554,8 +558,9 @@ func (c *ConnectionsHandler) Close(ctx context.Context) []error {
 	return errs
 }
 
-// authorizedRequest is a request that a handler has authorized for app. They travel together so that the serving step
-// can't be given a request with an authorization made for another one.
+// authorizedRequest is a request that a handler has authorized for app. They
+// travel together so that the serving step can't be given a request with an
+// authorization made for another one.
 type authorizedRequest struct {
 	r       *http.Request
 	authCtx *authz.ScopedContext
@@ -564,13 +569,13 @@ type authorizedRequest struct {
 	identitySource common.AppAccessIdentitySource
 }
 
-// serveAuthorizedHTTP forwards req to its application. Both handlers' requests rejoin here, so everything from here on
-// applies to both.
+// serveAuthorizedHTTP forwards req to its application. Both handlers' requests
+// rejoin here, so everything from here on applies to both.
 func (c *ConnectionsHandler) serveAuthorizedHTTP(w http.ResponseWriter, req authorizedRequest, cfg chunkConfig) error {
 	r, app := req.r, req.app
 	identity := req.authCtx.Identity.GetIdentity()
-	// Access is recorded before the app_resources rules below, which authorize individual request paths rather than
-	// access to the application.
+	// Access is recorded before the app_resources rules below, which authorize
+	// individual request paths rather than access to the application.
 	c.recordAccess(r.Context(), &identity, app, req.identitySource)
 
 	switch {
@@ -709,15 +714,16 @@ func (c *ConnectionsHandler) getAuthContext(ctx context.Context) (*authz.ScopedC
 	return authContext, nil
 }
 
-// accessState returns the access state of authContext's identity, counting the MFA evidence it carries.
+// accessState returns the access state of authContext's identity, counting the
+// MFA evidence it carries.
 func (c *ConnectionsHandler) accessState(ctx context.Context, authContext *authz.ScopedContext) (services.AccessState, error) {
 	identity := authContext.Identity.GetIdentity()
 	state, err := authContext.CheckerContext.AccessStateFromTLSIdentity(ctx, &identity, c.cfg.AccessPoint)
 	return state, trace.Wrap(err)
 }
 
-// authorizeApp checks whether authContext allows access to app in state, returning the
-// session controls of the role that granted access.
+// authorizeApp checks whether authContext allows access to app in state,
+// returning the session controls of the role that granted access.
 func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *authz.ScopedContext, app types.Application, state services.AccessState) (srv.ScopedSessionControls, error) {
 	identity := authContext.Identity.GetIdentity()
 
@@ -751,8 +757,9 @@ func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *auth
 		})
 	}
 
-	// Identity Center account apps are currently not supported for scoped applications.
-	// TODO (williamo/scopes) - potentially look into adding account_assignments into scoped roles.
+	// Identity Center account apps are currently not supported for scoped
+	// applications. TODO (williamo/scopes) - potentially look into adding
+	// account_assignments into scoped roles.
 	if _, isUnscoped := authContext.UnscopedContext(); !isUnscoped && app.GetSubKind() == types.KindIdentityCenterAccount {
 		return nil, trace.AccessDenied("identity center account apps are not supported for scoped identities")
 	}
@@ -762,11 +769,14 @@ func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *auth
 	})
 	switch {
 	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
-		// When access is denied due to trusted device or session MFA requirements, these specific errors
-		// are returned directly to provide clarity to the client about the additional authentication steps needed.
+		// When access is denied due to trusted device or session MFA
+		// requirements, these specific errors are returned directly to provide
+		// clarity to the client about the additional authentication
+		// steps needed.
 		return nil, trace.Wrap(err)
 	case err != nil:
-		// Other access denial errors are wrapped and obfuscated to prevent leaking sensitive details.
+		// Other access denial errors are wrapped and obfuscated to prevent
+		// leaking sensitive details.
 		c.log.WarnContext(c.closeContext, "Access denied to application.",
 			"app", app.GetName(),
 			"error", err,
@@ -777,7 +787,7 @@ func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *auth
 	return checker.App(), nil
 }
 
-func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {
+func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) error {
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   c.cfg.Clock,
@@ -785,21 +795,22 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 		Cancel:  cancel,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	tlsConn, user, err := c.authenticateConn(c.closeContext, tc)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	// A connection from a forwarding Proxy carries requests from many clients, so requestIdentityHandler takes the
-	// client's identity from each request. For every other connection, connIdentityHandler takes it from the client
-	// certificate.
+	// A connection from a forwarding Proxy carries requests from many clients,
+	// so requestIdentityHandler takes the client's identity from each request.
+	// For every other connection, connIdentityHandler takes it from the
+	// client certificate.
 	if c.acceptsForwardedIdentity() && c.requestIdentityHandler.accepts(user) {
-		return nil, trace.Wrap(c.requestIdentityHandler.handleConnection(ctx, tlsConn))
+		return trace.Wrap(c.requestIdentityHandler.handleConnection(ctx, tlsConn))
 	}
-	return c.connIdentityHandler.handleConnection(ctx, conn, tc, tlsConn, user)
+	return trace.Wrap(c.connIdentityHandler.handleConnection(ctx, tlsConn, user))
 }
 
 // handleHTTPApp handles connection for an HTTP application.
@@ -819,7 +830,8 @@ func (c *ConnectionsHandler) handleHTTPApp(ctx context.Context, server *http.Ser
 	return nil
 }
 
-// newAppHTTPServer creates an *http.Server with the settings shared by connIdentityHandler and requestIdentityHandler.
+// newAppHTTPServer creates an *http.Server with the settings shared by
+// connIdentityHandler and requestIdentityHandler.
 func (c *ConnectionsHandler) newAppHTTPServer(handler http.Handler) *http.Server {
 	return &http.Server{
 		// Note: read/write timeouts *should not* be set here because it will
@@ -891,8 +903,9 @@ func isBrowserUserAgent(ua string) bool {
 		(strings.Contains(lower, "applewebkit") || strings.Contains(lower, "gecko/"))
 }
 
-// authenticateConn completes the TLS handshake and returns the identity in the peer's client certificate. Connections
-// from the reverse tunnel are expected to use TLS and carry an identity this way.
+// authenticateConn completes the TLS handshake and returns the identity in the
+// peer's client certificate. Connections from the reverse tunnel are expected
+// to use TLS and carry an identity this way.
 func (c *ConnectionsHandler) authenticateConn(ctx context.Context, conn net.Conn) (*tls.Conn, authz.IdentityGetter, error) {
 	tlsConn := tls.Server(conn, c.tlsConfig)
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
@@ -917,7 +930,8 @@ func CopyAndConfigureTLSForCluster(log *slog.Logger, client authclient.AccessCac
 	// Require clients to present a certificate.
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
-	// Configure function that will be used to fetch the CAs that signed the client's certificate.
+	// Configure function that will be used to fetch the CAs that signed the
+	// client's certificate.
 	tlsConfig.GetConfigForClient = authclient.WithClusterCAs(tlsConfig, client, clusterName, log)
 
 	return tlsConfig

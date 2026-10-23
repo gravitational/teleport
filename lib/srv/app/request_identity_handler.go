@@ -42,44 +42,52 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// acceptsForwardedIdentity reports whether requestIdentityHandler is on. The heartbeat also checks it, so the agent
-// only advertises the feature when it serves it.
+// acceptsForwardedIdentity reports whether requestIdentityHandler is on. The
+// heartbeat also checks it, so the agent only advertises the feature when it
+// serves it.
 func (c *ConnectionsHandler) acceptsForwardedIdentity() bool {
 	return c.requestIdentityHandler != nil
 }
 
-// requestIdentityHandler serves connections from a local Proxy that forwards a client identity with each request.
-// Such a connection carries requests from many clients, so the handler admits and limits each request rather than the
-// connection.
+// requestIdentityHandler serves connections from a local Proxy that forwards a
+// client identity with each request. Such a connection carries requests from
+// many clients, so the handler admits and limits each request rather than
+// the connection.
 type requestIdentityHandler struct {
 	c *ConnectionsHandler
 
 	httpServer *http.Server
 }
 
-// newRequestIdentityHandler creates the handler for connections from a forwarding Proxy.
+// newRequestIdentityHandler creates the handler for connections from a
+// forwarding Proxy.
 func newRequestIdentityHandler(c *ConnectionsHandler) *requestIdentityHandler {
 	h := &requestIdentityHandler{c: c}
 	h.httpServer = h.newHTTPServer(http.HandlerFunc(h.serve))
 	return h
 }
 
-// accepts reports whether the connection initiator, the identity in a connection's client certificate, is a local
-// Proxy that may forward client identities.
+// accepts reports whether the connection initiator, the identity in a
+// connection's client certificate, is a local Proxy that may forward
+// client identities.
 func (h *requestIdentityHandler) accepts(user authz.IdentityGetter) bool {
-	// A Proxy of another cluster is an authz.RemoteBuiltinRole, so it never matches. Leaf clusters are out of scope.
+	// A Proxy of another cluster is an authz.RemoteBuiltinRole, so it never
+	// matches. Leaf clusters are out of scope.
 	proxy, ok := user.(authz.BuiltinRole)
 	return ok && proxy.Role == types.RoleProxy
 }
 
-// handleConnection serves a connection from a Proxy that forwards a client identity with each request.
+// handleConnection serves a connection from a Proxy that forwards a client
+// identity with each request.
 func (h *requestIdentityHandler) handleConnection(ctx context.Context, conn net.Conn) error {
 	return trace.Wrap(h.c.handleHTTPApp(ctx, h.httpServer, conn))
 }
 
-// newHTTPServer creates the server for connections from a forwarding Proxy. authz.Middleware puts the forwarded
-// identity in place of the Proxy's. The limiter runs after admission, so it only counts admitted requests, keyed by
-// the forwarded client. Tests pass their own serve to inspect what the chain admits.
+// newHTTPServer creates the server for connections from a forwarding Proxy.
+// authz.Middleware puts the forwarded identity in place of the Proxy's. The
+// limiter runs after admission, so it only counts admitted requests, keyed by
+// the forwarded client. Tests pass their own serve to inspect what the
+// chain admits.
 func (h *requestIdentityHandler) newHTTPServer(serve http.Handler) *http.Server {
 	return h.c.newAppHTTPServer(&authz.Middleware{
 		ClusterName:                 h.c.clusterName,
@@ -88,22 +96,26 @@ func (h *requestIdentityHandler) newHTTPServer(serve http.Handler) *http.Server 
 	})
 }
 
-// admit passes a request to next only if check admits it, and without the Proxy's certificate.
+// admit passes a request to next only if check admits it, and without the
+// Proxy's certificate.
 func (h *requestIdentityHandler) admit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := h.check(r); err != nil {
 			h.writeProxyError(w, err)
 			return
 		}
-		// authz.Middleware stores the TLS peer's certificate as the user certificate, but here the peer is the Proxy.
-		// The client's certificate never reaches this service. Nothing may use the Proxy's certificate in its place,
-		// for example as the session start time or to issue a managed upstream client certificate.
+		// authz.Middleware stores the TLS peer's certificate as the user
+		// certificate, but here the peer is the Proxy. The client's certificate
+		// never reaches this service. Nothing may use the Proxy's certificate
+		// in its place, for example as the session start time or to issue a
+		// managed upstream client certificate.
 		next.ServeHTTP(w, r.WithContext(authz.ContextWithUserCertificate(r.Context(), nil)))
 	})
 }
 
-// limit charges each request to its forwarded client in the handler's limiter. connIdentityHandler charges the same
-// limiter per connection, so a client has one budget across both handlers. A Proxy's pooled connections never count
+// limit charges each request to its forwarded client in the handler's limiter.
+// connIdentityHandler charges the same limiter per connection, so a client has
+// one budget across both handlers. A Proxy's pooled connections never count
 // against a client.
 func (h *requestIdentityHandler) limit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -122,8 +134,8 @@ func (h *requestIdentityHandler) limit(next http.Handler) http.Handler {
 	})
 }
 
-// check checks that the Proxy that sent a request may still forward identities, and that the forwarded identity and
-// client address are valid.
+// check checks that the Proxy that sent a request may still forward identities,
+// and that the forwarded identity and client address are valid.
 func (h *requestIdentityHandler) check(r *http.Request) error {
 	if err := h.authorizeProxy(r); err != nil {
 		return trace.Wrap(err)
@@ -139,10 +151,11 @@ func (h *requestIdentityHandler) check(r *http.Request) error {
 	return trace.Wrap(err)
 }
 
-// authorizeProxy authorizes the Proxy that sent a request, including checking it against locks, as Auth does on each
-// of its calls. A Proxy needs nothing from Auth to forward any user's identity, so this is where a lock on a
-// compromised Proxy takes effect. The context now holds the forwarded identity, so this reads the Proxy's identity from
-// the connection again.
+// authorizeProxy authorizes the Proxy that sent a request, including checking
+// it against locks, as Auth does on each of its calls. A Proxy needs nothing
+// from Auth to forward any user's identity, so this is where a lock on a
+// compromised Proxy takes effect. The context now holds the forwarded identity,
+// so this reads the Proxy's identity from the connection again.
 func (h *requestIdentityHandler) authorizeProxy(r *http.Request) error {
 	proxy, err := h.c.authMiddleware.GetUser(r.Context(), *r.TLS)
 	if err != nil {
@@ -152,9 +165,11 @@ func (h *requestIdentityHandler) authorizeProxy(r *http.Request) error {
 	return trace.Wrap(err)
 }
 
-// validateForwardedIdentity checks that a forwarded identity has the shape of an App certificate for this cluster.
-// authz.Middleware only rejects a forwarded identity with a primary system role. It skips the scope pin and
-// usage checks that it applies to a client certificate, so this function repeats them.
+// validateForwardedIdentity checks that a forwarded identity has the shape of
+// an App certificate for this cluster. authz.Middleware only rejects a
+// forwarded identity with a primary system role. It skips the scope pin and
+// usage checks that it applies to a client certificate, so this function
+// repeats them.
 func validateForwardedIdentity(user authz.IdentityGetter, clusterName string) error {
 	localUser, ok := user.(authz.LocalUser)
 	if !ok {
@@ -184,22 +199,25 @@ func validateForwardedIdentity(user authz.IdentityGetter, clusterName string) er
 		return trace.AccessDenied("forwarded identity routes to an app in cluster %q", route.ClusterName)
 	case route.AWSRoleARN != "" || route.AzureIdentity != "" || route.GCPServiceAccount != "" ||
 		route.TargetPort != 0 || route.AWSCredentialProcessCredentials != "":
-		// These fields select an upstream identity or port for app types that requestIdentityHandler does not serve.
+		// These fields select an upstream identity or port for app types that
+		// requestIdentityHandler does not serve.
 		return trace.AccessDenied("forwarded identity has an app route for an unsupported app type")
 	}
 	return nil
 }
 
-// forwardedClientIP returns the IP of the client address that authz.Middleware read from the forwarded request. IP
-// pinning needs an IP address and port, and the limiter needs the IP, so it rejects anything else.
+// forwardedClientIP returns the IP of the client address that authz.Middleware
+// read from the forwarded request. IP pinning needs an IP address and port, and
+// the limiter needs the IP, so it rejects anything else.
 func forwardedClientIP(r *http.Request) (string, error) {
 	addr, err := authz.ClientSrcAddrFromContext(r.Context())
 	if err != nil {
 		return "", trace.AccessDenied("forwarded request has no client address")
 	}
-	// authz.Middleware puts a parsed copy of the address in the context, and the parser also accepts forms such as a
-	// URL. r.RemoteAddr keeps the address as sent, and the reverse proxy sets X-Forwarded-For from it. The two only
-	// match for a plain host and port.
+	// authz.Middleware puts a parsed copy of the address in the context, and
+	// the parser also accepts forms such as a URL. r.RemoteAddr keeps the
+	// address as sent, and the reverse proxy sets X-Forwarded-For from it. The
+	// two only match for a plain host and port.
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil || r.RemoteAddr != addr.String() || net.ParseIP(host) == nil {
 		return "", trace.AccessDenied("forwarded request has an invalid client address %q", r.RemoteAddr)
@@ -227,8 +245,9 @@ var errUnsupportedApplicationType = &trace.AccessDeniedError{
 	Message: "application can't be served with a forwarded client identity",
 }
 
-// authorize authorizes a request for the application its forwarded identity routes to. Until the identity may
-// discover the application, a response must not reveal anything about it, so discovery comes before the checks whose
+// authorize authorizes a request for the application its forwarded identity
+// routes to. Until the identity may discover the application, a response must
+// not reveal anything about it, so discovery comes before the checks whose
 // errors are specific to the application.
 func (h *requestIdentityHandler) authorize(r *http.Request) (authorizedRequest, error) {
 	ctx := r.Context()
@@ -254,9 +273,11 @@ func (h *requestIdentityHandler) authorize(r *http.Request) (authorizedRequest, 
 	if err != nil {
 		return authorizedRequest{}, trace.Wrap(err)
 	}
-	// A forwarded identity comes from a certificate that routes to no application, so MFA evidence in it would satisfy
-	// per-session MFA for every application the user can access. Only the access state ignores it. Locks, audit events
-	// and hardware key enforcement still read the identity's fields.
+	// A forwarded identity comes from a certificate that routes to no
+	// application, so MFA evidence in it would satisfy per-session MFA for
+	// every application the user can access. Only the access state ignores it.
+	// Locks, audit events and hardware key enforcement still read the
+	// identity's fields.
 	state.MFAVerified = false
 	if _, err := h.c.authorizeApp(ctx, authCtx, app, state); err != nil {
 		return authorizedRequest{}, trace.Wrap(err)
@@ -271,8 +292,8 @@ func (h *requestIdentityHandler) authorize(r *http.Request) (authorizedRequest, 
 // requests already in flight.
 const maxForwardedIdentityAge = time.Duration(1<<53) - 24*time.Hour
 
-// chunkConfig gives chunks and their JWTs a fixed lifetime, since a forwarded connection may outlive the certificate
-// its identity came from.
+// chunkConfig gives chunks and their JWTs a fixed lifetime, since a forwarded
+// connection may outlive the certificate its identity came from.
 func (h *requestIdentityHandler) chunkConfig(req authorizedRequest) (chunkConfig, error) {
 	identity := req.authCtx.Identity.GetIdentity()
 	// A zero NotBefore is too long ago, and one in the future fails as a
@@ -280,8 +301,9 @@ func (h *requestIdentityHandler) chunkConfig(req authorizedRequest) (chunkConfig
 	if age := h.c.cfg.Clock.Since(identity.NotBefore); age < 0 || age > maxForwardedIdentityAge {
 		return chunkConfig{}, trace.Errorf("forwarded identity's NotBefore %v is in the future or too long ago for exact event indexes", identity.NotBefore)
 	}
-	// The Proxy defines the session ID. We guard against a bug on the Proxy that produces conflicting
-	// session IDs by combining the session ID with a SHA256 of the identity.
+	// The Proxy defines the session ID. We guard against a bug on the Proxy
+	// that produces conflicting session IDs by combining the session ID with a
+	// SHA256 of the identity.
 	encoded, err := json.Marshal(identity)
 	if err != nil {
 		return chunkConfig{}, trace.Wrap(err)
@@ -298,10 +320,12 @@ func (h *requestIdentityHandler) chunkConfig(req authorizedRequest) (chunkConfig
 	}, nil
 }
 
-// writeError gives authorization failures an [common.AppErrorCode], so a client can tell them apart from the
-// application's responses. A failure without a more specific code is access-denied, even for an application that
-// doesn't exist, so a response never reveals one the client may not discover. Unlike connIdentityHandler.writeError,
-// it keeps the connection open, because the connection carries other clients' requests.
+// writeError gives authorization failures an [common.AppErrorCode], so a client
+// can tell them apart from the application's responses. A failure without a
+// more specific code is access-denied, even for an application that doesn't
+// exist, so a response never reveals one the client may not discover. Unlike
+// connIdentityHandler.writeError, it keeps the connection open, because the
+// connection carries other clients' requests.
 func (h *requestIdentityHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	var code common.AppErrorCode
 	var message string
@@ -312,8 +336,9 @@ func (h *requestIdentityHandler) writeError(w http.ResponseWriter, r *http.Reque
 	case errors.Is(err, services.ErrSessionMFARequired):
 		code = common.AppErrorCodeMFARequired
 		message = "This application requires per-session MFA, which this access path can't complete."
-	// An unmet private key policy is a BadParameter whose message tells tsh to log in again with a hardware key, which
-	// a client of this path can't act on.
+	// An unmet private key policy is a BadParameter whose message tells tsh to
+	// log in again with a hardware key, which a client of this path can't
+	// act on.
 	case errors.Is(err, services.ErrTrustedDeviceRequired), trace.IsAccessDenied(err), trace.IsNotFound(err),
 		keys.IsPrivateKeyPolicyError(err):
 		code = common.AppErrorCodeAccessDenied

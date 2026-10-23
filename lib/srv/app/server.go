@@ -50,12 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type appServerContextKey string
-
-const (
-	connContextKey appServerContextKey = "teleport-connContextKey"
-)
-
 // Config is the configuration for an application server.
 type Config struct {
 	// Clock is used to control time.
