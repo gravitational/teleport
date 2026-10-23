@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/agentusage"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -199,7 +200,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	authMiddleware.Wrap(apiServer)
+	authMiddleware.Wrap(agentusage.HTTPHandler(apiServer))
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 
@@ -635,6 +636,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 		metadata.UnaryServerInterceptor,
 		a.rateLimitUnaryInterceptor(),
 		a.withAuthenticatedUserUnaryInterceptor,
+		agentusage.UnaryServerInterceptor(),
 	)
 }
 
@@ -650,6 +652,7 @@ func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 		metadata.StreamServerInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
+		agentusage.StreamServerInterceptor(),
 	)
 }
 

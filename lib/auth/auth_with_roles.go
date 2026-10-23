@@ -7982,7 +7982,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	// this reason, we delay the emit audit event until the first event or if
 	// the streaming returns an error.
 	cb := func(evt apievents.AuditEvent, _ error) {
-		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
+		if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.SessionRecordingAccess{
 			Metadata: apievents.Metadata{
 				Type: events.SessionRecordingAccessEvent,
 				Code: events.SessionRecordingAccessCode,

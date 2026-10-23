@@ -17,6 +17,7 @@
  */
 
 import 'whatwg-fetch';
+import { AgentUsageEvidence } from 'gen-proto-ts/prehog/v1alpha/teleport_pb';
 import { getErrorMessage } from 'shared/utils/error';
 
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
@@ -27,6 +28,15 @@ import { storageService } from '../storageService';
 import parseError, { ApiError, parseProxyVersion } from './parseError';
 
 export const MFA_HEADER = 'Teleport-Mfa-Response';
+export const AGENT_USAGE_HEADER = 'Teleport-Agent-Usage';
+
+const encodedWebDriverEvidence = btoa(
+  String.fromCharCode(
+    ...AgentUsageEvidence.toBinary(
+      AgentUsageEvidence.create({ declaredWebDriver: true })
+    )
+  )
+);
 
 type RequestOptions = {
   /**
@@ -337,6 +347,10 @@ const api = {
       ...options.headers,
       ...getAuthHeaders(),
     };
+
+    if (navigator.webdriver === true) {
+      options.headers[AGENT_USAGE_HEADER] = encodedWebDriverEvidence;
+    }
 
     if (mfaResponse) {
       options.headers[MFA_HEADER] = JSON.stringify({

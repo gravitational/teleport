@@ -16,9 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AgentUsageEvidence } from 'gen-proto-ts/prehog/v1alpha/teleport_pb';
+
 import { MfaChallengeResponse } from '../mfa';
 import websession from '../websession';
 import api, {
+  AGENT_USAGE_HEADER,
   defaultRequestOptions,
   getAuthHeaders,
   isUserSessionRoleNotFoundError,
@@ -173,6 +176,55 @@ describe('api.fetch', () => {
       },
     });
   });
+});
+
+function setWebDriver(value: boolean | undefined) {
+  Object.defineProperty(window.navigator, 'webdriver', {
+    value,
+    configurable: true,
+  });
+}
+
+describe('api.fetch agent usage header', () => {
+  let mockedFetch: jest.SpiedFunction<typeof fetch>;
+  beforeEach(() => {
+    mockedFetch = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({ ok: true } as Response);
+  });
+
+  afterEach(() => {
+    setWebDriver(undefined);
+    jest.restoreAllMocks();
+  });
+
+  test('sends the header when webdriver is true', async () => {
+    setWebDriver(true);
+    await api.fetch('/something');
+
+    const [, actualRequestOptions] = mockedFetch.mock.calls[0];
+    const headers = actualRequestOptions.headers as Record<string, string>;
+    expect(headers['Content-Type']).toContain('application/json');
+    const evidence = AgentUsageEvidence.fromBinary(
+      Uint8Array.from(atob(headers[AGENT_USAGE_HEADER]), c => c.charCodeAt(0))
+    );
+    expect(evidence).toEqual(
+      AgentUsageEvidence.create({ declaredWebDriver: true })
+    );
+  });
+
+  test.each([false, undefined])(
+    'sends no header when webdriver is %s',
+    async value => {
+      setWebDriver(value);
+      await api.fetch('/something');
+
+      const [, actualRequestOptions] = mockedFetch.mock.calls[0];
+      expect(actualRequestOptions.headers).not.toHaveProperty(
+        AGENT_USAGE_HEADER
+      );
+    }
+  );
 });
 
 // The code below should guard us from changes to api.fetchJsonWithMfaAuthnRetry which would cause it to lose type

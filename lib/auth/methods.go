@@ -288,7 +288,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 		event.RequiredPrivateKeyPolicy = string(privateKeyPolicy)
 	}
 
-	return trace.Wrap(a.emitter.EmitAuditEvent(a.closeCtx, event))
+	return trace.Wrap(a.emitter.EmitAuditEvent(ctx, event))
 }
 
 var (

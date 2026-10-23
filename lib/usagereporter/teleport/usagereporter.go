@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	prehogv1ac "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"
+	"github.com/gravitational/teleport/lib/agentusage"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/usagereporter"
@@ -108,12 +109,13 @@ type StreamingUsageReporter struct {
 
 var _ UsageReporter = (*StreamingUsageReporter)(nil)
 
-func (t *StreamingUsageReporter) AnonymizeAndSubmit(_ context.Context, events ...Anonymizable) {
+func (t *StreamingUsageReporter) AnonymizeAndSubmit(ctx context.Context, events ...Anonymizable) {
 	for _, e := range events {
 		req := e.Anonymize(t.anonymizer)
 		req.Timestamp = timestamppb.New(t.clock.Now())
 		req.ClusterName = t.anonymizer.AnonymizeString(t.clusterName.GetClusterName())
 		req.TeleportVersion = teleport.Version
+		req.AgentUsageEvidence = agentusage.FromContext(ctx)
 		t.usageReporter.AddEventsToQueue(&req)
 	}
 }

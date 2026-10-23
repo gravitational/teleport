@@ -676,7 +676,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	userMetadata.User = session.GetUser()
 	userMetadata.AWSRoleARN = req.AWSRoleARN
 
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AppSessionStart{
+	err = a.emitter.EmitAuditEvent(ctx, &apievents.AppSessionStart{
 		Metadata: apievents.Metadata{
 			Type:        events.AppSessionStartEvent,
 			Code:        events.AppSessionStartCode,

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/agentusage"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -49,12 +51,14 @@ type InitFunc func(ctx context.Context) (client *authclient.Client, close func(c
 
 // GetInitFunc wraps lazy loading auth init function for commands which requires the auth client.
 func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
+	collectAgentUsageEvidence := sync.OnceValue(agentusage.Collect)
 	return func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
 		resolved, err := tctlcfg.ApplyConfig(&ccf, cfg)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		clientConfig := resolved.Auth
+		clientConfig.DialOpts = append(clientConfig.DialOpts, agentusage.DialOptions(collectAgentUsageEvidence())...)
 
 		resolver, err := reversetunnelclient.CachingResolver(
 			ctx,

@@ -6253,7 +6253,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
+	err = a.emitter.EmitAuditEvent(ctx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
@@ -6547,7 +6547,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 			event.Annotations = annotations
 		}
 	}
-	err = a.emitter.EmitAuditEvent(a.closeCtx, event)
+	err = a.emitter.EmitAuditEvent(ctx, event)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
@@ -6652,7 +6652,7 @@ func (a *Server) submitAccessReview(
 			event.Annotations = annotations
 		}
 	}
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+	if err := a.emitter.EmitAuditEvent(ctx, event); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
 

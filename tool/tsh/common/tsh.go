@@ -76,6 +76,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/agentusage"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -580,6 +582,10 @@ type CLIConf struct {
 	// waitingForTracingClient will be set to true if the tracing provider is
 	// waiting for a *tracing.Client to be reported to it after logging in.
 	waitingForTracingClient bool
+	// AgentUsageEvidence collects agent usage evidence one time, when tsh first
+	// configures a client. tsh sends the evidence as gRPC metadata and in the
+	// Teleport-Agent-Usage header of proxy requests.
+	AgentUsageEvidence func() *prehogv1a.AgentUsageEvidence
 
 	// disableAccessRequest disables automatic resource access requests. Deprecated in favor of RequestType.
 	disableAccessRequest bool
@@ -938,6 +944,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		TracingProvider:    tracing.NoopProvider(),
 		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
 		DTAutoEnroll:       dtenroll.AutoEnroll,
+		AgentUsageEvidence: sync.OnceValue(agentusage.Collect),
 	}
 
 	// run early to enable debug logging if env var is set.
@@ -5043,6 +5050,11 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	// 1: start with the defaults
 	c := &client.Config{}
 	c.DialOpts = append(c.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTSH))
+	var agentUsageEvidence *prehogv1a.AgentUsageEvidence
+	if cf.AgentUsageEvidence != nil {
+		agentUsageEvidence = cf.AgentUsageEvidence()
+	}
+	c.DialOpts = append(c.DialOpts, agentusage.DialOptions(agentUsageEvidence)...)
 	c.Tracer = cf.tracer
 
 	// Force the use of proxy template below.
@@ -5188,6 +5200,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		if proxyRegexp.MatchString(c.WebProxyAddr) {
 			maps.Copy(c.ExtraProxyHeaders, proxyHeaders.Headers)
 		}
+	}
+	if headerValue := agentusage.EncodeHeader(agentUsageEvidence); headerValue != "" {
+		c.ExtraProxyHeaders[agentusage.Header] = headerValue
 	}
 
 	if len(fPorts) > 0 {
