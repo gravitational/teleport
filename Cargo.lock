@@ -265,7 +265,7 @@ version = "0.68.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "726e4313eb6ec35d2730258ad4e15b547ee75d6afaa1361a922e78e59b7d8078"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "cexpr",
  "clang-sys",
  "lazy_static",
@@ -293,9 +293,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.13.1"
+version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
+checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
 name = "bitvec"
@@ -341,7 +341,7 @@ name = "boring"
 version = "4.7.0"
 source = "git+https://github.com/gravitational/boring?rev=99897308abb5976ea05625b8314c24b16eebb01b#99897308abb5976ea05625b8314c24b16eebb01b"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "boring-sys",
  "foreign-types",
  "libc",
@@ -660,7 +660,7 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff765b99fc49f3116c9a908484486a2b92fd73c48da45c3a69716471c6cc56c6"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "cryptoki-sys",
  "libloading",
  "log",
@@ -1610,7 +1610,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb9050999a1e032f4313788ac5a6d06e897a4f672f1de2ed98683001fc1abf56"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "ironrdp-core",
  "ironrdp-pdu",
  "ironrdp-svc",
@@ -1683,7 +1683,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7493e426b6a8104cd497e518ba7781a9c7fc9a5f58a9cc0c1111e6d66f63bcc"
 dependencies = [
  "bit_field",
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "bitvec",
  "byteorder",
  "ironrdp-core",
@@ -1700,7 +1700,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ccd1179a4d106df1930347701388b5c79bc3725fa7dab4438d57db0d9d19347"
 dependencies = [
  "bit_field",
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "byteorder",
  "der-parser",
  "ironrdp-core",
@@ -1722,7 +1722,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ece9e67ccf992eb8ce5ec0416d3950e2e199d4b1e2523f91af192205279fc970"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "ironrdp-core",
  "ironrdp-error",
  "ironrdp-pdu",
@@ -1736,7 +1736,7 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d1a4f7092ae8fdc0a2f61be8e100277dc6f4ad51b85455dc9e8157979993ea2"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "ironrdp-core",
  "ironrdp-pdu",
  "ironrdp-svc",
@@ -1768,7 +1768,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24c36b82ab0f7fef2668fb7004008a0f3c100a3d9a7b18bd4495a71aba55b796"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "ironrdp-core",
  "ironrdp-pdu",
 ]
@@ -1811,9 +1811,9 @@ dependencies = [
 
 [[package]]
 name = "iso7816"
-version = "0.2.0"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b574e1a9ae668e3167a82fe2c62fe629ca60383da01c6f70acb0fb642d9c55f"
+checksum = "cedf53c7a948f16076ec811512f186a90009540f3cdfdb8263737244485a9015"
 dependencies = [
  "heapless 0.9.3",
 ]
@@ -2690,7 +2690,7 @@ name = "rdp-client"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "boring",
  "bytes",
  "cbindgen",
@@ -2708,7 +2708,7 @@ dependencies = [
  "ironrdp-svc",
  "ironrdp-tls",
  "ironrdp-tokio",
- "iso7816 0.2.0",
+ "iso7816 0.2.2",
  "iso7816-tlv",
  "log",
  "picky",
@@ -2745,7 +2745,7 @@ version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
 ]
 
 [[package]]
@@ -2980,7 +2980,7 @@ version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "errno",
  "libc",
  "linux-raw-sys",
@@ -3091,7 +3091,7 @@ version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7f4bc775c73d9a02cde8bf7b2ec4c9d12743edf609006c7facc23998404cd1d"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "core-foundation",
  "core-foundation-sys",
  "libc",
@@ -3364,7 +3364,7 @@ checksum = "5c3bd2a45e7e24fd72eba100ced3fd847e05fe4657d7f067eb06d1a894f0d4e5"
 dependencies = [
  "async-dnssd",
  "async-recursion",
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "bytemuck",
  "byteorder",
  "cfg-if",
@@ -3588,9 +3588,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.53.1"
+version = "1.54.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
+checksum = "a0c168a474b95bfecfe908a65d4bdffc523144b649a74c09c286afb35d53e0bc"
 dependencies = [
  "bytes",
  "libc",
@@ -3716,7 +3716,7 @@ version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "bytes",
  "futures-util",
  "http",
@@ -3881,9 +3881,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.26.0"
+version = "1.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5772d71c9be8a8a6ac2117d949c5b224c1b72241bb611d9a3012edcf8af7812"
+checksum = "7cc1186384beb7dd8eedea376413fd654937285ea6c9cfbb928dc3043ea4b606"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
@@ -4250,7 +4250,7 @@ version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12dafb3c1468d0a3f5440e21e51614b53d1fdc62c9f82cc861c447906d09c69a"
 dependencies = [
- "bitflags 2.13.1",
+ "bitflags 2.13.2",
  "crypto-bigint",
  "flate2",
  "iso7816 0.1.4",
