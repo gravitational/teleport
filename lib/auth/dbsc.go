@@ -42,8 +42,8 @@ func (a *Server) signDBSCChallenge(ctx context.Context, sessionID string) (strin
 	}
 
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.JWTSigner,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.JWTSigner,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -140,8 +140,8 @@ func (a *Server) verifyDBSCChallenge(ctx context.Context, challenge string, sess
 	}
 
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.JWTSigner,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.JWTSigner,
+		ClusterName: clusterName.GetClusterName(),
 	}, false)
 	if err != nil {
 		return trace.Wrap(err, "getting JWT CA")

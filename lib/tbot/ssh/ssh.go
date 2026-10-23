@@ -62,8 +62,8 @@ func GenerateKnownHosts(
 	certAuthorities := make([]types.CertAuthority, 0, len(clusterNames))
 	for _, cn := range clusterNames {
 		ca, err := bot.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.HostCA,
-			DomainName: cn,
+			Type:        types.HostCA,
+			ClusterName: cn,
 		}, false)
 		if err != nil {
 			return "", nil, trace.Wrap(err)

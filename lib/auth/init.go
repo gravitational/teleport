@@ -851,7 +851,7 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 			tctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthority", oteltrace.WithAttributes(attribute.String("type", string(caType))))
 			defer span.End()
 
-			caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
+			caID := types.CertAuthID{Type: caType, ClusterName: cfg.ClusterName.GetClusterName()}
 			usableKeysResult, keysInUse, err := initializeAuthority(tctx, asrv, caID)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1123,7 +1123,7 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	}
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        caID.Type,
-		ClusterName: caID.DomainName,
+		ClusterName: caID.ClusterName,
 		ActiveKeys:  keySet,
 	})
 	if err != nil {
@@ -1619,8 +1619,8 @@ func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool
 	_, err := authServer.Services.GetCertAuthority(
 		ctx,
 		types.CertAuthID{
-			DomainName: cfg.ClusterName.GetClusterName(),
-			Type:       types.HostCA,
+			ClusterName: cfg.ClusterName.GetClusterName(),
+			Type:        types.HostCA,
 		}, false)
 	if err != nil {
 		if !trace.IsNotFound(err) {

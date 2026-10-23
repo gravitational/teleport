@@ -6273,7 +6273,7 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 	trust := c.TrustClient()
 	req := &trustpb.GetCertAuthorityRequest{
 		Type:       string(id.Type),
-		Domain:     id.DomainName,
+		Domain:     id.ClusterName,
 		IncludeKey: loadKeys,
 	}
 
@@ -6361,7 +6361,7 @@ func shouldFallbackToUserCA(err error, caType types.CertAuthType) bool {
 func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
 	_, err := c.TrustClient().DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{
 		Type:   string(id.Type),
-		Domain: id.DomainName,
+		Domain: id.ClusterName,
 	})
 
 	return trace.Wrap(err)

@@ -237,8 +237,8 @@ func (h *Handler) verifyDBSCRefreshResponse(ctx context.Context, rawJWT string, 
 // verifyDBSCChallenge verifies that the challenge was signed by this cluster.
 func (h *Handler) verifyDBSCChallenge(ctx context.Context, challenge string, sessionID string) error {
 	ca, err := h.c.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.JWTSigner,
-		DomainName: h.clusterName,
+		Type:        types.JWTSigner,
+		ClusterName: h.clusterName,
 	}, false /* loadKeys */)
 	if err != nil {
 		return trace.Wrap(err, "getting JWT CA")

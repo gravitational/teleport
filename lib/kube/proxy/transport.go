@@ -200,8 +200,8 @@ func (f *Forwarder) getTLSConfigForLeafCluster(clusterName string) (*tls.Config,
 	// Get the host CA for the target cluster from Auth to ensure we trust the
 	// leaf proxy certificate at the current time.
 	_, err := f.cfg.CachingAuthClient.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: clusterName,
+		Type:        types.HostCA,
+		ClusterName: clusterName,
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)

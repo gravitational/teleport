@@ -837,8 +837,8 @@ func (a *Server) makeGithubAuthResponse(
 
 		// Return the host CA for this cluster only.
 		authority, err := a.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.HostCA,
-			DomainName: clusterName.GetClusterName(),
+			Type:        types.HostCA,
+			ClusterName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to obtain cluster's host CA.")

@@ -742,8 +742,8 @@ func (a *authorizer) authorizeLocalUser(ctx context.Context, u LocalUser) (*Cont
 // authorizeRemoteUser returns checker based on cert authority roles
 func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Context, error) {
 	ca, err := a.accessPoint.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: u.ClusterName,
+		Type:        types.UserCA,
+		ClusterName: u.ClusterName,
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)

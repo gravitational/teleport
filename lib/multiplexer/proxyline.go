@@ -533,8 +533,8 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 	}
 
 	hostCA, err := caGetter(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: localClusterName,
+		Type:        types.HostCA,
+		ClusterName: localClusterName,
 	}, false)
 	if err != nil {
 		return trace.Wrap(ErrNoHostCA, "CA cluster name: %s", localClusterName)

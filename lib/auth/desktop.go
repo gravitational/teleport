@@ -70,8 +70,8 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		return nil, trace.Wrap(err)
 	}
 	caID := types.CertAuthID{
-		Type:       types.WindowsCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.WindowsCA,
+		ClusterName: clusterName.GetClusterName(),
 	}
 	if !req.SupportsWindowsCA {
 		var callerID string
@@ -322,7 +322,7 @@ func (a *Server) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopB
 
 	certAuthority, err := a.GetCertAuthority(
 		ctx,
-		types.CertAuthID{Type: types.WindowsCA, DomainName: clusterName},
+		types.CertAuthID{Type: types.WindowsCA, ClusterName: clusterName},
 		false,
 	)
 	if err != nil {

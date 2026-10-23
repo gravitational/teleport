@@ -159,14 +159,14 @@ func (c CertAuthType) Check() error {
 	return trace.BadParameter("%q %s", c, authTypeNotSupported)
 }
 
-// CertAuthID - id of certificate authority (it's type and domain name)
+// CertAuthID identifies a certificate authority by type and owning cluster.
 type CertAuthID struct {
-	Type       CertAuthType `json:"type"`
-	DomainName string       `json:"domain_name"`
+	Type        CertAuthType `json:"type"`
+	ClusterName string       `json:"domain_name"`
 }
 
 func (c CertAuthID) String() string {
-	return fmt.Sprintf("CA(type=%q, domain=%q)", c.Type, c.DomainName)
+	return fmt.Sprintf("CA(type=%q, domain=%q)", c.Type, c.ClusterName)
 }
 
 // Check returns error if any of the id parameters are bad, nil otherwise
@@ -174,7 +174,7 @@ func (c CertAuthID) Check() error {
 	if err := c.Type.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	if strings.TrimSpace(c.DomainName) == "" {
+	if strings.TrimSpace(c.ClusterName) == "" {
 		return trace.BadParameter("identity validation error: empty domain name")
 	}
 	return nil

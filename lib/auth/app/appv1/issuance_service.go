@@ -194,8 +194,8 @@ func (s *IssuanceService) getIdentityFromUserCert(ctx context.Context, rawCert [
 
 	// Verify the user certificate against the issuing cluster's User CA.
 	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: identity.TeleportCluster,
+		Type:        types.UserCA,
+		ClusterName: identity.TeleportCluster,
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -353,8 +353,8 @@ func (s *IssuanceService) signJWT(ctx context.Context, caType types.CertAuthType
 		return "", trace.Wrap(err)
 	}
 	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: clusterName.GetClusterName(),
+		Type:        caType,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return "", trace.Wrap(err)

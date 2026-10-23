@@ -370,7 +370,7 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 	}
 	certAuthority, err := h.GetProxyClient().GetCertAuthority(
 		r.Context(),
-		types.CertAuthID{Type: types.DatabaseClientCA, DomainName: clusterName},
+		types.CertAuthID{Type: types.DatabaseClientCA, ClusterName: clusterName},
 		false,
 	)
 	if err != nil {
@@ -483,8 +483,8 @@ func (h *Handler) dbConnect(
 		return nil, trace.Wrap(err)
 	}
 	proxyHostCA, err := h.GetAccessPoint().GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.HostCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)

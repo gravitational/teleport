@@ -323,8 +323,8 @@ func CertPool(ca types.CertAuthority) (*x509.CertPool, error) {
 // certificates of the certificate authority of the type for the cluster.
 func CertPoolFromAuthorityGetter(ctx context.Context, caGetter AuthorityGetter, caType types.CertAuthType, clusterName string) (*x509.CertPool, error) {
 	ca, err := caGetter.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: clusterName,
+		Type:        caType,
+		ClusterName: clusterName,
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)

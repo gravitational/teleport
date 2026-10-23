@@ -138,8 +138,8 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 	var additionalCACerts [][]byte
 	if req.OutputFormat == identityfile.FormatCockroach {
 		dbServerCA, err := req.ClusterAPI.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.DatabaseCA,
-			DomainName: clusterName,
+			Type:        types.DatabaseCA,
+			ClusterName: clusterName,
 		}, false)
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -606,8 +606,8 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 
 	const loadSigningKeysFalse = false
 	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: clusterName,
+		Type:        types.SPIFFECA,
+		ClusterName: clusterName,
 	}, loadSigningKeysFalse)
 	if err != nil {
 		return trace.Wrap(err)
@@ -704,8 +704,8 @@ func (c *WorkloadIdentityCommand) runOverridesSignCSRs(ctx context.Context, clie
 
 	const loadSigningKeysFalse = false
 	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: clusterName,
+		Type:        types.SPIFFECA,
+		ClusterName: clusterName,
 	}, loadSigningKeysFalse)
 	if err != nil {
 		return trace.Wrap(err)

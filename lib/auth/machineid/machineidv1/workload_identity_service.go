@@ -348,8 +348,8 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
 	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.SPIFFECA,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting SPIFFE CA")
@@ -503,8 +503,8 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
 	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.SPIFFECA,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting SPIFFE CA")

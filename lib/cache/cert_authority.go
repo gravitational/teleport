@@ -44,7 +44,7 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 			types.CertAuthority.Clone,
 			map[certAuthorityIndex]func(types.CertAuthority) string{
 				certAuthorityIDIndex: func(ca types.CertAuthority) string {
-					return string(ca.GetType()) + "/" + ca.GetID().DomainName
+					return string(ca.GetType()) + "/" + ca.GetID().ClusterName
 				},
 			}),
 		watch:  w,
@@ -111,7 +111,7 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		ca, err := rg.store.get(certAuthorityIDIndex, string(id.Type)+"/"+id.DomainName)
+		ca, err := rg.store.get(certAuthorityIDIndex, string(id.Type)+"/"+id.ClusterName)
 		if err != nil {
 			// release read lock early
 			rg.Release()

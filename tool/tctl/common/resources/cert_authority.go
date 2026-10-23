@@ -112,8 +112,8 @@ func getCertAuthority(ctx context.Context, client *authclient.Client, ref servic
 		caType := ref.SubKind // ref.SubKind is set first.
 		name := ref.Name
 		id := types.CertAuthID{
-			Type:       types.CertAuthType(caType),
-			DomainName: name,
+			Type:        types.CertAuthType(caType),
+			ClusterName: name,
 		}
 		authority, err := client.GetCertAuthority(ctx, id, opts.WithSecrets)
 		if err != nil {
@@ -143,8 +143,8 @@ func deleteCertAuthority(ctx context.Context, client *authclient.Client, ref ser
 		)
 	}
 	err := client.DeleteCertAuthority(ctx, types.CertAuthID{
-		Type:       types.CertAuthType(ref.SubKind),
-		DomainName: ref.Name,
+		Type:        types.CertAuthType(ref.SubKind),
+		ClusterName: ref.Name,
 	})
 	if err != nil {
 		return trace.Wrap(err)

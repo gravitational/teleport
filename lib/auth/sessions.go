@@ -755,8 +755,8 @@ func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppToke
 	}
 
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       req.AuthorityType,
-		DomainName: clusterName,
+		Type:        req.AuthorityType,
+		ClusterName: clusterName,
 	}, true)
 	if err != nil {
 		return "", trace.Wrap(err)

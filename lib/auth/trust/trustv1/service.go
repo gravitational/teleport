@@ -179,7 +179,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 
 	// Retrieve the requested CA and perform RBAC on it to ensure that
 	// the user has access to this particular CA.
-	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{Type: types.CertAuthType(req.GetType()), DomainName: req.GetDomain()}, req.GetIncludeKey())
+	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{Type: types.CertAuthType(req.GetType()), ClusterName: req.GetDomain()}, req.GetIncludeKey())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -331,7 +331,7 @@ func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCe
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteCertAuthority(ctx, types.CertAuthID{DomainName: req.GetDomain(), Type: types.CertAuthType(req.GetType())}); err != nil {
+	if err := s.backend.DeleteCertAuthority(ctx, types.CertAuthID{ClusterName: req.GetDomain(), Type: types.CertAuthType(req.GetType())}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -468,8 +468,8 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 	}
 
 	existing, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       req.GetCertAuthority().GetType(),
-		DomainName: req.GetCertAuthority().GetClusterName(),
+		Type:        req.GetCertAuthority().GetType(),
+		ClusterName: req.GetCertAuthority().GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)

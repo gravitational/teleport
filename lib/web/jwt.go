@@ -33,8 +33,8 @@ func (h *Handler) jwks(ctx context.Context, caType types.CertAuthType, includeBl
 
 	// Fetch the JWT public keys only.
 	ca, err := h.GetProxyClient().GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: clusterName,
+		Type:        caType,
+		ClusterName: clusterName,
 	}, false /* loadKeys */)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -4045,8 +4045,8 @@ func (a *ServerWithRoles) GetRemoteAccessCapabilities(ctx context.Context, req t
 	}
 
 	remoteCluster, err := a.authServer.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: localIdentity.RouteToCluster,
+		Type:        types.UserCA,
+		ClusterName: localIdentity.RouteToCluster,
 	}, false /* do not load keys */)
 	if err != nil {
 		return nil, trace.Wrap(err)

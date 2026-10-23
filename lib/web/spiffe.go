@@ -67,8 +67,8 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 
 	const loadKeysFalse = false
 	spiffeCA, err := h.GetAccessPoint().GetCertAuthority(r.Context(), types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: cn.GetClusterName(),
+		Type:        types.SPIFFECA,
+		ClusterName: cn.GetClusterName(),
 	}, loadKeysFalse)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching SPIFFE CA")

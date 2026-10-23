@@ -563,8 +563,8 @@ func (h *Handler) joinKubernetesSession(
 	}
 
 	hostCA, err := h.auth.accessPoint.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: h.auth.clusterName,
+		Type:        types.HostCA,
+		ClusterName: h.auth.clusterName,
 	}, false)
 	if err != nil {
 		return trace.Wrap(err)

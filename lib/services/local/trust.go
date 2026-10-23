@@ -354,14 +354,14 @@ func (s *CA) ActivateCertAuthorities(ctx context.Context, ids ...types.CertAuthI
 			return trace.Wrap(err)
 		}
 
-		if !slices.Contains(domainNames, id.DomainName) {
-			domainNames = append(domainNames, id.DomainName)
+		if !slices.Contains(domainNames, id.ClusterName) {
+			domainNames = append(domainNames, id.ClusterName)
 		}
 
 		item, err := s.Get(ctx, inactiveCAKey(id))
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return trace.Errorf("can not activate cert authority %q of type %q (not a currently inactive ca)", id.DomainName, id.Type)
+				return trace.Errorf("can not activate cert authority %q of type %q (not a currently inactive ca)", id.ClusterName, id.Type)
 			}
 			return trace.Wrap(err)
 		}
@@ -407,14 +407,14 @@ func (s *CA) DeactivateCertAuthorities(ctx context.Context, ids ...types.CertAut
 			return trace.Wrap(err)
 		}
 
-		if !slices.Contains(domainNames, id.DomainName) {
-			domainNames = append(domainNames, id.DomainName)
+		if !slices.Contains(domainNames, id.ClusterName) {
+			domainNames = append(domainNames, id.ClusterName)
 		}
 
 		item, err := s.Get(ctx, activeCAKey(id))
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return trace.Errorf("can not deactivate cert authority %q of type %q (not a currently active ca)", id.DomainName, id.Type)
+				return trace.Errorf("can not deactivate cert authority %q of type %q (not a currently active ca)", id.ClusterName, id.Type)
 			}
 			return trace.Wrap(err)
 		}
@@ -526,8 +526,8 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 // UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
 func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
 	id := types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: name,
+		Type:        types.UserCA,
+		ClusterName: name,
 	}
 	key := activeCAKey(id)
 	if !activated {
@@ -785,8 +785,8 @@ func (s *CA) DeleteTrustedClusterInternal(ctx context.Context, name string, caID
 			return trace.Wrap(err)
 		}
 
-		if id.DomainName != name {
-			return trace.BadParameter("ca %q does not belong to trusted cluster %q", id.DomainName, name)
+		if id.ClusterName != name {
+			return trace.BadParameter("ca %q does not belong to trusted cluster %q", id.ClusterName, name)
 		}
 	}
 
@@ -1206,8 +1206,8 @@ func (s *CA) DeleteRemoteClusterInternal(ctx context.Context, name string, ids [
 			return trace.Wrap(err)
 		}
 
-		if id.DomainName != name {
-			return trace.BadParameter("ca %q does not belong to remote cluster %q", id.DomainName, name)
+		if id.ClusterName != name {
+			return trace.BadParameter("ca %q does not belong to remote cluster %q", id.ClusterName, name)
 		}
 	}
 
@@ -1291,12 +1291,12 @@ func remoteClusterKey(name string) backend.Key {
 
 // activeCAKey builds the active key variant for the supplied ca id.
 func activeCAKey(id types.CertAuthID) backend.Key {
-	return backend.NewKey(authoritiesPrefix, string(id.Type), id.DomainName)
+	return backend.NewKey(authoritiesPrefix, string(id.Type), id.ClusterName)
 }
 
 // inactiveCAKey builds the inactive key variant for the supplied ca id.
 func inactiveCAKey(id types.CertAuthID) backend.Key {
-	return backend.NewKey(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName)
+	return backend.NewKey(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.ClusterName)
 }
 
 const (

@@ -119,8 +119,8 @@ func (d createDBAuthority) Down(ctx context.Context, b backend.Backend) error {
 // to be usable for other CA types - that's why it is unexported.
 func migrateDBAuthority(ctx context.Context, trustSvc services.Trust, cluster string, fromType, toType types.CertAuthType) error {
 	_, err := trustSvc.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       toType,
-		DomainName: cluster,
+		Type:        toType,
+		ClusterName: cluster,
 	}, false)
 	// The migration for this cluster can be skipped since
 	// the new CA already exists.
@@ -139,8 +139,8 @@ func migrateDBAuthority(ctx context.Context, trustSvc services.Trust, cluster st
 	// both automatically be created. If the existing CA does exist, then
 	// a new CA should be constructed from it as a copy.
 	existingCA, err := trustSvc.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       fromType,
-		DomainName: cluster,
+		Type:        fromType,
+		ClusterName: cluster,
 	}, true)
 	if trace.IsNotFound(err) {
 		return nil

@@ -145,8 +145,8 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 	}
 
 	ca, err := cacheClt.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.OIDCIdPCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.OIDCIdPCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, true /*loadKeys*/)
 	if err != nil {
 		return "", trace.Wrap(err)

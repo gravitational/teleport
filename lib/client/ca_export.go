@@ -344,7 +344,7 @@ func exportTLSAuthority(ctx context.Context, client authclient.ClientI, req expo
 
 	certAuthority, err := client.GetCertAuthority(
 		ctx,
-		types.CertAuthID{Type: req.AuthType, DomainName: clusterName},
+		types.CertAuthID{Type: req.AuthType, ClusterName: clusterName},
 		req.ExportPrivateKeys,
 	)
 	if err != nil {

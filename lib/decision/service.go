@@ -270,8 +270,8 @@ func (s *Service) getLocalClusterName(ctx context.Context) (string, error) {
 // resolveSSHAuthority is a helper used to resolve the SSHAuthority reference type from a decision request into a cert authority resource.
 func (s *Service) resolveSSHAuthority(ctx context.Context, sshAuthority *decisionpb.SSHAuthority) (types.CertAuthority, error) {
 	ca, err := s.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: sshAuthority.GetClusterName(),
-		Type:       types.CertAuthType(sshAuthority.GetAuthorityType()),
+		ClusterName: sshAuthority.GetClusterName(),
+		Type:        types.CertAuthType(sshAuthority.GetAuthorityType()),
 	}, false)
 	return ca, trace.Wrap(err)
 }

@@ -287,9 +287,9 @@ func (a *Server) getCAsForTrustedCluster(ctx context.Context, tc types.TrustedCl
 		var ca types.CertAuthority
 		var err error
 		if tc.GetEnabled() {
-			ca, err = a.GetCertAuthority(ctx, types.CertAuthID{Type: caType, DomainName: tc.GetName()}, false)
+			ca, err = a.GetCertAuthority(ctx, types.CertAuthID{Type: caType, ClusterName: tc.GetName()}, false)
 		} else {
-			ca, err = a.GetInactiveCertAuthority(ctx, types.CertAuthID{Type: caType, DomainName: tc.GetName()}, false)
+			ca, err = a.GetInactiveCertAuthority(ctx, types.CertAuthID{Type: caType, ClusterName: tc.GetName()}, false)
 		}
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -319,8 +319,8 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 	var ids []types.CertAuthID
 	for _, caType := range types.CertAuthTypes {
 		ids = append(ids, types.CertAuthID{
-			Type:       caType,
-			DomainName: name,
+			Type:        caType,
+			ClusterName: name,
 		})
 	}
 
@@ -445,8 +445,8 @@ func (a *Server) DeleteRemoteCluster(ctx context.Context, name string) error {
 	var ids []types.CertAuthID
 	for _, caType := range types.CertAuthTypes {
 		ids = append(ids, types.CertAuthID{
-			Type:       caType,
-			DomainName: name,
+			Type:        caType,
+			ClusterName: name,
 		})
 	}
 
@@ -650,7 +650,7 @@ func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string) ([]t
 	for _, caType := range caTypes {
 		certAuthority, err := srv.GetCertAuthority(
 			ctx,
-			types.CertAuthID{Type: caType, DomainName: domainName},
+			types.CertAuthID{Type: caType, ClusterName: domainName},
 			false)
 		if err != nil {
 			return nil, trace.Wrap(err)

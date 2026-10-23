@@ -145,7 +145,7 @@ func getCACerts(ctx context.Context, client CAGetter, clusterName string, caType
 		for _, caType := range caTypes {
 			ca, err := client.GetCertAuthority(
 				ctx,
-				types.CertAuthID{Type: caType, DomainName: clusterName},
+				types.CertAuthID{Type: caType, ClusterName: clusterName},
 				false)
 			if err != nil {
 				return nil, trace.Wrap(err)

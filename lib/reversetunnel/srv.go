@@ -1051,8 +1051,8 @@ func (s *server) checkClientCert(user string, clusterName string, cert *ssh.Cert
 	// fetch keys of the certificate authority to check
 	// if there is a match
 	keys, err := s.getTrustedCAKeysByID(types.CertAuthID{
-		Type:       caType,
-		DomainName: clusterName,
+		Type:        caType,
+		ClusterName: clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)

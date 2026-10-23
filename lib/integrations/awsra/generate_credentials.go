@@ -181,8 +181,8 @@ func GenerateCredentials(ctx context.Context, req GenerateCredentialsRequest) (*
 	}
 
 	awsRACA, err := req.Cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.AWSRACA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.AWSRACA,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)

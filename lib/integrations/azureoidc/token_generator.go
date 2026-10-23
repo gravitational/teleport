@@ -70,8 +70,8 @@ func GenerateEntraOIDCToken(ctx context.Context, cache Cache, manager KeyStoreMa
 	}
 
 	ca, err := cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.OIDCIdPCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.OIDCIdPCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, true /*loadKeys*/)
 	if err != nil {
 		return "", trace.Wrap(err)

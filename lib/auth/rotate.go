@@ -138,8 +138,8 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	}
 
 	existing, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       req.Type,
-		DomainName: clusterName.GetClusterName(),
+		Type:        req.Type,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -189,8 +189,8 @@ func (a *Server) AutoRotateCertAuthorities(ctx context.Context) error {
 	usableKeysResults := make(map[types.CertAuthType]*keystore.UsableKeysResult)
 	for _, caType := range types.CertAuthTypes {
 		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       caType,
-			DomainName: clusterName.GetClusterName(),
+			Type:        caType,
+			ClusterName: clusterName.GetClusterName(),
 		}, true)
 		if err != nil {
 			return trace.Wrap(err)

@@ -2844,8 +2844,8 @@ func (a *Server) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 	}
 	// Extract the TLS CA for this cluster.
 	hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.HostCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2871,8 +2871,8 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 
 	// get the certificate authority that will be signing the public key of the host
 	ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: domainName,
+		Type:        types.HostCA,
+		ClusterName: domainName,
 	}, true)
 	if err != nil {
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", domainName, err)
@@ -3976,8 +3976,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	}
 
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: clusterName,
+		Type:        caType,
+		ClusterName: clusterName,
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4278,8 +4278,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	// also include host CA certs if requested
 	if req.IncludeHostCA {
 		hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.HostCA,
-			DomainName: clusterName,
+			Type:        types.HostCA,
+			ClusterName: clusterName,
 		}, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4426,8 +4426,8 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType types.CertAuthType) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
 	const loadKeys = true
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: domainName,
+		Type:        caType,
+		ClusterName: domainName,
 	}, loadKeys)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
@@ -5701,8 +5701,8 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		client = a.Services
 	}
 	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.HostCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.BadParameter("failed to load host CA for %q: %v", clusterName.GetClusterName(), err)
@@ -5718,8 +5718,8 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 			"cache_state", ca.GetRotation(),
 		)
 		ca, err = a.Services.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.HostCA,
-			DomainName: clusterName.GetClusterName(),
+			Type:        types.HostCA,
+			ClusterName: clusterName.GetClusterName(),
 		}, true)
 		if err != nil {
 			return nil, trace.BadParameter("failed to load host CA for %q: %v", clusterName.GetClusterName(), err)
@@ -7877,8 +7877,8 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 		return nil, trace.Wrap(err)
 	}
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: clusterName.GetClusterName(),
+		Type:        caType,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -9198,7 +9198,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.AWSRACA,
 		types.WindowsCA,
 		types.AppClientCA:
-		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.ClusterName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}

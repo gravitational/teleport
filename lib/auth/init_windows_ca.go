@@ -66,8 +66,8 @@ func migrateWindowsCAOnCluster(
 	trust services.Trust,
 	clusterName string,
 ) error {
-	dst := types.CertAuthID{Type: types.WindowsCA, DomainName: clusterName}
-	src := types.CertAuthID{Type: types.UserCA, DomainName: clusterName}
+	dst := types.CertAuthID{Type: types.WindowsCA, ClusterName: clusterName}
+	src := types.CertAuthID{Type: types.UserCA, ClusterName: clusterName}
 
 	logger = logger.With(
 		teleport.ComponentKey, "WindowsCA",

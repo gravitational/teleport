@@ -68,8 +68,8 @@ func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.Data
 		return nil, trace.Wrap(err)
 	}
 	dbServerCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.DatabaseCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -83,8 +83,8 @@ func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.Data
 	// databases should be configured to trust the DatabaseClientCA when
 	// clients connect so return DatabaseClientCA in the response.
 	dbClientCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseClientCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.DatabaseClientCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -115,8 +115,8 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 		return nil, trace.Wrap(err)
 	}
 	dbClientCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseClientCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.DatabaseClientCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -147,8 +147,8 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 	} else {
 		const loadKeys = false
 		dbCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.DatabaseCA,
-			DomainName: clusterName.GetClusterName(),
+			Type:        types.DatabaseCA,
+			ClusterName: clusterName.GetClusterName(),
 		}, loadKeys)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -342,8 +342,8 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 
 	// Generate the TLS certificate.
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.DatabaseCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -369,8 +369,8 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: req.ClusterName,
+		Type:        types.HostCA,
+		ClusterName: req.ClusterName,
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -395,8 +395,8 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 		return nil, trace.Wrap(err)
 	}
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseClientCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.DatabaseClientCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -404,8 +404,8 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 		}
 		// DatabaseClientCA doesn't exist, fallback to DatabaseCA.
 		ca, err = a.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.DatabaseCA,
-			DomainName: clusterName.GetClusterName(),
+			Type:        types.DatabaseCA,
+			ClusterName: clusterName.GetClusterName(),
 		}, true)
 		if err != nil {
 			return nil, trace.Wrap(err)

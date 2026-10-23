@@ -117,7 +117,7 @@ type leafCluster struct {
 
 func (s *leafCluster) getLeafClient() (authclient.ClientI, bool, error) {
 	// check if all cert authorities are initiated and if everything is OK
-	ca, err := s.srv.localAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{Type: types.HostCA, DomainName: s.domainName}, false)
+	ca, err := s.srv.localAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{Type: types.HostCA, ClusterName: s.domainName}, false)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -621,8 +621,8 @@ func (s *leafCluster) watchCertAuthorities(leafClusterWatcher *services.CertAuth
 	localCAs := make(map[types.CertAuthType]types.CertAuthority, len(filter))
 	for caType, clusterName := range filter {
 		caID := types.CertAuthID{
-			Type:       caType,
-			DomainName: clusterName,
+			Type:        caType,
+			ClusterName: clusterName,
 		}
 		ca, err := s.localCache.GetCertAuthority(s.ctx, caID, false)
 		if err != nil {
@@ -636,8 +636,8 @@ func (s *leafCluster) watchCertAuthorities(leafClusterWatcher *services.CertAuth
 	}
 
 	remoteCA, err := s.leafCache.GetCertAuthority(s.ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: s.domainName,
+		Type:        types.HostCA,
+		ClusterName: s.domainName,
 	}, false)
 	if err != nil {
 		return trace.Wrap(err, "failed to get leaf cluster cert authority")
@@ -648,8 +648,8 @@ func (s *leafCluster) watchCertAuthorities(leafClusterWatcher *services.CertAuth
 
 	maybeUpsertLeafClusterCA := func(leafClusterCA types.CertAuthority) error {
 		oldLeafClusterCA, err := s.localCache.GetCertAuthority(s.ctx, types.CertAuthID{
-			Type:       types.HostCA,
-			DomainName: leafClusterCA.GetClusterName(),
+			Type:        types.HostCA,
+			ClusterName: leafClusterCA.GetClusterName(),
 		}, false)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)

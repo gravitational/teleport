@@ -387,8 +387,8 @@ func (c *SessionContext) ClientTLSConfig(ctx context.Context, clusterName ...str
 		}
 	} else {
 		certAuthority, err := c.cfg.Parent.proxyClient.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.HostCA,
-			DomainName: clusterName[0],
+			Type:        types.HostCA,
+			ClusterName: clusterName[0],
 		}, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1306,8 +1306,8 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 
 func (s *sessionCache) tlsConfig(ctx context.Context, cert, privKey []byte) (*tls.Config, error) {
 	ca, err := s.proxyClient.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: s.clusterName,
+		Type:        types.HostCA,
+		ClusterName: s.clusterName,
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)

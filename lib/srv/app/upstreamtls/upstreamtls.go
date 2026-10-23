@@ -316,8 +316,8 @@ func loadCACertificates(ctx context.Context, getter AccessPoint, clusterName str
 	}
 
 	ca, err := getter.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: clusterName,
+		Type:        caType,
+		ClusterName: clusterName,
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)

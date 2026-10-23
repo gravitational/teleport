@@ -475,8 +475,8 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 		return trace.Wrap(err)
 	}
 	certAuthID := types.CertAuthID{
-		Type:       types.DatabaseClientCA,
-		DomainName: cn.GetClusterName(),
+		Type:        types.DatabaseClientCA,
+		ClusterName: cn.GetClusterName(),
 	}
 	dbClientCA, err := clusterAPI.GetCertAuthority(ctx, certAuthID, false)
 	if err != nil {
@@ -554,8 +554,8 @@ func (a *AuthCommand) ExportCRL(ctx context.Context, clusterAPI authCommandClien
 
 	// Read CA.
 	authority, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       certType,
-		DomainName: clusterName,
+		Type:        certType,
+		ClusterName: clusterName,
 	}, false)
 	if err != nil {
 		return trace.Wrap(err)

@@ -492,8 +492,8 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 
 	// Sync local rotation state to match the remote rotation state.
 	ca, err := process.getCertAuthority(connector, types.CertAuthID{
-		DomainName: connector.ClusterName(),
-		Type:       types.HostCA,
+		ClusterName: connector.ClusterName(),
+		Type:        types.HostCA,
 	}, false)
 	if err != nil {
 		return nil, trace.NewAggregate(err, connector.Close())
@@ -1100,8 +1100,8 @@ func (process *TeleportProcess) syncRotationStateAndBroadcast(conn *Connector) e
 func (process *TeleportProcess) syncRotationState(conn *Connector) (rotationStatus, error) {
 	connectors := process.getConnectors()
 	ca, err := process.getCertAuthority(conn, types.CertAuthID{
-		DomainName: conn.ClusterName(),
-		Type:       types.HostCA,
+		ClusterName: conn.ClusterName(),
+		Type:        types.HostCA,
 	}, false)
 	if err != nil {
 		return rotationStatus{}, trace.Wrap(err)

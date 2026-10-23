@@ -4620,8 +4620,8 @@ func (h *Handler) podConnect(
 	}
 
 	hostCA, err := h.auth.accessPoint.GetCertAuthority(r.Context(), types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: h.auth.clusterName,
+		Type:        types.HostCA,
+		ClusterName: h.auth.clusterName,
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)

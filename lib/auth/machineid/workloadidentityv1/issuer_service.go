@@ -606,8 +606,8 @@ func (s *IssuanceService) routeToAppFromCert(ctx context.Context, rawCert []byte
 	}
 
 	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: s.clusterName,
+		Type:        types.UserCA,
+		ClusterName: s.clusterName,
 	}, false)
 	if err != nil {
 		return tlsca.RouteToApp{}, nil, trace.Wrap(err)
@@ -785,8 +785,8 @@ func (s *IssuanceService) getX509Issuer(
 
 	const loadKeysTrue = true
 	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: s.clusterName,
+		Type:        caType,
+		ClusterName: s.clusterName,
 	}, loadKeysTrue)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1104,8 +1104,8 @@ func (s *IssuanceService) getJWTIssuerKey(
 	defer func() { tracing.EndSpan(span, err) }()
 
 	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: s.clusterName,
+		Type:        types.SPIFFECA,
+		ClusterName: s.clusterName,
 	}, true)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "getting SPIFFE CA")

@@ -1560,8 +1560,8 @@ func (s *Server) getMostRecentRotationForCAs(ctx context.Context, caTypes ...typ
 	var mostRecentUpdate time.Time
 	for _, caType := range caTypes {
 		ca, err := s.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       caType,
-			DomainName: s.ClusterName,
+			Type:        caType,
+			ClusterName: s.ClusterName,
 		}, false)
 		if err != nil {
 			return time.Time{}, trace.Wrap(err)

@@ -528,8 +528,8 @@ func (m *currentPhaseModel) init() tea.Cmd {
 
 func (m *currentPhaseModel) getCurrentPhase() tea.Msg {
 	m.caID = types.CertAuthID{
-		Type:       m.caType,
-		DomainName: m.pingResp.ClusterName,
+		Type:        m.caType,
+		ClusterName: m.pingResp.ClusterName,
 	}
 	ca, err := m.client.GetCertAuthority(context.TODO(), m.caID, false /*loadSigningKeys*/)
 	if err != nil {

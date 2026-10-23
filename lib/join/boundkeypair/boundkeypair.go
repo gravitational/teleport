@@ -1001,8 +1001,8 @@ func HandleBoundKeypairJoin(
 
 	// Get the join state JWT signer CA
 	ca, err := params.AuthService.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.BoundKeypairCA,
-		DomainName: clusterName.GetClusterName(),
+		Type:        types.BoundKeypairCA,
+		ClusterName: clusterName.GetClusterName(),
 	}, /* loadKeys */ true)
 	if err != nil {
 		return nil, trace.Wrap(err)
