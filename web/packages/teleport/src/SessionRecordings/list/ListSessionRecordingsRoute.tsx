@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { QueryErrorResetBoundary } from '@tanstack/react-query';
 import {
   useCallback,
   useMemo,
@@ -23,20 +24,18 @@ import {
   type ComponentType,
   type ReactNode,
 } from 'react';
-import { type FallbackProps } from 'react-error-boundary';
+import { ErrorBoundary, type FallbackProps } from 'react-error-boundary';
 
 import { Danger } from 'design/Alert';
 import Box from 'design/Box';
 import Flex, { Stack } from 'design/Flex';
-import { Indicator } from 'design/Indicator';
 import { SortOrder } from 'shared/components/Controls/SortMenu';
-import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/ErrorSuspenseWrapper';
 import { getErrorMessage } from 'shared/utils/error';
 
 import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
-import RangePicker, {
-  EventRange,
+import {
   getRangeOptions,
+  type EventRange,
 } from 'teleport/components/EventRangePicker';
 import { ExternalAuditStorageCta } from 'teleport/components/ExternalAuditStorageCta';
 import {
@@ -124,45 +123,34 @@ export function ListSessionRecordings({
       >
         <FeatureHeaderTitle mr="8">Session Recordings</FeatureHeaderTitle>
 
-        <Flex alignItems="center" gap={3}>
-          {headerElement}
-
-          <RangePicker
-            ml="auto"
-            range={state.range}
-            onChangeRange={handleSetRange}
-          />
-        </Flex>
+        {headerElement}
       </FeatureHeader>
 
       <ExternalAuditStorageCta mx="40px" mb={3} />
 
       <Flex flex={1} minHeight={0} overflow="hidden" width="100%">
-        <ErrorSuspenseWrapper
-          errorComponent={RecordingsListError}
-          loadingComponent={RecordingsListLoading}
-        >
-          <RecordingsList
-            actionComponent={actionComponent}
-            badgeComponent={badgeComponent}
-            onFilterChange={handleFilterChange}
-            onPageChange={handlePageChange}
-            onSearchChange={handleSearchChange}
-            onSortChange={handleSortChange}
-            recordingsDecorator={recordingsDecorator}
-            state={state}
-          />
-        </ErrorSuspenseWrapper>
+        <QueryErrorResetBoundary>
+          {({ reset }) => (
+            <ErrorBoundary
+              FallbackComponent={RecordingsListError}
+              onReset={reset}
+            >
+              <RecordingsList
+                actionComponent={actionComponent}
+                badgeComponent={badgeComponent}
+                onFilterChange={handleFilterChange}
+                onPageChange={handlePageChange}
+                onRangeChange={handleSetRange}
+                onSearchChange={handleSearchChange}
+                onSortChange={handleSortChange}
+                recordingsDecorator={recordingsDecorator}
+                state={state}
+              />
+            </ErrorBoundary>
+          )}
+        </QueryErrorResetBoundary>
       </Flex>
     </FeatureBox>
-  );
-}
-
-function RecordingsListLoading() {
-  return (
-    <Box textAlign="center" m={10} width="100%">
-      <Indicator delay="none" />
-    </Box>
   );
 }
 

@@ -25,6 +25,7 @@ import {
 } from 'design/DataTable/Pager/StyledPager';
 import Flex from 'design/Flex';
 import { CircleArrowLeft, CircleArrowRight, Warning } from 'design/Icon';
+import { Indicator } from 'design/Indicator';
 import Text from 'design/Text';
 
 export interface RecordingsPaginationProps {
@@ -32,7 +33,9 @@ export interface RecordingsPaginationProps {
   fetchMoreAvailable?: boolean;
   fetchMoreDisabled?: boolean;
   fetchMoreError?: boolean;
+  fetchingMore?: boolean;
   from: number;
+  loading?: boolean;
   onFetchMore?: () => void;
   onPageChange: (page: number) => void;
   page: number;
@@ -45,7 +48,9 @@ export function RecordingsPagination({
   fetchMoreAvailable,
   fetchMoreDisabled,
   fetchMoreError,
+  fetchingMore,
   from,
+  loading,
   onFetchMore,
   onPageChange,
   page,
@@ -77,29 +82,42 @@ export function RecordingsPagination({
 
   return (
     <>
-      <Flex
-        alignItems="center"
-        ml={3}
-        data-testid="recordings-pagination-indicator"
-      >
-        <PageIndicatorText from={from + 1} to={to + 1} count={count} />
+      {/* Hidden until the first page loads, as it was while the list suspended. */}
+      {!loading && (
+        <Flex
+          alignItems="center"
+          ml={3}
+          data-testid="recordings-pagination-indicator"
+        >
+          <PageIndicatorText from={from + 1} to={to + 1} count={count} />
 
-        {fetchMoreError && (
-          <Flex alignItems="center" ml={2}>
-            <Warning mr={2} color="error.main" size="small" />
-            <Text color="error.main">An error occurred</Text>
-          </Flex>
-        )}
+          {fetchMoreError && (
+            <Flex alignItems="center" ml={2}>
+              <Warning mr={2} color="error.main" size="small" />
+              <Text color="error.main">An error occurred</Text>
+            </Flex>
+          )}
 
-        {showFetchMore && (
-          <StyledFetchMoreBtn
-            disabled={fetchMoreDisabled}
-            onClick={onFetchMore}
-          >
-            {fetchMoreError ? 'Retry' : 'Fetch More'}
-          </StyledFetchMoreBtn>
-        )}
-      </Flex>
+          {showFetchMore &&
+            (fetchingMore ? (
+              <Flex
+                alignItems="center"
+                ml={2}
+                role="status"
+                aria-label="Fetching more recordings"
+              >
+                <Indicator size={14} color="text.muted" delay="none" />
+              </Flex>
+            ) : (
+              <StyledFetchMoreBtn
+                disabled={fetchMoreDisabled}
+                onClick={onFetchMore}
+              >
+                {fetchMoreError ? 'Retry' : 'Fetch More'}
+              </StyledFetchMoreBtn>
+            ))}
+        </Flex>
+      )}
       <Flex>
         <StyledArrowBtn
           onClick={handlePrevious}

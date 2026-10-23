@@ -81,6 +81,7 @@ const defaultState: RecordingsListState = {
 const mockHandlers = {
   onFilterChange: vi.fn(),
   onPageChange: vi.fn(),
+  onRangeChange: vi.fn(),
   onSearchChange: vi.fn(),
   onSortChange: vi.fn(),
 };
@@ -118,6 +119,7 @@ function setupTest(
           state={state}
           onFilterChange={mockHandlers.onFilterChange}
           onPageChange={mockHandlers.onPageChange}
+          onRangeChange={mockHandlers.onRangeChange}
           onSearchChange={mockHandlers.onSearchChange}
           onSortChange={mockHandlers.onSortChange}
           {...extraProps}

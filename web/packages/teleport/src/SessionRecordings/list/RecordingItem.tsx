@@ -26,7 +26,7 @@ import {
 } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Link } from 'react-router';
-import styled, { css } from 'styled-components';
+import styled, { css, type DefaultTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import Flex from 'design/Flex';
@@ -222,47 +222,54 @@ export function RecordingItem({
   );
 }
 
+export const recordingItemFrame = (
+  p: Pick<RecordingItemProps, 'viewMode' | 'density'> & {
+    theme: DefaultTheme;
+  }
+) => css`
+  border: ${p.theme.borders[2]} ${p.theme.colors.interactive.tonal.neutral[0]};
+  border-radius: ${p.theme.radii[3]}px;
+  overflow: hidden; // Needed to keep the rectangular contents from bleeding out of the round corners.
+  display: flex;
+
+  ${
+    p.viewMode === ViewMode.List
+      ? css`
+          padding: ${
+            p.density === Density.Compact
+              ? `${p.theme.space[2]}px`
+              : `calc(${p.theme.space[2]}px + 2px) ${p.theme.space[2]}px`
+          };
+          gap: ${p.theme.space[3]}px;
+        `
+      : css`
+          flex-direction: column;
+        `
+  }
+`;
+
 export const RecordingItemContainer = styled(Link).withConfig({
   // We need to specify this when wrapping non-styled components
   shouldForwardProp: prop =>
     !['viewMode', 'density', 'playable'].includes(prop),
-})<Pick<RecordingItemProps, 'viewMode' | 'density'> & { playable: boolean }>(
-  p => css`
-    border: ${p.theme.borders[2]} ${p.theme.colors.interactive.tonal.neutral[0]};
-    border-radius: ${p.theme.radii[3]}px;
-    overflow: hidden; // Needed to keep the rectangular contents from bleeding out of the round corners.
-    display: flex;
-    flex-grow: 0;
-    cursor: ${p.playable ? 'pointer' : 'default'};
-    text-decoration: none;
-    color: ${p.theme.colors.text.main};
+})<Pick<RecordingItemProps, 'viewMode' | 'density'> & { playable: boolean }>`
+  ${recordingItemFrame}
+  flex-grow: 0;
+  cursor: ${p => (p.playable ? 'pointer' : 'default')};
+  text-decoration: none;
+  color: ${p => p.theme.colors.text.main};
 
-    &:hover {
-      background: ${p.theme.colors.levels.surface};
-      border-color: transparent;
-      box-shadow: ${props => props.theme.boxShadow[3]};
-    }
+  &:hover {
+    background: ${p => p.theme.colors.levels.surface};
+    border-color: transparent;
+    box-shadow: ${p => p.theme.boxShadow[3]};
+  }
 
-    ${
-      p.viewMode === ViewMode.List
-        ? css`
-            padding: ${
-              p.density === Density.Compact
-                ? `${p.theme.space[2]}px`
-                : `calc(${p.theme.space[2]}px + 2px) ${p.theme.space[2]}px`
-            };
-            gap: ${p.theme.space[3]}px;
-          `
-        : css`
-            flex-direction: column;
-          `
-    }
-    transition:
-      background-color 150ms,
-      border-color 150ms,
-      box-shadow 150ms;
-  `
-);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+`;
 
 const RecordingItemHeader = styled(Flex)`
   background: ${p => p.theme.colors.levels.sunken};
@@ -275,110 +282,94 @@ const RecordingItemHeader = styled(Flex)`
 
 export const ThumbnailContainer = styled.div<
   Pick<RecordingItemProps, 'viewMode' | 'density'>
->(
-  p => css`
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
+>`
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
 
-    ${
-      p.viewMode === ViewMode.List
-        ? css`
-            border: 1px solid ${p.theme.colors.interactive.tonal.neutral[0]};
-            border-radius: ${p.theme.radii[2]}px;
-            height: 100%;
-            width: ${p.density === Density.Compact ? '256px' : '320px'};
-          `
-        : css`
-            border-bottom: 1px solid
-              ${p.theme.colors.interactive.tonal.neutral[0]};
-            flex: 1;
-            height: ${p.density === Density.Compact ? '90px' : '120px'};
-            width: 100%;
-          `
-    }
+  ${p =>
+    p.viewMode === ViewMode.List
+      ? css`
+          border: 1px solid ${p.theme.colors.interactive.tonal.neutral[0]};
+          border-radius: ${p.theme.radii[2]}px;
+          height: 100%;
+          width: ${p.density === Density.Compact ? '256px' : '320px'};
+        `
+      : css`
+          border-bottom: 1px solid
+            ${p.theme.colors.interactive.tonal.neutral[0]};
+          flex: 1;
+          height: ${p.density === Density.Compact ? '90px' : '120px'};
+          width: 100%;
+        `}
 
-    ${RecordingItemContainer}:hover & {
-      border-color: transparent;
-      transition: border-color 150ms;
-    }
-  `
-);
+  ${RecordingItemContainer}:hover & {
+    border-color: transparent;
+    transition: border-color 150ms;
+  }
+`;
 
 export const RecordingDetails = styled.div<
   Pick<RecordingItemProps, 'viewMode' | 'density'>
->(
-  p => css`
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    flex-shrink: 0;
-    font-size: ${p.density === Density.Compact ? '13px' : '15px'};
+>`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  flex-shrink: 0;
+  font-size: ${p => (p.density === Density.Compact ? '13px' : '15px')};
 
-    ${
-      p.viewMode === ViewMode.List
-        ? css`
-            gap: ${
-              p.density === Density.Compact
-                ? p.theme.space[1]
-                : p.theme.space[2]
-            }px;
-            padding-top: ${
-              p.density === Density.Compact
-                ? p.theme.space[0]
-                : p.theme.space[2]
-            }px;
-            padding-right: ${p.theme.space[1]}px;
-          `
-        : css`
-            padding: ${p.theme.space[3]}px ${p.theme.space[2]}px
-              ${p.theme.space[2]}px ${p.theme.space[3]}px;
-            gap: ${p.theme.space[1]}px;
-          `
-    }
-  `
-);
+  ${p =>
+    p.viewMode === ViewMode.List
+      ? css`
+          gap: ${
+            p.density === Density.Compact ? p.theme.space[1] : p.theme.space[2]
+          }px;
+          padding-top: ${
+            p.density === Density.Compact ? p.theme.space[0] : p.theme.space[2]
+          }px;
+          padding-right: ${p.theme.space[1]}px;
+        `
+      : css`
+          padding: ${p.theme.space[3]}px ${p.theme.space[2]}px
+            ${p.theme.space[2]}px ${p.theme.space[3]}px;
+          gap: ${p.theme.space[1]}px;
+        `}
+`;
 
 // BadgeContainer overlays the badge slot on the thumbnail, mirroring the
 // Duration placement on the opposite side, so badges appearing after the
 // initial render never shift the item layout.
-const BadgeContainer = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
-  p => css`
-    display: flex;
-    gap: ${p.theme.space[1]}px;
+const BadgeContainer = styled.div<Pick<RecordingItemProps, 'viewMode'>>`
+  display: flex;
+  gap: ${p => p.theme.space[1]}px;
 
-    ${
-      p.viewMode === ViewMode.List
-        ? css`
-            bottom: ${p.theme.space[2]}px;
-          `
-        : css`
-            top: ${p.theme.space[2]}px;
-          `
-    }
-  `
-);
+  ${p =>
+    p.viewMode === ViewMode.List
+      ? css`
+          bottom: ${p.theme.space[2]}px;
+        `
+      : css`
+          top: ${p.theme.space[2]}px;
+        `}
+`;
 
-export const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
-  p => css`
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: ${p.theme.radii[3]}px;
-    color: white;
-    font-weight: bold;
-    line-height: 1;
-    padding: ${p.theme.space[1]}px ${p.theme.space[2]}px;
+export const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>`
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: ${p => p.theme.radii[3]}px;
+  color: white;
+  font-weight: bold;
+  line-height: 1;
+  padding: ${p => p.theme.space[1]}px ${p => p.theme.space[2]}px;
 
-    ${
-      p.viewMode === ViewMode.List
-        ? css`
-            bottom: ${p.theme.space[2]}px;
-          `
-        : css`
-            top: ${p.theme.space[2]}px;
-          `
-    }
-  `
-);
+  ${p =>
+    p.viewMode === ViewMode.List
+      ? css`
+          bottom: ${p.theme.space[2]}px;
+        `
+      : css`
+          top: ${p.theme.space[2]}px;
+        `}
+`;
 
 const FloatingDuration = styled(Duration)`
   position: absolute;

@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useState, type MouseEvent } from 'react';
+import styled from 'styled-components';
 
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
@@ -31,6 +32,9 @@ import {
   MultiselectMenu,
 } from 'shared/components/Controls/MultiselectMenu';
 
+import RangePicker, {
+  type EventRange,
+} from 'teleport/components/EventRangePicker';
 import type { RecordingType } from 'teleport/services/recordings';
 
 import type { RecordingsListFilterKey, RecordingsListFilters } from './state';
@@ -54,6 +58,8 @@ interface RecordingFiltersProps {
     key: RecordingsListFilterKey,
     value: string[] | boolean
   ) => void;
+  range: EventRange;
+  onRangeChange: (range: EventRange) => void;
 }
 
 interface TypeOption {
@@ -85,6 +91,8 @@ export function RecordingFilters({
   onFilterChange,
   options,
   filters,
+  range,
+  onRangeChange,
 }: RecordingFiltersProps) {
   const createHandleChange = useCallback(
     (key: RecordingsListFilterKey) => (value: string[]) =>
@@ -98,7 +106,9 @@ export function RecordingFilters({
   );
 
   return (
-    <>
+    <FilterChips>
+      <RangePicker range={range} onChangeRange={onRangeChange} />
+
       <MultiselectMenu
         options={typeOptions}
         selected={filters.types}
@@ -132,9 +142,39 @@ export function RecordingFilters({
         toggled={filters.hideNonInteractive}
         onToggle={handleToggleNonInteractive}
       />
-    </>
+    </FilterChips>
   );
 }
+
+const FilterChips = styled.div`
+  display: contents;
+
+  button {
+    height: 32px;
+    padding: 0 ${p => p.theme.space[2]}px;
+    border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[2]};
+    border-radius: ${p => p.theme.radii[2]}px;
+    background: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+    font-size: ${p => p.theme.fontSizes[1]}px;
+    font-weight: ${p => p.theme.fontWeights.regular};
+    color: ${p => p.theme.colors.text.main};
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      border-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
+      background: ${p => p.theme.colors.interactive.tonal.neutral[1]};
+    }
+  }
+
+  button .icon-chevrondown {
+    margin-left: ${p => p.theme.space[1]}px;
+
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+`;
 
 interface HideNonInteractiveProps {
   toggled: boolean;

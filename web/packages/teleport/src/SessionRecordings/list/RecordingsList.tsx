@@ -27,14 +27,16 @@ import {
   useState,
   type ComponentType,
   type CSSProperties,
+  type FormEvent,
   type PropsWithChildren,
 } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { Danger } from 'design/Alert';
 import Box from 'design/Box';
-import InputSearch from 'design/DataTable/InputSearch';
 import Flex, { Stack } from 'design/Flex';
+import { Magnifier } from 'design/Icon';
+import Input from 'design/Input';
 import Text from 'design/Text';
 import {
   SortItem,
@@ -44,8 +46,9 @@ import {
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
+import type { EventRange } from 'teleport/components/EventRangePicker';
 import type { Recording } from 'teleport/services/recordings';
-import { useSuspenseInfiniteListRecordings } from 'teleport/services/recordings/hooks';
+import { useInfiniteListRecordings } from 'teleport/services/recordings/hooks';
 import { KeysEnum } from 'teleport/services/storageService';
 import { generateTerminalSVGStyleTag } from 'teleport/SessionRecordings/svg';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -56,6 +59,7 @@ import {
   type RecordingFilterOptions,
 } from './RecordingFilters';
 import { RecordingItem, type RecordingActionProps } from './RecordingItem';
+import { RecordingsListSkeleton } from './RecordingsListSkeleton';
 import { RecordingsPagination } from './RecordingsPagination';
 import type {
   RecordingsListFilterKey,
@@ -76,6 +80,7 @@ export interface RecordingsListProps {
     value: string[] | boolean
   ) => void;
   onPageChange: (page: number) => void;
+  onRangeChange: (range: EventRange) => void;
   onSearchChange: (search: string) => void;
   onSortChange: (key: string, dir: SortOrder) => void;
   recordingsDecorator?: ComponentType<RecordingsDecoratorProps>;
@@ -150,6 +155,7 @@ export function RecordingsList({
   badgeComponent,
   onFilterChange,
   onPageChange,
+  onRangeChange,
   onSearchChange,
   onSortChange,
   recordingsDecorator: RecordingsDecorator,
@@ -174,25 +180,33 @@ export function RecordingsList({
     Density.Comfortable
   );
 
-  const { data, isFetchNextPageError, fetchNextPage, hasNextPage, isFetching } =
-    useSuspenseInfiniteListRecordings(
-      {
-        clusterId,
-        params: {
-          from: state.range.from,
-          to: state.range.to,
-        },
+  const {
+    data,
+    isPending,
+    isFetchNextPageError,
+    fetchNextPage,
+    hasNextPage,
+    isFetching,
+    isFetchingNextPage,
+  } = useInfiniteListRecordings(
+    {
+      clusterId,
+      params: {
+        from: state.range.from,
+        to: state.range.to,
       },
-      {
-        getNextPageParam: lastPage =>
-          // empty strings will indicate more pages, so we use undefined to indicate no more pages
-          lastPage.startKey ? lastPage.startKey : undefined,
-        initialPageParam: '',
-      }
-    );
+    },
+    {
+      getNextPageParam: lastPage =>
+        // empty strings will indicate more pages, so we use undefined to indicate no more pages
+        lastPage.startKey ? lastPage.startKey : undefined,
+      initialPageParam: '',
+      throwOnError: (_error, query) => query.state.data === undefined,
+    }
+  );
 
   const allRecordings = useMemo(
-    () => data.pages.flatMap(page => page.recordings),
+    () => data?.pages.flatMap(page => page.recordings) ?? [],
     [data]
   );
 
@@ -299,31 +313,29 @@ export function RecordingsList({
         </Box>
       )}
 
-      <Box px={6}>
-        <InputSearch
-          searchValue={state.search}
-          setSearchValue={onSearchChange}
-        />
-      </Box>
-
-      <Flex justifyContent="space-between" px={6}>
-        <Flex gap={2}>
-          {!clusterErrorMessage && (
-            <ClusterDropdown
-              clusterLoader={ctx.clusterService}
-              clusterId={clusterId}
-              onError={setClusterErrorMessage}
-            />
-          )}
-
-          <RecordingFilters
-            disabled={filtersDisabled}
-            filters={state.filters}
-            options={filterOptions}
-            onFilterChange={handleFilterChange}
+      {/* The top padding keeps the active-filter dots from being clipped. */}
+      <Flex gap={2} alignItems="center" px={6} pt={1}>
+        {!clusterErrorMessage && (
+          <ClusterDropdown
+            clusterLoader={ctx.clusterService}
+            clusterId={clusterId}
+            onError={setClusterErrorMessage}
           />
-        </Flex>
+        )}
 
+        <RecordingFilters
+          disabled={filtersDisabled}
+          filters={state.filters}
+          options={filterOptions}
+          onFilterChange={handleFilterChange}
+          range={state.range}
+          onRangeChange={onRangeChange}
+        />
+
+        <KeywordFilter search={state.search} onSearchChange={onSearchChange} />
+      </Flex>
+
+      <Flex justifyContent="flex-end" px={6}>
         <Flex gap={2} alignItems="center">
           <ViewSwitcher
             viewMode={viewMode}
@@ -344,7 +356,9 @@ export function RecordingsList({
             fetchMoreAvailable={hasNextPage}
             fetchMoreDisabled={isFetching}
             fetchMoreError={isFetchNextPageError}
+            fetchingMore={isFetchingNextPage}
             from={startIndex}
+            loading={isPending}
             onFetchMore={fetchNextPage}
             onPageChange={handlePageChange}
             page={state.page}
@@ -354,8 +368,12 @@ export function RecordingsList({
         </Flex>
       </Flex>
 
-      <ScrollContainer ref={scrollRef}>
-        {items.length === 0 ? (
+      <ScrollContainer ref={scrollRef} aria-busy={isPending}>
+        {isPending ? (
+          <RecordingsGrid viewMode={viewMode} density={density}>
+            <RecordingsListSkeleton viewMode={viewMode} density={density} />
+          </RecordingsGrid>
+        ) : items.length === 0 ? (
           <Flex
             alignItems="center"
             justifyContent="center"
@@ -380,6 +398,50 @@ export function RecordingsList({
         )}
       </ScrollContainer>
     </Stack>
+  );
+}
+
+function KeywordFilter({
+  search,
+  onSearchChange,
+}: {
+  search: string;
+  onSearchChange: (search: string) => void;
+}) {
+  const theme = useTheme();
+
+  const handleSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      const value = new FormData(event.currentTarget).get('search');
+
+      onSearchChange(typeof value === 'string' ? value : '');
+    },
+    [onSearchChange]
+  );
+
+  return (
+    <Box
+      as="form"
+      flex={1}
+      minWidth="200px"
+      role="search"
+      onSubmit={handleSubmit}
+    >
+      {/* TODO(ghassanachi): Replace with `SearchInput` from
+          `@gravitational/design-system` once it is bumped to v0.4.0. */}
+      <Input
+        size="small"
+        icon={Magnifier}
+        name="search"
+        placeholder="Search..."
+        defaultValue={search}
+        style={{
+          backgroundColor: theme.colors.interactive.tonal.neutral[0],
+        }}
+      />
+    </Box>
   );
 }
 

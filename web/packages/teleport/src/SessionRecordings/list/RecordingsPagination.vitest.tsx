@@ -209,6 +209,20 @@ test('disables fetch more button when fetchMoreDisabled is true', async () => {
   expect(fetchMoreButton).toBeDisabled();
 });
 
+test('shows a spinner in place of fetch more while fetching', async () => {
+  setupTest({
+    fetchMoreAvailable: true,
+    fetchingMore: true,
+    onFetchMore: vi.fn(),
+  });
+
+  expect(
+    screen.getByRole('status', { name: 'Fetching more recordings' })
+  ).toBeInTheDocument();
+  expect(await screen.findByTestId('indicator')).toBeInTheDocument();
+  expect(screen.queryByText('Fetch More')).not.toBeInTheDocument();
+});
+
 test('shows error message when fetchMoreError is true', async () => {
   setupTest({
     fetchMoreError: true,

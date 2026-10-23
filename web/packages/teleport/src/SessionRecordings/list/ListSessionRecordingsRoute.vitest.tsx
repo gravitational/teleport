@@ -80,12 +80,17 @@ test('displays loading indicator while fetching data', async () => {
 
   setupTest();
 
-  expect(await screen.findByTestId('indicator')).toBeInTheDocument();
+  expect(
+    (await screen.findAllByTestId('recording-item-skeleton')).length
+  ).toBeGreaterThan(0);
+  expect(screen.getByPlaceholderText('Search...')).toBeInTheDocument();
 
   deferred.resolve();
 
   await waitFor(() => {
-    expect(screen.queryByTestId('indicator')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('recording-item-skeleton')
+    ).not.toBeInTheDocument();
   });
 
   expect(screen.getByText('server-01')).toBeInTheDocument();
