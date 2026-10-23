@@ -17,19 +17,11 @@
  */
 
 import type { LegacyThemeColors } from '@gravitational/design-system';
-import { useMemo } from 'react';
 
 type ResolvedTerminalColors = Record<
   keyof LegacyThemeColors['terminal'],
   string | undefined
 >;
-
-export function useThumbnailSvg(svg: string, styles: string) {
-  return useMemo(
-    () => svgToDataURIBase64(injectSVGStyles(svg, styles)),
-    [svg, styles]
-  );
-}
 
 export function injectSVGStyles(svg: string, styles: string) {
   if (svg.includes('<style>')) {

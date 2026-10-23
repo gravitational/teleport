@@ -248,7 +248,7 @@ export const recordingItemFrame = (
   }
 `;
 
-export const RecordingItemContainer = styled(Link).withConfig({
+const RecordingItemContainer = styled(Link).withConfig({
   // We need to specify this when wrapping non-styled components
   shouldForwardProp: prop =>
     !['viewMode', 'density', 'playable'].includes(prop),
@@ -353,7 +353,7 @@ const BadgeContainer = styled.div<Pick<RecordingItemProps, 'viewMode'>>`
         `}
 `;
 
-export const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>`
+const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>`
   background: rgba(0, 0, 0, 0.5);
   border-radius: ${p => p.theme.radii[3]}px;
   color: white;
@@ -376,8 +376,8 @@ const FloatingDuration = styled(Duration)`
   right: ${p => p.theme.space[2]}px;
 `;
 
-export const ItemSpan = styled.span`
-  background: ${p => p.theme.colors.spotBackground[0]};
+const ItemSpan = styled.span`
+  background: ${p => p.theme.colors.interactive.tonal.neutral[0]};
   line-height: 1;
   padding: ${p => p.theme.space[1]}px ${p => p.theme.space[1]}px;
   border-radius: ${p => p.theme.radii[3]}px;

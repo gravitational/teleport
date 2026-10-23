@@ -69,8 +69,6 @@ export const KeysEnum = {
   //TODO(rudream): Remove once sidenav implementation is complete.
   USE_TOP_BAR: 'grv_teleport_use_topbar',
 
-  IDENTITY_SECURITY_RECOMMENDATIONS_UNIFIED_RESOURCES_CTA_SEEN:
-    'grv_teleport_identity_security_recommendations_unified_resources_cta_seen',
   APP_LAUNCHER_FRAGMENT: 'grv_teleport_app_launcher_fragment',
   DESKTOP_HIDPI: 'grv_teleport_desktop_hidpi',
   // TODO(bl-nero): Remove this once the login scope picker is operational.
