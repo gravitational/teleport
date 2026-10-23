@@ -38,6 +38,17 @@ import (
 // accessDedupTTL is how long one app.access emission suppresses another for the same app session.
 const accessDedupTTL = time.Hour
 
+// AppAccessIdentitySource is the app.access identity_source: where a client's identity came from.
+type AppAccessIdentitySource string
+
+const (
+	// AppAccessIdentitySourceUserCert is the user certificate the client
+	// connected with.
+	AppAccessIdentitySourceUserCert AppAccessIdentitySource = "user_cert"
+	// AppAccessIdentitySourceProxy is an identity a Proxy forwarded with each request.
+	AppAccessIdentitySourceProxy AppAccessIdentitySource = "proxy"
+)
+
 // AccessRecorder emits app.access events for authorized application access. Events are deduplicated per app session
 // so that app.access stays an activity signal rather than a record of every request or connection.
 type AccessRecorder struct {
@@ -90,7 +101,7 @@ func (r *AccessRecorder) removeExpired(ctx context.Context, clock clockwork.Cloc
 
 // RecordAccess emits an app.access event for authorized access to app, unless emission was already attempted for the
 // same app session within the deduplication period. A canceled ctx stops the caller waiting but not the emission.
-func (r *AccessRecorder) RecordAccess(ctx context.Context, identity *tlsca.Identity, app types.Application) error {
+func (r *AccessRecorder) RecordAccess(ctx context.Context, identity *tlsca.Identity, app types.Application, identitySource AppAccessIdentitySource) error {
 	sessionID := identity.RouteToApp.SessionID
 	if sessionID == "" {
 		// This is unexpected. Every app certificate carries a session ID. If this condition triggers, something has
@@ -100,12 +111,12 @@ func (r *AccessRecorder) RecordAccess(ctx context.Context, identity *tlsca.Ident
 	_, err := r.emitted.Get(ctx, sessionID, func(emitCtx context.Context) (struct{}, error) {
 		// The event is built from the request context because the cache runs this on its own context, which does not
 		// carry the client source address.
-		return struct{}{}, trace.Wrap(r.emitter.EmitAuditEvent(emitCtx, r.newEvent(ctx, identity, app)))
+		return struct{}{}, trace.Wrap(r.emitter.EmitAuditEvent(emitCtx, r.newEvent(ctx, identity, app, identitySource)))
 	})
 	return trace.Wrap(err)
 }
 
-func (r *AccessRecorder) newEvent(ctx context.Context, identity *tlsca.Identity, app types.Application) *apievents.AppAccess {
+func (r *AccessRecorder) newEvent(ctx context.Context, identity *tlsca.Identity, app types.Application, identitySource AppAccessIdentitySource) *apievents.AppAccess {
 	var remoteAddr string
 	if addr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
 		remoteAddr = addr.String()
@@ -136,6 +147,7 @@ func (r *AccessRecorder) newEvent(ctx context.Context, identity *tlsca.Identity,
 			AppName:       app.GetName(),
 			AppTargetPort: uint32(identity.RouteToApp.TargetPort),
 		},
-		AppSessionId: identity.RouteToApp.SessionID,
+		AppSessionId:   identity.RouteToApp.SessionID,
+		IdentitySource: string(identitySource),
 	}
 }

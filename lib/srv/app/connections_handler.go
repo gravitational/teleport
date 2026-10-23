@@ -505,10 +505,10 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, req authorizedR
 }
 
 // recordAccess emits app.access for authorized access to app. Failing to record access does not deny it.
-func (c *ConnectionsHandler) recordAccess(ctx context.Context, identity *tlsca.Identity, app types.Application) {
+func (c *ConnectionsHandler) recordAccess(ctx context.Context, identity *tlsca.Identity, app types.Application, identitySource common.AppAccessIdentitySource) {
 	// Logged at debug because a failed emission is returned to every later access to the session until the
 	// deduplication period ends, and the audit emitter already reports its own failures.
-	if err := c.accessRecorder.RecordAccess(ctx, identity, app); err != nil && ctx.Err() == nil {
+	if err := c.accessRecorder.RecordAccess(ctx, identity, app, identitySource); err != nil && ctx.Err() == nil {
 		c.log.DebugContext(ctx, "Failed to emit app access audit event", "app", app.GetName(), "error", err)
 	}
 }
@@ -554,12 +554,14 @@ func (c *ConnectionsHandler) Close(ctx context.Context) []error {
 	return errs
 }
 
-// authorizedRequest is a request that a handler has authorized for app. The three travel together so that the serving
-// step can't be given a request with an authorization made for another one.
+// authorizedRequest is a request that a handler has authorized for app. They travel together so that the serving step
+// can't be given a request with an authorization made for another one.
 type authorizedRequest struct {
 	r       *http.Request
 	authCtx *authz.ScopedContext
 	app     types.Application
+	// identitySource is where the request's identity came from.
+	identitySource common.AppAccessIdentitySource
 }
 
 // serveAuthorizedHTTP forwards req to its application. Both handlers' requests rejoin here, so everything from here on
@@ -569,7 +571,7 @@ func (c *ConnectionsHandler) serveAuthorizedHTTP(w http.ResponseWriter, req auth
 	identity := req.authCtx.Identity.GetIdentity()
 	// Access is recorded before the app_resources rules below, which authorize individual request paths rather than
 	// access to the application.
-	c.recordAccess(r.Context(), &identity, app)
+	c.recordAccess(r.Context(), &identity, app, req.identitySource)
 
 	switch {
 	case app.IsAWSConsole():

@@ -3568,6 +3568,10 @@ message AppAccess {
   // app_session_id is the session ID from the identity's app route. It correlates this event with other events for the
   // same app session.
   string app_session_id = 7 [(gogoproto.jsontag) = "app_session_id"];
+  // identity_source is where the client's identity came from: user_cert for the
+  // user certificate the client connected with, or proxy for an identity a Proxy
+  // forwarded with each request.
+  string identity_source = 8 [(gogoproto.jsontag) = "identity_source"];
 }
 
 // BeamDestroyed marks a garbage-collected beam whose activity has been

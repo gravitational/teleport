@@ -194,7 +194,7 @@ func (h *connIdentityHandler) handleConnection(ctx context.Context, conn, tc net
 func (h *connIdentityHandler) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsca.Identity, app types.Application) error {
 	// Access is recorded before the TCP server's target checks, which authorize the dial target rather than access to
 	// the application.
-	h.c.recordAccess(ctx, identity, app)
+	h.c.recordAccess(ctx, identity, app, common.AppAccessIdentitySourceUserCert)
 	err := h.tcpServer.handleConnection(ctx, conn, identity, app)
 	if err != nil {
 		return trace.Wrap(err)
@@ -277,7 +277,7 @@ func (h *connIdentityHandler) authorize(r *http.Request) (authorizedRequest, err
 	if _, err := h.c.authorizeApp(ctx, authCtx, app, state); err != nil {
 		return authorizedRequest{}, trace.Wrap(err)
 	}
-	return authorizedRequest{r: r, authCtx: authCtx, app: app}, nil
+	return authorizedRequest{r: r, authCtx: authCtx, app: app, identitySource: common.AppAccessIdentitySourceUserCert}, nil
 }
 
 // jwtExpiresWithCertEnv makes JWTs expire with the client's certificate rather than with their session chunk, as they

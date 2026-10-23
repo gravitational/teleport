@@ -152,8 +152,8 @@ func (h *requestIdentityHandler) authorizeProxy(r *http.Request) error {
 	return trace.Wrap(err)
 }
 
-// validateForwardedIdentity checks that a forwarded identity has the shape of a route-bound App certificate for this
-// cluster. authz.Middleware only rejects a forwarded identity with a primary system role. It skips the scope pin and
+// validateForwardedIdentity checks that a forwarded identity has the shape of an App certificate for this cluster.
+// authz.Middleware only rejects a forwarded identity with a primary system role. It skips the scope pin and
 // usage checks that it applies to a client certificate, so this function repeats them.
 func validateForwardedIdentity(user authz.IdentityGetter, clusterName string) error {
 	localUser, ok := user.(authz.LocalUser)
@@ -261,7 +261,7 @@ func (h *requestIdentityHandler) authorize(r *http.Request) (authorizedRequest, 
 	if _, err := h.c.authorizeApp(ctx, authCtx, app, state); err != nil {
 		return authorizedRequest{}, trace.Wrap(err)
 	}
-	return authorizedRequest{r: r, authCtx: authCtx, app: app}, nil
+	return authorizedRequest{r: r, authCtx: authCtx, app: app, identitySource: common.AppAccessIdentitySourceProxy}, nil
 }
 
 // maxForwardedIdentityAge is how long after its source certificate's NotBefore
