@@ -7814,6 +7814,23 @@ message PluginIntuneSettings {
   //
   // https://learn.microsoft.com/en-us/graph/deployments
   string graph_endpoint = 3;
+
+  // credentials_source is how the plugin authenticates with Microsoft Entra ID.
+  // Unspecified is treated as CLIENT_SECRET for backwards compatibility.
+  IntuneCredentialsSource credentials_source = 4;
+}
+
+// IntuneCredentialsSource defines how the Intune plugin authenticates with Microsoft Entra ID.
+enum IntuneCredentialsSource {
+  // INTUNE_CREDENTIALS_SOURCE_UNSPECIFIED is used when the credentials source isn't specified.
+  // Unspecified is treated as CLIENT_SECRET for backwards compatibility.
+  INTUNE_CREDENTIALS_SOURCE_UNSPECIFIED = 0;
+  // INTUNE_CREDENTIALS_SOURCE_CLIENT_SECRET means the plugin authenticates with a client secret
+  // stored in the plugin static credentials.
+  INTUNE_CREDENTIALS_SOURCE_CLIENT_SECRET = 1;
+  // INTUNE_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS means the plugin relies on credentials available
+  // in the environment it runs in, such as Azure Workload Identity or a managed identity.
+  INTUNE_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS = 2;
 }
 
 // Defines settings for the Okta plugin.

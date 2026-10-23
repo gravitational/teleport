@@ -54,6 +54,7 @@ type pluginInstallArgs struct {
 	netIQ   netIQArgs
 	awsIC   awsICInstallArgs
 	github  githubArgs
+	intune  intuneArgs
 }
 
 type pluginEditArgs struct {
@@ -127,6 +128,7 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 	p.initInstallNetIQ(p.install.cmd)
 	p.initInstallAWSIC(p.install.cmd)
 	p.initInstallGithub(p.install.cmd)
+	p.initInstallIntune(p.install.cmd)
 }
 
 func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
@@ -251,6 +253,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallAWSIC
 	case p.install.github.cmd.FullCommand():
 		commandFunc = p.InstallGithub
+	case p.install.intune.cmd.FullCommand():
+		commandFunc = p.InstallIntune
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
 	case p.edit.awsIC.cmd.FullCommand():

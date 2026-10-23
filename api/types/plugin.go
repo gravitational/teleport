@@ -258,15 +258,27 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.Intune.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
-		if p.Credentials == nil {
-			return trace.BadParameter("credentials must be set")
-		}
-		staticCreds := p.Credentials.GetStaticCredentialsRef()
-		if staticCreds == nil {
-			return trace.BadParameter("Intune plugin must be used with the static credentials ref type")
-		}
-		if len(staticCreds.Labels) == 0 {
-			return trace.BadParameter("labels must be specified")
+		switch settings.Intune.CredentialsSource {
+		case IntuneCredentialsSource_INTUNE_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS:
+			// No credentials are required. The plugins service gives these plugins a placeholder
+			// static credentials ref so that versions without credentials_source, which require
+			// one on every Intune plugin, can still read them.
+		// Plugins created before credentials_source existed have it unspecified and use a client secret
+		case IntuneCredentialsSource_INTUNE_CREDENTIALS_SOURCE_UNSPECIFIED,
+			IntuneCredentialsSource_INTUNE_CREDENTIALS_SOURCE_CLIENT_SECRET:
+			if p.Credentials == nil {
+				return trace.BadParameter("credentials must be set")
+			}
+			staticCreds := p.Credentials.GetStaticCredentialsRef()
+			if staticCreds == nil {
+				return trace.BadParameter("Intune plugin must be used with the static credentials ref type")
+			}
+			if len(staticCreds.Labels) == 0 {
+				return trace.BadParameter("labels must be specified")
+			}
+		default:
+			// A credentials source added by a newer version. It isn't rejected here so that this
+			// version can still read the plugin, e.g. in caches after a downgrade.
 		}
 	case *PluginSpecV1_Jira:
 		if settings.Jira == nil {
@@ -1103,6 +1115,12 @@ func (c *PluginIntuneSettings) Validate() error {
 	}
 
 	return nil
+}
+
+// UsesSystemCredentials returns true if the plugin authenticates with Microsoft Entra ID using
+// credentials available in its environment instead of a client secret.
+func (c *PluginIntuneSettings) UsesSystemCredentials() bool {
+	return c.CredentialsSource == IntuneCredentialsSource_INTUNE_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS
 }
 
 // UnmarshalJSON implements [json.Unmarshaler] for the PluginSyncFilter, forcing
