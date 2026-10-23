@@ -91,4 +91,37 @@ var toolEvidenceDefinitions = []toolEvidenceDefinition{
 		// https://developers.google.com/crawling/docs/crawlers-fetchers/google-gemininotebook
 		userAgentProducts: []string{"Google-GeminiNotebook"},
 	},
+	{
+		tool: prehogv1a.AgentTool_AGENT_TOOL_ANTIGRAVITY,
+		// The Antigravity CLI and app set ANTIGRAVITY_AGENT to 1 in the
+		// environment of the commands they run.
+		environment: []environmentMarker{{name: "ANTIGRAVITY_AGENT", value: "1"}},
+	},
+	{
+		tool: prehogv1a.AgentTool_AGENT_TOOL_PI,
+		// https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/environment-variables.md
+		environment: []environmentMarker{
+			{name: "AI_AGENT", value: "pi"},
+			{name: "PI_CODING_AGENT", value: "true"},
+		},
+	},
+	{
+		tool: prehogv1a.AgentTool_AGENT_TOOL_CLINE,
+		// Cline added the marker for tool detection but does not document it. It
+		// is set only for commands Cline runs in a VS Code terminal.
+		// https://github.com/cline/cline/discussions/5366
+		environment: []environmentMarker{{name: "CLINE_ACTIVE", value: "true"}},
+	},
+	{
+		tool: prehogv1a.AgentTool_AGENT_TOOL_GITHUB_COPILOT,
+		// Copilot CLI sets COPILOT_CLI to 1 and COPILOT_AGENT_SESSION_ID to the
+		// session ID. Copilot agent mode in VS Code sets AI_AGENT to
+		// github_copilot_vscode_agent and COPILOT_AGENT to 1.
+		environment: []environmentMarker{
+			{name: "COPILOT_CLI", value: "1"},
+			{name: "COPILOT_AGENT_SESSION_ID"},
+			{name: "AI_AGENT", value: "github_copilot_vscode_agent"},
+			{name: "COPILOT_AGENT", value: "1"},
+		},
+	},
 }

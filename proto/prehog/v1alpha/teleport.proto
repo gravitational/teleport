@@ -2187,13 +2187,17 @@ enum AgentTool {
   AGENT_TOOL_CODEX_CLI = 2;
   AGENT_TOOL_GEMINI_CLI = 3;
   AGENT_TOOL_CURSOR_AGENT = 4;
-  AGENT_TOOL_GITHUB_COPILOT_CLI = 5;
+  AGENT_TOOL_GITHUB_COPILOT_CLI = 5 [deprecated = true];
   AGENT_TOOL_OPENCODE = 6;
   AGENT_TOOL_CHATGPT = 7;
   AGENT_TOOL_CLAUDE = 8;
   AGENT_TOOL_PERPLEXITY = 9;
   AGENT_TOOL_GOOGLE_AGENT = 10;
   AGENT_TOOL_GEMINI_NOTEBOOK = 11;
+  AGENT_TOOL_ANTIGRAVITY = 12;
+  AGENT_TOOL_PI = 13;
+  AGENT_TOOL_CLINE = 14;
+  AGENT_TOOL_GITHUB_COPILOT = 15;
 }
 
 // AgentUsageEvidence holds signals that an AI agent caused a usage event.
@@ -2226,6 +2230,11 @@ message AgentUsageEvidence {
   //
   // PostHog property: tp.agent_usage.known_agent_user_agent
   repeated AgentTool known_agent_user_agent = 6;
+  // ai_agent is the value of the AI_AGENT environment variable, which agent
+  // tools set to name themselves.
+  //
+  // PostHog property: tp.agent_usage.ai_agent
+  string ai_agent = 7;
 }
 
 message SubmitEventRequest {

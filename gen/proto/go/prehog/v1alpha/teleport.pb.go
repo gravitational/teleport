@@ -1541,11 +1541,12 @@ func (AccessListIntegrate) EnumDescriptor() ([]byte, []int) {
 type AgentTool int32
 
 const (
-	AgentTool_AGENT_TOOL_UNSPECIFIED        AgentTool = 0
-	AgentTool_AGENT_TOOL_CLAUDE_CODE        AgentTool = 1
-	AgentTool_AGENT_TOOL_CODEX_CLI          AgentTool = 2
-	AgentTool_AGENT_TOOL_GEMINI_CLI         AgentTool = 3
-	AgentTool_AGENT_TOOL_CURSOR_AGENT       AgentTool = 4
+	AgentTool_AGENT_TOOL_UNSPECIFIED  AgentTool = 0
+	AgentTool_AGENT_TOOL_CLAUDE_CODE  AgentTool = 1
+	AgentTool_AGENT_TOOL_CODEX_CLI    AgentTool = 2
+	AgentTool_AGENT_TOOL_GEMINI_CLI   AgentTool = 3
+	AgentTool_AGENT_TOOL_CURSOR_AGENT AgentTool = 4
+	// Deprecated: Marked as deprecated in prehog/v1alpha/teleport.proto.
 	AgentTool_AGENT_TOOL_GITHUB_COPILOT_CLI AgentTool = 5
 	AgentTool_AGENT_TOOL_OPENCODE           AgentTool = 6
 	AgentTool_AGENT_TOOL_CHATGPT            AgentTool = 7
@@ -1553,6 +1554,10 @@ const (
 	AgentTool_AGENT_TOOL_PERPLEXITY         AgentTool = 9
 	AgentTool_AGENT_TOOL_GOOGLE_AGENT       AgentTool = 10
 	AgentTool_AGENT_TOOL_GEMINI_NOTEBOOK    AgentTool = 11
+	AgentTool_AGENT_TOOL_ANTIGRAVITY        AgentTool = 12
+	AgentTool_AGENT_TOOL_PI                 AgentTool = 13
+	AgentTool_AGENT_TOOL_CLINE              AgentTool = 14
+	AgentTool_AGENT_TOOL_GITHUB_COPILOT     AgentTool = 15
 )
 
 // Enum value maps for AgentTool.
@@ -1570,6 +1575,10 @@ var (
 		9:  "AGENT_TOOL_PERPLEXITY",
 		10: "AGENT_TOOL_GOOGLE_AGENT",
 		11: "AGENT_TOOL_GEMINI_NOTEBOOK",
+		12: "AGENT_TOOL_ANTIGRAVITY",
+		13: "AGENT_TOOL_PI",
+		14: "AGENT_TOOL_CLINE",
+		15: "AGENT_TOOL_GITHUB_COPILOT",
 	}
 	AgentTool_value = map[string]int32{
 		"AGENT_TOOL_UNSPECIFIED":        0,
@@ -1584,6 +1593,10 @@ var (
 		"AGENT_TOOL_PERPLEXITY":         9,
 		"AGENT_TOOL_GOOGLE_AGENT":       10,
 		"AGENT_TOOL_GEMINI_NOTEBOOK":    11,
+		"AGENT_TOOL_ANTIGRAVITY":        12,
+		"AGENT_TOOL_PI":                 13,
+		"AGENT_TOOL_CLINE":              14,
+		"AGENT_TOOL_GITHUB_COPILOT":     15,
 	}
 )
 
@@ -10798,8 +10811,13 @@ type AgentUsageEvidence struct {
 	//
 	// PostHog property: tp.agent_usage.known_agent_user_agent
 	KnownAgentUserAgent []AgentTool `protobuf:"varint,6,rep,packed,name=known_agent_user_agent,json=knownAgentUserAgent,proto3,enum=prehog.v1alpha.AgentTool" json:"known_agent_user_agent,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// ai_agent is the value of the AI_AGENT environment variable, which agent
+	// tools set to name themselves.
+	//
+	// PostHog property: tp.agent_usage.ai_agent
+	AiAgent       string `protobuf:"bytes,7,opt,name=ai_agent,json=aiAgent,proto3" json:"ai_agent,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AgentUsageEvidence) Reset() {
@@ -10872,6 +10890,13 @@ func (x *AgentUsageEvidence) GetKnownAgentUserAgent() []AgentTool {
 		return x.KnownAgentUserAgent
 	}
 	return nil
+}
+
+func (x *AgentUsageEvidence) GetAiAgent() string {
+	if x != nil {
+		return x.AiAgent
+	}
+	return ""
 }
 
 type SubmitEventRequest struct {
@@ -13700,14 +13725,15 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x06params\x18\x04 \x03(\v2..prehog.v1alpha.UIInteractionEvent.ParamsEntryR\x06params\x1a9\n" +
 	"\vParamsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x99\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb4\x03\n" +
 	"\x12AgentUsageEvidence\x12%\n" +
 	"\x0eteleport_skill\x18\x01 \x01(\tR\rteleportSkill\x12Q\n" +
 	"\x17known_agent_environment\x18\x02 \x03(\x0e2\x19.prehog.v1alpha.AgentToolR\x15knownAgentEnvironment\x12V\n" +
 	"\x1aknown_agent_parent_process\x18\x03 \x03(\x0e2\x19.prehog.v1alpha.AgentToolR\x17knownAgentParentProcess\x12.\n" +
 	"\x13declared_web_driver\x18\x04 \x01(\bR\x11declaredWebDriver\x121\n" +
 	"\x14interactive_terminal\x18\x05 \x01(\bR\x13interactiveTerminal\x12N\n" +
-	"\x16known_agent_user_agent\x18\x06 \x03(\x0e2\x19.prehog.v1alpha.AgentToolR\x13knownAgentUserAgent\"\xf3i\n" +
+	"\x16known_agent_user_agent\x18\x06 \x03(\x0e2\x19.prehog.v1alpha.AgentToolR\x13knownAgentUserAgent\x12\x19\n" +
+	"\bai_agent\x18\a \x01(\tR\aaiAgent\"\xf3i\n" +
 	"\x12SubmitEventRequest\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12)\n" +
@@ -14056,21 +14082,25 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x1cACCESS_LIST_PRESET_LONG_TERM\x10\x02*\\\n" +
 	"\x13AccessListIntegrate\x12%\n" +
 	"!ACCESS_LIST_INTEGRATE_UNSPECIFIED\x10\x00\x12\x1e\n" +
-	"\x1aACCESS_LIST_INTEGRATE_OKTA\x10\x01*\xd8\x02\n" +
+	"\x1aACCESS_LIST_INTEGRATE_OKTA\x10\x01*\xc0\x03\n" +
 	"\tAgentTool\x12\x1a\n" +
 	"\x16AGENT_TOOL_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16AGENT_TOOL_CLAUDE_CODE\x10\x01\x12\x18\n" +
 	"\x14AGENT_TOOL_CODEX_CLI\x10\x02\x12\x19\n" +
 	"\x15AGENT_TOOL_GEMINI_CLI\x10\x03\x12\x1b\n" +
-	"\x17AGENT_TOOL_CURSOR_AGENT\x10\x04\x12!\n" +
-	"\x1dAGENT_TOOL_GITHUB_COPILOT_CLI\x10\x05\x12\x17\n" +
+	"\x17AGENT_TOOL_CURSOR_AGENT\x10\x04\x12%\n" +
+	"\x1dAGENT_TOOL_GITHUB_COPILOT_CLI\x10\x05\x1a\x02\b\x01\x12\x17\n" +
 	"\x13AGENT_TOOL_OPENCODE\x10\x06\x12\x16\n" +
 	"\x12AGENT_TOOL_CHATGPT\x10\a\x12\x15\n" +
 	"\x11AGENT_TOOL_CLAUDE\x10\b\x12\x19\n" +
 	"\x15AGENT_TOOL_PERPLEXITY\x10\t\x12\x1b\n" +
 	"\x17AGENT_TOOL_GOOGLE_AGENT\x10\n" +
 	"\x12\x1e\n" +
-	"\x1aAGENT_TOOL_GEMINI_NOTEBOOK\x10\v2\xb4\x02\n" +
+	"\x1aAGENT_TOOL_GEMINI_NOTEBOOK\x10\v\x12\x1a\n" +
+	"\x16AGENT_TOOL_ANTIGRAVITY\x10\f\x12\x11\n" +
+	"\rAGENT_TOOL_PI\x10\r\x12\x14\n" +
+	"\x10AGENT_TOOL_CLINE\x10\x0e\x12\x1d\n" +
+	"\x19AGENT_TOOL_GITHUB_COPILOT\x10\x0f2\xb4\x02\n" +
 	"\x18TeleportReportingService\x12[\n" +
 	"\vSubmitEvent\x12\".prehog.v1alpha.SubmitEventRequest\x1a#.prehog.v1alpha.SubmitEventResponse\"\x03\x88\x02\x01\x12[\n" +
 	"\fSubmitEvents\x12#.prehog.v1alpha.SubmitEventsRequest\x1a$.prehog.v1alpha.SubmitEventsResponse\"\x00\x12^\n" +

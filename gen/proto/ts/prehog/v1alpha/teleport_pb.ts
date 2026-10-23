@@ -3791,6 +3791,15 @@ export interface AgentUsageEvidence {
      * @generated from protobuf field: repeated prehog.v1alpha.AgentTool known_agent_user_agent = 6;
      */
     knownAgentUserAgent: AgentTool[];
+    /**
+     * ai_agent is the value of the AI_AGENT environment variable, which agent
+     * tools set to name themselves.
+     *
+     * PostHog property: tp.agent_usage.ai_agent
+     *
+     * @generated from protobuf field: string ai_agent = 7;
+     */
+    aiAgent: string;
 }
 /**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
@@ -5641,7 +5650,8 @@ export enum AgentTool {
      */
     CURSOR_AGENT = 4,
     /**
-     * @generated from protobuf enum value: AGENT_TOOL_GITHUB_COPILOT_CLI = 5;
+     * @deprecated
+     * @generated from protobuf enum value: AGENT_TOOL_GITHUB_COPILOT_CLI = 5 [deprecated = true];
      */
     GITHUB_COPILOT_CLI = 5,
     /**
@@ -5667,7 +5677,23 @@ export enum AgentTool {
     /**
      * @generated from protobuf enum value: AGENT_TOOL_GEMINI_NOTEBOOK = 11;
      */
-    GEMINI_NOTEBOOK = 11
+    GEMINI_NOTEBOOK = 11,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_ANTIGRAVITY = 12;
+     */
+    ANTIGRAVITY = 12,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_PI = 13;
+     */
+    PI = 13,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_CLINE = 14;
+     */
+    CLINE = 14,
+    /**
+     * @generated from protobuf enum value: AGENT_TOOL_GITHUB_COPILOT = 15;
+     */
+    GITHUB_COPILOT = 15
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
@@ -14079,7 +14105,8 @@ class AgentUsageEvidence$Type extends MessageType<AgentUsageEvidence> {
             { no: 3, name: "known_agent_parent_process", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["prehog.v1alpha.AgentTool", AgentTool, "AGENT_TOOL_"] },
             { no: 4, name: "declared_web_driver", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 5, name: "interactive_terminal", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 6, name: "known_agent_user_agent", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["prehog.v1alpha.AgentTool", AgentTool, "AGENT_TOOL_"] }
+            { no: 6, name: "known_agent_user_agent", kind: "enum", repeat: 1 /*RepeatType.PACKED*/, T: () => ["prehog.v1alpha.AgentTool", AgentTool, "AGENT_TOOL_"] },
+            { no: 7, name: "ai_agent", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AgentUsageEvidence>): AgentUsageEvidence {
@@ -14090,6 +14117,7 @@ class AgentUsageEvidence$Type extends MessageType<AgentUsageEvidence> {
         message.declaredWebDriver = false;
         message.interactiveTerminal = false;
         message.knownAgentUserAgent = [];
+        message.aiAgent = "";
         if (value !== undefined)
             reflectionMergePartial<AgentUsageEvidence>(this, message, value);
         return message;
@@ -14128,6 +14156,9 @@ class AgentUsageEvidence$Type extends MessageType<AgentUsageEvidence> {
                             message.knownAgentUserAgent.push(reader.int32());
                     else
                         message.knownAgentUserAgent.push(reader.int32());
+                    break;
+                case /* string ai_agent */ 7:
+                    message.aiAgent = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -14171,6 +14202,9 @@ class AgentUsageEvidence$Type extends MessageType<AgentUsageEvidence> {
                 writer.int32(message.knownAgentUserAgent[i]);
             writer.join();
         }
+        /* string ai_agent = 7; */
+        if (message.aiAgent !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.aiAgent);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
