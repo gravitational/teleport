@@ -91,8 +91,7 @@ function renderSettingsTab() {
       <QueryClientProvider client={testQueryClient}>
         <SettingsTab
           stats={baseStats}
-          activeInfoGuideTab={null}
-          onInfoGuideTabChange={() => {}}
+          header={<div>my-azure-integration: Edit configuration</div>}
         />
       </QueryClientProvider>
     </ContextProvider>
@@ -112,6 +111,9 @@ describe('SettingsTab', () => {
   test('does not mention other cloud providers', async () => {
     setupMocks();
     const { container } = renderSettingsTab();
+    expect(
+      screen.getByText('my-azure-integration: Edit configuration')
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText(/Integration Details/i)).toBeInTheDocument();
     });

@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { InfoGuideTab } from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
+import { type ReactNode } from 'react';
+
 import {
   IntegrationKind,
   IntegrationWithSummary,
@@ -27,29 +28,15 @@ import { SettingsTab as AzureSettingsTab } from './Azure/SettingsTab';
 
 export function SettingsTab({
   stats,
-  activeInfoGuideTab,
-  onInfoGuideTabChange,
+  header,
 }: {
   stats: IntegrationWithSummary;
-  activeInfoGuideTab: InfoGuideTab | null;
-  onInfoGuideTabChange: (tab: InfoGuideTab) => void;
+  header: ReactNode;
 }) {
   switch (stats.subKind) {
     case IntegrationKind.AwsOidc:
-      return (
-        <AwsSettingsTab
-          stats={stats}
-          activeInfoGuideTab={activeInfoGuideTab}
-          onInfoGuideTabChange={onInfoGuideTabChange}
-        />
-      );
+      return <AwsSettingsTab stats={stats} header={header} />;
     case IntegrationKind.AzureOidc:
-      return (
-        <AzureSettingsTab
-          stats={stats}
-          activeInfoGuideTab={activeInfoGuideTab}
-          onInfoGuideTabChange={onInfoGuideTabChange}
-        />
-      );
+      return <AzureSettingsTab stats={stats} header={header} />;
   }
 }

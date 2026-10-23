@@ -57,11 +57,7 @@ export function getRoutesToEnrollIntegrations() {
       key={IntegrationKind.AzureCloud}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AzureCloud)}
-      element={
-        <FeatureBox>
-          <EnrollAzure />
-        </FeatureBox>
-      }
+      element={<EnrollAzure />}
     />,
   ];
 }

@@ -17,13 +17,17 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import { Box, Card, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import Validation from 'shared/components/Validation';
 
+import {
+  ResizablePanelLayout,
+  ResizableSidePanelMainContent,
+} from 'teleport/components/SlidingSidePanel/ResizableSidePanel';
 import { DeploymentMethodSection } from 'teleport/Integrations/Enroll/Cloud/Aws/DeploymentMethodSection';
 import {
   ScopeSection,
@@ -41,11 +45,7 @@ import {
   ServiceType,
 } from 'teleport/Integrations/Enroll/Cloud/Aws/types';
 import { Divider } from 'teleport/Integrations/Enroll/Cloud/Shared';
-import {
-  InfoGuideTab,
-  TerraformInfoGuide,
-  TerraformInfoGuideSidePanel,
-} from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
+import { ResizableTerraformInfoGuideSidePanel } from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import {
   IntegrationAwsOidc,
@@ -58,6 +58,7 @@ import {
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from '../DeleteIntegrationSection';
+import { SettingsTabContainer } from '../SettingsTabContainer';
 
 const organizationFromIntegration = (
   integration?: IntegrationAwsOidc
@@ -92,12 +93,10 @@ const configFromRules = (rules: IntegrationDiscoveryRule[]): ServiceConfig => {
 
 export function SettingsTab({
   stats,
-  activeInfoGuideTab,
-  onInfoGuideTabChange,
+  header,
 }: {
   stats: IntegrationWithSummary;
-  activeInfoGuideTab: InfoGuideTab | null;
-  onInfoGuideTabChange: (tab: InfoGuideTab) => void;
+  header: ReactNode;
 }) {
   const integrationName = stats.name;
   const { clusterVersion } = useClusterVersion();
@@ -147,14 +146,22 @@ export function SettingsTab({
 
   if (isLoadingEc2 || isLoadingEks || isIntegrationLoading) {
     return (
-      <Flex justifyContent="center" mt={6}>
-        <Indicator />
-      </Flex>
+      <SettingsTabContainer>
+        {header}
+        <Flex justifyContent="center" mt={6}>
+          <Indicator />
+        </Flex>
+      </SettingsTabContainer>
     );
   }
 
   if (isEc2Error || isEksError || isIntegrationError) {
-    return <Danger>Failed to load the integration settings.</Danger>;
+    return (
+      <SettingsTabContainer>
+        {header}
+        <Danger>Failed to load the integration settings.</Danger>
+      </SettingsTabContainer>
+    );
   }
 
   const initialOrgUnits = organizationFromIntegration(integration);
@@ -191,65 +198,62 @@ export function SettingsTab({
   return (
     <Validation>
       {({ validator }) => (
-        <Flex>
-          <Box flex="1">
-            <Card p={4} mb={3}>
-              <Box mb={4}>
-                <IntegrationSection
-                  integrationName={integrationName}
-                  onChange={() => {}}
-                  disabled={true}
+        <ResizablePanelLayout $withHorizontalScroll>
+          <ResizableSidePanelMainContent $minWidth={650}>
+            <SettingsTabContainer>
+              {header}
+              <Card p={4} mb={3}>
+                <Box mb={4}>
+                  <IntegrationSection
+                    integrationName={integrationName}
+                    onChange={() => {}}
+                    disabled={true}
+                  />
+                </Box>
+                <Divider />
+                <ScopeSection
+                  scope={scope}
+                  onScopeChange={setScope}
+                  orgUnits={orgUnits}
+                  onOrgUnitsChange={setOrgUnits}
                 />
-              </Box>
-              <Divider />
-              <ScopeSection
-                scope={scope}
-                onScopeChange={setScope}
-                orgUnits={orgUnits}
-                onOrgUnitsChange={setOrgUnits}
-              />
-              <Divider />
-              <ResourcesSection
-                configs={supportedConfigs}
-                onConfigChange={updateConfig}
-                isOrganization={isOrganization}
-              />
-              <Divider />
-              <DeploymentMethodSection
-                isOrganization={isOrganization}
-                terraformConfig={terraformConfig}
-                handleCopy={() => {
-                  if (validator.validate() && terraformConfig) {
-                    copyToClipboard(terraformConfig);
-                  }
-                }}
-                integrationExists={true}
-                showVerificationStep={false}
-              />
-            </Card>
+                <Divider />
+                <ResourcesSection
+                  configs={supportedConfigs}
+                  onConfigChange={updateConfig}
+                  isOrganization={isOrganization}
+                />
+                <Divider />
+                <DeploymentMethodSection
+                  isOrganization={isOrganization}
+                  terraformConfig={terraformConfig}
+                  handleCopy={() => {
+                    if (validator.validate() && terraformConfig) {
+                      copyToClipboard(terraformConfig);
+                    }
+                  }}
+                  integrationExists={true}
+                  showVerificationStep={false}
+                />
+              </Card>
 
-            <DeleteIntegrationSection
-              integrationName={integrationName}
-              kind={IntegrationKind.AwsOidc}
-            />
-          </Box>
-
-          <TerraformInfoGuideSidePanel
-            activeTab={activeInfoGuideTab}
-            onTabChange={onInfoGuideTabChange}
-            InfoGuideContent={<InfoGuideContent />}
-            TerraformContent={
-              <TerraformInfoGuide
-                terraformConfig={terraformConfig}
-                handleCopy={() => {
-                  if (validator.validate() && terraformConfig) {
-                    copyToClipboard(terraformConfig);
-                  }
-                }}
+              <DeleteIntegrationSection
+                integrationName={integrationName}
+                kind={IntegrationKind.AwsOidc}
               />
-            }
+            </SettingsTabContainer>
+          </ResizableSidePanelMainContent>
+
+          <ResizableTerraformInfoGuideSidePanel
+            infoGuideContent={<InfoGuideContent />}
+            terraformConfig={terraformConfig}
+            handleCopy={() => {
+              if (validator.validate() && terraformConfig) {
+                copyToClipboard(terraformConfig);
+              }
+            }}
           />
-        </Flex>
+        </ResizablePanelLayout>
       )}
     </Validation>
   );

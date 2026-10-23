@@ -81,8 +81,7 @@ function renderSettingsTab() {
       <QueryClientProvider client={testQueryClient}>
         <SettingsTab
           stats={baseStats}
-          activeInfoGuideTab={null}
-          onInfoGuideTabChange={() => {}}
+          header={<div>my-aws-integration: Edit configuration</div>}
         />
       </QueryClientProvider>
     </ContextProvider>
@@ -103,6 +102,10 @@ describe('SettingsTab', () => {
     test('does not render for single account', async () => {
       setupMocks();
       renderSettingsTab();
+
+      expect(
+        screen.getByText('my-aws-integration: Edit configuration')
+      ).toBeInTheDocument();
 
       await waitFor(() => {
         expect(

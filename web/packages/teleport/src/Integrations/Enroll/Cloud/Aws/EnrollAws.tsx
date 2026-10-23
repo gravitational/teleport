@@ -19,15 +19,7 @@
 import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router';
 
-import {
-  Box,
-  ButtonSecondary,
-  Flex,
-  ResourceIcon,
-  Subtitle1,
-  Text,
-} from 'design';
-import { Info } from 'design/Icon';
+import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
 import { MarkInverse } from 'design/Mark';
 import { RadioGroup } from 'design/RadioGroup';
 import FieldInput from 'shared/components/FieldInput';
@@ -40,15 +32,8 @@ import {
 
 import {
   ResizableSidePanelMainContent,
-  getPanelTitle,
   ResizablePanelLayout,
-  ResizableSidePanel,
-  useResizableSidePanel,
 } from 'teleport/components/SlidingSidePanel/ResizableSidePanel';
-import {
-  SidePanelTab,
-  SidePanelTabs,
-} from 'teleport/components/SlidingSidePanel/ResizableSidePanel/SidePanelTab';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
@@ -63,7 +48,8 @@ import {
   Divider,
   useEnrollCloudIntegration,
 } from '../Shared';
-import { TerraformInfoGuide } from '../Shared/InfoGuide';
+import { ResizableTerraformInfoGuideSidePanel } from '../Shared/InfoGuide';
+import { BackBtn } from '../Shared/Shared';
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import { InfoGuideContent } from './InfoGuide';
 import { ResourcesSection } from './ResourcesSection';
@@ -135,21 +121,28 @@ export function EnrollAws() {
     ]
   );
 
-  const sidePanel = useResizableSidePanel();
-
   return (
     <Validation>
       {({ validator }) => (
         <ResizablePanelLayout $withHorizontalScroll>
           <ResizableSidePanelMainContent $minWidth={650}>
-            <Box pt={3} pb={5} px={6} maxWidth={800}>
-              <Flex justifyContent="space-between" alignItems="center" mb={1}>
-                <Header>Connect Amazon Web Services</Header>
+            <Box pt={3} pb={5} px={6} maxWidth={930}>
+              <Flex>
+                <BackBtn />
+                <Box>
+                  <Flex
+                    justifyContent="space-between"
+                    alignItems="center"
+                    mb={1}
+                  >
+                    <Header>Connect Amazon Web Services</Header>
+                  </Flex>
+                  <Subtitle1 mb={3}>
+                    Connect your AWS account to automatically discover and
+                    enroll resources in your Teleport Cluster.
+                  </Subtitle1>
+                </Box>
               </Flex>
-              <Subtitle1 mb={3}>
-                Connect your AWS account to automatically discover and enroll
-                resources in your Teleport Cluster.
-              </Subtitle1>
               <Container flexDirection="column" p={4} mb={3}>
                 <IntegrationSection
                   integrationName={integrationName}
@@ -206,46 +199,15 @@ export function EnrollAws() {
               </Box>
             </Box>
           </ResizableSidePanelMainContent>
-          <SidePanelTabs>
-            <SidePanelTab
-              ariaLabel={'Info Guide'}
-              isActive={sidePanel.isOpen && sidePanel.activeTab === 'info'}
-              onClick={() => sidePanel.toggleTab('info')}
-            >
-              <Info size="small" />
-            </SidePanelTab>
-
-            <SidePanelTab
-              ariaLabel="Terraform Configuration"
-              isActive={sidePanel.isOpen && sidePanel.activeTab === 'terraform'}
-              onClick={() => sidePanel.toggleTab('terraform')}
-            >
-              <ResourceIcon name="terraform" width="20px" height="20px" />
-            </SidePanelTab>
-          </SidePanelTabs>
-          {sidePanel.isOpen && (
-            <ResizableSidePanel
-              title={getPanelTitle(sidePanel.activeTab)}
-              width={sidePanel.width}
-              onWidthChange={sidePanel.updateWidth}
-              onClose={sidePanel.close}
-            >
-              <Box px={3} pb={3}>
-                {sidePanel.activeTab === 'info' ? (
-                  <InfoGuideContent />
-                ) : (
-                  <TerraformInfoGuide
-                    terraformConfig={terraformConfig}
-                    handleCopy={() => {
-                      if (validator.validate() && terraformConfig) {
-                        copyTerraformConfig(terraformConfig);
-                      }
-                    }}
-                  />
-                )}
-              </Box>
-            </ResizableSidePanel>
-          )}
+          <ResizableTerraformInfoGuideSidePanel
+            infoGuideContent={<InfoGuideContent />}
+            terraformConfig={terraformConfig}
+            handleCopy={() => {
+              if (validator.validate() && terraformConfig) {
+                copyTerraformConfig(terraformConfig);
+              }
+            }}
+          />
         </ResizablePanelLayout>
       )}
     </Validation>
