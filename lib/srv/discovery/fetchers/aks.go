@@ -150,7 +150,7 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 			a.Logger.WarnContext(ctx, "Unable to create Kubernetes cluster from azure.AKSCluster", "error", err)
 			continue
 		}
-		if match, reason, err := services.MatchLabels(a.FilterLabels, kubeCluster.GetAllLabels()); err != nil {
+		if match, reason, err := services.MatchLabelsWithReason(a.FilterLabels, kubeCluster.GetAllLabels()); err != nil {
 			a.Logger.WarnContext(ctx, "Unable to match AKS cluster labels against match labels", "error", err)
 			continue
 		} else if !match {

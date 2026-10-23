@@ -492,6 +492,13 @@ type allowedResourceMatch struct {
 	Match *types.ResourceAccessID
 }
 
+var errUnenforeableConstraints = &trace.AccessDeniedError{
+	Message: "access to resource denied because it carries constraints this component cannot enforce; they may have been created by a newer Teleport version",
+}
+var errNotInAllowedResourceIDs = &trace.AccessDeniedError{
+	Message: "access to resource denied, not in allowed resource IDs",
+}
+
 // checkAllowedResources enforces AllowedResourceAccessIDs if present on the identity.
 func (a *accessChecker) checkAllowedResources(r AccessCheckable) (allowedResourceMatch, error) {
 	if len(a.info.AllowedResourceAccessIDs) == 0 {
@@ -517,10 +524,11 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) (allowedResourc
 				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access denied, matched resource ID carries constraints this component cannot enforce",
 					slog.String("resource_id", types.ResourceIDToString(id)),
 				)
+				return allowedResourceMatch{}, trace.AccessDenied(
+					"access to %v %+q denied because it carries constraints this component cannot enforce; they may have been created by a newer Teleport version",
+					r.GetKind(), r.GetName())
 			}
-			return allowedResourceMatch{}, trace.AccessDenied(
-				"access to %v %+q denied because it carries constraints this component cannot enforce; they may have been created by a newer Teleport version",
-				r.GetKind(), r.GetName())
+			return allowedResourceMatch{}, errUnenforeableConstraints
 		}
 		if match == nil {
 			match = &resourceID
@@ -553,7 +561,7 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) (allowedResourc
 			r.GetKind(), r.GetName(), allowedResources)
 	}
 
-	return allowedResourceMatch{}, trace.AccessDenied("access to %v denied, not in allowed resource IDs", r.GetKind())
+	return allowedResourceMatch{}, errNotInAllowedResourceIDs
 }
 
 // matchesUCRResource matches requested resource with its respective
@@ -607,29 +615,37 @@ func (a *accessChecker) blockedInDelegationSession(kind, verb string) bool {
 		return false
 	}
 
-	// Collect all the resource kinds the session has access to.
-	allowedKinds := set.New[string]()
-	for _, id := range a.GetAllowedResourceAccessIDs() {
-		allowedKinds.Add(id.GetResourceID().Kind)
+	switch verb {
+	// These verbs are allowed to enable `tsh ls`, etc.
+	case types.VerbList, types.VerbRead, types.VerbReadNoSecrets:
+	default:
+		return true
 	}
 
-	// Also add the implied resource kinds (e.g. app -> app_server).
-	impliedKinds := map[string][]string{
-		types.KindApp:               []string{types.KindAppServer},
-		types.KindDatabase:          []string{types.KindDatabaseServer},
-		types.KindKubernetesCluster: []string{types.KindKubeServer},
-		types.KindWindowsDesktop:    []string{types.KindWindowsDesktopService},
-	}
-	for parent, children := range impliedKinds {
-		if allowedKinds.Contains(parent) {
-			allowedKinds.Add(children...)
+	for _, id := range a.GetAllowedResourceAccessIDs() {
+		resourceKind := id.GetResourceID().Kind
+		if kind == resourceKind {
+			return false
+		}
+		// Also check the implied resource kinds (e.g. app -> app_server).
+		if kind == types.KindAppServer && resourceKind == types.KindApp {
+			return false
+		}
+		if kind == types.KindDatabaseServer && resourceKind == types.KindDatabase {
+			return false
+		}
+		if kind == types.KindKubeServer && resourceKind == types.KindKubernetesCluster {
+			return false
+		}
+		if kind == types.KindWindowsDesktopService && resourceKind == types.KindWindowsDesktop {
+			return false
 		}
 	}
 
-	// These verbs are allowed to enable `tsh ls`, etc.
-	allowedVerbs := set.New(types.VerbList, types.VerbRead, types.VerbReadNoSecrets)
-	return !allowedKinds.Contains(kind) || !allowedVerbs.Contains(verb)
+	return true
 }
+
+var errAccessDeniedForKind = &trace.AccessDeniedError{Message: "access denied to perform action on resource kind"}
 
 // CheckAccessToRule checks access to a rule within a namespace.
 //
@@ -638,7 +654,7 @@ func (a *accessChecker) blockedInDelegationSession(kind, verb string) bool {
 // admin/rule based privileges
 func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
 	if a.blockedInDelegationSession(resource, verb) {
-		return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+		return errAccessDeniedForKind
 	}
 	return a.RoleSet.CheckAccessToRule(ctx, namespace, resource, verb)
 }
@@ -647,7 +663,7 @@ func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, res
 // of resources.
 func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string) error {
 	if a.blockedInDelegationSession(resource, verb) {
-		return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+		return errAccessDeniedForKind
 	}
 	return a.RoleSet.GuessIfAccessIsPossible(ctx, namespace, resource, verb)
 }
@@ -656,7 +672,7 @@ func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace strin
 // for list queries based on the rules' `where` conditions.
 func (a *accessChecker) ExtractConditionForIdentifier(ctx RuleContext, namespace, resource, verb, identifier string) (*types.WhereExpr, error) {
 	if a.blockedInDelegationSession(resource, verb) {
-		return nil, trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+		return nil, errAccessDeniedForKind
 	}
 	return a.RoleSet.ExtractConditionForIdentifier(ctx, namespace, resource, verb, identifier)
 }
@@ -668,7 +684,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	state.ReturnPreconditions = false
 
 	_, err := a.validateAccessConditions(r, state, matchers...)
-	return trace.Wrap(err)
+	return err
 }
 
 // CheckConditionalAccess checks if the identity for this AccessChecker has conditional access to the given resource.
@@ -683,7 +699,7 @@ func (a *accessChecker) validateAccessConditions(r AccessCheckable, state Access
 	// Enforce AllowedResourceAccessIDs if present; capture match
 	res, err := a.checkAllowedResources(r)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	switch rr := r.(type) {
@@ -701,12 +717,19 @@ func (a *accessChecker) validateAccessConditions(r AccessCheckable, state Access
 		}
 	}
 
-	preconds, err := a.checkAccess(r, a.info.Username, a.info.Traits, state, matchers...)
+	requiredMFAPrecondition, err := a.checkAccess(r, a.info.Username, a.info.Traits, state, matchers...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
+	}
+	if requiredMFAPrecondition {
+		return []*decisionpb.Precondition{
+			decisionpb.Precondition_builder{
+				Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+			}.Build(),
+		}, nil
 	}
 
-	return preconds, nil
+	return nil, nil
 }
 
 // CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.

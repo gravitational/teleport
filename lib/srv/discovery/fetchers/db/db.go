@@ -297,7 +297,7 @@ func MakeGCPFetchers(logger *slog.Logger, gcpClients gcp.Clients, matchers []typ
 func filterDatabasesByLabels(ctx context.Context, databases types.Databases, labels types.Labels, logger *slog.Logger) types.Databases {
 	var matchedDatabases types.Databases
 	for _, database := range databases {
-		match, _, err := services.MatchLabels(labels, database.GetAllLabels())
+		match, err := services.MatchLabels(labels, database.GetAllLabels())
 		if err != nil {
 			logger.WarnContext(ctx, "Failed to match database gainst selector", "database", database, "error", err)
 		} else if match {

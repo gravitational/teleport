@@ -357,7 +357,7 @@ func (f *eksFetcher) getMatchingKubeCluster(ctx context.Context, eksClient EKSCl
 		return nil, trace.WrapWithMessage(err, "Unable to convert EKS cluster %q into a Teleport kube cluster", clusterName)
 	}
 
-	if match, reason, err := services.MatchLabels(f.Matcher.Tags, kube.GetAllLabels()); err != nil {
+	if match, reason, err := services.MatchLabelsWithReason(f.Matcher.Tags, kube.GetAllLabels()); err != nil {
 		return nil, trace.WrapWithMessage(err, "Unable to match EKS cluster labels against match labels.")
 	} else if !match {
 		return nil, trace.CompareFailed("EKS cluster %q labels does not match the selector: %s", clusterName, reason)

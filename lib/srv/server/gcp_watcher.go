@@ -165,7 +165,7 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*GCPIn
 				if len(f.ServiceAccounts) > 0 && !slices.Contains(f.ServiceAccounts, vm.ServiceAccount) {
 					continue
 				}
-				if match, _, _ := services.MatchLabels(f.Labels, vm.Labels); !match {
+				if match, _ := services.MatchLabels(f.Labels, vm.Labels); !match {
 					continue
 				}
 				filteredVMs = append(filteredVMs, vm)
