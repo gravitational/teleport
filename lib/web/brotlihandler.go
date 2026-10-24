@@ -25,6 +25,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/andybalholm/brotli"
 )
 
 var compressedFileExtensions = []string{
@@ -34,14 +36,26 @@ var compressedFileExtensions = []string{
 }
 
 // makeBrotliHandler serves pre-compressed .br files for supported file types.
+// Clients that do not accept brotli receive the decompressed contents when
+// only the pre-compressed file exists.
 func makeBrotliHandler(handler http.Handler, fs http.FileSystem) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ext := path.Ext(r.URL.Path)
 		isRequestForCompressedFile := slices.Contains(compressedFileExtensions, ext)
-		clientAcceptsBrotli := strings.Contains(r.Header.Get("Accept-Encoding"), "br")
-		if !isRequestForCompressedFile || !clientAcceptsBrotli {
+		if !isRequestForCompressedFile {
 			handler.ServeHTTP(w, r)
 			return
+		}
+
+		clientAcceptsBrotli := strings.Contains(r.Header.Get("Accept-Encoding"), "br")
+		if !clientAcceptsBrotli {
+			// Serve the original file if it exists (for example, files below
+			// the compression threshold or builds without compression).
+			if f, err := fs.Open(r.URL.Path); err == nil {
+				f.Close()
+				handler.ServeHTTP(w, r)
+				return
+			}
 		}
 
 		brPath := r.URL.Path + ".br"
@@ -57,13 +71,20 @@ func makeBrotliHandler(handler http.Handler, fs http.FileSystem) http.Handler {
 			contentType = "application/octet-stream" // same default as http.DetectContentType
 		}
 
-		w.Header().Set("Content-Encoding", "br")
+		w.Header().Add("Vary", "Accept-Encoding")
 		w.Header().Set("Content-Type", contentType)
+		if clientAcceptsBrotli {
+			w.Header().Set("Content-Encoding", "br")
+		}
 
 		if r.Method == http.MethodHead {
 			return
 		}
 
-		io.Copy(w, brFile)
+		if clientAcceptsBrotli {
+			io.Copy(w, brFile)
+			return
+		}
+		io.Copy(w, brotli.NewReader(brFile))
 	})
 }
