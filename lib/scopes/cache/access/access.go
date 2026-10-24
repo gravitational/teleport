@@ -20,6 +20,7 @@ package access
 
 import (
 	"context"
+	"encoding/base32"
 	"log/slog"
 	"sync"
 	"time"
@@ -233,6 +234,85 @@ func (c *Cache) ListScopedRoleAssignmentsWithFilter(ctx context.Context, req *sc
 	}
 
 	return state.assignments.ListScopedRoleAssignmentsWithFilter(ctx, req, filter)
+}
+
+// ListAssignedScopes returns a list of given user's assigned scopes in
+// alphabetical order.
+func (c *Cache) ListAssignedScopes(
+	ctx context.Context, user string, req *scopedaccessv1.ListAssignedScopesRequest,
+) (*scopedaccessv1.ListAssignedScopesResponse, error) {
+	state, err := c.read(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pageSize := int(req.GetPageSize())
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	if pageSize > 1000 {
+		pageSize = 1000
+	}
+
+	start, err :=
+		base32.HexEncoding.WithPadding(base32.NoPadding).DecodeString(req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res := scopedaccessv1.ListAssignedScopesResponse_builder{
+		Scopes: make([]string, 0, pageSize),
+	}
+
+	// List all scopes that correspond to known subassignments.
+	for subAssignment := range state.assignments.ListSubAssignments(
+		user, req.GetPrefix(), string(start),
+	) {
+		// Subassignments are returned ordered primarily by the Scope field, so we
+		// can deduplicate scopes simply by skipping a scope if it's equal to the
+		// last one. It's important to skip the duplicates before checking if we
+		// reached the page size to make sure that the next page token is not the
+		// same as the last returned scope.
+		if len(res.Scopes) > 0 && subAssignment.Scope == res.Scopes[len(res.Scopes)-1] {
+			continue
+		}
+
+		if len(res.Scopes) >= pageSize {
+			res.NextPageToken =
+				base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(subAssignment.Scope))
+			break
+		}
+
+		roleRef, err := scopes.ParseQualifiedName(subAssignment.Role)
+		if err != nil {
+			continue
+		}
+
+		// Only list assignments that match actual roles.
+		srRes, err := state.roles.GetScopedRole(
+			ctx,
+			scopedaccessv1.GetScopedRoleRequest_builder{
+				Name:  roleRef.Name,
+				Scope: roleRef.Scope,
+			}.Build())
+		if trace.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Only list assignments that are enforceable by the subassignment.
+		if !scopedaccess.RoleIsEnforceableAt(srRes.GetRole(), scopes.EnforcementPoint{
+			ScopeOfOrigin: subAssignment.RoleAssignmentScope,
+			ScopeOfEffect: subAssignment.Scope,
+		}) {
+			continue
+		}
+
+		res.Scopes = append(res.Scopes, subAssignment.Scope)
+	}
+	return res.Build(), nil
 }
 
 // PopulatePinnedAssignmentsForUser populates the provided scope pin with all relevant assignments related to the

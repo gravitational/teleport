@@ -70,13 +70,11 @@ import (
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
-	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -100,7 +98,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -111,8 +108,6 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
-	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -1338,6 +1333,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// MWI IaC Wizards
 	h.POST("/webapi/sites/:site/machine-id/wizards/ci-cd", h.WithClusterAuth(h.machineIDWizardGenerateIaC))
+
+	h.GET("/webapi/assignedscopes", h.WithAuth(h.listAssignedScopes))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1427,7 +1424,7 @@ func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Reque
 // getUserContext returns user context
 //
 // GET /webapi/sites/:site/context
-func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	cn, err := h.cfg.AccessPoint.GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1435,24 +1432,24 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if cn.GetClusterName() != cluster.GetName() {
 		return nil, trace.BadParameter("endpoint only implemented for root cluster")
 	}
-	accessChecker, err := c.GetUserAccessChecker()
+	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := c.GetClient()
+	clt, err := sctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := clt.GetUser(r.Context(), c.GetUser(), false)
+	user, err := clt.GetUser(r.Context(), sctx.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// The following section is similar to
 	// https://github.com/gravitational/teleport/blob/ea810d30d99f26e58a190edc5facfbe0c09ea5e5/lib/srv/desktop/windows_server.go#L757-L769
-	recConfig, err := c.cfg.UnsafeCachedAuthClient.GetSessionRecordingConfig(r.Context())
+	recConfig, err := sctx.cfg.UnsafeCachedAuthClient.GetSessionRecordingConfig(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1508,73 +1505,10 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		userContext.Cluster.LicenseExpiry = pingResp.LicenseExpiry
 	}
 
-	userContext.ConsumedAccessRequestID = c.cfg.Session.GetConsumedAccessRequestID()
+	userContext.ConsumedAccessRequestID = sctx.cfg.Session.GetConsumedAccessRequestID()
 
 	if h.cfg.ScopesFeatures.Enabled {
-		assignments, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(
-			r.Context(), clt.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				// Note that we are using the AllCallerAssignments flag here rather
-				// than just looking for our assignments by username. This flag
-				// suppresses standard scope-pinning, which allows us to see
-				// assignments in parent/orthogonal scopes. Generally, scoped commands
-				// only show the subset of state subject to the currently pinned scope,
-				// but the purpose of this function is specifically to discover
-				// potential target scopes for logging in, so we want to see everything
-				// regardless of current scope.
-				AllCallerAssignments: true,
-				ScopeFilter: scopesv1.Filter_builder{
-					Mode: scopesv1.Mode_MODE_ALL,
-				}.Build(),
-			}.Build(),
-		))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		var assignedScopes []string
-		for _, assignment := range assignments {
-			for subAssignment := range scopedaccess.WeakValidatedSubAssignments(assignment) {
-				roleRef, err := apiscopes.ParseQualifiedName(subAssignment.GetRole())
-				if err != nil {
-					continue
-				}
-
-				// This is currently inefficient if there are multiple references to
-				// the same scoped role in the assignments, but this will be alleviated
-				// later when caching is implemented for the scoped role reader.
-				res, err := c.cfg.UnsafeScopedRoleReader.GetScopedRole(
-					r.Context(),
-					scopedaccessv1.GetScopedRoleRequest_builder{
-						Name:  roleRef.Name,
-						Scope: roleRef.Scope,
-					}.Build())
-				if trace.IsNotFound(err) {
-					continue
-				}
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				if !scopedaccess.RoleIsEnforceableAt(res.GetRole(), apiscopes.EnforcementPoint{
-					ScopeOfOrigin: assignment.GetScope(),
-					ScopeOfEffect: subAssignment.GetScope(),
-				}) {
-					continue
-				}
-
-				assignedScopes = append(assignedScopes, subAssignment.GetScope())
-			}
-		}
-
-		// apply canonical sorting and deduplication
-		slices.SortFunc(assignedScopes, apiscopes.Sort)
-		assignedScopes = slices.CompactFunc(assignedScopes, func(a, b string) bool {
-			return apiscopes.Compare(a, b) == apiscopes.Equivalent
-		})
-
-		userContext.AvailableScopes = assignedScopes
-
-		userContext.Scope, err = scopeFromSessionContext(c)
+		userContext.Scope, err = scopeFromSessionContext(sctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

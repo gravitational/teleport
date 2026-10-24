@@ -20,8 +20,10 @@ package assignments
 
 import (
 	"context"
+	"iter"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -49,7 +51,10 @@ type AssignmentCacheConfig struct {
 
 // AssignmentCache is a cache for scoped role assignments.
 type AssignmentCache struct {
+	// mu is used to maintain consistency between the cache and the index.
+	mu    sync.RWMutex
 	cache *cache.Cache[*scopedaccessv1.ScopedRoleAssignment, string]
+	index *assignmentIndex
 	cfg   AssignmentCacheConfig
 }
 
@@ -79,7 +84,8 @@ func NewAssignmentCache(cfg AssignmentCacheConfig) *AssignmentCache {
 			},
 			Clone: proto.CloneOf[*scopedaccessv1.ScopedRoleAssignment],
 		}),
-		cfg: cfg,
+		index: newAssignmentIndex(),
+		cfg:   cfg,
 	}
 }
 
@@ -88,6 +94,9 @@ func (c *AssignmentCache) GetScopedRoleAssignment(ctx context.Context, req *scop
 	if req.GetName() == "" {
 		return nil, trace.BadParameter("missing scoped role assignment name in get request")
 	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	assignment, ok := c.cache.Get(cache.ScopedKey[string]{
 		Scope: req.GetScope(),
@@ -149,6 +158,9 @@ func (c *AssignmentCache) ListScopedRoleAssignmentsWithFilter(ctx context.Contex
 		return nil, trace.Wrap(err)
 	}
 
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	// the primary scope filter selects the cache traversal strategy.
 	resources, err := c.cache.ResourcesMatchingScopeFilter(req.GetScopeFilter(), c.cache.WithFilter(filter), c.cache.WithCursor(cursor))
 	if err != nil {
@@ -188,29 +200,80 @@ Outer:
 	}, nil
 }
 
+// ListSubAssignments returns a list of given user's assigned subassignments,
+// sorted by the scope of effect. Only scopes that start from a certain prefix
+// are returned. The `start` argument, if not empty, indicates that only scopes
+// that are greater or equal to the start scope (in alphabetical order) are
+// returned.
+//
+// This function is safe for concurrent use and a read lock is held on the
+// cache for the entire time of iterating on the returned iterator.
+func (c *AssignmentCache) ListSubAssignments(user, prefix, start string) iter.Seq[IndexedAssignment] {
+	return func(yield func(IndexedAssignment) bool) {
+		c.mu.RLock()
+		defer c.mu.RUnlock()
+
+		for assignment := range c.index.AssignmentsForUser(user, prefix, start) {
+			if !yield(assignment) {
+				return
+			}
+		}
+	}
+}
+
 // Put adds a new assignment to the cache. It will overwrite any existing assignment with the same name.
 func (c *AssignmentCache) Put(assignment *scopedaccessv1.ScopedRoleAssignment) error {
 	if err := scopedaccess.WeakValidateAssignment(assignment); err != nil {
 		return trace.Wrap(err)
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// If the entry has been edited, first remove it from the index prior to
+	// putting the edited value to correctly account for the reference counter.
+	key := cache.ScopedKey[string]{
+		Scope: assignment.GetScope(),
+		Key: assignmentKey{
+			name:    assignment.GetMetadata().GetName(),
+			subKind: assignment.GetSubKind(),
+		}.String(),
+	}
+	existing, ok := c.cache.Get(key)
+	if ok {
+		c.index.Del(existing)
+	}
+
 	c.cache.Put(assignment)
+	c.index.Put(assignment)
 	return nil
 }
 
 // Delete removes an assignment from the cache by its scope-qualified name and sub-kind.
 func (c *AssignmentCache) Delete(assignment apiscopes.QualifiedName, subKind string) {
-	c.cache.Del(cache.ScopedKey[string]{
+	key := cache.ScopedKey[string]{
 		Scope: assignment.Scope,
 		Key: assignmentKey{
 			name:    assignment.Name,
 			subKind: subKind,
 		}.String(),
-	})
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	a, ok := c.cache.Get(key)
+	if ok {
+		c.cache.Del(key)
+		c.index.Del(a)
+	}
 }
 
 // Len returns the total number of assignments in the cache.
 func (c *AssignmentCache) Len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	return c.cache.Len()
 }
 

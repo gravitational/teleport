@@ -578,3 +578,23 @@ func (s *Server) UpsertScopedRoleAssignment(ctx context.Context, req *scopedacce
 
 	return s.cfg.Writer.UpsertScopedRoleAssignment(ctx, req)
 }
+
+// ListAssignedScopes returns a list of current user's assigned scopes in
+// alphabetical order.
+func (s *Server) ListAssignedScopes(
+	ctx context.Context, req *scopedaccessv1.ListAssignedScopesRequest,
+) (*scopedaccessv1.ListAssignedScopesResponse, error) {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authzContext, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if authzContext.User == nil {
+		return nil, trace.AccessDenied("assigned scopes are only available to users, not scoped agents")
+	}
+	res, err := s.cfg.Reader.ListAssignedScopes(ctx, authzContext.User.GetName(), req)
+	return res, trace.Wrap(err)
+}
