@@ -340,6 +340,11 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			h.logger.WarnContext(ctx, "Skipping upload, not a directory.", "upload_id", uploadID)
 			continue
 		}
+		sessionID := session.ID(filepath.Base(files[0].Name()))
+		if err := sessionID.Check(); err != nil {
+			h.logger.WarnContext(ctx, "Skipping upload with bad session ID", "upload_id", uploadID, "session_id", sessionID, "error", err)
+			continue
+		}
 
 		info, err := dir.Info()
 		if err != nil {
@@ -348,7 +353,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		}
 
 		uploads = append(uploads, events.StreamUpload{
-			SessionID: session.ID(filepath.Base(files[0].Name())),
+			SessionID: sessionID,
 			ID:        uploadID,
 			Initiated: info.ModTime(),
 		})
@@ -371,6 +376,10 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 
 // ReserveUploadPart reserves an upload part.
 func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	if err := checkUpload(upload); err != nil {
+		return trace.Wrap(err)
+	}
+
 	file, partPath, err := h.openReservationPart(upload, partNumber)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -459,9 +468,8 @@ func checkUpload(upload events.StreamUpload) error {
 // checkUploadID checks that upload ID is a valid UUID
 // to avoid path scanning or using local paths as upload IDs
 func checkUploadID(uploadID string) error {
-	_, err := uuid.Parse(uploadID)
-	if err != nil {
-		return trace.WrapWithMessage(err, "bad format of upload ID")
+	if _, err := uuid.Parse(uploadID); err != nil {
+		return trace.BadParameter("upload ID %q is not a valid UUID", uploadID)
 	}
 	return nil
 }

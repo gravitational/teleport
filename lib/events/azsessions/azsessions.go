@@ -73,6 +73,29 @@ func sessionName(sid session.ID) string {
 // Listing blobs with this prefix will return an empty blob for each upload.
 const uploadMarkerPrefix = "upload/"
 
+// checkUpload validates an upload received from the outside. The upload ID and
+// session ID are interpolated into blob names, so we run the standard defaults
+// check and in addition verify that the upload ID is a valid UUID to prevent
+// path injection from untrusted input.
+func checkUpload(upload events.StreamUpload) error {
+	if err := upload.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUploadID(upload.ID); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// checkUploadID checks that upload ID is a valid UUID to avoid blob scanning or
+// using arbitrary paths as upload IDs.
+func checkUploadID(uploadID string) error {
+	if _, err := uuid.Parse(uploadID); err != nil {
+		return trace.BadParameter("upload ID %q is not a valid UUID", uploadID)
+	}
+	return nil
+}
+
 // uploadMarkerName returns the blob name for the marker for a given upload.
 func uploadMarkerName(upload events.StreamUpload) string {
 	return fmt.Sprintf("%v%v/%v", uploadMarkerPrefix, upload.SessionID, upload.ID)
@@ -320,6 +343,10 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 // inprogress container, using the Put Block From URL API. Might take a little
 // time, but doesn't require any data transfer.
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+	if err := checkUpload(upload); err != nil {
+		return trace.Wrap(err)
+	}
+
 	sessionBlob := h.sessionBlob(upload.SessionID)
 
 	// TODO(espadolini): explore the possibility of using leases to get
@@ -444,11 +471,18 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 // ReserveUploadPart implements [events.MultipartUploader].
 func (*Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	if err := checkUpload(upload); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
 // UploadPart implements [events.MultipartUploader].
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+	if err := checkUpload(upload); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	partBlob := h.partBlob(upload, partNumber)
 
 	// our parts are just over 5 MiB (events.MinUploadPartSizeBytes) so we can
@@ -472,6 +506,10 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 // ListParts implements [events.MultipartUploader].
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+	if err := checkUpload(upload); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	prefix := partPrefix(upload)
 
 	var parts []events.StreamPart
