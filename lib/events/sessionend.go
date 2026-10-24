@@ -103,6 +103,9 @@ type FindOrRecoverSessionEndConfig struct {
 // session start event and any additional events found in the stream, emits it to
 // the audit log, and returns it.
 //
+// App session chunk recordings hold no end event, so the AppSessionChunk
+// event is returned instead and nothing is emitted.
+//
 // Supported session types are:
 //   - SSH / Kubernetes (session.start -> session.end)
 //   - Windows Desktop (windows.desktop.session.start -> windows.desktop.session.end)
@@ -146,6 +149,12 @@ loop:
 			// Return if session end event already exists
 			case *apievents.SessionEnd, *apievents.WindowsDesktopSessionEnd, *apievents.LinuxDesktopSessionEnd,
 				*apievents.DatabaseSessionEnd, *apievents.AppSessionEnd, *apievents.MCPSessionEnd:
+				return e, nil
+
+			// App session chunk recordings never hold a start or end event, so
+			// the chunk event stands in for the end, as it does when listing
+			// recordings.
+			case *apievents.AppSessionChunk:
 				return e, nil
 
 			case *apievents.WindowsDesktopSessionStart:

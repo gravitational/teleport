@@ -139,7 +139,8 @@ type ProtoStreamerConfig struct {
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter EncryptionWrapper
 	// OnUploadComplete is called after an upload completes when no session end event
-	// was observed in the stream. It returns the recovered session end event, if any.
+	// was observed in the stream. It is not called for app session chunk recordings,
+	// which never hold one. It returns the recovered session end event, if any.
 	// If nil, no recovery is attempted.
 	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
@@ -280,7 +281,8 @@ type ProtoStreamConfig struct {
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter EncryptionWrapper
 	// OnUploadComplete is called after an upload completes when no session end event
-	// was observed in the stream. It returns the recovered session end event, if any.
+	// was observed in the stream. It is not called for app session chunk recordings,
+	// which never hold one. It returns the recovered session end event, if any.
 	// If nil, no recovery is attempted.
 	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
@@ -618,6 +620,8 @@ type sliceWriter struct {
 
 	// hasSessionEnd indicates if the session end event is present.
 	hasSessionEnd bool
+	// appSessionChunk indicates the stream is an app session chunk recording.
+	appSessionChunk bool
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -764,6 +768,8 @@ func (w *sliceWriter) receiveAndUpload() error {
 				}
 			case *apievents.OneOf_AppSessionEnd:
 				w.hasSessionEnd = true
+			case *apievents.OneOf_AppSessionChunk:
+				w.appSessionChunk = true
 			case *apievents.OneOf_MCPSessionEnd:
 				w.hasSessionEnd = true
 			}
@@ -891,6 +897,13 @@ func (w *sliceWriter) completeStream() {
 		w.proto.setCompleteResult(err)
 		if err != nil {
 			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
+			return
+		}
+
+		// App session chunk recordings never hold a session start or end
+		// event, so there is no end event to recover and nothing to
+		// summarize. The parent app session is tracked by its audit events.
+		if w.appSessionChunk {
 			return
 		}
 
