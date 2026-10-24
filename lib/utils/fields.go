@@ -19,6 +19,7 @@
 package utils
 
 import (
+	"reflect"
 	"slices"
 	"time"
 
@@ -36,7 +37,8 @@ func (f Fields) GetString(key string) string {
 	if !found {
 		return ""
 	}
-	return val.(string)
+	s, _ := val.(string)
+	return s
 }
 
 // GetStrings returns a slice-of-strings representation of a field.
@@ -226,11 +228,11 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				return str == strsVals
 			}, nil
 		case left.Field != "" && right.Field != "":
-			return func(f Fields) bool { return f[left.Field] == f[right.Field] }, nil
+			return func(f Fields) bool { return fieldsEqual(f[left.Field], f[right.Field]) }, nil
 		case left.Literal != nil && right.Field != "":
-			return func(f Fields) bool { return left.Literal == f[right.Field] }, nil
+			return func(f Fields) bool { return fieldsEqual(left.Literal, f[right.Field]) }, nil
 		case left.Field != "" && right.Literal != nil:
-			return func(f Fields) bool { return f[left.Field] == right.Literal }, nil
+			return func(f Fields) bool { return fieldsEqual(f[left.Field], right.Literal) }, nil
 		}
 	}
 	if expr.Contains.L != nil && expr.Contains.R != nil {
@@ -416,6 +418,20 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 	}
 
 	return nil, trace.BadParameter("failed to convert expression %q to FieldsCondition", expr)
+}
+
+// fieldsEqual reports whether a and b are equal, without panicking when
+// their dynamic type is not comparable (e.g. a []any or map[string]any
+// decoded from a JSON-encoded session event field).
+func fieldsEqual(a, b any) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	at, bt := reflect.TypeOf(a), reflect.TypeOf(b)
+	if at == nil || at != bt || !at.Comparable() {
+		return false
+	}
+	return a == b
 }
 
 func containsAll(slice []string, items []string) bool {
