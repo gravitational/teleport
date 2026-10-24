@@ -33,7 +33,6 @@ import { useLayout } from 'teleport/Main/LayoutContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { Notifications } from 'teleport/Notifications';
 import { ScopeSwitcher } from 'teleport/Scopes/ScopeSwitcher';
-import { storageService } from 'teleport/services/storageService';
 import useTeleport from 'teleport/useTeleport';
 
 export function TopBar({
@@ -69,10 +68,9 @@ export function TopBar({
     <TopBarContainer>
       <Flex alignItems="center" height="100%">
         <TeleportLogo CustomLogo={CustomLogo} withLink={!scopePickerMode} />
-        {cfg.scopesEnabled &&
-          storageService.getUseLoginScopePicker() &&
-          !feature?.logoOnlyTopbar &&
-          !scopePickerMode && <ScopeSwitcher scope={scope} />}
+        {cfg.scopesEnabled && !feature?.logoOnlyTopbar && !scopePickerMode && (
+          <ScopeSwitcher scope={scope} />
+        )}
       </Flex>
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
