@@ -17,8 +17,10 @@
  */
 
 import type { Meta } from '@storybook/react-vite';
-import type { ComponentProps } from 'react';
+import { delay, http, HttpResponse } from 'msw';
+import { useEffect, type ComponentProps } from 'react';
 
+import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 
@@ -26,27 +28,28 @@ import { LoginScopePicker as Component } from './LoginScopePicker';
 
 type StoryProps = ComponentProps<typeof Component> & {
   username: string;
-  availableScopes: string[];
+  assignedScopes: string[];
 };
 
 const meta: Meta<StoryProps> = {
   title: 'Teleport/Scopes',
   args: {
     username: 'alice',
-    availableScopes: ['/prod', '/staging/west', '/staging/west/team-a'],
+    assignedScopes: ['/prod', '/staging/west', '/staging/west/team-a'],
   },
 };
 
 export default meta;
 
-export function LoginScopePicker({ username, availableScopes }: StoryProps) {
+export function LoginScopePicker({ username }: StoryProps) {
   const ctx = createTeleportContext();
 
-  ctx.storeUser.setState({
-    ...ctx.storeUser.state,
-    username,
-    availableScopes,
-  });
+  useEffect(() => {
+    ctx.storeUser.setState({
+      ...ctx.storeUser.state,
+      username,
+    });
+  }, [ctx, username]);
 
   return (
     <TeleportProviderBasic teleportCtx={ctx}>
@@ -54,3 +57,57 @@ export function LoginScopePicker({ username, availableScopes }: StoryProps) {
     </TeleportProviderBasic>
   );
 }
+
+LoginScopePicker.beforeEach = ({ args, msw }) => {
+  msw.use(
+    http.get(cfg.api.listAssignedScopes, () =>
+      HttpResponse.json({ scopes: args.assignedScopes })
+    )
+  );
+};
+
+export function LoginScopePickerPending({ username }: StoryProps) {
+  const ctx = createTeleportContext();
+
+  useEffect(() => {
+    ctx.storeUser.setState({
+      ...ctx.storeUser.state,
+      username,
+    });
+  }, [ctx, username]);
+
+  return (
+    <TeleportProviderBasic teleportCtx={ctx}>
+      <Component />
+    </TeleportProviderBasic>
+  );
+}
+
+LoginScopePickerPending.beforeEach = ({ msw }) => {
+  msw.use(http.get(cfg.api.listAssignedScopes, () => delay('infinite')));
+};
+
+export function LoginScopePickerError({ username }: StoryProps) {
+  const ctx = createTeleportContext();
+
+  useEffect(() => {
+    ctx.storeUser.setState({
+      ...ctx.storeUser.state,
+      username,
+    });
+  }, [ctx, username]);
+
+  return (
+    <TeleportProviderBasic teleportCtx={ctx}>
+      <Component />
+    </TeleportProviderBasic>
+  );
+}
+
+LoginScopePickerError.beforeEach = ({ msw }) => {
+  msw.use(
+    http.get(cfg.api.listAssignedScopes, () =>
+      HttpResponse.json({ error: { message: 'bad request' } }, { status: 400 })
+    )
+  );
+};

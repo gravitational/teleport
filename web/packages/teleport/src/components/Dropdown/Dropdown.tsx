@@ -77,7 +77,9 @@ export const Dropdown = styled.div<OpenProps>`
   transform-origin: top right;
   transition:
     opacity 0.2s ease,
-    visibility 0.2s ease,
+    // Visibility toggles immediately when opening to allow focusing elements
+    // inside the dropdown wien it's opened.
+    visibility 0s ease ${p => (p.open ? '0s' : '0.2s')},
     transform 0.3s cubic-bezier(0.45, 0.6, 0.5, 1.25);
   transform: ${p => (p.open ? 'scale(1)' : 'scale(.8)')};
 
@@ -150,6 +152,7 @@ export const DropdownDivider = styled.div`
   background: ${props => props.theme.colors.spotBackground[1]};
   margin: ${props => props.theme.space[1]}px;
   margin-top: 0;
+  flex-shrink: 0;
 `;
 
 export const DropdownArrow = styled.div<{ open?: boolean }>`

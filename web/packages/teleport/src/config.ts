@@ -598,6 +598,8 @@ const cfg = {
       details: '/v1/webapi/managedupdates',
       groupAction: '/v1/webapi/managedupdates/groups/:groupName/:action',
     },
+
+    listAssignedScopes: '/v1/webapi/assignedscopes',
   },
 
   playable_db_protocols: [],

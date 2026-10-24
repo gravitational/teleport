@@ -422,7 +422,6 @@ test('undefined values in context response gives proper default values', async (
     },
     allowedSearchAsRoles: [],
     passwordState: PasswordState.PASSWORD_STATE_UNSPECIFIED,
-    availableScopes: [],
     scope: '',
   } as UserContext);
 });

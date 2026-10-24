@@ -56,6 +56,7 @@ import {
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
 import historyService from 'teleport/services/history/history';
+import { useAssignedScopes } from 'teleport/services/scopes';
 import { storageService } from 'teleport/services/storageService';
 import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
@@ -116,11 +117,28 @@ export function Main(props: MainProps) {
     }
   }, [ctx, history.location.pathname]);
 
-  if (attempt.status === 'failed') {
+  const shouldUseScopePicker =
+    cfg.scopesEnabled &&
+    storageService.getUseLoginScopePicker() &&
+    !storageService.getScopeSelected();
+
+  // If there's no scope selected, prefetch the first page of assigned scopes
+  // to figure out if the user should be offered to sign in to a scope.
+  const {
+    isLoading: scopesLoading,
+    isSuccess: scopesSuccess,
+    data: scopesData,
+  } = useAssignedScopes({
+    enabled: shouldUseScopePicker,
+  });
+
+  // Show the init error if it's there. Error from the scopes query will be
+  // shown on the scope picker screen.
+  if (!scopesLoading && attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
   }
 
-  if (attempt.status !== 'success') {
+  if (scopesLoading || attempt.status !== 'success') {
     return (
       <StyledIndicator>
         <Indicator />
@@ -128,24 +146,19 @@ export function Main(props: MainProps) {
     );
   }
 
-  const availableScopes = ctx.storeUser.getAvailableScopes();
   const isScopePickerRoute = !!matchPath(history.location.pathname, {
     path: cfg.routes.scopePicker,
     exact: true,
   });
 
-  // TODO(bl-nero): Don't redirect once the user picks a scope.
-  // For now, as the scope picker is not fully operational, we only enable it
-  // if a local storage flag is on.
-  if (storageService.getUseLoginScopePicker()) {
-    if (
-      cfg.scopesEnabled &&
-      availableScopes.length > 0 &&
-      !isScopePickerRoute &&
-      !storageService.getScopeSelected()
-    ) {
-      return <Redirect to={historyService.getScopePickerUrl()} />;
-    }
+  // Redirect the user to the scope picker. Since it's not a page refresh, the
+  // first page of scopes should be cached by TanStack.
+  if (
+    shouldUseScopePicker &&
+    !isScopePickerRoute &&
+    (!scopesSuccess || (scopesData?.pages[0]?.scopes.length ?? 0) > 0)
+  ) {
+    return <Redirect to={historyService.getScopePickerUrl()} />;
   }
 
   // redirect to the default feature when hitting the root /web URL

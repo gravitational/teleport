@@ -33,9 +33,9 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { Notifications } from 'teleport/Notifications';
+import { ScopeSwitcher } from 'teleport/Scopes/ScopeSwitcher';
+import { storageService } from 'teleport/services/storageService';
 import useTeleport from 'teleport/useTeleport';
-
-import { ScopeSwitcher } from './ScopeSwitcher';
 
 export function TopBar({
   CustomLogo,
@@ -50,7 +50,6 @@ export function TopBar({
   const { currentWidth } = useLayout();
   const storeUser = useStore(ctx.storeUser);
   const scope = storeUser.getScope();
-  const scopes = storeUser.getAvailableScopes();
 
   // find active feature
   const feature = features.find(
@@ -71,9 +70,10 @@ export function TopBar({
     <TopBarContainer>
       <Flex alignItems="center" height="100%">
         <TeleportLogo CustomLogo={CustomLogo} withLink={!scopePickerMode} />
-        {!feature?.logoOnlyTopbar && scopes.length > 0 && !scopePickerMode && (
-          <ScopeSwitcher scopes={scopes} scope={scope} />
-        )}
+        {cfg.scopesEnabled &&
+          storageService.getUseLoginScopePicker() &&
+          !feature?.logoOnlyTopbar &&
+          !scopePickerMode && <ScopeSwitcher scope={scope} />}
       </Flex>
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
