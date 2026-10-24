@@ -88,7 +88,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 // UploadPart uploads part
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
-	if err := upload.CheckAndSetDefaults(); err != nil {
+	if err := checkUpload(upload); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -115,7 +115,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
-	if err := upload.CheckAndSetDefaults(); err != nil {
+	if err := checkUpload(upload); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -258,7 +258,7 @@ func (h *Handler) partsToObjects(upload events.StreamUpload, parts []events.Stre
 
 // ListParts lists upload parts
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
-	if err := upload.CheckAndSetDefaults(); err != nil {
+	if err := checkUploadID(upload.ID); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	i := h.gcsClient.Bucket(h.Config.Bucket).Objects(ctx, &storage.Query{
@@ -308,7 +308,8 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		}
 		upload, err := uploadFromPath(attrs.Name)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			h.logger.DebugContext(ctx, "Skipping upload marker with bad format", "path", attrs.Name, "error", err)
+			continue
 		}
 		upload.Initiated = attrs.Created
 		uploads = append(uploads, *upload)
@@ -326,6 +327,31 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 
 // ReserveUploadPart reserves an upload part.
 func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	if err := checkUpload(upload); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// checkUpload checks that upload IDs are valid
+// and in addition verifies that upload ID is a valid UUID
+// to avoid object scanning by passing bogus upload ID paths
+func checkUpload(upload events.StreamUpload) error {
+	if err := upload.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUploadID(upload.ID); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// checkUploadID checks that upload ID is a valid UUID
+// to avoid path scanning or using arbitrary paths as upload IDs
+func checkUploadID(uploadID string) error {
+	if _, err := uuid.Parse(uploadID); err != nil {
+		return trace.BadParameter("upload ID %q is not a valid UUID", uploadID)
+	}
 	return nil
 }
 
@@ -415,6 +441,9 @@ func uploadFromPath(uploadPath string) (*events.StreamUpload, error) {
 		return nil, trace.BadParameter("expected format uploads/<upload-id>, got %v", dir)
 	}
 	uploadID := parts[len(parts)-1]
+	if err := checkUploadID(uploadID); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &events.StreamUpload{
 		SessionID: sessionID,
 		ID:        uploadID,
