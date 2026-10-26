@@ -76,6 +76,11 @@ with the rollout for both Teleport Agents and long-running tbot installations.
 For Linux server-based installations, `teleport-update` command configures
 Managed Updates for Teleport Agents and tbot locally on the server.
 
+Allow disk space for two extracted Teleport installations, stored in
+`/opt/teleport/default/versions` by default, plus temporary space for the downloaded
+update archive. This space is required to support rollbacks and to ensure the next
+update, including urgent security patches, doesn't fail due to insufficient disk space.
+
 For Kubernetes-based installations, the `teleport-kube-agent` Helm chart
 deploys a controller that automatically updates the main Teleport container.
 
