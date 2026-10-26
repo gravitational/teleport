@@ -37,8 +37,10 @@ import (
 
 // UserProvisioner handles automatic database user creation.
 type UserProvisioner struct {
+	// CloseContext is the database server close context.
+	CloseContext context.Context
 	// AuthClient is the cluster auth server client.
-	AuthClient *authclient.Client
+	AuthClient authclient.ClientI
 	// Backend is the particular database implementation.
 	Backend AutoUsers
 	// Log is the logger.
@@ -74,23 +76,13 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 	// Observe.
 	defer methodCallMetrics("UserProvisioner:Activate", teleport.ComponentDatabase, sessionCtx.Database)()
 
-	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
-	defer cancel()
-
 	a.Log.DebugContext(ctx, "Activating database user", "user", sessionCtx.DatabaseUser)
-	lease, err := services.AcquireSemaphoreWithRetry(retryCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
+	lock, release, err := a.acquireUserLock(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	release := func() {
-		err := a.AuthClient.CancelSemaphoreLease(ctx, *lease)
-		if err != nil {
-			a.Log.ErrorContext(ctx, "Failed to cancel lease.", "lease", lease, "error", err)
-		}
-	}
-
-	err = a.Backend.ActivateUser(ctx, sessionCtx)
+	err = a.Backend.ActivateUser(lock, sessionCtx)
 	if err != nil {
 		release()
 		return nil, trace.BadParameter(
@@ -104,7 +96,12 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 
 // Teardown chooses and call the auto provisioner method used to cleanup a
 // database user.
-func (a *UserProvisioner) Teardown(ctx context.Context, sessionCtx *Session) error {
+func (a *UserProvisioner) Teardown(sessionCtx *Session) error {
+	// Cleanup must survive session cancellation, but a stalled database must
+	// not keep the user lock alive indefinitely.
+	ctx, cancel := context.WithTimeout(a.CloseContext, defaults.DatabaseConnectTimeout)
+	defer cancel()
+
 	var err error
 	switch sessionCtx.AutoCreateUserMode {
 	case types.CreateDatabaseUserMode_DB_USER_MODE_KEEP:
@@ -121,27 +118,13 @@ func (a *UserProvisioner) deactivate(ctx context.Context, sessionCtx *Session) e
 	defer methodCallMetrics("UserProvisioner:Deactivate", teleport.ComponentDatabase, sessionCtx.Database)()
 	a.Log.DebugContext(ctx, "Deactivating database user", "user", sessionCtx.DatabaseUser)
 
-	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
-	defer cancel()
-
-	lease, err := services.AcquireSemaphoreWithRetry(retryCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
+	lock, release, err := a.acquireUserLock(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
 
-	defer func() {
-		err := a.AuthClient.CancelSemaphoreLease(ctx, *lease)
-		if err != nil {
-			a.Log.ErrorContext(ctx, "Failed to cancel lease.", "lease", lease, "error", err)
-		}
-	}()
-
-	err = a.Backend.DeactivateUser(ctx, sessionCtx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(a.Backend.DeactivateUser(lock, sessionCtx))
 }
 
 // delete deletes a database user.
@@ -150,41 +133,56 @@ func (a *UserProvisioner) delete(ctx context.Context, sessionCtx *Session) error
 	defer methodCallMetrics("UserProvisioner:Delete", teleport.ComponentDatabase, sessionCtx.Database)()
 	a.Log.DebugContext(ctx, "Deleting database user", "user", sessionCtx.DatabaseUser)
 
-	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
-	defer cancel()
-
-	lease, err := services.AcquireSemaphoreWithRetry(retryCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
+	lock, release, err := a.acquireUserLock(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer release()
 
-	defer func() {
-		err := a.AuthClient.CancelSemaphoreLease(ctx, *lease)
-		if err != nil {
-			a.Log.ErrorContext(ctx, "Failed to cancel lease.", "lease", lease, "error", err)
-		}
-	}()
-
-	err = a.Backend.DeleteUser(ctx, sessionCtx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(a.Backend.DeleteUser(lock, sessionCtx))
 }
 
-func (a *UserProvisioner) makeAcquireSemaphoreConfig(sessionCtx *Session) services.AcquireSemaphoreWithRetryConfig {
-	return services.AcquireSemaphoreWithRetryConfig{
-		Service: a.AuthClient,
-		// The semaphore will serialize connections to the database as specific
-		// user. If we fail to release the lock for some reason, it will expire
-		// in a minute anyway.
-		Request: types.AcquireSemaphoreRequest{
-			SemaphoreKind: "db-auto-users",
-			// The name of the sempahore is encoded to prevent any invalid characters
-			// in a user's name from being rejected by the backend when creating the semaphore.
-			SemaphoreName: hex.EncodeToString([]byte(sessionCtx.Database.GetName() + "-" + sessionCtx.DatabaseUser)),
-			MaxLeases:     1,
+// acquireUserLock bounds acquisition and keeps the lease alive until release.
+func (a *UserProvisioner) acquireUserLock(ctx context.Context, sessionCtx *Session) (*services.SemaphoreLock, func(), error) {
+	lockCtx, cancel := context.WithCancelCause(ctx)
+	timer := time.AfterFunc(defaults.DatabaseConnectTimeout, func() { cancel(context.DeadlineExceeded) })
+	// Stop the acquisition timeout after acquiring the lock so long-running
+	// operations can continue while their lease is renewed.
+	defer timer.Stop()
+	lock, err := services.AcquireSemaphoreLockWithRetry(lockCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
+	if err != nil {
+		if cause := context.Cause(lockCtx); cause != nil {
+			err = cause
+		}
+		cancel(nil)
+		return nil, nil, trace.Wrap(err)
+	}
+	release := func() {
+		lock.Stop()
+		cancel(nil)
+		if err := lock.Wait(); err != nil {
+			a.Log.ErrorContext(ctx, "Failed to release database user lock", "error", err)
+		}
+	}
+	return lock, release, nil
+}
+
+func (a *UserProvisioner) makeAcquireSemaphoreConfig(sessionCtx *Session) services.SemaphoreLockConfigWithRetry {
+	return services.SemaphoreLockConfigWithRetry{
+		SemaphoreLockConfig: services.SemaphoreLockConfig{
+			Service: a.AuthClient,
+			// The semaphore will serialize connections to the database as specific
+			// user. If we fail to release the lock for some reason, it will expire
+			// in a minute anyway.
+			Params: types.AcquireSemaphoreRequest{
+				SemaphoreKind: "db-auto-users",
+				// The name of the sempahore is encoded to prevent any invalid characters
+				// in a user's name from being rejected by the backend when creating the semaphore.
+				SemaphoreName: hex.EncodeToString([]byte(sessionCtx.Database.GetName() + "-" + sessionCtx.DatabaseUser)),
+				MaxLeases:     1,
+			},
+			Expiry: time.Minute,
+			Clock:  a.Clock,
 		},
 		// If multiple connections are being established simultaneously to the
 		// same database as the same user, retry for a few seconds.
@@ -193,7 +191,5 @@ func (a *UserProvisioner) makeAcquireSemaphoreConfig(sessionCtx *Session) servic
 			Max:   time.Second,
 			Clock: a.Clock,
 		},
-		TTL: time.Minute,
-		Now: a.Clock.Now,
 	}
 }

@@ -102,6 +102,9 @@ type connector struct {
 	connectorConfig
 
 	gcpAuth *gcpAuth
+	// closeOnCancel binds admin connection I/O, including the handshake, to the
+	// context because MySQL user provisioning queries do not accept a context.
+	closeOnCancel bool
 }
 
 // connect establishes connection to MySQL database.
@@ -175,6 +178,9 @@ func (c *connector) connect(
 			if err != nil {
 				return nil, trace.Wrap(newDialError(err))
 			}
+			if c.closeOnCancel {
+				conn = newContextConn(ctx, conn)
+			}
 			if onDial != nil {
 				recorder := newRecorderConn(conn)
 				onDial(ctx, recorder)
@@ -194,6 +200,26 @@ func (c *connector) connect(
 		return nil, trace.Wrap(err)
 	}
 	return conn, nil
+}
+
+// contextConn closes its underlying connection when the context is canceled.
+type contextConn struct {
+	net.Conn
+	stop func() bool
+}
+
+func newContextConn(ctx context.Context, conn net.Conn) *contextConn {
+	return &contextConn{
+		Conn: conn,
+		stop: context.AfterFunc(ctx, func() {
+			_ = conn.Close()
+		}),
+	}
+}
+
+func (c *contextConn) Close() error {
+	c.stop()
+	return c.Conn.Close()
 }
 
 // updateServerVersion updates the server runtime version if the version

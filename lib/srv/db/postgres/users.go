@@ -676,7 +676,7 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 
 	// retry a finite number of times before giving up.
 	for range 10 {
-		err := f()
+		err = f()
 		if err == nil {
 			return nil
 		}
