@@ -244,7 +244,6 @@ import (
 	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	_ "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
-	_ "github.com/gravitational/teleport/api/internalutils/stream"
 	_ "github.com/gravitational/teleport/api/metadata"
 	_ "github.com/gravitational/teleport/api/mfa"
 	_ "github.com/gravitational/teleport/api/trail"
