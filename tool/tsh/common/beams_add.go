@@ -82,7 +82,7 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	proxyRegion, err := c.discoverProxyRegion(ctx, tc)
+	proxyRegion, err := discoverProxyRegion(ctx, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -313,7 +313,7 @@ func (c *beamsAddCommand) connectUserCredentialClient(ctx context.Context, tc *c
 	}, nil
 }
 
-func (c *beamsAddCommand) discoverProxyRegion(ctx context.Context, tc *client.TeleportClient) (string, error) {
+func discoverProxyRegion(ctx context.Context, tc *client.TeleportClient) (string, error) {
 	resp, err := webclient.Find(&webclient.Config{
 		Context:      ctx,
 		ProxyAddr:    tc.WebProxyAddr,

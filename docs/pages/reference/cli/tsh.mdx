@@ -1372,6 +1372,58 @@ Arguments:
 |---|---|---|
 |name|*no default* (required)|Name or ID of the MFA device to remove.|
 
+## tsh phase add
+
+Create and build a Phase image.
+
+Usage:
+
+```code
+$ tsh phase add [<flags>] [<name>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--commands-file`|*no default*|Path to a YAML file in the raw command format. Omit for an interactive build.|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--fork-from`|*no default*|Fork a Phase name or parent@sha256:digest into a new Phase.|
+|`--from`|*no default*|Upstream Phase image to use as the base image.|
+|`--[no-]fork`|`false`|Capture the current build Beam's filesystem and start a new Phase from it.|
+|`--region`|*no default*|Region in which to build the Phase.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|*no default* (optional)|Optional Phase name. If omitted, a name is generated.|
+
+## tsh phase edit
+
+Edit an existing Phase in a build console or replace its build instructions.
+
+Usage:
+
+```code
+$ tsh phase edit [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--commands-file`|*no default*|Path to a YAML file in the raw command format. Omit for an interactive build.|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--from`|*no default*|Source Phase name or parent@sha256:digest. Defaults to the target's last successful snapshot.|
+|`--region`|*no default*|Region in which to build the Phase.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|*no default* (required)|Existing Phase to edit.|
+
 ## tsh phase ls
 
 List Phase images.

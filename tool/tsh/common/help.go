@@ -136,6 +136,34 @@ Examples:
   $ BEAM_ID=$(tsh beams add -f json | jq -r '.id')
   $ tsh beams exec $BEAM_ID -- ls examples`
 
+	phaseAddHelp = `
+Examples:
+  Create a Phase and open an interactive build console:
+  $ tsh phase add dev-tools
+
+  Build a Phase from a raw command file:
+  $ tsh phase add dev-tools --commands-file=build.yaml
+
+  Use another Phase as the base image:
+  $ tsh phase add project-tools --from=dev-tools
+
+  From inside a build Beam, fork the current filesystem:
+  $ tsh phase add my-fork --fork
+
+  Fork an existing Phase's last successful snapshot:
+  $ tsh phase add my-fork --fork-from=dev-tools`
+
+	phaseEditHelp = `
+Examples:
+  Edit a Phase from its last successful snapshot:
+  $ tsh phase edit dev-tools
+
+  Replace the raw command file:
+  $ tsh phase edit dev-tools --commands-file=build.yaml
+
+  Edit using another Phase's snapshot with the same parent:
+  $ tsh phase edit dev-tools --from=other-tools`
+
 	ghHelp = `
 Examples:
   Show the GitHub user:

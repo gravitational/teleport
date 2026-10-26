@@ -27,6 +27,8 @@ import (
 )
 
 type phaseCommands struct {
+	add      *phaseAddCommand
+	edit     *phaseEditCommand
 	ls       *phaseLSCommand
 	lsFailed *phaseLSCommand
 	rm       *phaseRMCommand
@@ -35,6 +37,8 @@ type phaseCommands struct {
 func newPhaseCommands(app *kingpin.Application) phaseCommands {
 	parent := app.Command("phase", "Create and manage reusable Beam images.").Alias("phases")
 	return phaseCommands{
+		add:      newPhaseAddCommand(parent),
+		edit:     newPhaseEditCommand(parent),
 		ls:       newPhaseLSCommand(parent),
 		lsFailed: newPhaseFailedLSCommand(parent),
 		rm:       newPhaseRMCommand(parent),
