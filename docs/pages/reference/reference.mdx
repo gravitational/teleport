@@ -1,9 +1,604 @@
 ---
 title: Teleport Reference Guides
 sidebar_label: References
-description: Provides comprehensive information on configuration fields, Teleport commands, and other ways of interacting with Teleport.
+description: Technical specifications for components, configuration fields, CLI flags, and APIs.
+template: doc-page
 tags:
  - platform-wide
 ---
 
-<DocCardList />
+import EnrollmentMethods, { Method } from '@site/src/components/Pages/Landing/EnrollmentMethods/EnrollmentMethods';
+import Resources from "@site/src/components/Pages/Homepage/Resources";
+
+<Resources
+  title="Most Visited"
+  desktopColumnsCount={3}
+  variant="doc"
+  titleSize="h2"
+  resources={[
+    {
+      title: "teleport.yaml reference",
+      description: "Configuration fields for Auth, Proxy, SSH, Kubernetes, Apps, and Databases",
+      href: "./deployment/config/",
+    },
+    {
+      title: "Role reference",
+      description: "Role YAML spec for defining access, permissions, and request rules",
+      href: "./access-controls/roles/",
+    },
+    {
+      title: "Audit Event Reference",
+      description: "Key system events across access, auth, Kubernetes, and admin activity",
+      href: "./audit-events/",
+    },
+    {
+      title: "tsh CLI reference",
+      description: "Commands and flags for SSH, Kubernetes, databases, and application access",
+      href: "./cli/tsh/",
+    },
+    {
+      title: "Helm Charts",
+      description: "Helm chart for deploying Teleport Auth Service and Proxy Service with full configuration options",
+      href: "./helm-reference/",
+    },
+    {
+      title: "Join Methods",
+      description: "Join clusters using IAM, GitHub, GitLab, Kubernetes, TPM, and tokens",
+      href: "./deployment/join-methods/",
+    }
+  ]}
+/>
+
+<EnrollmentMethods title="Guides" variant="references" desktopColumnsCount={1}>
+<Method
+  title="Platform Architecture"
+  href="./architecture/"
+  tagLists={
+    [
+      {
+        title: "Core",
+        tags:
+          [
+            {
+              name: "Authentication Service",
+              href: "./architecture/authentication/",
+            },
+            {
+              name: "Proxy Service",
+              href: "./architecture/proxy/",
+            },
+            {
+              name: "TLS Routing",
+              href: "./architecture/tls-routing/",
+            },
+            {
+              name: "Teleport Enterprise Cloud",
+              href: "./architecture/teleport-cloud-architecture/",
+            },
+            {
+              name: "gRPC API",
+              href: "./architecture/api-architecture/",
+            }
+          ]
+      },
+      {
+        title: "Agents",
+        tags:
+          [
+            {
+              name: "Agent Architecture",
+              href: "./architecture/agents/",
+            },
+            {
+              name: "Agent Update Management",
+              href: "./architecture/agent-update-management/",
+            },
+            {
+              name: "Kubernetes Application Discovery",
+              href: "./architecture/kubernetes-applications-architecture/",
+            },
+          ]
+      },
+      {
+        title: "Sessions & Federation",
+        tags:
+          [
+            {
+              name: "Session Recording",
+              href: "./architecture/session-recording/",
+            },
+            {
+              name: "Authorization",
+              href: "./architecture/authorization/",
+            },
+            {
+              name: "Trusted Cluster",
+              href: "./architecture/trustedclusters/",
+            },
+          ]
+      },
+    ]
+  }
+>
+Understand how Teleport services connect, authenticate, and route traffic.
+</Method>
+<Method
+  title="Cluster Configuration"
+  href="./deployment/"
+  tagLists={
+    [
+      {
+        title: "Core",
+        tags:
+          [
+            {
+              name: "Join Methods",
+              href: "./deployment/join-methods/",
+            },
+            {
+              name: "Storage Backends",
+              href: "./deployment/backends/",
+            },
+          ]
+      },
+      {
+        title: "Teleport Configuration",
+        tags:
+          [
+            {
+              name: "Proxy Service",
+              href: "./deployment/config/#proxy-service",
+            },
+            {
+              name: "Auth Service",
+              href: "./deployment/config/#auth-service",
+            },
+            {
+              name: "SSH Service",
+              href: "./deployment/config/#ssh-service",
+            },
+            {
+              name: "Kubernetes Service",
+              href: "./deployment/config/#kubernetes-service",
+            },
+            {
+              name: "Application Service",
+              href: "./deployment/config/#application-service",
+            },
+            {
+              name: "Database Service",
+              href: "./deployment/config/#database-service",
+            },
+            {
+              name: "more",
+              href: "./deployment/config/",
+              arrow: true,
+            }
+          ]
+      },
+      {
+        title: "Networking & Scale",
+        tags:
+          [
+            {
+              name: "Networking",
+              href: "./deployment/networking/",
+            },
+            {
+              name: "Scaling",
+              href: "./deployment/scaling/",
+            },
+            {
+              name: "Signature Algorithms",
+              href: "./deployment/signature-algorithms/",
+            },
+          ]
+      },
+      {
+        title: "Operations",
+        tags:
+          [
+            {
+              name: "Managed Updates Resources",
+              href: "./deployment/managed-updates-v2/",
+            },
+            {
+              name: "Process Signals",
+              href: "./deployment/signals/",
+            },
+            {
+              name: "Identity Security Config",
+              href: "./deployment/identity-security-config/",
+            },
+          ]
+      },
+      {
+        title: "Monitoring",
+        tags:
+          [
+            {
+              name: "Audit Event & Records",
+              href: "./deployment/monitoring/audit/",
+            },
+            {
+              name: "Performance Metrics",
+              href: "./deployment/monitoring/metrics/",
+            },
+            {
+              name: "Event Handler",
+              href: "./deployment/monitoring/event-handler/",
+            },
+            {
+              name: "Distributed Tracing Config",
+              href: "./deployment/monitoring/tracing-service-configuration/",
+            },
+            {
+              name: "Vulnerability Management",
+              href: "./vulnerability-management/",
+            },
+          ]
+      },
+    ]
+  }
+>
+Reference all `teleport.yaml` fields and cluster-wide configuration options.
+</Method>
+<Method
+  title="Access Control"
+  href="./access-controls/"
+  tagLists={
+    [
+      {
+        title: "Roles & Expressions",
+        tags:
+          [
+            {
+              name: "Predicate Language",
+              href: "./access-controls/predicate-language/",
+            },
+            {
+              name: "Login Rules",
+              href: "./access-controls/login-rules/",
+            },
+          ]
+      },
+      {
+        title: "Users & Identity",
+        tags:
+          [
+            {
+              name: "User Types",
+              href: "./access-controls/user-types/",
+            },
+            {
+              name: "Authentication Options",
+              href: "./access-controls/authentication/",
+            },
+            {
+              name: "SAML Identity Provider",
+              href: "./access-controls/saml-idp/",
+            },
+          ]
+      },
+      {
+        title: "Access & Monitoring",
+        tags:
+          [
+            {
+              name: "Access Lists",
+              href: "./access-controls/access-lists/",
+            },
+            {
+              name: "Access Monitoring Rules",
+              href: "./access-controls/access-monitoring-rules/",
+            },
+            {
+              name: "Access Monitoring Events",
+              href: "./access-controls/access-monitoring-events/",
+            },
+          ]
+      },
+    ]
+  }
+>
+Configure roles, authentication, access controls, and policy settings.
+</Method>
+<Method
+  title="Machine & Workload Identity"
+  href="./machine-workload-identity/"
+  tagLists={
+    [
+      {
+        title: "tbot Operators",
+        tags:
+          [
+            {
+              name: "Auth Service",
+              href: "./architecture/machine-id-architecture/#joining-and-authentication",
+            },
+            {
+              name: "Telemetry",
+              href: "./machine-workload-identity/telemetry/",
+            },
+            {
+              name: "TLS Routing",
+              href: "./architecture/tls-routing/",
+            },
+            {
+              name: "Teleport Cloud",
+              href: "./architecture/teleport-cloud-architecture/",
+            },
+            {
+              name: "gRPC API",
+              href: "./architecture/api-architecture/",
+            },
+          ]
+      },
+      {
+        title: "Workload Identity Resources",
+        tags:
+          [
+            {
+              name: "Workload Identity",
+              href: "./machine-workload-identity/workload-identity/workload-identity-resource/",
+            },
+            {
+              name: "Resource Configuration Migration",
+              href: "./machine-workload-identity/workload-identity/configuration-resource-migration",
+            },
+            {
+              name: "API Service & Attestation",
+              href: "./machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation",
+            },
+            {
+              name: "Attributes",
+              href: "./machine-workload-identity/workload-identity/attributes",
+            },
+            {
+              name: "Revocations",
+              href: "./machine-workload-identity/workload-identity/revocations",
+            },
+            {
+              name: "Sigstore Attestation",
+              href: "./machine-workload-identity/workload-identity/sigstore-attestation",
+            },
+            {
+              name: "X.509 Issuer Override",
+              href: "./machine-workload-identity/workload-identity/issuer-override",
+            },
+          ]
+      },
+      {
+        title: "Joining",
+        tags:
+          [
+            {
+              name: "Bound keypair joining",
+              href: "./machine-workload-identity/bound-keypair/",
+            },
+            {
+              name: "Join Methods",
+              href: "./deployment/join-methods/",
+            },
+          ]
+      },
+    ]
+  }
+>
+Manage `tbot` workload identities, and machine identity resources.
+</Method>
+<Method
+  title="Command-line Tools"
+  href="./cli/"
+  tagLists={
+    [
+      {
+        title: "Cluster Services",
+        tags:
+          [
+            {
+              name: "teleport",
+              href: "./cli/teleport/",
+            },
+            {
+              name: "teleport-update",
+              href: "./cli/teleport-update/",
+            },
+          ]
+      },
+      {
+        title: "Operator & User Tools",
+        tags:
+          [
+            {
+              name: "tctl",
+              href: "./cli/tctl/",
+            },
+            {
+              name: "tsh",
+              href: "./cli/tsh/",
+            },
+          ]
+      },
+      {
+        title: "Machine Identity Tools",
+        tags:
+          [
+            {
+              name: "tbot",
+              href: "./cli/tbot/",
+            },
+            {
+              name: "fdpass-teleport",
+              href: "./cli/fdpass-teleport/",
+            },
+          ]
+      },
+    ]
+  }
+>
+Explore CLI commands, flags, and usage for Teleport binaries.
+</Method>
+<Method
+  title="Infrastructure as Code"
+  href="./infrastructure-as-code/"
+  tagLists={
+    [
+      {
+        title: "Terraform",
+        tags:
+          [
+            {
+              name: "Terraform-provider",
+              href: "./infrastructure-as-code/terraform-provider/",
+            },
+            {
+              name: "Terraform modules",
+              href: "./infrastructure-as-code/terraform-modules/",
+            },
+            {
+              name: "MWI terraform provider",
+              href: "./machine-workload-identity/terraform-provider-mwi/",
+            },
+          ]
+      },
+      {
+        title: "Kubernetes operator",
+        tags:
+          [
+            {
+              name: "Operator Resources",
+              href: "./infrastructure-as-code/operator-resources/",
+            },
+          ]
+      },
+      {
+        title: "Dynamic Resources",
+        tags:
+          [
+            {
+              name: "Dynamic Resource",
+              href: "./infrastructure-as-code/teleport-resources/",
+            },
+          ]
+      },
+    ]
+  }
+>
+Automate Teleport with APIs, resource schemas, and infrastructure-as-code tools.
+</Method>
+<Method
+  title="Helm Charts"
+  href="./helm-reference/"
+  tagLists={
+    [
+      {
+        title: "Control Plane",
+        tags:
+          [
+            {
+              name: "teleport-cluster",
+              href: "./helm-reference/teleport-cluster/",
+            },
+            {
+              name: "teleport-relay",
+              href: "./helm-reference/teleport-relay/",
+            },
+            {
+              name: "teleport-operator",
+              href: "./helm-reference/teleport-operator/",
+            },
+            {
+              name: "teleport-access-graph",
+              href: "./helm-reference/teleport-access-graph/",
+            },
+          ]
+      },
+      {
+        title: "Agents & Machine Identity",
+        tags:
+          [
+            {
+              name: "teleport-kube-agent",
+              href: "./helm-reference/teleport-kube-agent/",
+            },
+            {
+              name: "tbot",
+              href: "./helm-reference/tbot/",
+            },
+            {
+              name: "tbot-spiffe-daemon-set",
+              href: "./helm-reference/tbot-spiffe-daemon-set/",
+            },
+          ]
+      },
+      {
+        title: "Access Request Plugins",
+        tags:
+          [
+            {
+              name: "Slack",
+              href: "./helm-reference/teleport-plugin-slack/",
+              icon: "slack"
+            },
+            {
+              name: "Pagerduty",
+              href: "./helm-reference/teleport-plugin-pagerduty/",
+              icon: "pagerduty"
+            },
+            {
+              name: "Jira",
+              href: "./helm-reference/teleport-plugin-jira/",
+              icon: "jira"
+            },
+            {
+              name: "MS Teams",
+              href: "./helm-reference/teleport-plugin-msteams/",
+              icon: "msTeams"
+            },
+            {
+              name: "Discord",
+              href: "./helm-reference/teleport-plugin-discord/",
+              icon: "discord"
+            },
+            {
+              name: "Mattermost",
+              href: "./helm-reference/teleport-plugin-mattermost/",
+              icon: "mattermost"
+            },
+            {
+              name: "Email",
+              href: "./helm-reference/teleport-plugin-email/",
+              icon: "email"
+            },
+            {
+              name: "Datadog",
+              href: "./helm-reference/teleport-plugin-datadog/",
+              icon: "datadog"
+            },
+          ]
+      },
+    ]
+  }
+>
+Configure and deploy Teleport using Helm charts and chart values.
+</Method>
+<Method
+  title="Security Verification"
+  tagLists={
+    [
+      {
+        tags:
+          [
+            {
+              name: "Public Certificate & Encryption Keys",
+              href: "./public-certificates/",
+            },
+          ]
+      },
+    ]
+  }
+>
+Verify Teleport packages, binaries, and container images using signing credentials.
+</Method>
+</EnrollmentMethods>
