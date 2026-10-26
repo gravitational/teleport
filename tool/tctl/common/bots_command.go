@@ -1072,8 +1072,11 @@ func formatServices(services []*machineidv1pb.BotInstanceServiceHealth) string {
 			all.WriteString("\n")
 		}
 
-		all.WriteString("Reported at: " + service.GetUpdatedAt().AsTime().Format(time.RFC3339))
-		all.WriteString("\n\n")
+		if service.HasUpdatedAt() {
+			all.WriteString("Reported at: " + service.GetUpdatedAt().AsTime().Format(time.RFC3339))
+			all.WriteString("\n")
+		}
+		all.WriteString("\n")
 	}
 
 	return indentString(all.String(), "  ")

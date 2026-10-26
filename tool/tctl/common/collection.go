@@ -1569,8 +1569,8 @@ func (c *spiffeFederationCollection) WriteText(w io.Writer, verbose bool) error 
 	var rows [][]string
 	for _, item := range c.items {
 		lastSynced := "never"
-		if t := item.GetStatus().GetCurrentBundleSyncedAt().AsTime(); !t.IsZero() {
-			lastSynced = t.Format(time.RFC3339)
+		if item.GetStatus().HasCurrentBundleSyncedAt() {
+			lastSynced = item.GetStatus().GetCurrentBundleSyncedAt().AsTime().Format(time.RFC3339)
 		}
 		rows = append(rows, []string{
 			item.Metadata.Name,

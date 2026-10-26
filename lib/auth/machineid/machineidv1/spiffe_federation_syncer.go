@@ -465,7 +465,8 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 		nextRetry = nil
 
 		// If we've successfully synced, set the timer up for our next sync.
-		if nextSyncAt := synced.GetStatus().GetNextSyncAt().AsTime(); !nextSyncAt.IsZero() {
+		if synced.GetStatus().HasNextSyncAt() {
+			nextSyncAt := synced.GetStatus().GetNextSyncAt().AsTime()
 			timeUntil := nextSyncAt.Sub(s.cfg.Clock.Now())
 			// Ensure the timer will tick /after/ the next sync time.
 			timeUntil = timeUntil + time.Second
@@ -492,14 +493,14 @@ func (s *SPIFFEFederationSyncer) shouldSyncTrustDomain(
 		log.DebugContext(ctx, "No status.current_bundle, will sync")
 		return "no_current_bundle"
 	}
-	if in.Status.CurrentBundleSyncedAt.AsTime().IsZero() {
+	if !in.GetStatus().HasCurrentBundleSyncedAt() {
 		log.DebugContext(ctx, "No status.current_bundle_synced_at, will sync")
 		return "no_current_bundle_synced_at"
 	}
 	// Check if we've passed the next sync time.
 	nextSyncAt := in.Status.NextSyncAt.AsTime()
 	now := s.cfg.Clock.Now()
-	if !nextSyncAt.IsZero() && now.After(nextSyncAt) {
+	if in.GetStatus().HasNextSyncAt() && now.After(nextSyncAt) {
 		log.DebugContext(
 			ctx,
 			"status.next_sync_at has passed, will sync",
@@ -627,6 +628,8 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	// For certain sources, we need to set a next sync time.
 	if nextSyncIn > 0 {
 		out.Status.NextSyncAt = timestamppb.New(syncedAt.Add(nextSyncIn))
+	} else {
+		out.Status.NextSyncAt = nil
 	}
 
 	out, err = s.cfg.Store.UpdateSPIFFEFederation(ctx, out)
