@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
@@ -158,7 +159,7 @@ func (c *beamsLSCommand) print(cf *CLIConf, beams []*beamsv1.Beam, proxyAddr str
 }
 
 func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
-	headings := []string{"ID", "URL", "Region", "Expires"}
+	headings := []string{"ID"}
 
 	// We only show the owner column when the user passed the `--all` flag,
 	// otherwise there's no point as we're just showing them their own beams.
@@ -166,17 +167,26 @@ func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
 		headings = append(headings, "Owner")
 	}
 
+	headings = append(headings, "URL", "Region", "Roles", "Expires")
+
 	table := asciitable.MakeTable(headings)
 	for _, beam := range beams {
-		row := []string{
-			beam.ID,
-			beam.URL,
-			beam.Region,
-			c.humanizeTimeFn(beam.Expires),
-		}
+		row := []string{beam.ID}
+
 		if c.all {
 			row = append(row, beam.Owner)
 		}
+
+		row = append(row, beam.URL, beam.Region)
+
+		if len(beam.Roles) == 0 {
+			row = append(row, types.Wildcard)
+		} else {
+			row = append(row, strings.Join(beam.Roles, ", "))
+		}
+
+		row = append(row, c.humanizeTimeFn(beam.Expires))
+
 		table.AddRow(row)
 	}
 	return trace.Wrap(table.WriteTo(w))
