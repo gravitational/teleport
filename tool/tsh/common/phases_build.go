@@ -285,7 +285,9 @@ func (c *phaseBuildOptions) runBuild(cf *CLIConf, req *beamsv1.CreatePhaseReques
 			return trace.Wrap(err)
 		}
 		if beam := rsp.GetBuildBeam(); beam != nil && !req.GetStreamBuildLogs() {
-			if _, err := fmt.Fprintf(cf.Stdout(), "Run beam-finalize in the build console to save your changes and complete Phase %q.\n", name); err != nil {
+			if _, err := fmt.Fprintln(cf.Stdout(),
+				"Save your work at any time with \"tsh phase snapshot\".\n"+
+					"Use \"tsh phase snapshot --final\" to save and end this build."); err != nil {
 				return trace.Wrap(err)
 			}
 			if err := sshBeam(cf, tc, beam, nil); err != nil {

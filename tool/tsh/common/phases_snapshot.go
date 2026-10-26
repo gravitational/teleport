@@ -34,11 +34,14 @@ import (
 
 type phaseEnvironment interface {
 	PhaseName() (string, error)
-	CreateSnapshot(context.Context) ([]byte, error)
+	BeamID() string
+	// CreateSnapshot returns parent@sha256:digest without surrounding whitespace.
+	CreateSnapshot(context.Context) (string, error)
 }
 
 type buildBeamEnvironment struct {
 	phaseName    string
+	beamID       string
 	stderr       io.Writer
 	snapshotArgs []string
 }
@@ -46,6 +49,7 @@ type buildBeamEnvironment struct {
 func localBuildBeam(stderr io.Writer) buildBeamEnvironment {
 	return buildBeamEnvironment{
 		phaseName: os.Getenv("BEAM_PHASE_NAME"),
+		beamID:    os.Getenv("BEAM_ID"),
 		stderr:    stderr,
 	}
 }
@@ -58,11 +62,17 @@ func (b buildBeamEnvironment) PhaseName() (string, error) {
 	return b.phaseName, nil
 }
 
-// CreateSnapshot captures the local filesystem using the configured snapshot arguments.
-func (b buildBeamEnvironment) CreateSnapshot(ctx context.Context) ([]byte, error) {
+// BeamID returns the local Beam's identifier, or an empty string outside a Beam.
+func (b buildBeamEnvironment) BeamID() string {
+	return b.beamID
+}
+
+// CreateSnapshot captures the local filesystem and returns its trimmed snapshot reference.
+func (b buildBeamEnvironment) CreateSnapshot(ctx context.Context) (string, error) {
 	cmd := exec.CommandContext(ctx, "/usr/local/bin/beam-snapshot", b.snapshotArgs...)
 	cmd.Stderr = b.stderr
-	return cmd.Output()
+	output, err := cmd.Output()
+	return strings.TrimSpace(string(output)), err
 }
 
 func (c *phaseAddCommand) snapshotSource(ctx context.Context, env phaseEnvironment) (string, error) {
@@ -79,11 +89,11 @@ func (c *phaseAddCommand) snapshotSource(ctx context.Context, env phaseEnvironme
 				"--fork requires a build Beam. Otherwise supply --fork-from=Phase or --fork-from=parent@sha256:digest",
 			)
 		}
-		output, err := env.CreateSnapshot(ctx)
+		snapshot, err := env.CreateSnapshot(ctx)
 		if err != nil {
 			return "", trace.Wrap(err, "running local beam-snapshot")
 		}
-		ref = strings.TrimSpace(string(output))
+		ref = snapshot
 	}
 	if c.forkLocal ||
 		ref == "" ||

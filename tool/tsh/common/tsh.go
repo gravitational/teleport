@@ -2183,6 +2183,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = beamsCmd.unpublish.run(&cf)
 	case beamsCmd.scp.FullCommand():
 		err = beamsCmd.scp.run(&cf)
+	case phaseCmd.publish.FullCommand():
+		err = phaseCmd.publish.run(&cf)
 	case phaseCmd.add.FullCommand():
 		err = phaseCmd.add.run(&cf)
 	case phaseCmd.edit.FullCommand():

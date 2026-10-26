@@ -164,6 +164,20 @@ Examples:
   Edit using another Phase's snapshot with the same parent:
   $ tsh phase edit dev-tools --from=other-tools`
 
+	phaseSnapshotHelp = `
+Examples:
+  Save changes from the current build console and keep working:
+  $ tsh phase snapshot
+
+  Save changes and end the current build:
+  $ tsh phase snapshot --final
+
+  Exclude changes outside /home and home paths reserved for rebuilds:
+  $ tsh phase snapshot --force
+
+  Save an existing snapshot to its Phase:
+  $ tsh phase snapshot dev-tools --from='parent@sha256:<digest>'`
+
 	ghHelp = `
 Examples:
   Show the GitHub user:

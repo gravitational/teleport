@@ -1474,6 +1474,31 @@ Arguments:
 |---|---|---|
 |name|*no default* (required)|Name of the Phase to delete.|
 
+## tsh phase snapshot
+
+Save a snapshot to its existing Phase.
+
+Usage:
+
+```code
+$ tsh phase snapshot [<flags>] [<name>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format: text, json, or yaml.|
+|`--from`|*no default*|Snapshot source: this Phase's name or parent@sha256:digest. Omit to capture the local build Beam.|
+|`--[no-]final`|`false`|Save the local snapshot and end this build. Changes after the snapshot are discarded.|
+|`--[no-]force`|`false`|Exclude changes outside /home and home paths reserved for rebuilds. Files in the running Beam are unchanged.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|*no default* (optional)|Existing Phase to save the snapshot to. Defaults to the local build Beam's Phase.|
+
 ## tsh piv agent
 
 Start PIV key agent.
