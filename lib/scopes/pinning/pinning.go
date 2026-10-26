@@ -32,6 +32,7 @@ import (
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/itertools"
 )
 
@@ -588,7 +589,6 @@ func getUserRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementP
 	}
 
 	roleNode := assignmentNode.GetRoleTree()
-
 	// note that we skip the segments shared with the scope of origin. the role tree is encoded *relative* to the scope
 	// of origin. the [validateRoleAssignmentWriteSafety] function ensures that the scope of origin is a prefix of the
 	// scope of effect.
@@ -640,6 +640,83 @@ func getSystemRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.Enforcemen
 			RoleName:      string(sr),
 		}) {
 			return
+		}
+	}
+}
+
+// TraitMapForEnforcementPoint generates the map of traits applicable at a given enforcement point for a given pin.
+func TraitMapForEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint) wrappers.Traits {
+	traits := make(map[string][]string)
+	for roleNode := range enumerateRoleNodesForEnforcementPoint(pin, point) {
+		for _, trait := range roleNode.GetTraits() {
+			values := traits[trait.GetKey()]
+			traits[trait.GetKey()] = append(values, trait.GetValues()...)
+		}
+	}
+
+	return traits
+}
+
+// ascendRoleNodes traverses a tree of [*scopesv1.RoleNode] until segments are exhausted. The nodes are yielded in
+// reverse order with the deepest node resolving first and the given roleNode resolving last.
+func ascendRoleNodes(roleNode *scopesv1.RoleNode, segments []string, yield func(*scopesv1.RoleNode) bool) bool {
+	if len(segments) == 0 {
+		return yield(roleNode)
+	}
+	if child, ok := roleNode.GetChildren()[segments[0]]; ok {
+		if !ascendRoleNodes(child, segments[1:], yield) {
+			return false
+		}
+	}
+	return yield(roleNode)
+}
+
+// traverseRoleNodes returns an iterator traversing a [*scopesv1.RoleNode] tree either to a terminal node or until
+// all segments have been visited, whichever comes first. If called with ascending=true, role nodes will be yielded
+// in reverse order from deepest to most shallow.
+func traverseRoleNodes(roleNode *scopesv1.RoleNode, segments []string) iter.Seq[*scopesv1.RoleNode] {
+	return func(yield func(*scopesv1.RoleNode) bool) {
+		ascendRoleNodes(roleNode, segments, yield)
+	}
+}
+
+// enumerateRoleNodesForEnforcementPoint returns all [*scopesv1.RoleNode]s in evaluation order up to the
+// given [scopes.EnforcementPoint].
+func enumerateRoleNodesForEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint) iter.Seq[*scopesv1.RoleNode] {
+	return func(yield func(*scopesv1.RoleNode) bool) {
+		if !pin.HasAssignmentTree() {
+			return
+		}
+
+		if point.ScopeOfOrigin == "" || point.ScopeOfEffect == "" {
+			return
+		}
+
+		effectSegments := scopes.Split(point.ScopeOfEffect)
+		assignmentNode := pin.GetAssignmentTree()
+		for node := range traverseRoleNodes(assignmentNode.GetRoleTree(), effectSegments) {
+			if !yield(node) {
+				return
+			}
+		}
+
+		var depth int
+		for originSegment := range scopes.DescendingSegments(point.ScopeOfOrigin) {
+			var ok bool
+			assignmentNode, ok = assignmentNode.GetChildren()[originSegment]
+			if !ok {
+				return
+			}
+
+			depth++
+			if depth > len(effectSegments) {
+				return
+			}
+			for node := range traverseRoleNodes(assignmentNode.GetRoleTree(), effectSegments[depth:]) {
+				if !yield(node) {
+					return
+				}
+			}
 		}
 	}
 }
