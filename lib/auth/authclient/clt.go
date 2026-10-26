@@ -2468,6 +2468,9 @@ type ClientI interface {
 	// BeamServiceClient returns a client for the beam service.
 	BeamServiceClient() beamsv1.BeamServiceClient
 
+	// PhaseServiceClient returns a client for the Phase service.
+	PhaseServiceClient() beamsv1.PhaseServiceClient
+
 	// BeamReplayServiceClient returns a client for the beam replay service.
 	BeamReplayServiceClient() beamsv1.BeamReplayServiceClient
 

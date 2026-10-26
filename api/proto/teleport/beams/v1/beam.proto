@@ -66,6 +66,28 @@ message BeamSpec {
   // This field may differ from the actual resolved region in BeamStatus.Region,
   // in the case that the RequestedRegion was unable to fulfill the request.
   string requested_region = 5;
+
+  // Phase is the name of the Phase base image selected when a Beam was
+  // created. The reserved value "default:v1" selects the standard Beam image.
+  // build Beams reference their upstream Phase. Immutable after creation.
+  string phase = 6;
+
+  // Purpose identifies whether this is a user Beam or an internal image build
+  // Beam. This field is immutable after creation.
+  BeamResourcePurpose purpose = 7;
+}
+
+// BeamResourcePurpose identifies the workflow for which a Beam resource was
+// created. Its distinct name avoids colliding with the compute API enum.
+enum BeamResourcePurpose {
+  // BEAM_RESOURCE_PURPOSE_UNSPECIFIED is treated as USER.
+  BEAM_RESOURCE_PURPOSE_UNSPECIFIED = 0;
+
+  // BEAM_RESOURCE_PURPOSE_USER is an ordinary interactive Beam.
+  BEAM_RESOURCE_PURPOSE_USER = 1;
+
+  // BEAM_RESOURCE_PURPOSE_BUILD produces an image for a Phase.
+  BEAM_RESOURCE_PURPOSE_BUILD = 2;
 }
 
 // EgressMode configures outgoing network connectivity from the beam.
@@ -116,7 +138,8 @@ message BeamStatus {
   // User to which this beam belongs.
   string user = 1;
 
-  // Alias is the human-friendly identifier for the beam.
+  // Alias is the human-friendly identifier for the beam. build aliases are
+  // <target-phase>-<8 lowercase hex characters>. The target name is preserved.
   string alias = 2;
 
   // NodeID is the UUID that identifies the node that can be used to SSH into
@@ -161,6 +184,24 @@ message BeamStatus {
 
   // Delegation determines how the beam owner's privleges are delegated to the beam.
   DelegationSpec delegation = 14;
+
+  // SnapshotInputs lists the input images used by a build Beam. Each entry
+  // records the image digest and the registry tag that keeps that image
+  // available while the Beam is running. Auth persists these entries before
+  // creating the tags and uses them to resume tag cleanup if the Beam is
+  // interrupted or deleted.
+  repeated BeamSnapshotInput snapshot_inputs = 17;
+}
+
+// BeamSnapshotInput identifies one build input image and the registry tag
+// created to keep that image available until Beam cleanup finishes.
+message BeamSnapshotInput {
+  // Digest identifies the immutable input image in the snapshot repository.
+  string digest = 1;
+  // RetentionTag is the unique tag created for this Beam's input image.
+  // Cleanup deletes this tag after the Beam's compute resources are destroyed.
+  // The tag is never reassigned to another Beam.
+  string retention_tag = 2;
 }
 
 // ComputeStatus represents the current state of the beam's compute resources.

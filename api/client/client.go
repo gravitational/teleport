@@ -1012,6 +1012,11 @@ func (c *Client) BeamServiceClient() beamsv1.BeamServiceClient {
 	return beamsv1.NewBeamServiceClient(c.conn)
 }
 
+// PhaseServiceClient returns a client for the Phase service.
+func (c *Client) PhaseServiceClient() beamsv1.PhaseServiceClient {
+	return beamsv1.NewPhaseServiceClient(c.conn)
+}
+
 // BeamsConfigServiceClient returns a client for the beams config service.
 func (c *Client) BeamsConfigServiceClient() beamsv1.BeamsConfigServiceClient {
 	return beamsv1.NewBeamsConfigServiceClient(c.conn)
