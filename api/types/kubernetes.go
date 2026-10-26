@@ -603,6 +603,13 @@ func DeduplicateKubeClusters(kubeclusters []KubeCluster) []KubeCluster {
 	return result
 }
 
+// IsKubernetesClusterResourceKind reports whether kind is a kube cluster
+// resource kind. KindNamespace equals KindKubeNamespace and also matches.
+func IsKubernetesClusterResourceKind(kind string) bool {
+	return slices.Contains(KubernetesResourcesKinds, kind) ||
+		strings.HasPrefix(kind, AccessRequestPrefixKindKube)
+}
+
 var _ ResourceWithLabels = (*KubernetesResourceV1)(nil)
 
 // NewKubernetesResourceV1 creates a new kubernetes resource .

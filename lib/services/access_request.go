@@ -2598,7 +2598,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			matchers            []RoleMatcher
 			kubeResourceMatcher *KubeResourcesMatcher
 		)
-		kubernetesResources, err := getKubeResourcesFromResourceIDs(requestedResourceIDs, resource.GetName())
+		kubernetesResources, err := GetKubeResourcesFromResourceIDs(requestedResourceIDs, resource.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2741,7 +2741,7 @@ func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Conte
 	// requested is fulfilled by at least one role.
 	searchableResourcesIDs := slices.Clone(resourceIDs)
 	for i := range searchableResourcesIDs {
-		if slices.Contains(types.KubernetesResourcesKinds, searchableResourcesIDs[i].Kind) || strings.HasPrefix(searchableResourcesIDs[i].Kind, types.AccessRequestPrefixKindKube) {
+		if types.IsKubernetesClusterResourceKind(searchableResourcesIDs[i].Kind) {
 			searchableResourcesIDs[i].Kind = types.KindKubernetesCluster
 		}
 	}
@@ -2750,9 +2750,9 @@ func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Conte
 	return resources, trace.Wrap(err)
 }
 
-// getKubeResourcesFromResourceIDs returns the Kubernetes Resources requested for
+// GetKubeResourcesFromResourceIDs returns the Kubernetes resources requested for
 // the configured cluster.
-func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName string) ([]types.KubernetesResource, error) {
+func GetKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName string) ([]types.KubernetesResource, error) {
 	kubernetesResources := make([]types.KubernetesResource, 0, len(resourceIDs))
 
 	for _, resourceID := range resourceIDs {
@@ -2782,7 +2782,7 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 			)
 			continue
 		}
-		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, types.AccessRequestPrefixKindKube) {
+		if types.IsKubernetesClusterResourceKind(resourceID.Kind) {
 			kind := types.KubernetesResourcesKindsPlurals[resourceID.Kind]
 			if kind == "" {
 				kind = resourceID.Kind

@@ -272,6 +272,7 @@ type AccessResourcesGetter interface {
 
 	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	GetLock(ctx context.Context, name string) (types.Lock, error)
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)

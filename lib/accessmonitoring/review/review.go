@@ -355,7 +355,11 @@ func (handler *Handler) resolveRequestedResourceLabels(ctx context.Context, req 
 	}
 
 	for _, id := range localIDs {
-		key := resourceKey{kind: id.Kind, name: id.Name}
+		kind := id.Kind
+		if types.IsKubernetesClusterResourceKind(kind) {
+			kind = types.KindKubernetesCluster
+		}
+		key := resourceKey{kind: kind, name: id.Name}
 		if _, ok := resolved[key]; !ok {
 			complete = false
 			break

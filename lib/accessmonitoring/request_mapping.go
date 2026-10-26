@@ -40,6 +40,9 @@ type AccessRequestExpressionEnv struct {
 	CreationTime       time.Time
 	Expiry             time.Time
 
+	// ResourceLabelsError prevents label conditions from using incomplete resources.
+	ResourceLabelsError error
+
 	// UserTraits includes arbitrary user traits dynamically provided by the
 	// access monitoring rule handler.
 	UserTraits trait.Traits
@@ -112,6 +115,9 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 		}),
 
 		"access_request.spec.resource_labels_union": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
+			if env.ResourceLabelsError != nil {
+				return nil, trace.Wrap(env.ResourceLabelsError)
+			}
 			union := make(map[string][]string)
 			for _, resource := range env.RequestedResources {
 				for k, v := range resource.GetAllLabels() {
@@ -121,6 +127,9 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 			return expression.DictFromStringSliceMap(union), nil
 		}),
 		"access_request.spec.resource_labels_intersection": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
+			if env.ResourceLabelsError != nil {
+				return nil, trace.Wrap(env.ResourceLabelsError)
+			}
 			if len(env.RequestedResources) == 0 {
 				return expression.Dict{}, nil
 			}
