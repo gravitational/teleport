@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -75,11 +76,8 @@ const (
 	// invalidLabelChars are the special characters that should not be allowed in label keys or values.
 	invalidLabelChars = "^$"
 
-	// maxValuesPerTrait limits the number of values that can be assigned to a single trait.
-	maxValuesPerTrait = 16
-
-	// maxTraitLength limits the character length of a trait key or value.
-	maxTraitLength = 256
+	// maxTraitSize limits the size, in bytes, of traits assigned by a single assignment
+	maxTraitSize = 1024 // 1KiB
 )
 
 // RoleIsAssignableToScopeOfEffect checks if the given role is assignable to the given scope of effect. For example,
@@ -568,6 +566,7 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		}
 	}
 
+	var totalTraitSize int
 	for i, traitAssn := range assignment.GetSpec().GetTraits() {
 		if err := scopes.StrongValidate(traitAssn.GetScope()); err != nil {
 			return trace.BadParameter("scoped role assignment %q has invalid scope in trait assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
@@ -607,19 +606,23 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 				)
 			}
 		}
+		// exclude scope from size calculation so that trait size is consistent regardless of which scope is being
+		// assigned
+		totalTraitSize += proto.Size(traitAssn) - len(traitAssn.GetScope())
+	}
+
+	if totalTraitSize > maxTraitSize {
+		return trace.BadParameter("scoped role assignment %q has trait assignments with total byte size %d over the maximum %d", assignment.GetMetadata().GetName(), totalTraitSize-maxTraitSize, maxTraitSize)
 	}
 
 	return nil
 }
 
-// validateAssignedTrait validates individual traits assigned within a [*scopedaccessv1.TraitAssignment]
+// validateAssignedTrait validates individual traits assigned within a [*scopedaccessv1.TraitAssignment].
 func validateAssignedTrait(trait *traitv1.Trait) error {
 	key := trait.GetKey()
 	if len(key) == 0 {
 		return trace.BadParameter("empty key")
-	}
-	if len(key) > maxTraitLength {
-		return trace.BadParameter("key %q longer than max allowed %d", key, maxTraitLength)
 	}
 
 	values := trait.GetValues()
@@ -627,18 +630,10 @@ func validateAssignedTrait(trait *traitv1.Trait) error {
 		return trace.BadParameter("empty values being assigned to key %q", key)
 	}
 
-	if len(values) > maxValuesPerTrait {
-		return trace.BadParameter("too many values assigned to key %q", key)
-	}
-
 	valuesSeen := make(map[string]struct{})
 	for _, value := range values {
 		if value == "" {
 			return trace.BadParameter("empty value assigned to key %q", key)
-		}
-
-		if len(value) > maxTraitLength {
-			return trace.BadParameter("value %q assigned to key %q is longer than max allowed %d", value, key, maxTraitLength)
 		}
 
 		if _, ok := valuesSeen[value]; ok {
