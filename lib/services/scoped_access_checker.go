@@ -126,14 +126,16 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 		return nil, trace.Wrap(err)
 	}
 
-	// Create an access checker with this single role. Single-role evaluation is a core principle
-	// of the scoped access model - the first role that permits access determines all parameters.
+	// Create an access checker with this single role. Decisions authorized by inclusive roles will aggregate
+	// at a later step.
 	checker := newAccessChecker(info, b.localCluster, newScopedRoleSet(role))
 
 	return &ScopedAccessChecker{
-		scopeOfOrigin:       key.ScopeOfOrigin,
-		scopeOfEffect:       key.ScopeOfEffect,
-		role:                rsp.GetRole(),
+		scopedRoleAssignment: scopedRoleAssignment{
+			scopeOfOrigin: key.ScopeOfOrigin,
+			scopeOfEffect: key.ScopeOfEffect,
+			role:          rsp.GetRole(),
+		},
 		scopedCompatChecker: checker,
 	}, nil
 }
@@ -153,19 +155,24 @@ func newScopedRoleSet(roles ...types.Role) RoleSet {
 // unscoped roles, we may need to revisit this approach in favor of defining our own default implicit scoped role instead.
 func (b *scopedAccessCheckerBuilder) newDefaultImplicitChecker(_ context.Context) *ScopedAccessChecker {
 	return &ScopedAccessChecker{
-		scopeOfOrigin:       scopes.Root,
-		scopeOfEffect:       scopes.Root,
+		scopedRoleAssignment: scopedRoleAssignment{
+			scopeOfOrigin: scopes.Root,
+			scopeOfEffect: scopes.Root,
+			role: scopedaccessv1.ScopedRole_builder{
+				Metadata: headerv1.Metadata_builder{
+					Name: constants.DefaultImplicitRole,
+				}.Build(),
+				Scope: scopes.Root,
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{scopes.Root},
+					Evaluation: scopedaccessv1.ScopedRoleEvaluation_builder{
+						Mode: scopedaccess.EvaluationModeExclusive,
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+		},
 		scopedCompatChecker: newAccessChecker(b.info, b.localCluster, newScopedRoleSet()),
-		role: scopedaccessv1.ScopedRole_builder{
-			Metadata: headerv1.Metadata_builder{
-				Name: constants.DefaultImplicitRole,
-			}.Build(),
-			Scope: scopes.Root,
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
-				AssignableScopes: []string{scopes.Root},
-			}.Build(),
-			Version: types.V1,
-		}.Build(),
 	}
 }
 
@@ -175,21 +182,28 @@ func (b *scopedAccessCheckerBuilder) newDefaultImplicitChecker(_ context.Context
 //   - Scope of Origin: the scope from which the assignment originates (determines seniority)
 //   - Scope of Effect: the scope at which the role's privileges apply (determines applicability)
 //
-// In the scoped access model, the first role (in evaluation order) that permits access to a resource
-// determines all subsequent access parameters. This differs from classic role evaluation where roles are
-// aggregated and the most restrictive settings win.
+// In the scoped access model, the first role (in evaluation order) that permits access to a resource is the
+// "winning" role. If the winning role has exclusive evaluation, it determines all subsequent access parameters.
+// If the winning role has inclusive evaluation, subsequent inclusive roles that independently permit the
+// same access are aggregated into the checker returned by [ScopedAccessCheckerContext.Decision] as additional
+// roles, which may contribute to the final access parameters.
 //
 // For unscoped identities, the full AccessChecker is wrapped directly and all method calls are delegated to it.
 //
 // ScopedAccessChecker instances should be obtained from ScopedAccessCheckerContext rather than constructed
 // directly. The exception is NewScopedAccessCheckerFromUnscoped for adapting an unscoped AccessChecker.
 type ScopedAccessChecker struct {
-	// scopeOfOrigin/scopeOfEffect are populated only for scoped identities; zero for unscoped.
-	scopeOfOrigin string
-	scopeOfEffect string
+	// scopedRoleAssignment is the primary role assignment for this checker. For checkers returned by
+	// [ScopedAccessCheckerContext.Decision], this is the winning role. Zero for unscoped identities.
+	scopedRoleAssignment
 
-	// role is the scoped role being evaluated, or nil for unscoped identities.
-	role *scopedaccessv1.ScopedRole
+	// additionalRoles are the inclusive role assignments (other than the winning role) that independently
+	// permitted access in the decision that produced this checker. Only populated on checkers returned by
+	// [ScopedAccessCheckerContext.Decision] where the winning role has inclusive evaluation.
+	//
+	// TODO(fspmarshall/scopes): no methods consider additionalRoles yet. implement summing of individual
+	// permissions/controls across additionalRoles.
+	additionalRoles []scopedRoleAssignment
 
 	// scopedCompatChecker is a classic AccessChecker built from the scoped role via ScopedRoleToRole.
 	// Non-nil iff isScoped(). Used for checks that fall back to compat classic-role logic.
@@ -198,6 +212,16 @@ type ScopedAccessChecker struct {
 	// unscopedChecker is the underlying unscoped AccessChecker.
 	// Non-nil iff !isScoped().
 	unscopedChecker AccessChecker
+}
+
+// scopedRoleAssignment is a scoped role as assigned at a specific enforcement point.
+type scopedRoleAssignment struct {
+	// scopeOfOrigin/scopeOfEffect are populated only for scoped identities; zero for unscoped.
+	scopeOfOrigin string
+	scopeOfEffect string
+
+	// role is the assigned scoped role, or nil for unscoped identities.
+	role *scopedaccessv1.ScopedRole
 }
 
 // NewScopedAccessCheckerFromUnscoped creates a ScopedAccessChecker wrapping an unscoped AccessChecker.
@@ -216,18 +240,20 @@ func NewScopedAccessCheckerFromUnscoped(checker AccessChecker) *ScopedAccessChec
 // TODO(fspmarshall/scopes): revisit our scoped system role strateg as described above.
 func NewScopedAccessCheckerForSystemRole(roleName string, checker AccessChecker) *ScopedAccessChecker {
 	return &ScopedAccessChecker{
-		scopeOfOrigin: scopes.Root,
-		scopeOfEffect: scopes.Root,
-		role: scopedaccessv1.ScopedRole_builder{
-			Metadata: headerv1.Metadata_builder{
-				Name: "system/" + roleName,
+		scopedRoleAssignment: scopedRoleAssignment{
+			scopeOfOrigin: scopes.Root,
+			scopeOfEffect: scopes.Root,
+			role: scopedaccessv1.ScopedRole_builder{
+				Metadata: headerv1.Metadata_builder{
+					Name: "system/" + roleName,
+				}.Build(),
+				Scope:   scopes.Root,
+				Version: types.V1,
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{scopes.Root},
+				}.Build(),
 			}.Build(),
-			Scope:   scopes.Root,
-			Version: types.V1,
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
-				AssignableScopes: []string{scopes.Root},
-			}.Build(),
-		}.Build(),
+		},
 		scopedCompatChecker: checker,
 	}
 }

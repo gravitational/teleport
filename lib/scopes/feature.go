@@ -33,6 +33,9 @@ const (
 
 	// agentPinVarName is the name of the unstable agent scope pin feature flag.
 	agentPinVarName = "TELEPORT_UNSTABLE_AGENT_SCOPE_PIN"
+
+	// exclusiveEvaluationVarName is the name of the unstable scoped role exclusive evaluation feature flag.
+	exclusiveEvaluationVarName = "TELEPORT_UNSTABLE_SCOPES_EXCLUSIVE_EVALUATION"
 )
 
 // Features describes which scopes-related functionality is enabled.
@@ -42,12 +45,24 @@ type Features struct {
 
 	// AgentPinEnabled checks if the agent scope pin feature is enabled.
 	AgentPinEnabled bool
+
+	// ExclusiveEvaluationEnabled indicates whether scoped roles may be created with exclusive evaluation.
+	ExclusiveEvaluationEnabled bool
 }
 
 // AssertEnabled returns an error if the base scopes feature is disabled.
 func (f Features) AssertEnabled() error {
 	if !f.Enabled {
 		return trace.Errorf("scoping features are not enabled, set " + featureVarName + "=yes to enable scoping features (caution: not ready for production use)")
+	}
+
+	return nil
+}
+
+// AssertExclusiveEvaluationEnabled returns an error if the scoped role exclusive evaluation feature is disabled.
+func (f Features) AssertExclusiveEvaluationEnabled() error {
+	if !f.ExclusiveEvaluationEnabled {
+		return trace.BadParameter("exclusive evaluation of scoped roles is not enabled, set " + exclusiveEvaluationVarName + "=yes to enable exclusive evaluation (caution: not ready for production use)")
 	}
 
 	return nil
@@ -60,6 +75,8 @@ func FeaturesFromEnv() Features {
 	f.Enabled = enabled && err == nil
 	agentPinEnabled, err := apiutils.ParseBool(os.Getenv(agentPinVarName))
 	f.AgentPinEnabled = agentPinEnabled && err == nil
+	exclusiveEvaluationEnabled, err := apiutils.ParseBool(os.Getenv(exclusiveEvaluationVarName))
+	f.ExclusiveEvaluationEnabled = exclusiveEvaluationEnabled && err == nil
 	return f
 }
 

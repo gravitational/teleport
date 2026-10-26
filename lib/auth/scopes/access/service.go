@@ -87,9 +87,25 @@ func New(cfg Config) (*Server, error) {
 	}, nil
 }
 
+// assertRoleFeaturesEnabled checks that the role does not use any unstable features that are inactive. All role creation/update
+// operations must call this function before updating the backend.
+func (s *Server) assertRoleFeaturesEnabled(role *scopedaccessv1.ScopedRole) error {
+	if role.GetSpec().GetEvaluation().GetMode() == scopedaccess.EvaluationModeExclusive {
+		if err := s.cfg.ScopesFeatures.AssertExclusiveEvaluationEnabled(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // CreateScopedRole implements [scopedaccessv1.ScopedRoleServiceServer].
 func (s *Server) CreateScopedRole(ctx context.Context, req *scopedaccessv1.CreateScopedRoleRequest) (*scopedaccessv1.CreateScopedRoleResponse, error) {
 	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.assertRoleFeaturesEnabled(req.GetRole()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -463,6 +479,10 @@ func (s *Server) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.Updat
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.assertRoleFeaturesEnabled(req.GetRole()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authzContext, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -525,6 +545,10 @@ func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedacce
 // UpsertScopedRole implements [scopedaccessv1.ScopedAccessServiceServer].
 func (s *Server) UpsertScopedRole(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleRequest) (*scopedaccessv1.UpsertScopedRoleResponse, error) {
 	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.assertRoleFeaturesEnabled(req.GetRole()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

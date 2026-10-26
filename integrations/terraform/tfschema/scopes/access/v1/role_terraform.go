@@ -236,7 +236,7 @@ func GenSchemaScopedRoleResource(ctx context.Context) (github_com_hashicorp_terr
 					Optional:    true,
 				},
 				"assignable_scopes": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
-					Description: "AssignableScopes is a list of scopes to which this role can be assigned.",
+					Description: "AssignableScopes is a list of scopes to which this role can be assigned. If empty, defaults to being assignable at resource scope and all descendants. Root scoped roles have no default and must specify assignable scopes explicitly.",
 					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Required:    true,
 				},
@@ -274,6 +274,16 @@ func GenSchemaScopedRoleResource(ctx context.Context) (github_com_hashicorp_terr
 						},
 					},
 					Description: "Defaults specifies default values for controls common across multiple protocols. If the same control specified in defaults is also specified in a protocol block, the value in the protocol block takes precedence.",
+					Optional:    true,
+				},
+				"evaluation": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"mode": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+						Computed:      true,
+						Description:   "Mode determines the evaluation mode of the role. Allowed values are 'inclusive' (default) and 'exclusive'. The default inclusive mode allows permissions from multiple matching roles to be combined. When a role is set to exclusive, the first matching role fully determines all permissions and controls for the access attempt.  Inclusive is easier to manage day to day, but exclusive offers tighter control.",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+					}},
+					Description: "Evaluation groups role-level settings that govern how a role is evaluated.",
 					Optional:    true,
 				},
 				"kube": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
@@ -771,7 +781,7 @@ func GenSchemaScopedRoleDataSource(ctx context.Context) (github_com_hashicorp_te
 					Optional:    true,
 				},
 				"assignable_scopes": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
-					Description: "AssignableScopes is a list of scopes to which this role can be assigned.",
+					Description: "AssignableScopes is a list of scopes to which this role can be assigned. If empty, defaults to being assignable at resource scope and all descendants. Root scoped roles have no default and must specify assignable scopes explicitly.",
 					ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					Required:    true,
 				},
@@ -806,6 +816,15 @@ func GenSchemaScopedRoleDataSource(ctx context.Context) (github_com_hashicorp_te
 						},
 					},
 					Description: "Defaults specifies default values for controls common across multiple protocols. If the same control specified in defaults is also specified in a protocol block, the value in the protocol block takes precedence.",
+					Optional:    true,
+				},
+				"evaluation": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+					Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"mode": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+						Computed:    true,
+						Description: "Mode determines the evaluation mode of the role. Allowed values are 'inclusive' (default) and 'exclusive'. The default inclusive mode allows permissions from multiple matching roles to be combined. When a role is set to exclusive, the first matching role fully determines all permissions and controls for the access attempt.  Inclusive is easier to manage day to day, but exclusive offers tighter control.",
+						Optional:    true,
+					}},
+					Description: "Evaluation groups role-level settings that govern how a role is evaluated.",
 					Optional:    true,
 				},
 				"kube": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
@@ -3018,6 +3037,41 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 														}
 													}
 												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attributes()["evaluation"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ScopedRole.spec.evaluation"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.evaluation", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Evaluation = nil
+								if !v.IsNull() && !v.IsUnknown() {
+									tf := v
+									obj.Evaluation = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleEvaluation{}
+									obj := obj.Evaluation
+									{
+										a, ok := tf.Attributes()["mode"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.evaluation.mode"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.evaluation.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.IsNull() && !v.IsUnknown() {
+													t = (v.ValueString())
+												}
+												obj.Mode = t
 											}
 										}
 									}
@@ -5354,6 +5408,49 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 											}
 										}()
 										attrs["app"] = v
+									}
+								}
+							}
+							{
+								attrType, ok := attrType.AttributeTypes()["evaluation"]
+								if !ok {
+									diags.Append(attrWriteMissingDiag{"ScopedRole.spec.evaluation"})
+								} else {
+									attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									if !ok {
+										diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.evaluation", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+									} else {
+										existing := attrs["evaluation"]
+										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+											if preserveUnknown && existing != nil && existing.IsUnknown() {
+												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+											} else {
+												if obj.Evaluation == nil {
+													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+												} else {
+													obj := obj.Evaluation
+													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+													if ok && v.Attributes() != nil {
+														attrs = v.Attributes()
+													}
+													{
+														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+														existing := attrs["mode"]
+														if preserveUnknown && existing != nil && existing.IsUnknown() {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+														} else {
+															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Mode))
+														}
+														attrs["mode"] = v
+													}
+													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+													diags.Append(resultDiags...)
+													return result
+												}
+											}
+										}()
+										attrs["evaluation"] = v
 									}
 								}
 							}
