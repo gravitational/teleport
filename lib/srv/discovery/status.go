@@ -428,43 +428,54 @@ func (ars *awsResourcesStatus) incrementEnrolled(g awsResourceGroup, count int) 
 	})
 }
 
-// ReportEC2SSMInstallationResult is called when discovery gets the result of running the installation script in a EC2 instance.
-// It will emit an audit event with the result and update the DiscoveryConfig status
-func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *server.SSMInstallationResult) error {
+// reportEC2SSMInstallationResult records a completed SSM installation result
+// in backoff before updating status, UserTasks, and audit events.
+func (s *Server) reportEC2SSMInstallationResult(ctx context.Context, backoff *ec2InstallerBackoff, group *server.EC2Instances, result *server.SSMInstallationResult) error {
 	// Only failed runs are counted.
 	// Successful ones only mean that the teleport was installed in the target host.
 	// If they succeed in joining the cluster, during the next iteration, they will be countd as "enrolled"
-	if result.SSMRunEvent.Metadata.Code != libevents.SSMRunSuccessCode {
-		// Record failure status before emitting the audit event. Audit emission
-		// errors are reported to the caller, but must not hide the failed
-		// enrollment from DiscoveryConfig status or UserTasks.
-		s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
-			discoveryConfigName: result.DiscoveryConfigName,
-			integration:         result.IntegrationName,
-		}, 1)
+	target := newEC2InstallerBackoffTargetFromResult(group, result)
 
-		s.awsEC2Tasks.addFailedEnrollment(
-			awsEC2TaskKey{
-				integration:     result.IntegrationName,
-				issueType:       result.IssueType,
-				accountID:       result.SSMRunEvent.AccountID,
-				region:          result.SSMRunEvent.Region,
-				ssmDocument:     result.SSMDocumentName,
-				installerScript: result.InstallerScript,
-			},
-			&usertasksv1.DiscoverEC2Instance{
-				InvocationUrl:   result.SSMRunEvent.InvocationURL,
-				DiscoveryConfig: result.DiscoveryConfigName,
-				DiscoveryGroup:  s.DiscoveryGroup,
-				SyncTime:        timestamppb.New(s.clock.Now()),
-				InstanceId:      result.SSMRunEvent.InstanceID,
-				Name:            result.InstanceName,
-			},
-		)
-
+	if result.SSMRunEvent.Metadata.Code == libevents.SSMRunSuccessCode {
+		backoff.recordSuccessfulAttempt(target, s.clock.Now())
+		return trace.Wrap(s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent))
 	}
+	syncTime := s.clock.Now()
+	backoff.recordFailedAttempt(target, result.IssueType, syncTime)
+	// Record failure status before emitting the audit event. Audit emission
+	// errors are reported to the caller, but must not hide the failed
+	// enrollment from DiscoveryConfig status or UserTasks.
+	s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+		discoveryConfigName: result.DiscoveryConfigName,
+		integration:         result.IntegrationName,
+	}, 1)
+
+	s.addEC2FailedEnrollment(group, target.instance, result.IssueType, result.SSMRunEvent.InvocationURL, syncTime)
 
 	return trace.Wrap(s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent))
+}
+
+// addEC2FailedEnrollment adds one EC2 instance to its failed-enrollment
+// UserTask group.
+func (s *Server) addEC2FailedEnrollment(group *server.EC2Instances, instance server.EC2Instance, issueType string, invocationURL string, syncTime time.Time) {
+	s.awsEC2Tasks.addFailedEnrollment(
+		awsEC2TaskKey{
+			integration:     group.Integration,
+			issueType:       issueType,
+			accountID:       group.AccountID,
+			region:          group.Region,
+			ssmDocument:     group.DocumentName,
+			installerScript: group.Parameters[server.ParamScriptName],
+		},
+		&usertasksv1.DiscoverEC2Instance{
+			InvocationUrl:   invocationURL,
+			DiscoveryConfig: group.DiscoveryConfigName,
+			DiscoveryGroup:  s.DiscoveryGroup,
+			SyncTime:        timestamppb.New(syncTime),
+			InstanceId:      instance.InstanceID,
+			Name:            instance.InstanceName,
+		},
+	)
 }
 
 // awsEC2Tasks contains the Discover EC2 User Tasks that must be reported to the user.

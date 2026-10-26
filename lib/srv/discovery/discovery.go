@@ -653,12 +653,23 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 
 	s.caRotationCh = make(chan []types.Server)
 
+	backoff, err := newEC2InstallerBackoff(s.PollInterval*2, retryutils.SeventhJitter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.ec2Watcher = server.NewWatcher(
 		s.ctx,
 		s.Log.With("cloud", "AWS"),
 		server.WithMissedRotation(s.caRotationCh),
 		server.WithPollInterval[*server.EC2Instances](s.PollInterval),
 		server.WithTriggerFetchC[*server.EC2Instances](s.newDiscoveryConfigChangedSub()),
+		server.WithTriggerFetchHookFn[*server.EC2Instances](func() {
+			s.Log.DebugContext(s.ctx, "Fetch triggered by discovery config change")
+			// users should be able to adjust discovery config to fix issues
+			// without waiting for the backoff entries to expire
+			backoff.reset()
+		}),
 		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
 		server.WithClock[*server.EC2Instances](s.clock),
 		server.WithFetchErrorHookFn[*server.EC2Instances](s.handleEC2WatcherError),
@@ -669,12 +680,15 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 					integration:         group.Integration,
 				}, len(group.Instances))
 
-				if err := s.handleEC2Instances(group); err != nil {
+				if err := s.handleEC2Instances(group, backoff); err != nil {
 					s.logHandleInstancesErr(err)
 				}
 			}
 		}),
-		server.WithPostFetchHookFn[*server.EC2Instances](s.ec2WatcherIterationEnded),
+		server.WithPostFetchHookFn[*server.EC2Instances](func() {
+			s.ec2WatcherIterationEnded()
+			backoff.expireEntries(s.clock.Now())
+		}),
 	)
 	s.ec2Watcher.SetFetchers(noDiscoveryConfig, staticFetchers)
 
@@ -1163,7 +1177,7 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 	return "[" + result + "]"
 }
 
-func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
+func (s *Server) handleEC2Instances(instances *server.EC2Instances, backoff *ec2InstallerBackoff) error {
 	log := s.Log.With("group", instances)
 	log.DebugContext(s.ctx, "Processing instance group")
 
@@ -1195,12 +1209,38 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
+	if !instances.Rotation && instances.EnrollMode == types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT {
+		syncTime := s.clock.Now()
+		skipped := backoff.filter(instances, syncTime)
+		s.Log.DebugContext(
+			s.ctx,
+			"Skipping EC2 instances with an active installation backoff",
+			"skipped", len(skipped),
+		)
+
+		for _, inst := range skipped {
+			if !inst.isFailedAttempt() {
+				continue
+			}
+
+			s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+				discoveryConfigName: instances.DiscoveryConfigName,
+				integration:         instances.Integration,
+			}, 1)
+
+			s.addEC2FailedEnrollment(instances, inst.target.instance, inst.issueType, "", syncTime) // todo (mpm) add invocation URL
+		}
+		if len(instances.Instances) == 0 {
+			return nil
+		}
+	}
+
 	switch instances.EnrollMode {
 	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
 		s.heartbeatEICEInstance(instances)
 
 	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
-		if err := s.handleEC2RemoteInstallation(instances); err != nil {
+		if err := s.handleEC2RemoteInstallation(instances, backoff); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -1294,7 +1334,7 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	}
 }
 
-func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {
+func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances, backoff *ec2InstallerBackoff) error {
 	ssmClient, err := s.GetSSMClient(s.ctx,
 		instances.Region,
 		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: instances.Integration}),
@@ -1319,7 +1359,10 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 		IntegrationName:     instances.Integration,
 		DiscoveryConfigName: instances.DiscoveryConfigName,
 	}
-	if err := s.ec2Installer.Run(s.ctx, req, s.ReportEC2SSMInstallationResult); err != nil {
+	report := func(ctx context.Context, result *server.SSMInstallationResult) error {
+		return s.reportEC2SSMInstallationResult(ctx, backoff, instances, result)
+	}
+	if err := s.ec2Installer.Run(s.ctx, req, report); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
