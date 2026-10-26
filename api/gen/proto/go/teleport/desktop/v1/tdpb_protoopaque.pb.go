@@ -26,7 +26,6 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	_ "google.golang.org/protobuf/types/descriptorpb"
 	reflect "reflect"
 	unsafe "unsafe"
 )
@@ -5754,7 +5753,7 @@ var File_teleport_desktop_v1_tdpb_proto protoreflect.FileDescriptor
 
 const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\n" +
-	"\x1eteleport/desktop/v1/tdpb.proto\x12\x13teleport.desktop.v1\x1a google/protobuf/descriptor.proto\x1a\x1fteleport/mfa/v1/challenge.proto\"\x9a\x01\n" +
+	"\x1eteleport/desktop/v1/tdpb.proto\x12\x13teleport.desktop.v1\x1a\x1fteleport/mfa/v1/challenge.proto\"\x9a\x01\n" +
 	"\vClientHello\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +

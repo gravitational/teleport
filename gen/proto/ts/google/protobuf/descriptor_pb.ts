@@ -5,34 +5,11 @@
 // @ts-nocheck
 //
 // Protocol Buffers - Google's data interchange format
-// Copyright 2008 Google Inc.  All rights reserved.
-// https://developers.google.com/protocol-buffers/
+// Copyright 2008 Google LLC.  All rights reserved.
 //
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are
-// met:
-//
-//     * Redistributions of source code must retain the above copyright
-// notice, this list of conditions and the following disclaimer.
-//     * Redistributions in binary form must reproduce the above
-// copyright notice, this list of conditions and the following disclaimer
-// in the documentation and/or other materials provided with the
-// distribution.
-//     * Neither the name of Google Inc. nor the names of its
-// contributors may be used to endorse or promote products derived from
-// this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file or at
+// https://developers.google.com/open-source/licenses/bsd
 //
 //
 // Author: kenton@google.com (Kenton Varda)
@@ -1151,9 +1128,11 @@ export interface FieldOptions {
      */
     deprecated?: boolean;
     /**
+     * DEPRECATED. DO NOT USE!
      * For Google-internal migration only. Do not use.
      *
-     * @generated from protobuf field: optional bool weak = 10;
+     * @deprecated
+     * @generated from protobuf field: optional bool weak = 10 [deprecated = true];
      */
     weak?: boolean;
     /**
@@ -1244,6 +1223,13 @@ export interface FieldOptions_FeatureSupport {
      * @generated from protobuf field: optional google.protobuf.Edition edition_removed = 4;
      */
     editionRemoved?: Edition;
+    /**
+     * The removal error text if this feature is used after the edition it was
+     * removed in.
+     *
+     * @generated from protobuf field: optional string removal_error = 5;
+     */
+    removalError?: string;
 }
 /**
  * @generated from protobuf enum google.protobuf.FieldOptions.CType
@@ -1678,6 +1664,10 @@ export interface FeatureSet {
      * @generated from protobuf field: optional google.protobuf.FeatureSet.VisibilityFeature.DefaultSymbolVisibility default_symbol_visibility = 8;
      */
     defaultSymbolVisibility?: FeatureSet_VisibilityFeature_DefaultSymbolVisibility;
+    /**
+     * @generated from protobuf field: optional google.protobuf.FeatureSet.ProtoLimitsFeature.EnforceProtoLimits enforce_proto_limits = 9;
+     */
+    enforceProtoLimits?: FeatureSet_ProtoLimitsFeature_EnforceProtoLimits;
 }
 /**
  * @generated from protobuf message google.protobuf.FeatureSet.VisibilityFeature
@@ -1718,6 +1708,36 @@ export enum FeatureSet_VisibilityFeature_DefaultSymbolVisibility {
      * @generated from protobuf enum value: STRICT = 4;
      */
     STRICT = 4
+}
+/**
+ * @generated from protobuf message google.protobuf.FeatureSet.ProtoLimitsFeature
+ */
+export interface FeatureSet_ProtoLimitsFeature {
+}
+/**
+ * @generated from protobuf enum google.protobuf.FeatureSet.ProtoLimitsFeature.EnforceProtoLimits
+ */
+export enum FeatureSet_ProtoLimitsFeature_EnforceProtoLimits {
+    /**
+     * @generated from protobuf enum value: PROTO_LIMITS_UNKNOWN = 0;
+     */
+    PROTO_LIMITS_UNKNOWN = 0,
+    /**
+     * Default pre-EDITION_2026: there are no limit enforcement at the protoc
+     * level. Practical limits still exist, but they will tend to fail while
+     * compiling protoc-generated code, and these limits tend to be language
+     * or toolchain specific.
+     *
+     * @generated from protobuf enum value: LEGACY_NO_EXPLICIT_LIMITS = 1;
+     */
+    LEGACY_NO_EXPLICIT_LIMITS = 1,
+    /**
+     * A set of limits enforced by Edition 2026 by default. For a detailed
+     * list of all the limits please consult the Edition 2026 documentation.
+     *
+     * @generated from protobuf enum value: PROTO_LIMITS2026 = 2;
+     */
+    PROTO_LIMITS2026 = 2
 }
 /**
  * @generated from protobuf enum google.protobuf.FeatureSet.FieldPresence
@@ -1840,7 +1860,11 @@ export enum FeatureSet_EnforceNamingStyle {
     /**
      * @generated from protobuf enum value: STYLE_LEGACY = 2;
      */
-    STYLE_LEGACY = 2
+    STYLE_LEGACY = 2,
+    /**
+     * @generated from protobuf enum value: STYLE2026 = 3;
+     */
+    STYLE2026 = 3
 }
 /**
  * A compiled specification for the defaults of a set of features.  These
@@ -1983,6 +2007,23 @@ export interface SourceCodeInfo_Location {
      *   [ 4, 3, 2, 7 ]
      * this path refers to the whole field declaration (from the beginning
      * of the label to the terminating semicolon).
+     *
+     * For options, the path refers to the interpreted option in the descriptor.
+     * E.g., for a custom option `(my_opt) = "foo"` on a message using extension
+     * number 10101, the path is:
+     *   [ 4, 3, 7, 10101 ]
+     * refers to:
+     *   file.message_type(3)     // 4, 3
+     *       .options()           // 7
+     *       .my_opt()            // 10101
+     *
+     * Sub-locations corresponding to the interpreted option's corresponding
+     * `UninterpretedOption` are also appended to the interpreted option, which
+     * deviates from the actual FileDescriptorProto path. E.g.:
+     *   [ 4, 3, 7, 10101, 2 ]
+     * refers to the option name `(my_opt)`, and:
+     *   [ 4, 3, 7, 10101, 7 ]
+     * refers to the "foo" string value of the option.
      *
      * @generated from protobuf field: repeated int32 path = 1 [packed = true];
      */
@@ -2181,6 +2222,16 @@ export enum Edition {
      * @generated from protobuf enum value: EDITION_2024 = 1001;
      */
     EDITION_2024 = 1001,
+    /**
+     * @generated from protobuf enum value: EDITION_2026 = 1002;
+     */
+    EDITION_2026 = 1002,
+    /**
+     * A placeholder edition for developing and testing unscheduled features.
+     *
+     * @generated from protobuf enum value: EDITION_UNSTABLE = 9999;
+     */
+    EDITION_UNSTABLE = 9999,
     /**
      * Placeholder editions for testing feature resolution.  These should not be
      * used or relied on outside of tests.
@@ -3652,7 +3703,7 @@ class FieldOptions$Type extends MessageType<FieldOptions> {
                 case /* optional bool deprecated */ 3:
                     message.deprecated = reader.bool();
                     break;
-                case /* optional bool weak */ 10:
+                case /* optional bool weak = 10 [deprecated = true];*/ 10:
                     message.weak = reader.bool();
                     break;
                 case /* optional bool debug_redact */ 16:
@@ -3710,7 +3761,7 @@ class FieldOptions$Type extends MessageType<FieldOptions> {
         /* optional bool deprecated = 3; */
         if (message.deprecated !== undefined)
             writer.tag(3, WireType.Varint).bool(message.deprecated);
-        /* optional bool weak = 10; */
+        /* optional bool weak = 10 [deprecated = true]; */
         if (message.weak !== undefined)
             writer.tag(10, WireType.Varint).bool(message.weak);
         /* optional bool debug_redact = 16; */
@@ -3804,7 +3855,8 @@ class FieldOptions_FeatureSupport$Type extends MessageType<FieldOptions_FeatureS
             { no: 1, name: "edition_introduced", kind: "enum", opt: true, T: () => ["google.protobuf.Edition", Edition] },
             { no: 2, name: "edition_deprecated", kind: "enum", opt: true, T: () => ["google.protobuf.Edition", Edition] },
             { no: 3, name: "deprecation_warning", kind: "scalar", opt: true, T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "edition_removed", kind: "enum", opt: true, T: () => ["google.protobuf.Edition", Edition] }
+            { no: 4, name: "edition_removed", kind: "enum", opt: true, T: () => ["google.protobuf.Edition", Edition] },
+            { no: 5, name: "removal_error", kind: "scalar", opt: true, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<FieldOptions_FeatureSupport>): FieldOptions_FeatureSupport {
@@ -3830,6 +3882,9 @@ class FieldOptions_FeatureSupport$Type extends MessageType<FieldOptions_FeatureS
                 case /* optional google.protobuf.Edition edition_removed */ 4:
                     message.editionRemoved = reader.int32();
                     break;
+                case /* optional string removal_error */ 5:
+                    message.removalError = reader.string();
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -3854,6 +3909,9 @@ class FieldOptions_FeatureSupport$Type extends MessageType<FieldOptions_FeatureS
         /* optional google.protobuf.Edition edition_removed = 4; */
         if (message.editionRemoved !== undefined)
             writer.tag(4, WireType.Varint).int32(message.editionRemoved);
+        /* optional string removal_error = 5; */
+        if (message.removalError !== undefined)
+            writer.tag(5, WireType.LengthDelimited).string(message.removalError);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -4352,7 +4410,8 @@ class FeatureSet$Type extends MessageType<FeatureSet> {
             { no: 5, name: "message_encoding", kind: "enum", opt: true, T: () => ["google.protobuf.FeatureSet.MessageEncoding", FeatureSet_MessageEncoding] },
             { no: 6, name: "json_format", kind: "enum", opt: true, T: () => ["google.protobuf.FeatureSet.JsonFormat", FeatureSet_JsonFormat] },
             { no: 7, name: "enforce_naming_style", kind: "enum", opt: true, T: () => ["google.protobuf.FeatureSet.EnforceNamingStyle", FeatureSet_EnforceNamingStyle] },
-            { no: 8, name: "default_symbol_visibility", kind: "enum", opt: true, T: () => ["google.protobuf.FeatureSet.VisibilityFeature.DefaultSymbolVisibility", FeatureSet_VisibilityFeature_DefaultSymbolVisibility] }
+            { no: 8, name: "default_symbol_visibility", kind: "enum", opt: true, T: () => ["google.protobuf.FeatureSet.VisibilityFeature.DefaultSymbolVisibility", FeatureSet_VisibilityFeature_DefaultSymbolVisibility] },
+            { no: 9, name: "enforce_proto_limits", kind: "enum", opt: true, T: () => ["google.protobuf.FeatureSet.ProtoLimitsFeature.EnforceProtoLimits", FeatureSet_ProtoLimitsFeature_EnforceProtoLimits] }
         ]);
     }
     create(value?: PartialMessage<FeatureSet>): FeatureSet {
@@ -4390,6 +4449,9 @@ class FeatureSet$Type extends MessageType<FeatureSet> {
                 case /* optional google.protobuf.FeatureSet.VisibilityFeature.DefaultSymbolVisibility default_symbol_visibility */ 8:
                     message.defaultSymbolVisibility = reader.int32();
                     break;
+                case /* optional google.protobuf.FeatureSet.ProtoLimitsFeature.EnforceProtoLimits enforce_proto_limits */ 9:
+                    message.enforceProtoLimits = reader.int32();
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -4426,6 +4488,9 @@ class FeatureSet$Type extends MessageType<FeatureSet> {
         /* optional google.protobuf.FeatureSet.VisibilityFeature.DefaultSymbolVisibility default_symbol_visibility = 8; */
         if (message.defaultSymbolVisibility !== undefined)
             writer.tag(8, WireType.Varint).int32(message.defaultSymbolVisibility);
+        /* optional google.protobuf.FeatureSet.ProtoLimitsFeature.EnforceProtoLimits enforce_proto_limits = 9; */
+        if (message.enforceProtoLimits !== undefined)
+            writer.tag(9, WireType.Varint).int32(message.enforceProtoLimits);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -4461,6 +4526,31 @@ class FeatureSet_VisibilityFeature$Type extends MessageType<FeatureSet_Visibilit
  * @generated MessageType for protobuf message google.protobuf.FeatureSet.VisibilityFeature
  */
 export const FeatureSet_VisibilityFeature = new FeatureSet_VisibilityFeature$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class FeatureSet_ProtoLimitsFeature$Type extends MessageType<FeatureSet_ProtoLimitsFeature> {
+    constructor() {
+        super("google.protobuf.FeatureSet.ProtoLimitsFeature", []);
+    }
+    create(value?: PartialMessage<FeatureSet_ProtoLimitsFeature>): FeatureSet_ProtoLimitsFeature {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<FeatureSet_ProtoLimitsFeature>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: FeatureSet_ProtoLimitsFeature): FeatureSet_ProtoLimitsFeature {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: FeatureSet_ProtoLimitsFeature, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message google.protobuf.FeatureSet.ProtoLimitsFeature
+ */
+export const FeatureSet_ProtoLimitsFeature = new FeatureSet_ProtoLimitsFeature$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class FeatureSetDefaults$Type extends MessageType<FeatureSetDefaults> {
     constructor() {
