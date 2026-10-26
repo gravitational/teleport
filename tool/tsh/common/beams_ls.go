@@ -167,7 +167,7 @@ func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
 		headings = append(headings, "Owner")
 	}
 
-	headings = append(headings, "URL", "Region", "Roles", "Expires")
+	headings = append(headings, "URL", "Region", "Phase", "Roles", "Expires")
 
 	table := asciitable.MakeTable(headings)
 	for _, beam := range beams {
@@ -177,7 +177,7 @@ func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
 			row = append(row, beam.Owner)
 		}
 
-		row = append(row, beam.URL, beam.Region)
+		row = append(row, beam.URL, beam.Region, beam.Phase)
 
 		if len(beam.Roles) == 0 {
 			row = append(row, types.Wildcard)

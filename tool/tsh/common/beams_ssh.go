@@ -66,6 +66,12 @@ func (c *beamsSSHCommand) run(cf *CLIConf) error {
 }
 
 func sshBeam(cf *CLIConf, tc *client.TeleportClient, beam *beamsv1.Beam, command []string) error {
+	return sshBeamWithRetry(cf, tc, beam, command, true)
+}
+
+// Log readers disable connection retries because a lost exec connection may
+// already have streamed data or acknowledged collection. Replaying is unsafe.
+func sshBeamWithRetry(cf *CLIConf, tc *client.TeleportClient, beam *beamsv1.Beam, command []string, retryConnection bool) error {
 	nodeID, err := beamNodeID(beam)
 	if err != nil {
 		return trace.Wrap(err)
@@ -97,6 +103,9 @@ func sshBeam(cf *CLIConf, tc *client.TeleportClient, beam *beamsv1.Beam, command
 		case trace.IsNotFound(lastErr):
 			// Cache may not have receive the node write.
 		case trace.IsConnectionProblem(lastErr):
+			if !retryConnection {
+				return lastErr
+			}
 			// Beam network may not be ready yet.
 		default:
 			return trace.Wrap(convertSSHExitCode(tc, lastErr))
@@ -104,6 +113,7 @@ func sshBeam(cf *CLIConf, tc *client.TeleportClient, beam *beamsv1.Beam, command
 
 		select {
 		case <-cf.Context.Done():
+			return trace.Wrap(cf.Context.Err())
 		case <-retry.After():
 			retry.Inc()
 		}

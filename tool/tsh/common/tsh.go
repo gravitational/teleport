@@ -1689,6 +1689,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	gitCmd := newGitCommands(app)
 	ghCmd := newGHCommand(app)
 	beamsCmd := newBeamsCommands(app)
+	phaseCmd := newPhaseCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
 
@@ -2182,6 +2183,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = beamsCmd.unpublish.run(&cf)
 	case beamsCmd.scp.FullCommand():
 		err = beamsCmd.scp.run(&cf)
+	case phaseCmd.ls.FullCommand():
+		err = phaseCmd.ls.run(&cf)
+	case phaseCmd.lsFailed.FullCommand():
+		err = phaseCmd.lsFailed.run(&cf)
+	case phaseCmd.rm.FullCommand():
+		err = phaseCmd.rm.run(&cf)
 	case beamsCmd.ide.FullCommand():
 		err = beamsCmd.ide.run(&cf)
 	case pivCmd.agent.FullCommand():
