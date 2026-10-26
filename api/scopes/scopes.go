@@ -506,25 +506,22 @@ func Compare(lhs, rhs string) Relationship {
 		return Orthogonal
 	}
 
-	lNext, lStop := iter.Pull(DescendingSegments(lhs))
-	defer lStop()
-
-	rNext, rStop := iter.Pull(DescendingSegments(rhs))
-	defer rStop()
+	// This is implemented without iter.Pull, which uses a coroutine per iter and internally also
+	// allocates which causes excessive CPU use in hot paths.
+	l, lOk := segmentsOf(lhs)
+	r, rOk := segmentsOf(rhs)
 
 	for {
-		lVal, lOk := lNext()
-		rVal, rOk := rNext()
-
 		switch {
 		case lOk && rOk:
 			// both scopes have segments left to compare
-			if lVal == rVal {
-				// scopes are still equivalent at this level, continue processing
-				continue
+			var lVal, rVal string
+			lVal, l, lOk = strings.Cut(l, separator)
+			rVal, r, rOk = strings.Cut(r, separator)
+			if lVal != rVal {
+				// scopes have diverged
+				return Orthogonal
 			}
-			// scopes have diverged
-			return Orthogonal
 		case lOk && !rOk:
 			// the right hand side scope is an ancestor of the left hand side scope
 			return Ancestor
@@ -538,6 +535,15 @@ func Compare(lhs, rhs string) Relationship {
 	}
 }
 
+// segmentsOf prepares a scope for allocation free segment iteration via repeated calls to
+// [strings.Cut]. Segments are handled exactly the same as [DescendingSegments].
+func segmentsOf(scope string) (rest string, ok bool) {
+	if scope == "" || scope == separator {
+		return "", false
+	}
+	return trimForSplit(scope), true
+}
+
 // Sort is a helper function for sorting scopes. Scope sort order differs from lexographic sort of
 // a scope's string representation in some cases. For example, the lexicographically sorted sequence
 // of scopes ['/aa', '/aa-bb', '/aa/bb'] is different from the scope-sorted sequence
@@ -548,23 +554,19 @@ func Sort(lhs, rhs string) int {
 		return 0
 	}
 
-	lNext, lStop := iter.Pull(DescendingSegments(lhs))
-	defer lStop()
-
-	rNext, rStop := iter.Pull(DescendingSegments(rhs))
-	defer rStop()
+	// This is implemented without iter.Pull, which uses a coroutine per iter and internally also
+	// allocates which causes excessive CPU use in hot paths.
+	l, lOk := segmentsOf(lhs)
+	r, rOk := segmentsOf(rhs)
 
 	for {
-		lVal, lOk := lNext()
-		rVal, rOk := rNext()
-
 		switch {
 		case lOk && rOk:
 			// both scopes have segments left to compare
-			if c := strings.Compare(lVal, rVal); c == 0 {
-				// scopes are still equivalent at this level, continue processing
-				continue
-			} else {
+			var lVal, rVal string
+			lVal, l, lOk = strings.Cut(l, separator)
+			rVal, r, rOk = strings.Cut(r, separator)
+			if c := strings.Compare(lVal, rVal); c != 0 {
 				// scopes have diverged
 				return c
 			}
