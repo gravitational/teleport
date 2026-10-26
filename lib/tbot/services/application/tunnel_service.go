@@ -217,6 +217,37 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 	}
 	s.log.DebugContext(ctx, "Issued initial certificate for local proxy.")
 
+	lpConfig := alpnproxy.LocalProxyConfig{
+		Middleware: s.certRenewalMiddleware(ctx, appCert, s.issueCert),
+
+		RemoteProxyAddr:    proxyAddr,
+		ParentContext:      ctx,
+		Protocols:          []common.Protocol{alpnProtocolForApp(app)},
+		Cert:               *appCert,
+		InsecureSkipVerify: s.connCfg.Insecure,
+		DialTimeout:        s.cfg.DialTimeout,
+	}
+	if apiclient.IsALPNConnUpgradeRequired(
+		ctx,
+		proxyAddr,
+		s.connCfg.Insecure,
+	) {
+		lpConfig.ALPNConnUpgradeRequired = true
+		// If ALPN Conn Upgrade will be used, we need to set the cluster CAs
+		// to validate the Proxy's auth issued host cert.
+		lpConfig.RootCAs = s.getBotIdentity().TLSCAPool
+	}
+
+	return lpConfig, nil
+}
+
+// certRenewalMiddleware refreshes the certificate on a new connection when it
+// expires within the effective leeway period.
+func (s *TunnelService) certRenewalMiddleware(
+	ctx context.Context,
+	appCert *tls.Certificate,
+	issueCert func(context.Context) (*tls.Certificate, types.Application, error),
+) internal.ALPNProxyMiddleware {
 	// Attempt to provide a sensible cap for leeway values based on the
 	// configured and actual cert TTL to guard against rapid renewals. This
 	// doesn't attempt to be perfect, and it's still possible to force a new
@@ -240,7 +271,7 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 		leeway = 0
 	}
 
-	middleware := internal.ALPNProxyMiddleware{
+	return internal.ALPNProxyMiddleware{
 		OnNewConnectionFunc: func(ctx context.Context, lp *alpnproxy.LocalProxy) error {
 			ctx, span := tracer.Start(ctx, "TunnelService/OnNewConnection")
 			defer span.End()
@@ -250,7 +281,7 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 					"reason", err.Error(),
 					"leeway", leeway,
 				)
-				cert, _, err := s.issueCert(ctx)
+				cert, _, err := issueCert(ctx)
 				if err != nil {
 					return trace.Wrap(err, "issuing cert")
 				}
@@ -259,30 +290,6 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 			return nil
 		},
 	}
-
-	lpConfig := alpnproxy.LocalProxyConfig{
-		Middleware: middleware,
-
-		RemoteProxyAddr:    proxyAddr,
-		ParentContext:      ctx,
-		Protocols:          []common.Protocol{alpnProtocolForApp(app)},
-		Cert:               *appCert,
-		InsecureSkipVerify: s.connCfg.Insecure,
-		Clock:              s.cfg.clock,
-		DialTimeout:        s.cfg.DialTimeout,
-	}
-	if apiclient.IsALPNConnUpgradeRequired(
-		ctx,
-		proxyAddr,
-		s.connCfg.Insecure,
-	) {
-		lpConfig.ALPNConnUpgradeRequired = true
-		// If ALPN Conn Upgrade will be used, we need to set the cluster CAs
-		// to validate the Proxy's auth issued host cert.
-		lpConfig.RootCAs = s.getBotIdentity().TLSCAPool
-	}
-
-	return lpConfig, nil
 }
 
 func (s *TunnelService) issueCert(
@@ -307,11 +314,6 @@ func (s *TunnelService) issueCert(
 	}
 
 	s.log.InfoContext(ctx, "Certificate issued for application tunnel.")
-
-	// In tests, notify the test that a cert has been issued.
-	if s.cfg.certIssuedHook != nil {
-		s.cfg.certIssuedHook()
-	}
 
 	// The leaf isn't appended by the stdlib, so add it here so we can inspect
 	// the TTL downstream.
