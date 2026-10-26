@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	llmv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/llm/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -33,12 +34,27 @@ import (
 
 var _ (llmv1.UsageServiceServer) = (*UsageService)(nil)
 
+type QuotaWriter interface {
+	// CreateOrUpdateLLMEndpointQuota creates or updates a LLMEndpointQuota.
+	CreateOrUpdateLLMEndpointQuota(ctx context.Context, quota *llmv1.LLMEndpointQuota) (*llmv1.LLMEndpointQuota, error)
+}
+
+type Cache interface {
+	services.LLMEndpointQuotaGetter
+
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
 // UsageServiceConfig holds configuration options for [UsageService].
 type UsageServiceConfig struct {
+	// CloseContext is the context used for procedures not bounded to RPC calls.
+	CloseContext context.Context
 	// Authorizer used by the service.
 	Authorizer authz.Authorizer
 	// Cache is the cache used to retrieve LLM endpoint quotas.
-	Cache services.LLMEndpointQuotaGetter
+	Cache Cache
+	// LLMEndpointQuotaWriter is the LLM endpoint quota writer.
+	LLMEndpointQuotaWriter QuotaWriter
 	// Logger is the slog logger.
 	Logger *slog.Logger
 }
@@ -47,25 +63,33 @@ type UsageServiceConfig struct {
 type UsageService struct {
 	llmv1.UnimplementedUsageServiceServer
 
-	logger     *slog.Logger
-	authorizer authz.Authorizer
-	cache      services.LLMEndpointQuotaGetter
+	ctx         context.Context
+	logger      *slog.Logger
+	authorizer  authz.Authorizer
+	cache       Cache
+	quotaWriter QuotaWriter
 }
 
 // NewUsageService creates a new [UsageService].
 func NewUsageService(cfg UsageServiceConfig) (*UsageService, error) {
 	switch {
+	case cfg.CloseContext == nil:
+		return nil, trace.BadParameter("close context is required for llm usage service")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required for llm usage service")
 	case cfg.Cache == nil:
 		return nil, trace.BadParameter("cache is required for llm usage service")
+	case cfg.LLMEndpointQuotaWriter == nil:
+		return nil, trace.BadParameter("llm quota writer is required for llm usage service")
 	}
 
 	logger := cmp.Or(cfg.Logger, slog.Default())
 	return &UsageService{
-		logger:     logger.With(teleport.ComponentKey, teleport.ComponentLLM),
-		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
+		ctx:         cfg.CloseContext,
+		logger:      logger.With(teleport.ComponentKey, teleport.ComponentLLM),
+		authorizer:  cfg.Authorizer,
+		cache:       cfg.Cache,
+		quotaWriter: cfg.LLMEndpointQuotaWriter,
 	}, nil
 }
 
@@ -104,16 +128,6 @@ func (u *UsageService) ListLLMEndpointQuotas(ctx context.Context, req *llmv1.Lis
 		Quotas:        quotas,
 		NextPageToken: nextKey,
 	}.Build(), nil
-}
-
-// ReportUsage implements [llmv1.UsageServiceServer].
-func (u *UsageService) ReportUsage(ctx context.Context, _ *llmv1.ReportUsageRequest) (*llmv1.ReportUsageResponse, error) {
-	if _, err := u.authorizeReport(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO(gabrielcorado): finish implementing the report handling.
-	return nil, trace.NotImplemented("not implemented")
 }
 
 func (u *UsageService) authorizeReport(ctx context.Context) (string, error) {

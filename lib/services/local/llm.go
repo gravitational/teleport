@@ -36,7 +36,8 @@ var _ (services.LLMEndpointQuotaService) = (*LLMEndpointQuotaService)(nil)
 // LLMEndpointQuotaService implements the storage layer for the LLMEndpointQuota
 // resource.
 type LLMEndpointQuotaService struct {
-	svc *generic.ServiceWrapper[*llmv1.LLMEndpointQuota]
+	svc     *generic.ServiceWrapper[*llmv1.LLMEndpointQuota]
+	backend backend.Backend
 }
 
 // NewLLMEndpointQuotaService returns a new instance of [LLMEndpointQuotaService].
@@ -55,7 +56,8 @@ func NewLLMEndpointQuotaService(b backend.Backend) (*LLMEndpointQuotaService, er
 	}
 
 	return &LLMEndpointQuotaService{
-		svc: svc,
+		svc:     svc,
+		backend: b,
 	}, nil
 }
 
@@ -98,6 +100,36 @@ func (l *LLMEndpointQuotaService) UpdateLLMEndpointQuota(ctx context.Context, qu
 func (l *LLMEndpointQuotaService) UpsertLLMEndpointQuota(ctx context.Context, quota *llmv1.LLMEndpointQuota) (*llmv1.LLMEndpointQuota, error) {
 	upserted, err := l.svc.UpsertResource(ctx, quota)
 	return upserted, trace.Wrap(err)
+}
+
+// CreateOrUpdateLLMEndpointQuota implements [services.LLMEndpointQuotaService].
+func (l *LLMEndpointQuotaService) CreateOrUpdateLLMEndpointQuota(ctx context.Context, quota *llmv1.LLMEndpointQuota) (*llmv1.LLMEndpointQuota, error) {
+	if err := services.ValidateLLMEndpointQuota(quota); err != nil {
+		return nil, err
+	}
+
+	var err error
+	item, err := l.svc.MakeBackendItem(quota)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// No revisions indicates a new quota being created, we must ensure it
+	// doesn't exists.
+	condition := backend.NotExists()
+	if item.Revision != "" {
+		condition = backend.Revision(item.Revision)
+	}
+
+	rev, err := l.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{Key: item.Key, Condition: condition, Action: backend.Put(item)},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	quota.GetMetadata().SetRevision(rev)
+	return quota, nil
 }
 
 // DeleteAllLLMEndpointQuotas removes all LLMEndpointQuotas resources.

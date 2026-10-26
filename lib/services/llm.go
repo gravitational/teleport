@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -34,6 +35,20 @@ type LLMEndpointQuotaGetter interface {
 	ListLLMEndpointQuotas(ctx context.Context, limit int, startKey string) ([]*llmv1.LLMEndpointQuota, string, error)
 }
 
+// LLMEndpointQuotaWriter defines interface for writing LLM endpoint quotas.
+type LLMEndpointQuotaWriter interface {
+	// CreateLLMEndpointQuota creates a new LLMEndpointQuota.
+	CreateLLMEndpointQuota(ctx context.Context, quota *llmv1.LLMEndpointQuota) (*llmv1.LLMEndpointQuota, error)
+	// UpdateLLMEndpointQuota updates an existing LLMEndpointQuota.
+	UpdateLLMEndpointQuota(ctx context.Context, quota *llmv1.LLMEndpointQuota) (*llmv1.LLMEndpointQuota, error)
+	// UpsertLLMEndpointQuota creates or replaces a LLMEndpointQuota.
+	UpsertLLMEndpointQuota(ctx context.Context, quota *llmv1.LLMEndpointQuota) (*llmv1.LLMEndpointQuota, error)
+	// DeleteLLMEndpointQuota deletes the specified LLMEndpointQuota.
+	DeleteLLMEndpointQuota(ctx context.Context, name string) error
+	// CreateOrUpdateLLMEndpointQuota creates or updates a LLMEndpointQuota.
+	CreateOrUpdateLLMEndpointQuota(ctx context.Context, quota *llmv1.LLMEndpointQuota) (*llmv1.LLMEndpointQuota, error)
+}
+
 // LLMUsageReporter defines interface used to report LLM usage.
 type LLMUsageReporter interface {
 	// ReportUsage reports an amount of LLM tokens consumed.
@@ -43,15 +58,7 @@ type LLMUsageReporter interface {
 // LLMEndpointQuotaService defines interface to manage LLM endpoint quotas.
 type LLMEndpointQuotaService interface {
 	LLMEndpointQuotaGetter
-
-	// CreateLLMEndpointQuota creates a new LLMEndpointQuota.
-	CreateLLMEndpointQuota(ctx context.Context, quota *llmv1.LLMEndpointQuota) (*llmv1.LLMEndpointQuota, error)
-	// UpdateLLMEndpointQuota updates an existing LLMEndpointQuota.
-	UpdateLLMEndpointQuota(ctx context.Context, quota *llmv1.LLMEndpointQuota) (*llmv1.LLMEndpointQuota, error)
-	// UpsertLLMEndpointQuota creates or replaces a LLMEndpointQuota.
-	UpsertLLMEndpointQuota(ctx context.Context, quota *llmv1.LLMEndpointQuota) (*llmv1.LLMEndpointQuota, error)
-	// DeleteLLMEndpointQuota deletes the specified LLMEndpointQuota.
-	DeleteLLMEndpointQuota(ctx context.Context, name string) error
+	LLMEndpointQuotaWriter
 }
 
 // ValidateLLMEndpointQuota validates the given LLM endpoint quota.
@@ -70,6 +77,18 @@ func ValidateLLMEndpointQuota(quota *llmv1.LLMEndpointQuota) error {
 	}
 
 	for _, window := range quota.GetStatus().GetActiveWindows() {
+		if !slices.Contains(types.SupportedAppLLMQuotaIntervals(), window.GetIntervalName()) {
+			return trace.BadParameter("llm_endpoint_quota active window has unsupported %q interval name", window.GetIntervalName())
+		}
+
+		if window.GetIntervalName() == types.AppLLMQuotaIntervalLifetime {
+			if window.GetStartsAt() != nil || window.GetEndsAt() != nil {
+				return trace.BadParameter("llm_endpoint_quota lifetime active window must not define starts_at and ends_at fields")
+			}
+
+			continue
+		}
+
 		if window.GetStartsAt() == nil || window.GetEndsAt() == nil {
 			return trace.BadParameter("llm_endpoint_quota active window doesn't define starts_at and ends_at")
 		}

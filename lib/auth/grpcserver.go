@@ -7070,8 +7070,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	appv1pb.RegisterAppIssuanceServiceServer(server, appIssuanceSvc)
 
 	llmUsageSvc, err := llmv1.NewUsageService(llmv1.UsageServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
+		CloseContext:           cfg.AuthServer.CloseContext(),
+		Authorizer:             cfg.Authorizer,
+		Cache:                  cfg.AuthServer.Cache,
+		LLMEndpointQuotaWriter: cfg.AuthServer.Services,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
