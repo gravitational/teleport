@@ -25,9 +25,11 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	_ "embed"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"slices"
 	"strconv"
 	"text/template"
 
@@ -57,6 +59,9 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := validateWindowsDesktopCSR(csr); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	clusterName, err := a.GetClusterName()
@@ -118,9 +123,143 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := validateGeneratedWindowsDesktopCertificate(cert); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &proto.WindowsDesktopCertResponse{
 		Cert: cert,
 	}, nil
+}
+
+// validateWindowsDesktopCSR validates all caller-controlled certificate fields
+// before they are copied into a certificate. Windows desktop certificates before
+// v18.7.0 are signed by the User CA, so they must not contain fields that Teleport
+// can interpret as user identity or authorization.
+func validateWindowsDesktopCSR(csr *x509.CertificateRequest) error {
+	if csr == nil {
+		return trace.BadParameter("missing certificate signing request")
+	}
+	if err := csr.CheckSignature(); err != nil {
+		return trace.Wrap(err, "invalid CSR signature")
+	}
+
+	// The entire subject is copied into the certificate, so it cannot contain
+	// an attribute that Teleport decodes as identity or authorization:
+	// roles, scope pins, traits, etc.
+	//
+	// A certificate signed by the User CA carrying one of these could be used
+	// as a Teleport user certificate.
+	for _, name := range slices.Concat(csr.Subject.Names, csr.Subject.ExtraNames) {
+		if tlsca.IsIdentityOID(name.Type) {
+			return trace.BadParameter("Windows desktop certificate subject must not contain Teleport identity attribute %q", name.Type)
+		}
+	}
+
+	seen := make(map[string]struct{}, len(csr.Extensions))
+	var hasEnhancedKeyUsage, hasSubjectAltName bool
+	for _, extension := range csr.Extensions {
+		oid := extension.Id.String()
+		if _, ok := seen[oid]; ok {
+			return trace.BadParameter("duplicate Windows desktop certificate extension %q", oid)
+		}
+		seen[oid] = struct{}{}
+		if extension.Critical {
+			return trace.BadParameter("Windows desktop certificate extension %q must not be critical", oid)
+		}
+
+		switch {
+		case extension.Id.Equal(tlsca.LicenseOID), extension.Id.Equal(tlsca.DesktopsLimitExceededOID):
+			return trace.BadParameter("Windows desktop certificate extension %q is controlled by the Auth Service", oid)
+		case extension.Id.Equal(windows.EnhancedKeyUsageExtensionOID):
+			if err := validateWindowsEnhancedKeyUsage(extension.Value); err != nil {
+				return trace.Wrap(err)
+			}
+			hasEnhancedKeyUsage = true
+		case extension.Id.Equal(windows.SubjectAltNameExtensionOID):
+			if err := validateWindowsSubjectAltName(extension.Value); err != nil {
+				return trace.Wrap(err)
+			}
+			hasSubjectAltName = true
+		case extension.Id.Equal(windows.ADUserMappingExtensionOID):
+			if err := validateWindowsADUserMapping(extension.Value); err != nil {
+				return trace.Wrap(err)
+			}
+		case extension.Id.Equal(tlsca.CreateWindowsUserOID):
+			// OK, allowed
+		case extension.Id.Equal(tlsca.ADStatusOID):
+			if !bytes.Equal(extension.Value, []byte("AD")) {
+				return trace.BadParameter("invalid Windows desktop AD status extension")
+			}
+		default:
+			return trace.BadParameter("unsupported Windows desktop certificate extension %q", oid)
+		}
+	}
+
+	if !hasEnhancedKeyUsage {
+		return trace.BadParameter("Windows desktop certificate request is missing enhanced key usage")
+	}
+	if !hasSubjectAltName {
+		return trace.BadParameter("Windows desktop certificate request is missing subject alternative name")
+	}
+	return nil
+}
+
+func validateWindowsEnhancedKeyUsage(value []byte) error {
+	var usages []asn1.ObjectIdentifier
+	rest, err := asn1.Unmarshal(value, &usages)
+	if err != nil || len(rest) != 0 {
+		return trace.BadParameter("invalid Windows desktop enhanced key usage extension")
+	}
+	if len(usages) != 2 ||
+		!slices.ContainsFunc(usages, windows.ClientAuthenticationOID.Equal) ||
+		!slices.ContainsFunc(usages, windows.SmartcardLogonOID.Equal) {
+		return trace.BadParameter("Windows desktop certificate must request exactly client authentication and smart-card logon usages")
+	}
+	return nil
+}
+
+func validateWindowsSubjectAltName(value []byte) error {
+	var san windows.SubjectAltName[windows.UPN]
+	rest, err := asn1.Unmarshal(value, &san)
+	if err != nil || len(rest) != 0 ||
+		!san.OtherName.OID.Equal(windows.UPNOtherNameOID) ||
+		san.OtherName.Value.Value == "" {
+		return trace.BadParameter("invalid Windows desktop UPN subject alternative name")
+	}
+	return nil
+}
+
+func validateWindowsADUserMapping(value []byte) error {
+	var mapping windows.SubjectAltName[windows.ADSid]
+	rest, err := asn1.Unmarshal(value, &mapping)
+	if err != nil || len(rest) != 0 ||
+		!mapping.OtherName.OID.Equal(windows.ADUserMappingInternalOID) ||
+		len(mapping.OtherName.Value.Value) == 0 {
+		return trace.BadParameter("invalid Windows desktop AD user mapping extension")
+	}
+	return nil
+}
+
+// validateGeneratedWindowsDesktopCertificate asserts that the signed desktop
+// certificate contains the desktop limit extension.
+//
+// Authentication middleware relies on this extension to prevent smart-card
+// certificates signed by the User CA from being used as Teleport client credentials.
+func validateGeneratedWindowsDesktopCertificate(certPEM []byte) error {
+	cert, err := tlsca.ParseCertificatePEM(certPEM)
+	if err != nil {
+		return trace.Wrap(err, "parsing generated Windows desktop certificate")
+	}
+	count := 0
+	for _, extension := range cert.Extensions {
+		if extension.Id.Equal(tlsca.DesktopsLimitExceededOID) {
+			count++
+		}
+	}
+	if count != 1 {
+		return trace.Errorf("generated Windows desktop certificate contains %d desktop extensions, expected exactly 1", count)
+	}
+	return nil
 }
 
 // desktopAccessConfigureScript is the script that will run on the windows
