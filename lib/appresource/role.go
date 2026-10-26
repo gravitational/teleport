@@ -188,6 +188,8 @@ func NewRole(role types.Role) (Role, error) {
 		switch {
 		case len(r.XXX_unrecognized) > 0:
 			return Role{}, trace.Wrap(ErrRoleNotEvaluable, "role %q app_resources %d has an unrecognized field", role.GetName(), i)
+		case r.AllowUnsafe != nil && len(r.AllowUnsafe.XXX_unrecognized) > 0:
+			return Role{}, trace.Wrap(ErrRoleNotEvaluable, "role %q app_resources %d allow_unsafe has an unrecognized field", role.GetName(), i)
 		case r.AllowAll && !r.IsAllowAllOnly():
 			return Role{}, trace.Wrap(ErrRoleNotEvaluable, "role %q app_resources %d combines allow_all with another field", role.GetName(), i)
 		case r.AllowAll && len(allow) > 1:

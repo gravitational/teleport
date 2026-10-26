@@ -55,12 +55,16 @@ type Node interface {
 
 // captureNames returns the names of the captures in a tree.
 func captureNames(node Node) []string {
-	var names []string
+	return appendCaptureNames(nil, node)
+}
+
+// appendCaptureNames appends the names of the captures in a tree to names.
+func appendCaptureNames(names []string, node Node) []string {
 	if n, ok := node.(*captureNode); ok {
 		names = append(names, n.name)
 	}
 	for _, child := range node.children() {
-		names = append(names, captureNames(child)...)
+		names = appendCaptureNames(names, child)
 	}
 	return names
 }
@@ -129,16 +133,33 @@ var captureNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Capture creates a node that matches exactly one non-empty token and binds its
 // decoded content to a named variable. It is the desugared `{name}`
-// placeholder. A token containing the encoded slash (%2F) does not match.
+// placeholder. A token with an encoded slash (%2F) matches only when [Compile]
+// is given [AllowUnsafeEncoded] for the name.
 //
 // The name must be an ASCII identifier ([A-Za-z_][A-Za-z0-9_]*). For an invalid
 // name, Capture returns an error node that Compile rejects.
 func Capture(name string, children ...Node) Node {
-	if !captureNameRE.MatchString(name) {
-		err := trace.BadParameter("capture name %q must be a letter or underscore followed by letters, digits, or underscores", elide(name))
+	if err := validateCaptureName(name); err != nil {
 		return &errNode{failedCall: fmt.Sprintf("capture(%q)", name), err: err}
 	}
 	return &captureNode{name: name, childNodes: slices.Clone(children)}
+}
+
+// validateCaptureName rejects a name that is not an ASCII identifier.
+func validateCaptureName(name string) error {
+	if !captureNameRE.MatchString(name) {
+		return trace.BadParameter("capture name %q must be a letter or underscore followed by letters, digits, or underscores", elide(name))
+	}
+	return nil
+}
+
+// validateAllowedEncoded rejects an allowed encoded character that is not
+// exactly "/".
+func validateAllowedEncoded(allowed string) error {
+	if allowed != "/" {
+		return trace.BadParameter("encoded character %q is not supported, only %q is", elide(allowed), "/")
+	}
+	return nil
 }
 
 // globWithoutNode is the node [GlobWithout] creates.

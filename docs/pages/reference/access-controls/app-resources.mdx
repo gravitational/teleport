@@ -57,6 +57,28 @@ The `app_resources_expressions` field is a list of string predicates. Every
 `app_resources` rule can be written as an `app_resources_expressions`
 predicate, but not the reverse.
 
+{/* cspell:ignore Fproj */}
+
+`allow_unsafe.encoded` maps a `{name}` capture in `paths` to the characters
+that segment may contain in percent-encoded form. The only supported value is
+`/`, the encoded slash (`%2F`). The rule
+
+```yaml
+app_resources:
+  - paths: ["/api/v4/projects/{project}/**"]
+    allow_unsafe:
+      encoded:
+        project: "/"
+```
+
+matches `/api/v4/projects/group%2Fproj/jobs` and binds `vars.project` to
+`group/proj`. Only a capture in the map matches a segment with an encoded slash.
+Set `allow_unsafe.encoded` only for an application that reads `%2F` as content
+of one path segment and does not decode it to a slash. When a path contains an
+encoded slash and a rule's paths do not match it, the denial carries the hint
+`teleport_unsafe_encoded_char`, even when the paths fail to match for another
+reason, such as an extra segment.
+
 When a v9 role and a v8 or older role both grant the same application, Teleport
 drops the older roles from the decision, so they cannot restore unrestricted
 access to an application a v9 role restricts.

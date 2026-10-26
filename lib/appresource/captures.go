@@ -21,6 +21,7 @@ package appresource
 import (
 	"go/ast"
 	"go/token"
+	"maps"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -356,11 +357,13 @@ func validateMatcherConstructors(parsed ast.Expr) error {
 		case isIdentCall(call, "capture") && len(call.Args) > 0:
 			if s, ok := stringLiteral(call.Args[0]); !ok {
 				err = trace.BadParameter("the name argument of capture must be a string literal")
-			} else if !captureNameRE.MatchString(s) {
-				err = trace.BadParameter("capture name %q must be a letter or underscore followed by letters, digits, or underscores", elide(s))
+			} else {
+				err = validateCaptureName(s)
 			}
 		case isIdentCall(call, "glob_without") && len(call.Args) > 0:
 			err = checkExcludes(call.Args[0])
+		case isIdentCall(call, "allow_unsafe_encoded") && len(call.Args) > 1:
+			err = checkEncodedOption(call.Args[0], call.Args[1])
 		case isIdentCall(call, "optional") && len(call.Args) == 0:
 			err = trace.BadParameter("optional requires at least one child subtree")
 		case isIdentCall(call, "root"):
@@ -393,6 +396,80 @@ func checkExcludes(arg ast.Expr) error {
 		}
 	}
 	return nil
+}
+
+// checkEncodedOption checks the name and characters arguments of an
+// allow_unsafe_encoded call.
+func checkEncodedOption(nameArg, charsArg ast.Expr) error {
+	name, ok := stringLiteral(nameArg)
+	if !ok {
+		return trace.BadParameter("the name argument of allow_unsafe_encoded must be a string literal")
+	}
+	if err := validateCaptureName(name); err != nil {
+		return trace.Wrap(err)
+	}
+	chars, ok := stringLiteral(charsArg)
+	if !ok {
+		return trace.BadParameter("the characters argument of allow_unsafe_encoded must be a string literal")
+	}
+	return trace.Wrap(validateAllowedEncoded(chars))
+}
+
+// validateEncodedOptions validates the allow_unsafe_encoded options of every
+// path.match in parsed.
+func validateEncodedOptions(parsed ast.Expr) error {
+	var err error
+	var first map[string]string
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		if err != nil {
+			return false
+		}
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isPathMatch(call) {
+			return true
+		}
+		var options map[string]string
+		options, err = encodedOptions(call)
+		if err != nil {
+			return false
+		}
+		names := allCaptureNames(call.Args[0])
+		for _, name := range slices.Sorted(maps.Keys(options)) {
+			if !slices.Contains(names, name) {
+				err = trace.BadParameter("allow_unsafe_encoded(%q, ...) has no capture(%q) in its path.match tree", name, name)
+				return false
+			}
+		}
+		if first == nil {
+			first = options
+			return true
+		}
+		if !maps.Equal(first, options) {
+			err = trace.BadParameter("every path.match in one entry needs the same allow_unsafe_encoded options")
+			return false
+		}
+		return true
+	})
+	return trace.Wrap(err)
+}
+
+// encodedOptions returns the allow_unsafe_encoded options of one path.match
+// call as a map from capture name to allowed encoded characters.
+func encodedOptions(call *ast.CallExpr) (map[string]string, error) {
+	options := map[string]string{}
+	for _, arg := range call.Args[1:] {
+		option, ok := ast.Unparen(arg).(*ast.CallExpr)
+		if !ok || !isIdentCall(option, "allow_unsafe_encoded") || len(option.Args) != 2 {
+			continue
+		}
+		name, _ := stringLiteral(option.Args[0])
+		chars, _ := stringLiteral(option.Args[1])
+		if _, dup := options[name]; dup {
+			return nil, trace.BadParameter("allow_unsafe_encoded(%q, ...) is given twice", name)
+		}
+		options[name] = chars
+	}
+	return options, nil
 }
 
 // captureName returns the string-literal name "foo" of a valid

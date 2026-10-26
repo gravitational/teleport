@@ -29,6 +29,13 @@
 //	    - paths:
 //	        - /api/v4/user/{username}
 //	      where: user.name == vars.username
+//
+// In a paths rule, only a capture in allow_unsafe.encoded matches a segment
+// with an encoded slash (%2F). An app_resources_expressions entry can allow
+// a path with an encoded slash only when every path.match in it has the
+// allow_unsafe_encoded option and one of them matches the path, whatever the
+// rest of the entry does with that match. An entry with no path.match never
+// allows it.
 package appresource
 
 import (
@@ -197,7 +204,12 @@ func (s RoleSet) Evaluate(request Request, identity Identity) (Decision, error) 
 					Roles:   roles,
 				}, nil
 			}
-			hints = append(hints, result.AuditRecord.DenyHints...)
+			for _, hint := range result.AuditRecord.DenyHints {
+				if hint == unsafeEncodedHint && slices.Contains(hints, hint) {
+					continue
+				}
+				hints = append(hints, hint)
+			}
 			if len(hints) > maxHints {
 				hints = hints[:maxHints]
 			}

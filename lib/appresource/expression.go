@@ -34,6 +34,45 @@ import (
 // expressionParser parses app_resources_expressions entries.
 var expressionParser = mustNewParser(expressionSpec())
 
+// nodeParser and optionParser parse the arguments of a path.match call. The
+// matcher constructors take only string literals, so the result does not
+// depend on the request.
+var (
+	nodeParser   = mustNewConstantParser[Node]()
+	optionParser = mustNewConstantParser[CompileOption]()
+)
+
+// compiledEntry is a compiled app_resources_expressions entry.
+type compiledEntry struct {
+	expression typical.Expression[Env, bool]
+	// patterns are the compiled path.match calls of an entry with the
+	// allow_unsafe_encoded option. It is nil for an entry without the option.
+	patterns []*Pattern
+}
+
+// Evaluate returns the value of the entry for the given Env. The package doc
+// says when an entry allows a path with an encoded slash (%2F).
+func (c *compiledEntry) Evaluate(e Env) (bool, error) {
+	// Before the expression, because a negation or an || branch would turn a
+	// failed path.match into an allow.
+	if e.encodedSlash && !c.coversEncodedSlash(e.tokens) {
+		return recordDenyHint(e, unsafeEncodedHint.Code, unsafeEncodedHint.Reason, false)
+	}
+	value, err := c.expression.Evaluate(e)
+	return value, trace.Wrap(err)
+}
+
+// coversEncodedSlash returns true when one of the entry's patterns matches
+// tokens. A pattern matches a token with an encoded slash only in a capture
+// named by allow_unsafe_encoded, so a match means every encoded slash sits
+// where the entry allows it.
+func (c *compiledEntry) coversEncodedSlash(tokens []Token) bool {
+	return slices.ContainsFunc(c.patterns, func(p *Pattern) bool {
+		matched, _ := Match(p, tokens)
+		return matched
+	})
+}
+
 // expressionSpec returns the parser spec for an app_resources_expressions
 // entry. expressionSpec is a clean superset of whereSpec. Therefore a
 // compiled and valid "where" expression can always be evaluated by
@@ -44,7 +83,7 @@ func expressionSpec() typical.ParserSpec[Env] {
 	spec.Functions["deny_hint"] = typical.TernaryFunctionWithEnv(recordDenyHint)
 	// path.match walks the request path tokens against the matcher root
 	// and records the bound segments for later vars.<name> reads.
-	spec.Functions["path.match"] = typical.UnaryFunctionWithEnv(func(e Env, root Node) (bool, error) {
+	spec.Functions["path.match"] = typical.BinaryVariadicFunctionWithEnv(func(e Env, root Node, options ...CompileOption) (bool, error) {
 		if e.result == nil {
 			return false, trace.BadParameter("internal error: evaluating path.match without an evaluation result")
 		}
@@ -52,7 +91,7 @@ func expressionSpec() typical.ParserSpec[Env] {
 		if tokens == nil {
 			return false, trace.BadParameter("internal error: evaluating path.match without a tokenized path")
 		}
-		pattern, err := Compile(root)
+		pattern, err := Compile(root, options...)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -97,12 +136,17 @@ func expressionSpec() typical.ParserSpec[Env] {
 	spec.Functions["root"] = typical.UnaryVariadicFunction[Env](func(children ...Node) (Node, error) {
 		return Root(children...), nil
 	})
+	// allow_unsafe_encoded is the desugared form of one allow_unsafe.encoded
+	// key.
+	spec.Functions["allow_unsafe_encoded"] = typical.BinaryFunction[Env](func(name, chars string) (CompileOption, error) {
+		return AllowUnsafeEncoded(name, chars), nil
+	})
 	return spec
 }
 
 // compileExpression parses and type-checks one app_resources_expressions
 // entry.
-func compileExpression(expr string) (typical.Expression[Env, bool], error) {
+func compileExpression(expr string) (*compiledEntry, error) {
 	if strings.TrimSpace(expr) == "" {
 		return nil, trace.BadParameter("an app_resources_expressions entry cannot be empty")
 	}
@@ -122,13 +166,101 @@ func compileExpression(expr string) (typical.Expression[Env, bool], error) {
 		validateMatcherConstructors,
 		validateVars,
 		validateNoCaptureOverwrites,
+		validateEncodedOptions,
 	}
 	for _, validate := range validators {
 		if err := validate(parsed); err != nil {
 			return nil, trace.Wrap(err, "compiling expression %q", expr)
 		}
 	}
-	return expression, nil
+	entry := &compiledEntry{expression: expression}
+	if hasEncodedOption(parsed) {
+		if entry.patterns, err = entryPatterns(parsed); err != nil {
+			return nil, trace.Wrap(err, "compiling expression %q", expr)
+		}
+	}
+	return entry, nil
+}
+
+// entryPatterns compiles the pattern of every path.match in parsed.
+func entryPatterns(parsed ast.Expr) ([]*Pattern, error) {
+	var patterns []*Pattern
+	var err error
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		if err != nil {
+			return false
+		}
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isPathMatch(call) {
+			return true
+		}
+		var pattern *Pattern
+		pattern, err = compilePathMatch(call)
+		if err != nil {
+			return false
+		}
+		patterns = append(patterns, pattern)
+		return false
+	})
+	return patterns, trace.Wrap(err)
+}
+
+// compilePathMatch compiles the matcher tree and options of one path.match
+// call.
+func compilePathMatch(call *ast.CallExpr) (*Pattern, error) {
+	root, err := evaluateConstant(nodeParser, call.Args[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	options := make([]CompileOption, 0, len(call.Args)-1)
+	for _, arg := range call.Args[1:] {
+		option, err := evaluateConstant(optionParser, arg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		options = append(options, option)
+	}
+	pattern, err := Compile(root, options...)
+	return pattern, trace.Wrap(err)
+}
+
+// evaluateConstant evaluates expr, which must not read the request or the
+// identity.
+func evaluateConstant[T any](parser *typical.Parser[Env, T], expr ast.Expr) (T, error) {
+	var zero T
+	parsed, err := parser.ParseAST(expr)
+	if err != nil {
+		return zero, trace.Wrap(err)
+	}
+	value, err := parsed.Evaluate(Env{})
+	if err != nil {
+		return zero, trace.Wrap(err)
+	}
+	return value, nil
+}
+
+// mustNewConstantParser returns a parser for the expressionSpec values of
+// type T, such as a matcher tree.
+func mustNewConstantParser[T any]() *typical.Parser[Env, T] {
+	p, err := typical.NewParser[Env, T](expressionSpec())
+	if err != nil {
+		panic(trace.Wrap(err, "building an app resource parser (this is a bug)"))
+	}
+	return p
+}
+
+// hasEncodedOption returns true when parsed contains an allow_unsafe_encoded
+// call. validateEncodedOptions checks that every path.match in one entry has
+// the same options.
+func hasEncodedOption(parsed ast.Expr) bool {
+	found := false
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok && isIdentCall(call, "allow_unsafe_encoded") {
+			found = true
+		}
+		return !found
+	})
+	return found
 }
 
 // recordAllowCode records code and reason on the evaluation result if value

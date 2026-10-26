@@ -28,6 +28,22 @@ import (
 // error nodes. A Pattern is safe for concurrent use.
 type Pattern struct {
 	root Node
+	// encoded is the set of capture names given AllowUnsafeEncoded.
+	encoded map[string]struct{}
+}
+
+// CompileOption is an option of [Compile].
+type CompileOption func(*compileConfig)
+
+// compileConfig contains the options of one Compile call.
+type compileConfig struct {
+	encoded []encodedCapture
+}
+
+// encodedCapture is the arguments of one AllowUnsafeEncoded option.
+type encodedCapture struct {
+	name  string
+	chars string
 }
 
 // Compile verifies every node of a tree. If all nodes are valid, it returns the
@@ -45,16 +61,54 @@ type Pattern struct {
 // A nil tree, a nil child, a node with children reused under several parents,
 // a capture nested under a capture of the same name, an invalid capture name,
 // and a Root below the top of the tree also result in errors.
-func Compile(root Node) (*Pattern, error) {
+// Invalid options, such as a duplicate capture name or invalid chars in the
+// [AllowUnsafeEncoded] option, also result in errors.
+func Compile(root Node, options ...CompileOption) (*Pattern, error) {
 	if root == nil {
 		return nil, trace.BadParameter("cannot compile a nil tree")
+	}
+	var cfg compileConfig
+	for _, option := range options {
+		option(&cfg)
 	}
 	seen := map[Node]struct{}{}
 	bound := map[string]struct{}{}
 	if err := compileNode(root, seen, bound); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &Pattern{root: root}, nil
+	if len(cfg.encoded) == 0 {
+		return &Pattern{root: root}, nil
+	}
+	names := map[string]struct{}{}
+	for _, name := range captureNames(root) {
+		names[name] = struct{}{}
+	}
+	encoded := make(map[string]struct{}, len(cfg.encoded))
+	for _, e := range cfg.encoded {
+		if err := validateCaptureName(e.name); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := validateAllowedEncoded(e.chars); err != nil {
+			return nil, trace.BadParameter("encoded capture %q: %v", e.name, err)
+		}
+		if _, ok := names[e.name]; !ok {
+			return nil, trace.BadParameter("%q is not a capture in the tree", e.name)
+		}
+		if _, ok := encoded[e.name]; ok {
+			return nil, trace.BadParameter("AllowUnsafeEncoded(%q, ...) is given twice", e.name)
+		}
+		encoded[e.name] = struct{}{}
+	}
+	return &Pattern{root: root, encoded: encoded}, nil
+}
+
+// AllowUnsafeEncoded lets Capture name match the percent-encoded form of chars.
+// The only supported chars is "/", so the capture can match a segment with an
+// encoded slash (%2F). Compile returns an error for any other chars.
+func AllowUnsafeEncoded(name, chars string) CompileOption {
+	return func(c *compileConfig) {
+		c.encoded = append(c.encoded, encodedCapture{name: name, chars: chars})
+	}
 }
 
 // Match walks tokens against the compiled pattern. On a match it returns true
@@ -68,9 +122,12 @@ func Match(pattern *Pattern, tokens []Token) (bool, map[string]string) {
 	if pattern == nil || len(tokens) == 0 {
 		return false, nil
 	}
-	captures := map[string]string{}
-	if matchNode(pattern.root, tokens, captures) {
-		return true, captures
+	m := matcher{
+		captures: map[string]string{},
+		encoded:  pattern.encoded,
+	}
+	if m.matchNode(pattern.root, tokens) {
+		return true, m.captures
 	}
 	return false, nil
 }
@@ -111,44 +168,53 @@ func compileNode(node Node, seen map[Node]struct{}, bound map[string]struct{}) e
 	return nil
 }
 
+// matcher is the state of one Match call.
+type matcher struct {
+	captures map[string]string   // bound on descent, undone on a failed branch
+	encoded  map[string]struct{} // Pattern.encoded
+}
+
 // matchNode reports whether the node's tree matches tokens recursively,
 // collecting captures on descent.
-func matchNode(node Node, tokens []Token, captures map[string]string) bool {
+func (m *matcher) matchNode(node Node, tokens []Token) bool {
 	switch n := node.(type) {
 	case *rootNode:
-		return matchNodes(n.childNodes, tokens, captures)
+		return m.matchNodes(n.childNodes, tokens)
 	case *greedyNode:
 		return !slices.ContainsFunc(tokens, Token.hasEncodedSlash)
 	case *slashNode:
 		return len(tokens) == 1 && tokens[0].Raw == ""
 	case *optionalNode:
-		return len(tokens) == 0 || matchNodes(n.childNodes, tokens, captures)
+		return len(tokens) == 0 || m.matchNodes(n.childNodes, tokens)
 	case *globNode:
 		if len(tokens) == 0 || tokens[0].Raw == "" || tokens[0].hasEncodedSlash() {
 			return false
 		}
-		return matchNodes(n.childNodes, tokens[1:], captures)
+		return m.matchNodes(n.childNodes, tokens[1:])
 	case *globWithoutNode:
 		if len(tokens) == 0 || tokens[0].Raw == "" || tokens[0].hasEncodedSlash() || slices.Contains(n.excludes, tokens[0].Decoded) {
 			return false
 		}
-		return matchNodes(n.childNodes, tokens[1:], captures)
+		return m.matchNodes(n.childNodes, tokens[1:])
 	case *literalNode:
 		// n.text never contains "/", so the equality includes
 		// !hasEncodedSlash().
 		if len(tokens) == 0 || tokens[0].Decoded != n.text {
 			return false
 		}
-		return matchNodes(n.childNodes, tokens[1:], captures)
+		return m.matchNodes(n.childNodes, tokens[1:])
 	case *captureNode:
-		if len(tokens) == 0 || tokens[0].Raw == "" || tokens[0].hasEncodedSlash() {
+		if len(tokens) == 0 || tokens[0].Raw == "" {
 			return false
 		}
-		captures[n.name] = tokens[0].Decoded
-		if matchNodes(n.childNodes, tokens[1:], captures) {
+		if _, ok := m.encoded[n.name]; !ok && tokens[0].hasEncodedSlash() {
+			return false
+		}
+		m.captures[n.name] = tokens[0].Decoded
+		if m.matchNodes(n.childNodes, tokens[1:]) {
 			return true
 		}
-		delete(captures, n.name) // Undo the binding if the subtree does not match.
+		delete(m.captures, n.name) // Undo the binding if the subtree does not match.
 		return false
 	default:
 		return false // Unreachable for a Compile-verified pattern.
@@ -156,10 +222,10 @@ func matchNode(node Node, tokens []Token, captures map[string]string) bool {
 }
 
 // matchNodes reports whether any of the nodes matches tokens.
-func matchNodes(nodes []Node, tokens []Token, captures map[string]string) bool {
+func (m *matcher) matchNodes(nodes []Node, tokens []Token) bool {
 	if len(nodes) == 0 {
 		return len(tokens) == 0
 	}
-	match := func(node Node) bool { return matchNode(node, tokens, captures) }
+	match := func(node Node) bool { return m.matchNode(node, tokens) }
 	return slices.ContainsFunc(nodes, match)
 }

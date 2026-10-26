@@ -60,10 +60,11 @@ type Identity struct {
 // Identity are deliberately not [http.Request] and tlsca.Identity, to make
 // clear which fields matter for evaluation.
 type Env struct {
-	Request  Request
-	Identity Identity
-	result   *Result // set by evaluateExpression for one evaluation
-	tokens   []Token // the path tokenized by NewEnv, shared by every rule
+	Request      Request
+	Identity     Identity
+	result       *Result // set by evaluateExpression for one evaluation
+	tokens       []Token // the path tokenized by NewEnv, shared by every rule
+	encodedSlash bool    // true when a token contains an encoded slash (%2F)
 }
 
 // Where is a compiled where clause. Only CompileWhere returns a usable
@@ -76,9 +77,8 @@ type Where struct {
 
 // NewEnv builds the environment a where clause or an
 // app_resources_expressions entry is evaluated against. NewEnv tokenizes
-// the path once. A malformed path, a path containing an encoded slash
-// (%2F), or an unsupported method is rejected before any rule is
-// evaluated.
+// the path once. A malformed path or an unsupported method is rejected before
+// any rule is evaluated.
 func NewEnv(request Request, identity Identity) (Env, error) {
 	if err := validateMethod(request.Method); err != nil {
 		return Env{}, trace.Wrap(err)
@@ -87,11 +87,12 @@ func NewEnv(request Request, identity Identity) (Env, error) {
 	if err != nil {
 		return Env{}, trace.Wrap(err)
 	}
-	// No rule can match an encoded slash (%2F) in this version.
-	if slices.ContainsFunc(tokens, Token.hasEncodedSlash) {
-		return Env{}, trace.BadParameter("path contains an encoded slash (%%2F)")
-	}
-	return Env{Request: request, Identity: identity, tokens: tokens}, nil
+	return Env{
+		Request:      request,
+		Identity:     identity,
+		tokens:       tokens,
+		encodedSlash: slices.ContainsFunc(tokens, Token.hasEncodedSlash),
+	}, nil
 }
 
 // CompileWhere parses and type-checks a where clause.

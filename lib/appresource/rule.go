@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"go/ast"
 	"go/parser"
+	"maps"
 	"slices"
 	"strings"
 
@@ -102,6 +103,9 @@ func validateRule(r types.AppResource) error {
 	if err := validateWhere(r.Where); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := validateAllowUnsafe(r.AllowUnsafe); err != nil {
+		return trace.Wrap(err)
+	}
 	if r.AllowReason != "" && r.AllowCode == "" {
 		return trace.BadParameter("allow_reason set without allow_code")
 	}
@@ -126,6 +130,28 @@ func validateRule(r types.AppResource) error {
 	}
 	if err := validateReason(r.DenyReasonHint); err != nil {
 		return trace.Wrap(err, "invalid deny_reason_hint")
+	}
+	return nil
+}
+
+// validateAllowUnsafe checks a rule's allow_unsafe.
+func validateAllowUnsafe(u *types.AppResourceUnsafe) error {
+	if u == nil {
+		return nil
+	}
+	if len(u.XXX_unrecognized) > 0 {
+		return trace.BadParameter("allow_unsafe has an unrecognized field")
+	}
+	if len(u.Encoded) == 0 {
+		return trace.BadParameter("allow_unsafe.encoded cannot be empty")
+	}
+	for _, name := range slices.Sorted(maps.Keys(u.Encoded)) {
+		if err := validateCaptureName(name); err != nil {
+			return trace.BadParameter("allow_unsafe.encoded {%s}: %v", name, err)
+		}
+		if err := validateAllowedEncoded(u.Encoded[name]); err != nil {
+			return trace.BadParameter("allow_unsafe.encoded {%s}: %v", name, err)
+		}
 	}
 	return nil
 }
@@ -168,8 +194,7 @@ func validateWhere(where string) error {
 }
 
 // ruleEvaluator is one compiled app_resources or app_resources_expressions
-// entry. It has the single Evaluate method of typical.Expression[Env, bool], so
-// a compiled expression entry satisfies it as it is. compiledRule implements it
+// entry. compiledEntry implements it for an expression entry and compiledRule
 // for a sugared rule.
 type ruleEvaluator interface {
 	Evaluate(Env) (bool, error)
@@ -210,7 +235,7 @@ func newCompiledRule(r types.AppResource) (*compiledRule, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	pattern, err := compilePaths(r.Paths, reads)
+	pattern, err := compilePaths(r.Paths, reads, r.AllowUnsafe)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -228,21 +253,35 @@ func newCompiledRule(r types.AppResource) (*compiledRule, error) {
 // Evaluate returns true when environment e matches the rule, and records the
 // allow code or deny hint on the evaluation result.
 func (c *compiledRule) Evaluate(e Env) (bool, error) {
-	if c.allowAll {
-		return true, nil
-	}
 	if e.result == nil {
 		return false, trace.BadParameter("internal error: evaluating a rule without an evaluation result")
+	}
+	if c.allowAll {
+		return true, nil
 	}
 	if e.tokens == nil {
 		return false, trace.BadParameter("internal error: evaluating a rule without a tokenized path")
 	}
+	var matched bool
+	var captures map[string]string
+	if e.encodedSlash {
+		// Match before the method check, as compiledEntry.Evaluate does, so a
+		// method mismatch records the same hint as the desugared entry. A
+		// pattern without allow_unsafe.encoded never matches an encoded slash.
+		if len(c.pattern.encoded) > 0 {
+			matched, captures = Match(c.pattern, e.tokens)
+		}
+		if !matched {
+			return recordDenyHint(e, unsafeEncodedHint.Code, unsafeEncodedHint.Reason, false)
+		}
+	}
 	if len(c.methods) > 0 && !slices.Contains(c.methods, e.Request.Method) {
 		return false, nil
 	}
-	matched, captures := Match(c.pattern, e.tokens)
-	if !matched {
-		return false, nil
+	if !e.encodedSlash {
+		if matched, captures = Match(c.pattern, e.tokens); !matched {
+			return false, nil
+		}
 	}
 	e.result.vars = captures
 	// An unbound vars.<name> read is an evaluation error, not false, so the
@@ -265,10 +304,13 @@ func (c *compiledRule) Evaluate(e Env) (bool, error) {
 
 // compilePaths returns the path patterns compiled as one matcher tree. Several
 // patterns become the alternatives of one Root. Every pattern must bind each
-// name in requiredCaptures. compilePaths returns an error for an invalid
-// pattern and for a pattern that lacks a required capture.
-func compilePaths(patterns []string, requiredCaptures []string) (*Pattern, error) {
+// name in requiredCaptures. allowUnsafe is the rule's allow_unsafe, and each
+// key of its encoded map must be a capture in at least one pattern.
+// compilePaths returns an error for an invalid pattern and for a pattern that
+// lacks a required capture.
+func compilePaths(patterns []string, requiredCaptures []string, allowUnsafe *types.AppResourceUnsafe) (*Pattern, error) {
 	trees := make([]Node, 0, len(patterns))
+	allNames := map[string]struct{}{}
 	for _, p := range patterns {
 		tree, err := pathTree(p)
 		if err != nil {
@@ -280,12 +322,26 @@ func compilePaths(patterns []string, requiredCaptures []string) (*Pattern, error
 				return nil, trace.BadParameter("where reads vars.%s, but path %q has no {%s} capture", name, p, name)
 			}
 		}
+		for _, name := range names {
+			allNames[name] = struct{}{}
+		}
 		trees = append(trees, tree)
 	}
-	if len(trees) == 1 {
-		return Compile(trees[0])
+	var encoded map[string]string
+	if allowUnsafe != nil {
+		encoded = allowUnsafe.Encoded
 	}
-	return Compile(Root(trees...))
+	options := make([]CompileOption, 0, len(encoded))
+	for _, name := range slices.Sorted(maps.Keys(encoded)) {
+		if _, ok := allNames[name]; !ok {
+			return nil, trace.BadParameter("allow_unsafe.encoded names {%s}, but no path has a {%s} capture", name, name)
+		}
+		options = append(options, AllowUnsafeEncoded(name, encoded[name]))
+	}
+	if len(trees) == 1 {
+		return Compile(trees[0], options...)
+	}
+	return Compile(Root(trees...), options...)
 }
 
 // upperCase returns a copy of s with every element in upper case.

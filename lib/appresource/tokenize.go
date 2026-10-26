@@ -75,6 +75,9 @@ func Tokenize(path string) ([]Token, error) {
 	if !strings.HasPrefix(path, "/") {
 		return nil, trace.BadParameter("path %q must start with /", elide(path))
 	}
+	if strings.Contains(path, "//") {
+		return nil, trace.BadParameter("path %q has consecutive slashes", elide(path))
+	}
 	if err := validateRawBytes(path); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -135,14 +138,10 @@ func isAllowedEscape(b byte) bool {
 }
 
 // validateDecoded checks the decoded validation view of the path. It
-// rejects consecutive slashes, "." and ".." segments, and any content
-// that is not NFKC-stable graphic UTF-8.
+// rejects "." and ".." segments and any content that is not NFKC-stable
+// graphic UTF-8. [Tokenize] checks consecutive slashes on the raw path.
 func validateDecoded(path string) error {
 	decoded := decode(path)
-	if strings.Contains(decoded, "//") {
-		const msg = "path %q has consecutive slashes once the encoded separator %%2F is decoded"
-		return trace.BadParameter(msg, elide(path))
-	}
 	if !utf8.ValidString(decoded) {
 		return trace.BadParameter("path %q is not valid UTF-8 once decoded", elide(path))
 	}

@@ -4229,32 +4229,49 @@ const UserSessionRoleNotFoundErrorMsg = "user session role not found"
 // knownAppResourceFields lists the JSON field names this version understands
 // on an app_resources rule, derived from the AppResource message so a new
 // proto field extends it automatically.
-var knownAppResourceFields = func() map[string]struct{} {
+var knownAppResourceFields = jsonFieldNames(reflect.TypeFor[types.AppResource]())
+
+// knownAppResourceUnsafeFields lists the JSON field names this version
+// understands under allow_unsafe.
+var knownAppResourceUnsafeFields = jsonFieldNames(reflect.TypeFor[types.AppResourceUnsafe]())
+
+// jsonFieldNames returns the JSON keys of the struct type's fields.
+func jsonFieldNames(t reflect.Type) map[string]struct{} {
 	fields := make(map[string]struct{})
-	for f := range reflect.TypeFor[types.AppResource]().Fields() {
+	for f := range t.Fields() {
 		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
 		if name != "" && name != "-" {
 			fields[name] = struct{}{}
 		}
 	}
 	return fields
-}()
+}
 
 // denyAppAccessForUnknownFields empties any v9 allow app_resources rule whose
 // stored JSON carried a field this version does not recognize, so the rule
-// grants no access. Worst case is over-deny.
+// grants no access. Worst case is over-deny. It checks the top-level keys and
+// the keys under allow_unsafe.
 func denyAppAccessForUnknownFields(role *types.RoleV6, raw []byte) {
 	if role.Version != types.V9 {
 		return
 	}
 	for i := range role.Spec.Allow.AppResources {
-		for _, key := range jsoniter.Get(raw, "spec", "allow", "app_resources", i).Keys() {
-			if _, known := knownAppResourceFields[key]; !known {
-				role.Spec.Allow.AppResources[i] = types.AppResource{}
-				break
-			}
+		rule := jsoniter.Get(raw, "spec", "allow", "app_resources", i)
+		allowUnsafe := rule.Get("allow_unsafe")
+		if hasUnknownKey(rule.Keys(), knownAppResourceFields) || hasUnknownKey(allowUnsafe.Keys(), knownAppResourceUnsafeFields) {
+			role.Spec.Allow.AppResources[i] = types.AppResource{}
 		}
 	}
+}
+
+// hasUnknownKey returns true when a key is not in known.
+func hasUnknownKey(keys []string, known map[string]struct{}) bool {
+	for _, key := range keys {
+		if _, ok := known[key]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 // UnmarshalRole unmarshals the Role resource from JSON.

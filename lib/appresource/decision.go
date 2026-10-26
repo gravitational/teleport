@@ -67,6 +67,14 @@ type Hint struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// unsafeEncodedHint is the hint a rule records when it rejects a path with an
+// unsafe encoded character, such as the encoded slash (%2F), that the rule
+// does not allow. A denied request carries it at most once.
+var unsafeEncodedHint = Hint{
+	Code:   "teleport_unsafe_encoded_char",
+	Reason: "the path contains an unsafe encoded character that the rule does not allow",
+}
+
 // DenyKind is the category of a denial, emitted as deny_kind on the
 // app.session.request.denied audit event.
 type DenyKind string
