@@ -1025,7 +1025,7 @@ type ScopedRoleSSH_builder struct {
 	// Sudoers is a list of entries to include in a users sudoer file
 	HostSudoers []string
 	// FileCopy indicates whether remote file operations via SCP or SFTP are allowed
-	// over an SSH session. It defaults to allowing the user to download and upload files by default.
+	// over an SSH session. If not set, remote file operations are not permitted.
 	FileCopy *bool
 	// EnhancedRecording is the set of BPF events to record for enhanced session recording.
 	EnhancedRecording *EnhancedRecording
@@ -2118,6 +2118,7 @@ func (x *SSHLocalPortForwarding) ClearEnabled() {
 type SSHLocalPortForwarding_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// Enabled, when true, authorizes local port forwarding. If not set, local port forwarding is not permitted.
 	Enabled *bool
 }
 
@@ -2194,6 +2195,7 @@ func (x *SSHRemotePortForwarding) ClearEnabled() {
 type SSHRemotePortForwarding_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// Enabled, when true, authorizes remote port forwarding. If not set, remote port forwarding is not permitted.
 	Enabled *bool
 }
 

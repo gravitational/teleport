@@ -445,7 +445,7 @@ func GenSchemaScopedRoleResource(ctx context.Context) (github_com_hashicorp_terr
 							Optional:    true,
 						},
 						"file_copy": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
-							Description: "FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.",
+							Description: "FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. If not set, remote file operations are not permitted.",
 							Optional:    true,
 						},
 						"forward_agent": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
@@ -540,7 +540,7 @@ func GenSchemaScopedRoleResource(ctx context.Context) (github_com_hashicorp_terr
 							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
 								"local": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 									Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"enabled": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
-										Description: "",
+										Description: "Enabled, when true, authorizes local port forwarding. If not set, local port forwarding is not permitted.",
 										Optional:    true,
 									}},
 									Description: "Allow for local port forwarding.",
@@ -548,7 +548,7 @@ func GenSchemaScopedRoleResource(ctx context.Context) (github_com_hashicorp_terr
 								},
 								"remote": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 									Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"enabled": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
-										Description: "",
+										Description: "Enabled, when true, authorizes remote port forwarding. If not set, remote port forwarding is not permitted.",
 										Optional:    true,
 									}},
 									Description: "Allow for remote port forwarding.",
@@ -968,7 +968,7 @@ func GenSchemaScopedRoleDataSource(ctx context.Context) (github_com_hashicorp_te
 							Optional:    true,
 						},
 						"file_copy": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
-							Description: "FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.",
+							Description: "FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. If not set, remote file operations are not permitted.",
 							Optional:    true,
 						},
 						"forward_agent": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
@@ -1053,7 +1053,7 @@ func GenSchemaScopedRoleDataSource(ctx context.Context) (github_com_hashicorp_te
 							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
 								"local": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
 									Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"enabled": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
-										Description: "",
+										Description: "Enabled, when true, authorizes local port forwarding. If not set, local port forwarding is not permitted.",
 										Optional:    true,
 									}},
 									Description: "Allow for local port forwarding.",
@@ -1061,7 +1061,7 @@ func GenSchemaScopedRoleDataSource(ctx context.Context) (github_com_hashicorp_te
 								},
 								"remote": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
 									Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"enabled": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
-										Description: "",
+										Description: "Enabled, when true, authorizes remote port forwarding. If not set, remote port forwarding is not permitted.",
 										Optional:    true,
 									}},
 									Description: "Allow for remote port forwarding.",

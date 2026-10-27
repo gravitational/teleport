@@ -138,6 +138,10 @@ message Determinant {
   string kind = 1;
   // Name is the determinant name.
   string name = 2;
+  // Scope is the scope of the determinant, if it is a scoped resource (e.g. scoped_role). Scoped resource names
+  // are only unique within a given scope, so scope is required to unambiguously identify a scoped determinant.
+  // Empty for unscoped resources.
+  string scope = 3;
 }
 
 // SSHAccessDenial describes an SSH access denial.

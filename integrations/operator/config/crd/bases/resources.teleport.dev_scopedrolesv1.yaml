@@ -422,8 +422,8 @@ spec:
                     type: object
                   file_copy:
                     description: FileCopy indicates whether remote file operations
-                      via SCP or SFTP are allowed over an SSH session. It defaults
-                      to allowing the user to download and upload files by default.
+                      via SCP or SFTP are allowed over an SSH session. If not set,
+                      remote file operations are not permitted.
                     type: boolean
                   forward_agent:
                     description: ForwardAgent enables SSH agent forwarding.
@@ -513,6 +513,9 @@ spec:
                         nullable: true
                         properties:
                           enabled:
+                            description: Enabled, when true, authorizes local port
+                              forwarding. If not set, local port forwarding is not
+                              permitted.
                             type: boolean
                         type: object
                       remote:
@@ -520,6 +523,9 @@ spec:
                         nullable: true
                         properties:
                           enabled:
+                            description: Enabled, when true, authorizes remote port
+                              forwarding. If not set, remote port forwarding is not
+                              permitted.
                             type: boolean
                         type: object
                     type: object

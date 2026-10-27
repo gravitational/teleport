@@ -162,7 +162,7 @@ message ScopedRoleSSH {
   repeated string host_sudoers = 10;
 
   // FileCopy indicates whether remote file operations via SCP or SFTP are allowed
-  // over an SSH session. It defaults to allowing the user to download and upload files by default.
+  // over an SSH session. If not set, remote file operations are not permitted.
   optional bool file_copy = 11;
 
   // EnhancedRecording is the set of BPF events to record for enhanced session recording.
@@ -381,11 +381,13 @@ message SSHPortForwarding {
 
 // SSHLocalPortForwarding configures access controls for local SSH port forwarding.
 message SSHLocalPortForwarding {
+  // Enabled, when true, authorizes local port forwarding. If not set, local port forwarding is not permitted.
   optional bool enabled = 1;
 }
 
 // SSHRemotePortForwarding configures access controls for remote SSH port forwarding.
 message SSHRemotePortForwarding {
+  // Enabled, when true, authorizes remote port forwarding. If not set, remote port forwarding is not permitted.
   optional bool enabled = 1;
 }
 

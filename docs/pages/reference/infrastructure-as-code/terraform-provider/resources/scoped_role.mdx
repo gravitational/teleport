@@ -234,7 +234,7 @@ Optional:
 - `client_idle_timeout` (String) ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.
 - `disconnect_expired_cert` (Boolean) DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.
 - `enhanced_recording` (Attributes) EnhancedRecording is the set of BPF events to record for enhanced session recording. (see [below for nested schema](#nested-schema-for-specsshenhanced_recording))
-- `file_copy` (Boolean) FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.
+- `file_copy` (Boolean) FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. If not set, remote file operations are not permitted.
 - `forward_agent` (Boolean) ForwardAgent enables SSH agent forwarding.
 - `host_sudoers` (List of String) Sudoers is a list of entries to include in a users sudoer file
 - `host_user_creation` (Attributes) HostUserCreation configures the creation of host users. (see [below for nested schema](#nested-schema-for-specsshhost_user_creation))
@@ -291,14 +291,14 @@ Optional:
 
 Optional:
 
-- `enabled` (Boolean)
+- `enabled` (Boolean) Enabled, when true, authorizes local port forwarding. If not set, local port forwarding is not permitted.
 
 
 ### Nested Schema for `spec.ssh.port_forwarding.remote`
 
 Optional:
 
-- `enabled` (Boolean)
+- `enabled` (Boolean) Enabled, when true, authorizes remote port forwarding. If not set, remote port forwarding is not permitted.
 
 
 

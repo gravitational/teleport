@@ -1048,7 +1048,11 @@ type Determinant struct {
 	// Kind is the determinant kind.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Name is the determinant name.
-	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Scope is the scope of the determinant, if it is a scoped resource (e.g. scoped_role). Scoped resource names
+	// are only unique within a given scope, so scope is required to unambiguously identify a scoped determinant.
+	// Empty for unscoped resources.
+	Scope         string `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1092,12 +1096,23 @@ func (x *Determinant) GetName() string {
 	return ""
 }
 
+func (x *Determinant) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 func (x *Determinant) SetKind(v string) {
 	x.Kind = v
 }
 
 func (x *Determinant) SetName(v string) {
 	x.Name = v
+}
+
+func (x *Determinant) SetScope(v string) {
+	x.Scope = v
 }
 
 type Determinant_builder struct {
@@ -1107,6 +1122,10 @@ type Determinant_builder struct {
 	Kind string
 	// Name is the determinant name.
 	Name string
+	// Scope is the scope of the determinant, if it is a scoped resource (e.g. scoped_role). Scoped resource names
+	// are only unique within a given scope, so scope is required to unambiguously identify a scoped determinant.
+	// Empty for unscoped resources.
+	Scope string
 }
 
 func (b0 Determinant_builder) Build() *Determinant {
@@ -1115,6 +1134,7 @@ func (b0 Determinant_builder) Build() *Determinant {
 	_, _ = b, x
 	x.Kind = b.Kind
 	x.Name = b.Name
+	x.Scope = b.Scope
 	return m0
 }
 
@@ -1641,10 +1661,11 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x10decision_context\x18\x1b \x01(\v22.teleport.decision.v1alpha1.SSHAccessPermitContextR\x0fdecisionContextJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\a\x10\bJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12\"\xec\x01\n" +
 	"\x16SSHAccessPermitContext\x12i\n" +
 	"\x1dhost_user_creation_allowed_by\x18\x01 \x03(\v2'.teleport.decision.v1alpha1.DeterminantR\x19hostUserCreationAllowedBy\x12g\n" +
-	"\x1chost_user_creation_denied_by\x18\x02 \x03(\v2'.teleport.decision.v1alpha1.DeterminantR\x18hostUserCreationDeniedBy\"5\n" +
+	"\x1chost_user_creation_denied_by\x18\x02 \x03(\v2'.teleport.decision.v1alpha1.DeterminantR\x18hostUserCreationDeniedBy\"K\n" +
 	"\vDeterminant\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"Y\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"Y\n" +
 	"\x0fSSHAccessDenial\x12F\n" +
 	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata\"\xda\x02\n" +
 	"\n" +

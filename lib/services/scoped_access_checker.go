@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -201,8 +202,9 @@ type ScopedAccessChecker struct {
 	// permitted access in the decision that produced this checker. Only populated on checkers returned by
 	// [ScopedAccessCheckerContext.Decision] where the winning role has inclusive evaluation.
 	//
-	// TODO(fspmarshall/scopes): no methods consider additionalRoles yet. implement summing of individual
-	// permissions/controls across additionalRoles.
+	// Methods that implement summing of permissions/controls should consider all roles via [ScopedAccessChecker.roles].
+	// NOTE: the process of implementing summing is ongoing and not all controls currently sum. For inclusive roles, this
+	// manifests as some controls still being determined by the first matching role in evaluation order.
 	additionalRoles []scopedRoleAssignment
 
 	// scopedCompatChecker is a classic AccessChecker built from the scoped role via ScopedRoleToRole.
@@ -261,6 +263,28 @@ func NewScopedAccessCheckerForSystemRole(roleName string, checker AccessChecker)
 // isScoped reports whether this checker operates on a scoped identity.
 func (c *ScopedAccessChecker) isScoped() bool {
 	return c.role != nil
+}
+
+// roles iterates all scoped roles that contribute to the permissions/controls of this checker. The primary
+// (winning) role is always yielded first, followed by any additional roles in evaluation order. For
+// checkers that are not the aggregate result of an inclusive decision (e.g. those passed to decision closures or
+// returned from exclusive decisions) this yields only the primary role.
+//
+// NOTE: this method panics if called on an unscoped checker.
+func (c *ScopedAccessChecker) roles() iter.Seq[*scopedaccessv1.ScopedRole] {
+	if !c.isScoped() {
+		panic("ScopedAccessChecker.roles called on unscoped checker (this is a bug)")
+	}
+	return func(yield func(*scopedaccessv1.ScopedRole) bool) {
+		if !yield(c.role) {
+			return
+		}
+		for _, assignment := range c.additionalRoles {
+			if !yield(assignment.role) {
+				return
+			}
+		}
+	}
 }
 
 // SSH returns an SSH-specific access checker backed by this checker. All SSH-specific methods

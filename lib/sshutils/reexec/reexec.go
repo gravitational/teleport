@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	hostuser "github.com/gravitational/teleport/session/host/user"
 )
 
@@ -58,7 +59,8 @@ func ChildErrorWithContext(errMsg string, context *ErrorContext) string {
 	ambiguousHostUserError := func() string {
 		var deniedBy []string
 		for _, d := range context.DecisionContext.GetHostUserCreationDeniedBy() {
-			deniedBy = append(deniedBy, fmt.Sprintf("%v: %q", d.GetKind(), d.GetName()))
+			name := apiscopes.QualifiedName{Scope: d.GetScope(), Name: d.GetName()}
+			deniedBy = append(deniedBy, fmt.Sprintf("%v: %q", d.GetKind(), name))
 		}
 		return fmt.Sprintf("%s: host user creation denied by the following resources: [%s]\n", strings.TrimRight(errMsg, ".\n"), strings.Join(deniedBy, ", "))
 	}

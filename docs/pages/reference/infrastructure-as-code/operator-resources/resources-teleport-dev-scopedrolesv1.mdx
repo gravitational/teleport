@@ -176,7 +176,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |client_idle_timeout|string|ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
 |disconnect_expired_cert|boolean|DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.|
 |enhanced_recording|[object](#specsshenhanced_recording)|EnhancedRecording is the set of BPF events to record for enhanced session recording.|
-|file_copy|boolean|FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.|
+|file_copy|boolean|FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. If not set, remote file operations are not permitted.|
 |forward_agent|boolean|ForwardAgent enables SSH agent forwarding.|
 |host_sudoers|[]string|Sudoers is a list of entries to include in a users sudoer file|
 |host_user_creation|[object](#specsshhost_user_creation)|HostUserCreation configures the creation of host users.|
@@ -229,13 +229,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|enabled|boolean||
+|enabled|boolean|Enabled, when true, authorizes local port forwarding. If not set, local port forwarding is not permitted.|
 
 ### spec.ssh.port_forwarding.remote
 
 |Field|Type|Description|
 |---|---|---|
-|enabled|boolean||
+|enabled|boolean|Enabled, when true, authorizes remote port forwarding. If not set, remote port forwarding is not permitted.|
 
 ### spec.ssh.session_recording
 

@@ -716,7 +716,7 @@ type ScopedRoleSSH struct {
 	// Sudoers is a list of entries to include in a users sudoer file
 	HostSudoers []string `protobuf:"bytes,10,rep,name=host_sudoers,json=hostSudoers,proto3" json:"host_sudoers,omitempty"`
 	// FileCopy indicates whether remote file operations via SCP or SFTP are allowed
-	// over an SSH session. It defaults to allowing the user to download and upload files by default.
+	// over an SSH session. If not set, remote file operations are not permitted.
 	FileCopy *bool `protobuf:"varint,11,opt,name=file_copy,json=fileCopy,proto3,oneof" json:"file_copy,omitempty"`
 	// EnhancedRecording is the set of BPF events to record for enhanced session recording.
 	EnhancedRecording *EnhancedRecording `protobuf:"bytes,12,opt,name=enhanced_recording,json=enhancedRecording,proto3" json:"enhanced_recording,omitempty"`
@@ -1062,7 +1062,7 @@ type ScopedRoleSSH_builder struct {
 	// Sudoers is a list of entries to include in a users sudoer file
 	HostSudoers []string
 	// FileCopy indicates whether remote file operations via SCP or SFTP are allowed
-	// over an SSH session. It defaults to allowing the user to download and upload files by default.
+	// over an SSH session. If not set, remote file operations are not permitted.
 	FileCopy *bool
 	// EnhancedRecording is the set of BPF events to record for enhanced session recording.
 	EnhancedRecording *EnhancedRecording
@@ -2139,8 +2139,9 @@ func (b0 SSHPortForwarding_builder) Build() *SSHPortForwarding {
 
 // SSHLocalPortForwarding configures access controls for local SSH port forwarding.
 type SSHLocalPortForwarding struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	Enabled       *bool                  `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Enabled, when true, authorizes local port forwarding. If not set, local port forwarding is not permitted.
+	Enabled       *bool `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2195,6 +2196,7 @@ func (x *SSHLocalPortForwarding) ClearEnabled() {
 type SSHLocalPortForwarding_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// Enabled, when true, authorizes local port forwarding. If not set, local port forwarding is not permitted.
 	Enabled *bool
 }
 
@@ -2208,8 +2210,9 @@ func (b0 SSHLocalPortForwarding_builder) Build() *SSHLocalPortForwarding {
 
 // SSHRemotePortForwarding configures access controls for remote SSH port forwarding.
 type SSHRemotePortForwarding struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	Enabled       *bool                  `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Enabled, when true, authorizes remote port forwarding. If not set, remote port forwarding is not permitted.
+	Enabled       *bool `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2264,6 +2267,7 @@ func (x *SSHRemotePortForwarding) ClearEnabled() {
 type SSHRemotePortForwarding_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// Enabled, when true, authorizes remote port forwarding. If not set, remote port forwarding is not permitted.
 	Enabled *bool
 }
 
