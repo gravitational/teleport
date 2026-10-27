@@ -276,11 +276,7 @@ func (h *connIdentityHandler) authorize(r *http.Request) (authorizedRequest, err
 	if err != nil {
 		return authorizedRequest{}, trace.Wrap(err)
 	}
-	state, err := h.c.accessState(ctx, authCtx)
-	if err != nil {
-		return authorizedRequest{}, trace.Wrap(err)
-	}
-	if _, err := h.c.authorizeApp(ctx, authCtx, app, state); err != nil {
+	if _, err := h.c.appAuthorizer.Authorize(ctx, authCtx, app); err != nil {
 		return authorizedRequest{}, trace.Wrap(err)
 	}
 	return authorizedRequest{r: r, authCtx: authCtx, app: app, identitySource: common.AppAccessIdentitySourceUserCert}, nil

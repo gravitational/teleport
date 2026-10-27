@@ -23,23 +23,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"net"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/componentfeatures"
-	"github.com/gravitational/teleport/lib/services"
+	appauthz "github.com/gravitational/teleport/lib/srv/app/authz"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // acceptsForwardedIdentity reports whether requestIdentityHandler is on. The
@@ -144,7 +137,7 @@ func (h *requestIdentityHandler) check(r *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateForwardedIdentity(user, h.c.clusterName); err != nil {
+	if err := appauthz.ValidateForwardedIdentity(user, h.c.clusterName); err != nil {
 		return trace.Wrap(err)
 	}
 	_, err = forwardedClientIP(r)
@@ -163,47 +156,6 @@ func (h *requestIdentityHandler) authorizeProxy(r *http.Request) error {
 	}
 	_, err = h.c.cfg.Authorizer.AuthorizeScoped(authz.ContextWithUser(r.Context(), proxy))
 	return trace.Wrap(err)
-}
-
-// validateForwardedIdentity checks that a forwarded identity has the shape of
-// an App certificate for this cluster. authz.Middleware only rejects a
-// forwarded identity with a primary system role. It skips the scope pin and
-// usage checks that it applies to a client certificate, so this function
-// repeats them.
-func validateForwardedIdentity(user authz.IdentityGetter, clusterName string) error {
-	localUser, ok := user.(authz.LocalUser)
-	if !ok {
-		return trace.AccessDenied("forwarded identity must be a local user, got %T", user)
-	}
-	identity := localUser.Identity
-
-	switch {
-	case len(identity.SystemRoles) != 0:
-		return trace.AccessDenied("forwarded identity has system roles")
-	case identity.ScopePin != nil && identity.ScopePin.GetKind() != scopesv1.PinKind_PIN_KIND_USER:
-		return trace.AccessDenied("forwarded identity has a %v scope pin", identity.ScopePin.GetKind())
-	case len(identity.Usage) != 0 && !slices.Equal(identity.Usage, []string{teleport.UsageAppsOnly}):
-		return trace.AccessDenied("forwarded identity is restricted to %v", identity.Usage)
-	case identity.RouteToCluster != "" && identity.RouteToCluster != clusterName:
-		return trace.AccessDenied("forwarded identity routes to cluster %q", identity.RouteToCluster)
-	case identity.KubernetesCluster != "" || !identity.RouteToDatabase.Empty() ||
-		identity.RouteToGit != (tlsca.RouteToGit{}):
-		return trace.AccessDenied("forwarded identity routes to another service")
-	}
-
-	route := identity.RouteToApp
-	switch {
-	case route.SessionID == "" || route.Name == "" || route.PublicAddr == "":
-		return trace.AccessDenied("forwarded identity has an incomplete app route")
-	case route.ClusterName != clusterName:
-		return trace.AccessDenied("forwarded identity routes to an app in cluster %q", route.ClusterName)
-	case route.AWSRoleARN != "" || route.AzureIdentity != "" || route.GCPServiceAccount != "" ||
-		route.TargetPort != 0 || route.AWSCredentialProcessCredentials != "":
-		// These fields select an upstream identity or port for app types that
-		// requestIdentityHandler does not serve.
-		return trace.AccessDenied("forwarded identity has an app route for an unsupported app type")
-	}
-	return nil
 }
 
 // forwardedClientIP returns the IP of the client address that authz.Middleware
@@ -241,14 +193,8 @@ func (h *requestIdentityHandler) serve(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var errUnsupportedApplicationType = &trace.AccessDeniedError{
-	Message: "application can't be served with a forwarded client identity",
-}
-
 // authorize authorizes a request for the application its forwarded identity
-// routes to. Until the identity may discover the application, a response must
-// not reveal anything about it, so discovery comes before the checks whose
-// errors are specific to the application.
+// routes to.
 func (h *requestIdentityHandler) authorize(r *http.Request) (authorizedRequest, error) {
 	ctx := r.Context()
 	authCtx, err := h.c.getAuthContext(ctx)
@@ -260,26 +206,9 @@ func (h *requestIdentityHandler) authorize(r *http.Request) (authorizedRequest, 
 	if err != nil {
 		return authorizedRequest{}, trace.Wrap(err)
 	}
-	if _, err := authCtx.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return trace.Wrap(checker.App().CanAccessApp(app))
-	}); err != nil {
-		return authorizedRequest{}, trace.Wrap(err)
-	}
-	// The application may have changed since the Proxy admitted the connection.
-	if !componentfeatures.SupportsAppForwardedIdentityV1(app) {
-		return authorizedRequest{}, trace.Wrap(errUnsupportedApplicationType)
-	}
-	state, err := h.c.accessState(ctx, authCtx)
-	if err != nil {
-		return authorizedRequest{}, trace.Wrap(err)
-	}
-	// A forwarded identity comes from a certificate that routes to no
-	// application, so MFA evidence in it would satisfy per-session MFA for
-	// every application the user can access. Only the access state ignores it.
-	// Locks, audit events and hardware key enforcement still read the
-	// identity's fields.
-	state.MFAVerified = false
-	if _, err := h.c.authorizeApp(ctx, authCtx, app, state); err != nil {
+	// The application and the identity's roles may have changed since the
+	// Proxy admitted the connection.
+	if _, err := h.c.appAuthorizer.AuthorizeForwarded(ctx, authCtx, app); err != nil {
 		return authorizedRequest{}, trace.Wrap(err)
 	}
 	return authorizedRequest{r: r, authCtx: authCtx, app: app, identitySource: common.AppAccessIdentitySourceProxy}, nil
@@ -320,42 +249,17 @@ func (h *requestIdentityHandler) chunkConfig(req authorizedRequest) (chunkConfig
 	}, nil
 }
 
-// writeError gives authorization failures an [common.AppErrorCode], so a client
-// can tell them apart from the application's responses. A failure without a
-// more specific code is access-denied, even for an application that doesn't
-// exist, so a response never reveals one the client may not discover. Unlike
+// writeError gives authorization failures an [common.AppErrorCode]. Unlike
 // connIdentityHandler.writeError, it keeps the connection open, because the
 // connection carries other clients' requests.
 func (h *requestIdentityHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
-	var code common.AppErrorCode
-	var message string
-	switch {
-	case errors.Is(err, errUnsupportedApplicationType):
-		code = common.AppErrorCodeUnsupportedApplicationType
-		message = "This application can't be accessed on this path. Use an application-specific access path."
-	case errors.Is(err, services.ErrSessionMFARequired):
-		code = common.AppErrorCodeMFARequired
-		message = "This application requires per-session MFA, which this access path can't complete."
-	// An unmet private key policy is a BadParameter whose message tells tsh to
-	// log in again with a hardware key, which a client of this path can't
-	// act on.
-	case errors.Is(err, services.ErrTrustedDeviceRequired), trace.IsAccessDenied(err), trace.IsNotFound(err),
-		keys.IsPrivateKeyPolicyError(err):
-		code = common.AppErrorCodeAccessDenied
-		message = http.StatusText(http.StatusForbidden)
-	default:
+	code, ok := appauthz.WriteForwardedError(w, r, err)
+	if !ok {
 		// Not an authorization failure, such as a limit.
 		h.c.writeHTTPError(w, r, err)
 		return
 	}
-
 	h.c.log.WarnContext(h.c.closeContext, "Failed to serve request", "code", code, "error", err)
-	w.Header().Set(common.TeleportAppErrorCodeHeader, string(code))
-	if errors.Is(err, services.ErrTrustedDeviceRequired) {
-		writeTrustedDeviceRequired(w, r, http.StatusForbidden)
-		return
-	}
-	http.Error(w, message, http.StatusForbidden)
 }
 
 // writeProxyError answers a request that the Proxy shouldn't have sent. The

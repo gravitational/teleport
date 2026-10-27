@@ -31,7 +31,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -52,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	appauthz "github.com/gravitational/teleport/lib/srv/app/authz"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -225,6 +225,9 @@ type ConnectionsHandler struct {
 	// accessRecorder emits app.access events for authorized access.
 	accessRecorder *common.AccessRecorder
 
+	// appAuthorizer runs App RBAC for connections and requests.
+	appAuthorizer appauthz.Authorizer
+
 	awsHandler   http.Handler
 	azureHandler http.Handler
 	gcpHandler   http.Handler
@@ -332,6 +335,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 			return nil, trace.NotFound("no applications are being proxied")
 		},
 	}
+	c.appAuthorizer = appauthz.Authorizer{Logger: c.log, AuthPreferenceGetter: cfg.AccessPoint}
 
 	c.accessRecorder, err = common.NewAccessRecorder(closeContext, cfg.Clock, cfg.HostID, cfg.Emitter)
 	if err != nil {
@@ -678,11 +682,7 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context, app types.App
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	state, err := c.accessState(ctx, authCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sessionControls, err := c.authorizeApp(ctx, authCtx, app, state)
+	sessionControls, err := c.appAuthorizer.Authorize(ctx, authCtx, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -713,79 +713,6 @@ func (c *ConnectionsHandler) getAuthContext(ctx context.Context) (*authz.ScopedC
 	}
 
 	return authContext, nil
-}
-
-// accessState returns the access state of authContext's identity, counting the
-// MFA evidence it carries.
-func (c *ConnectionsHandler) accessState(ctx context.Context, authContext *authz.ScopedContext) (services.AccessState, error) {
-	identity := authContext.Identity.GetIdentity()
-	state, err := authContext.CheckerContext.AccessStateFromTLSIdentity(ctx, &identity, c.cfg.AccessPoint)
-	return state, trace.Wrap(err)
-}
-
-// authorizeApp checks whether authContext allows access to app in state,
-// returning the session controls of the role that granted access.
-func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *authz.ScopedContext, app types.Application, state services.AccessState) (srv.ScopedSessionControls, error) {
-	identity := authContext.Identity.GetIdentity()
-
-	if identity.RouteToApp.Scope != app.GetScope() {
-		return nil, trace.AccessDenied("certificate app scope %q does not match application scope %q",
-			identity.RouteToApp.Scope, app.GetScope())
-	}
-
-	// When accessing AWS management console, check permissions to assume
-	// requested IAM role as well.
-	var matchers []services.RoleMatcher
-	if app.IsAWSConsole() {
-		matchers = append(matchers, &services.AWSRoleARNMatcher{
-			RoleARN: identity.RouteToApp.AWSRoleARN,
-		})
-	}
-
-	// When accessing Azure API, check permissions to assume
-	// requested Azure identity as well.
-	if app.IsAzureCloud() {
-		matchers = append(matchers, &services.AzureIdentityMatcher{
-			Identity: identity.RouteToApp.AzureIdentity,
-		})
-	}
-
-	// When accessing GCP API, check permissions to assume
-	// requested GCP service account as well.
-	if app.IsGCP() {
-		matchers = append(matchers, &services.GCPServiceAccountMatcher{
-			ServiceAccount: identity.RouteToApp.GCPServiceAccount,
-		})
-	}
-
-	// Identity Center account apps are currently not supported for scoped
-	// applications. TODO (williamo/scopes) - potentially look into adding
-	// account_assignments into scoped roles.
-	if _, isUnscoped := authContext.UnscopedContext(); !isUnscoped && app.GetSubKind() == types.KindIdentityCenterAccount {
-		return nil, trace.AccessDenied("identity center account apps are not supported for scoped identities")
-	}
-
-	checker, err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return trace.Wrap(checker.App().CheckAccessToApp(app, state, matchers...))
-	})
-	switch {
-	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
-		// When access is denied due to trusted device or session MFA
-		// requirements, these specific errors are returned directly to provide
-		// clarity to the client about the additional authentication
-		// steps needed.
-		return nil, trace.Wrap(err)
-	case err != nil:
-		// Other access denial errors are wrapped and obfuscated to prevent
-		// leaking sensitive details.
-		c.log.WarnContext(c.closeContext, "Access denied to application.",
-			"app", app.GetName(),
-			"error", err,
-		)
-		return nil, utils.OpaqueAccessDenied(err)
-	}
-
-	return checker.App(), nil
 }
 
 func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) error {
@@ -851,57 +778,12 @@ func (c *ConnectionsHandler) writeHTTPError(w http.ResponseWriter, r *http.Reque
 	code := trace.ErrorToCode(err)
 	switch {
 	case errors.Is(err, services.ErrTrustedDeviceRequired):
-		writeTrustedDeviceRequired(w, r, code)
+		appauthz.WriteTrustedDeviceRequired(w, r, code)
 	case errors.Is(err, services.ErrSessionMFARequired):
 		http.Error(w, authclient.ErrNoMFADevices.Error(), code)
 	default:
 		http.Error(w, http.StatusText(code), code)
 	}
-}
-
-const (
-	trustedDeviceRequiredDocsURL          = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#troubleshooting"
-	trustedDeviceRequiredWebUIDocsURL     = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#web-ui-fails-to-authenticate-trusted-device"
-	trustedDeviceRequiredAppAccessDocsURL = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#app-access-and-access-to-this-app-requires-a-trusted-device"
-)
-
-// writeTrustedDeviceRequired writes the response body for a request that failed
-// with [services.ErrTrustedDeviceRequired]. Browsers receive a small HTML page
-// with clickable links to the docs; every other client gets plain text.
-func writeTrustedDeviceRequired(w http.ResponseWriter, r *http.Request, code int) {
-	if isBrowserUserAgent(r.UserAgent()) {
-		const body = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><title>Trusted device required</title></head>
-<body>
-<p>A trusted device is required to access this resource, but this session has not been authorized with Device Trust. Follow <a href="` + trustedDeviceRequiredWebUIDocsURL + `" target="_blank">the Web UI troubleshooting guide</a> to authorize the session with Device Trust.</p>
-<p>If accessing the resource through VNet or a local proxy, make sure the device running Teleport Connect or tsh is registered and enrolled. See <a href="` + trustedDeviceRequiredAppAccessDocsURL + `" target="_blank">the app access troubleshooting guide</a> for help.</p>
-</body>
-</html>
-`
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.WriteHeader(code)
-		_, _ = w.Write([]byte(body))
-		return
-	}
-
-	http.Error(w, `A trusted device is required to access this resource but this device has not been registered as a trusted device; use 'tsh device enroll' to register as a trusted device.
-
-See `+trustedDeviceRequiredDocsURL+` for help.
-`, code)
-}
-
-// isBrowserUserAgent reports whether ua plausibly comes from a web browser, as
-// opposed to a CLI (tsh, curl) or some SDK client. It relies on the historical
-// quirk that essentially every browser UA begins with "Mozilla/" and contains
-// a known engine token. Modern browsers (Chrome, Safari, Edge, Opera, mobile
-// browsers) are all WebKit- or Blink-based and carry "AppleWebKit"; the Firefox
-// family carries "Gecko/".
-func isBrowserUserAgent(ua string) bool {
-	lower := strings.ToLower(ua)
-	return strings.HasPrefix(lower, "mozilla/") &&
-		(strings.Contains(lower, "applewebkit") || strings.Contains(lower, "gecko/"))
 }
 
 // authenticateConn completes the TLS handshake and returns the identity in the
