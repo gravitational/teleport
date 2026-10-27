@@ -738,6 +738,162 @@ in a separate terminal.
    $ tsh apps logout awsconsole
    ```
 
+### Access multiple AWS applications
+
+You may wish to run commands that access resources in multiple AWS applications.
+
+For example, suppose you have [registered multiple Teleport AWS applications, each for
+a different AWS account](#multiple-aws-accounts), and you want to use a single Terraform
+configuration to take action across several of your accounts.
+
+The example below uses the `awsconsole-test` and `awsconsole-prod` applications
+from [Multiple AWS accounts](#multiple-aws-accounts). To follow along,
+first, configure the `ExampleReadOnlyAccess` IAM role in each account as described in
+[Step 1](#step-14-configure-aws-iam), and include both role ARNs in the Teleport
+role's `aws_role_arns` list as described in
+[Step 2](#step-24-configure-teleport-iam-role-mapping).
+
+1. Log in to each AWS application and select the IAM role to use:
+
+   ```code
+   $ tsh apps login --aws-role ExampleReadOnlyAccess awsconsole-prod
+   $ tsh apps login --aws-role ExampleReadOnlyAccess awsconsole-test
+   ```
+
+   <Admonition type="warning" title="tool compatibility">
+   When accessing multiple AWS applications, the tool (ie Terraform in this example) must support
+   loading AWS profiles from `AWS_SHARED_CREDENTIALS_FILE`.
+ 
+   With multiple applications, `tsh aws` and `tsh proxy aws` commands
+   create one AWS profile per application. The profile name defaults to application name.
+   </Admonition>
+
+1. Configure your tool (Terraform for this example) to use the appropriate profiles. As you can see,
+   the following Terraform configuration references the AWS profiles `awsconsole-prod` and `awsconsole-test`.
+   Write the following to a file `main.tf`:
+
+   ```hcl
+   provider "aws" {
+     alias   = "prod"
+     profile = "awsconsole-prod"
+     region  = "us-east-1"
+   }
+
+   provider "aws" {
+     alias   = "test"
+     profile = "awsconsole-test"
+     region  = "us-east-1"
+   }
+
+   data "aws_caller_identity" "prod" {
+     provider = aws.prod
+   }
+
+   data "aws_caller_identity" "test" {
+     provider = aws.test
+   }
+
+   output "prod_identity" {
+     value = {
+       account_id = data.aws_caller_identity.prod.account_id
+       arn        = data.aws_caller_identity.prod.arn
+       user_id    = data.aws_caller_identity.prod.user_id
+     }
+   }
+
+   output "test_identity" {
+     value = {
+       account_id = data.aws_caller_identity.test.account_id
+       arn        = data.aws_caller_identity.test.arn
+       user_id    = data.aws_caller_identity.test.user_id
+     }
+   }
+   ```
+
+   In the same directory as `main.tf`, run:
+   ```code
+   $ terraform init
+   ```
+
+1. Still in that same directory, we can now use `tsh aws --exec`, specifying both applications, to apply our Terraform configuration:
+
+   ```code
+   $ tsh aws --app awsconsole-prod --app awsconsole-test --exec terraform apply
+   ```
+
+   Terraform should output the identity for each AWS application.
+
+   <Admonition type="note">
+   To specify different profile names, map an application to your
+   desired profile name with `--profile <app>=<profile>`:
+ 
+      ```code
+      $ tsh aws --app awsconsole-prod --app awsconsole-test \
+        --profile awsconsole-prod=prod --profile awsconsole-test=test \
+        --exec terraform apply
+      ```
+
+   With this, your tool should be configured to use the AWS profiles `prod` and `test`.
+   </Admonition>
+
+   <details>
+   <summary>Using `tsh proxy aws` with multiple applications</summary>
+
+   `tsh proxy aws` commands, [as described above](#access-applications-using-aws-sdks), can also be used with
+   multiple applications if desired. Follow steps 1 and 2 from this section. Instead of step 3:
+
+   ```code
+   $ tsh proxy aws --app awsconsole-prod --app awsconsole-test
+   Started AWS proxy on http://127.0.0.1:60518.
+   To avoid port randomization, you can choose the listening port using the --port flag.
+
+   Wrote AWS profiles for:
+
+   - awsconsole-prod (AWS role: ExampleReadOnlyAccess): AWS_PROFILE=awsconsole-prod
+   - awsconsole-test (AWS role: ExampleReadOnlyAccess): AWS_PROFILE=awsconsole-test
+
+   Use the following AWS configuration and HTTPS proxy:
+     export AWS_CA_BUNDLE="/home/alice/.tsh/aws/localca.pem"
+     export HTTPS_PROXY="http://127.0.0.1:60518"
+     export https_proxy="http://127.0.0.1:60518"
+     export AWS_SHARED_CREDENTIALS_FILE="/home/alice/.tsh/aws/credentials"
+
+   Use the following snippet to clear out any existing credentials in your environment
+   that would override the generated credentials above:
+     export AWS_ACCESS_KEY_ID=""
+     export AWS_SECRET_ACCESS_KEY=""
+     export AWS_SESSION_TOKEN=""
+     export AWS_ROLE_ARN=""
+     export AWS_ROLE_SESSION_NAME=""
+     export AWS_WEB_IDENTITY_TOKEN_FILE=""
+   ```
+   Leave this terminal open as the proxy runs in the foreground.
+
+   In a new terminal, copy and paste all of the `export` commands from your proxy command's output.
+   You can now run commands that use the proxied apps via their corresponding AWS profiles. For example:
+
+   ```code
+   # # In the same directory as main.tf
+   $ terraform apply
+   # <same result as above>
+
+   $ export AWS_PROFILE=awsconsole-prod
+   $ aws sts get-caller-identity
+   # <identity for awsconsole-prod>
+   $ export AWS_PROFILE=awsconsole-test
+   $ aws sts get-caller-identity
+   # <identity for awsconsole-test>
+   ```
+   </details>
+
+1. Run the following commands to log out of the AWS applications and remove
+   credentials:
+
+   ```code
+   $ tsh apps logout awsconsole-prod
+   $ tsh apps logout awsconsole-test
+   ```
+
 ### Use CloudTrail to see Teleport user activity
 
 To view CloudTrail events for your federated sessions, navigate to the CloudTrail
