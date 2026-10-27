@@ -44,6 +44,7 @@ const SPIFFETLSCA = "spiffe-tls"
 
 var (
 	allowedCAOverrideSubKinds = []string{
+		string(types.AWSRACA),
 		string(types.DatabaseClientCA),
 		string(types.SAMLIDPCA),
 		SPIFFETLSCA,
