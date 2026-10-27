@@ -26,17 +26,21 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/migrate"
+	"github.com/gravitational/teleport/lib/migrate/hoststep"
 )
 
 // migrateFlags holds every `teleport migrate` flag. The migration itself
 // (clusters, state directory, mappings) is described only by --config.
 type migrateFlags struct {
-	configPath, format, subset string
+	configPath, format, subset, hostStep string
 }
 
 // onMigratePlan runs `teleport migrate plan`. A host that cannot migrate is
 // reported in the output, not through the exit code.
 func onMigratePlan(ctx context.Context, f *migrateFlags) error {
+	if f.configPath == "" {
+		return trace.BadParameter("--config is required")
+	}
 	cfg, err := migrate.LoadConfig(f.configPath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -58,4 +62,10 @@ func onMigratePlan(ctx context.Context, f *migrateFlags) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(m.Render(os.Stdout, f.format, f.subset, summary))
+}
+
+// onMigrateHost runs `teleport migrate host <step>`: one migration step on
+// this host, reading its request on stdin and writing its result to stdout.
+func onMigrateHost(ctx context.Context, f *migrateFlags) error {
+	return trace.Wrap(hoststep.RunHostStep(ctx, f.hostStep, os.Stdin, os.Stdout))
 }

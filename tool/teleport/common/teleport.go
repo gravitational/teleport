@@ -481,11 +481,13 @@ Examples:
       target_scope: /org/team-a
   # state_dir: the state file's directory; defaults to ~/.teleport-migrate
 `)
-	migrateCmd.Flag("config", "Migration configuration file in YAML format naming both clusters, the state directory and one or more source-labels to target-scope mappings.").Short('c').Required().ExistingFileVar(&migrateFlags.configPath)
+	migrateCmd.Flag("config", "Migration configuration file in YAML format naming both clusters, the state directory and one or more source-labels to target-scope mappings.").Short('c').ExistingFileVar(&migrateFlags.configPath)
 
 	migratePlanCmd := migrateCmd.Command("plan", "Read both clusters and report which hosts can migrate.").Hidden()
 	migratePlanCmd.Flag("show", "List the hosts in one state, or the unmatched target agents.").EnumVar(&migrateFlags.subset, migrate.ShowValues()...)
 	migratePlanCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&migrateFlags.format, teleport.Text, teleport.JSON, teleport.CSV)
+	migrateHostCmd := migrateCmd.Command("host", "Run one migration step on this host, reading the request on stdin.").Hidden()
+	migrateHostCmd.Arg("step", "The step to run.").Required().StringVar(&migrateFlags.hostStep)
 
 	reconf := app.Command("reconfigure", "Generate a new agent config file from an existing one, applying changes given by flags.").Hidden()
 	reconf.Flag("input", "Path to the source config file.").Default(defaults.ConfigFilePath).StringVar(&reconfigureFlags.input)
@@ -819,6 +821,8 @@ Examples:
 		err = onReconfigure(reconfigureFlags)
 	case migratePlanCmd.FullCommand():
 		err = onMigratePlan(ctx, &migrateFlags)
+	case migrateHostCmd.FullCommand():
+		err = onMigrateHost(ctx, &migrateFlags)
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
