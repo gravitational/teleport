@@ -52,7 +52,7 @@ type azureInstallerBackoff struct {
 // newAzureInstallerBackoff creates an Azure installer backoff keyed by Azure
 // resource ID and VM ID.
 func newAzureInstallerBackoff(baseDelay time.Duration, jitter retryutils.Jitter) (*azureInstallerBackoff, error) {
-	backoff, err := newInstallerBackoff(baseDelay, jitter, newAzureInstallerBackoffKey)
+	backoff, err := newInstallerBackoff(baseDelay, jitter, newAzureInstallerBackoffKey, replaceInstallerBackoffTarget[*azure.VirtualMachine])
 	if err != nil {
 		return nil, err
 	}

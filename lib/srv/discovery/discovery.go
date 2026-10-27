@@ -1228,7 +1228,7 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances, backoff *ec2
 				integration:         instances.Integration,
 			}, 1)
 
-			s.addEC2FailedEnrollment(instances, inst.target.instance, inst.issueType, "", syncTime) // todo (mpm) add invocation URL
+			s.addEC2FailedEnrollment(instances, inst, syncTime)
 		}
 		if len(instances.Instances) == 0 {
 			return nil

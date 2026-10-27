@@ -63,21 +63,32 @@ func (e *installerBackoffEntry[T]) isFailedAttempt() bool {
 
 // installerBackoff tracks completed target installation attempts and backs off
 // subsequent attempts for equivalent keys. The key function defines target
-// identity and must return the same key for equivalent targets.
+// identity. refreshTarget controls how a rediscovered target updates the
+// stored target without changing completed-attempt state.
 type installerBackoff[K comparable, T any] struct {
-	retry *retryutils.RetryV2
-	key   func(T) K
+	retry         *retryutils.RetryV2
+	key           func(T) K
+	refreshTarget func(previous, current T) T
 
 	mu      sync.Mutex
 	entries map[K]*installerBackoffEntry[T]
 }
 
 // newInstallerBackoff creates an installer backoff. baseDelay is bounded to
-// the supported installer backoff range. key must be non-nil and defines the
-// identity used for all cache operations.
-func newInstallerBackoff[K comparable, T any](baseDelay time.Duration, jitter retryutils.Jitter, key func(T) K) (*installerBackoff[K, T], error) {
+// the supported installer backoff range. key must return the same key for
+// equivalent targets. refreshTarget merges the stored and current target when
+// filtering rediscovers that key. Both functions must be non-nil.
+func newInstallerBackoff[K comparable, T any](
+	baseDelay time.Duration,
+	jitter retryutils.Jitter,
+	key func(T) K,
+	refreshTarget func(previous, current T) T,
+) (*installerBackoff[K, T], error) {
 	if key == nil {
 		return nil, errors.New("key function is required")
+	}
+	if refreshTarget == nil {
+		return nil, errors.New("refresh target function is required")
 	}
 	// bound the base delay to [minInstallBackoff, maxInstallBackoff/4]
 	baseDelay = min(
@@ -93,16 +104,18 @@ func newInstallerBackoff[K comparable, T any](baseDelay time.Duration, jitter re
 		return nil, trace.Wrap(err)
 	}
 	return &installerBackoff[K, T]{
-		retry:   retry,
-		key:     key,
-		entries: make(map[K]*installerBackoffEntry[T]),
+		retry:         retry,
+		key:           key,
+		refreshTarget: refreshTarget,
+		entries:       make(map[K]*installerBackoffEntry[T]),
 	}, nil
 }
 
-// filter partitions targets into targets which may be attempted and completed
-// entries which are still backed off. Callers must use the returned target
-// slice in place of the input slice; filtering may modify the input's backing
-// array and the returned slice may have a shorter length.
+// filter refreshes stored targets and partitions them into targets which may
+// be attempted and completed entries which are still backed off. Callers must
+// use the returned target slice in place of the input slice; filtering may
+// modify the input's backing array and the returned slice may have a shorter
+// length.
 func (b *installerBackoff[K, T]) filter(targets []T, t time.Time) ([]T, []installerBackoffEntry[T]) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -110,6 +123,7 @@ func (b *installerBackoff[K, T]) filter(targets []T, t time.Time) ([]T, []instal
 	var removed []installerBackoffEntry[T]
 	targets = slices.DeleteFunc(targets, func(target T) bool {
 		entry := b.addLocked(target)
+		entry.target = b.refreshTarget(entry.target, target)
 		entry.seenInLastScan = true
 		if entry.retryable(t) {
 			return false
@@ -127,18 +141,19 @@ func (b *installerBackoff[K, T]) addLocked(target T) *installerBackoffEntry[T] {
 	entry := b.entries[key]
 	if entry == nil {
 		entry = &installerBackoffEntry[T]{
-			retry: b.retry.Clone(),
+			target: target,
+			retry:  b.retry.Clone(),
 		}
 		b.entries[key] = entry
 	}
-	entry.target = target
 	return entry
 }
 
-// recordAttemptLocked advances the completed-attempt state for target. The
-// caller must hold b.mu.
+// recordAttemptLocked replaces the stored target with the completed-attempt
+// snapshot and advances its backoff state. The caller must hold b.mu.
 func (b *installerBackoff[K, T]) recordAttemptLocked(target T, t time.Time) *installerBackoffEntry[T] {
 	entry := b.addLocked(target)
+	entry.target = target
 	entry.retry.Inc()
 	entry.attempts++
 	entry.lastAttemptAt = t
@@ -188,4 +203,10 @@ func (b *installerBackoff[K, T]) reset() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.entries = make(map[K]*installerBackoffEntry[T])
+}
+
+// replaceInstallerBackoffTarget refreshes a stored target with the latest
+// discovery result without preserving fields from the previous target.
+func replaceInstallerBackoffTarget[T any](_, current T) T {
+	return current
 }

@@ -441,7 +441,7 @@ func (s *Server) reportEC2SSMInstallationResult(ctx context.Context, backoff *ec
 		return trace.Wrap(s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent))
 	}
 	syncTime := s.clock.Now()
-	backoff.recordFailedAttempt(target, result.IssueType, syncTime)
+	entry := backoff.recordFailedAttempt(target, result.IssueType, result.SSMRunEvent.InvocationURL, syncTime)
 	// Record failure status before emitting the audit event. Audit emission
 	// errors are reported to the caller, but must not hide the failed
 	// enrollment from DiscoveryConfig status or UserTasks.
@@ -450,30 +450,33 @@ func (s *Server) reportEC2SSMInstallationResult(ctx context.Context, backoff *ec
 		integration:         result.IntegrationName,
 	}, 1)
 
-	s.addEC2FailedEnrollment(group, target.instance, result.IssueType, result.SSMRunEvent.InvocationURL, syncTime)
+	s.addEC2FailedEnrollment(group, entry, syncTime)
 
 	return trace.Wrap(s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent))
 }
 
-// addEC2FailedEnrollment adds one EC2 instance to its failed-enrollment
-// UserTask group.
-func (s *Server) addEC2FailedEnrollment(group *server.EC2Instances, instance server.EC2Instance, issueType string, invocationURL string, syncTime time.Time) {
+// addEC2FailedEnrollment adds one completed EC2 installation failure and its
+// retry diagnostics to the appropriate UserTask group.
+func (s *Server) addEC2FailedEnrollment(group *server.EC2Instances, entry installerBackoffEntry[ec2InstallerBackoffTarget], syncTime time.Time) {
 	s.awsEC2Tasks.addFailedEnrollment(
 		awsEC2TaskKey{
 			integration:     group.Integration,
-			issueType:       issueType,
+			issueType:       entry.issueType,
 			accountID:       group.AccountID,
 			region:          group.Region,
 			ssmDocument:     group.DocumentName,
 			installerScript: group.Parameters[server.ParamScriptName],
 		},
 		&usertasksv1.DiscoverEC2Instance{
-			InvocationUrl:   invocationURL,
+			InvocationUrl:   entry.target.invocationURL,
 			DiscoveryConfig: group.DiscoveryConfigName,
 			DiscoveryGroup:  s.DiscoveryGroup,
 			SyncTime:        timestamppb.New(syncTime),
-			InstanceId:      instance.InstanceID,
-			Name:            instance.InstanceName,
+			InstanceId:      entry.target.instance.InstanceID,
+			Name:            entry.target.instance.InstanceName,
+			LastAttemptTime: timestamppb.New(entry.lastAttemptAt),
+			RetryAfterTime:  timestamppb.New(entry.retryAfter),
+			Attempts:        entry.attempts,
 		},
 	)
 }
