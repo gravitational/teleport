@@ -152,6 +152,9 @@ type Integration interface {
 	// SetStatus updates the integration status.
 	SetStatus(IntegrationStatusV1)
 
+	// GetScope returns the scope of the integration.
+	GetScope() string
+
 	// Clone returns a copy of the integration.
 	Clone() Integration
 
@@ -637,6 +640,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 			Credentials json.RawMessage `json:"credentials"`
 		} `json:"spec"`
 		Status IntegrationStatusV1 `json:"status,omitempty"`
+		Scope  string              `json:"scope,omitempty"`
 	}{}
 
 	err := json.Unmarshal(data, &d)
@@ -646,6 +650,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 
 	integration.ResourceHeader = d.ResourceHeader
 	integration.Status = d.Status
+	integration.Scope = d.Scope
 	if len(d.Spec.Credentials) != 0 {
 		var credentials PluginCredentialsV1
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(d.Spec.Credentials, protoadapt.MessageV2Of(&credentials)); err != nil {
@@ -722,6 +727,11 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// GetScope returns the scope of the integration.
+func (ig *IntegrationV1) GetScope() string {
+	return ig.Scope
+}
+
 // MarshalJSON is a custom marshaller for JSON format.
 // gogoproto doesn't allow for oneof json tags [https://github.com/gogo/protobuf/issues/623]
 // So, this is required to correctly use snake_case for every field.
@@ -738,10 +748,12 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 			Credentials json.RawMessage             `json:"credentials,omitempty"`
 		} `json:"spec"`
 		Status IntegrationStatusV1 `json:"status,omitempty"`
+		Scope  string              `json:"scope,omitempty"`
 	}{}
 
 	d.ResourceHeader = ig.ResourceHeader
 	d.Status = ig.Status
+	d.Scope = ig.Scope
 	if ig.Spec.Credentials != nil {
 		data, err := protojson.Marshal(protoadapt.MessageV2Of(ig.Spec.Credentials))
 		if err != nil {

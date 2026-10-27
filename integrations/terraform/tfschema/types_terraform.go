@@ -14029,6 +14029,12 @@ func GenSchemaIntegrationV1Resource(ctx context.Context) (github_com_hashicorp_t
 			Description: "Metadata is resource metadata",
 			Required:    true,
 		},
+		"scope": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+			Computed:      true,
+			Description:   "Scope is the scope of the integration.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+		},
 		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
 				"aws_oidc": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
@@ -14182,6 +14188,11 @@ func GenSchemaIntegrationV1DataSource(ctx context.Context) (github_com_hashicorp
 			},
 			Description: "Metadata is resource metadata",
 			Required:    true,
+		},
+		"scope": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+			Computed:    true,
+			Description: "Scope is the scope of the integration.",
+			Optional:    true,
 		},
 		"spec": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
@@ -59825,6 +59836,23 @@ func CopyIntegrationV1FromTerraform(_ context.Context, tf github_com_hashicorp_t
 			}
 		}
 	}
+	{
+		a, ok := tf.Attributes()["scope"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"IntegrationV1.scope"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"IntegrationV1.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+			} else {
+				var t string
+				if !v.IsNull() && !v.IsUnknown() {
+					t = (v.ValueString())
+				}
+				obj.Scope = t
+			}
+		}
+	}
 	return diags
 }
 
@@ -60303,6 +60331,16 @@ func CopyIntegrationV1ToTerraformPreserveUnknown(ctx context.Context, obj *githu
 				attrs["spec"] = v
 			}
 		}
+	}
+	{
+		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+		existing := attrs["scope"]
+		if preserveUnknown && existing != nil && existing.IsUnknown() {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+		} else {
+			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Scope))
+		}
+		attrs["scope"] = v
 	}
 	_, ok := attrs["id"]
 	if !ok {
