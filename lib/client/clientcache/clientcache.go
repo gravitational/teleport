@@ -27,6 +27,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/gravitational/teleport"
+	apiprofile "github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -60,7 +61,7 @@ type profile interface {
 func (c *clientWithMetadata) isTLSCertStale() (bool, error) {
 	pr, err := c.getProfile()
 	if err != nil {
-		if trace.IsNotFound(err) {
+		if apiprofile.IsMissingOrInvalid(err) {
 			return true, nil
 		}
 		return false, trace.Wrap(err)

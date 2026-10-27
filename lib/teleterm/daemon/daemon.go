@@ -35,6 +35,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	apiprofile "github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -337,17 +338,26 @@ func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*c
 // This operation is idempotent and can be safely invoked multiple times.
 func (s *Service) ClusterLogout(ctx context.Context, uri uri.ResourceURI, removeProfile bool) error {
 	cluster, _, err := s.ResolveClusterURI(uri)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
 	if err == nil {
 		if err = cluster.Logout(ctx); err != nil {
 			return trace.Wrap(err)
 		}
-		if removeProfile {
-			if err = s.cfg.Storage.Remove(ctx, cluster.ProfileName); err != nil {
-				return trace.Wrap(err)
-			}
+	} else if apiprofile.IsMissingOrInvalid(err) {
+		// TODO(gzdunek): Removing credentials should be performed even if reading the profile fails:
+		// https://github.com/gravitational/teleport/issues/60897
+		s.cfg.Logger.WarnContext(ctx,
+			"Failed to resolve cluster due to unavailable profile; skipping credential removal",
+			"uri", uri,
+			"error", err,
+		)
+	} else {
+		return trace.Wrap(err)
+	}
+
+	// Remove the profile even if resolving the cluster failed.
+	if removeProfile {
+		if err = s.cfg.Storage.Remove(ctx, uri.GetProfileName()); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
 		}
 	}
 

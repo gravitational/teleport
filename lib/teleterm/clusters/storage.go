@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
@@ -54,11 +55,16 @@ func (s *Storage) ListRootClusters() ([]*Cluster, error) {
 
 	clusters := make([]*Cluster, 0, len(pfNames))
 	for _, name := range pfNames {
-		// TODO(ravicious): Handle a possible scenario where one of the clusters gets removed between
-		// client.Store.ListProfiles and Storage.fromProfile. See https://github.com/gravitational/teleport/pull/63975
 		cluster, _, err := s.fromProfile(name, "")
 		if cluster == nil {
-			return nil, trace.Wrap(err)
+			if !profile.IsMissingOrInvalid(err) {
+				return nil, trace.Wrap(err)
+			}
+			s.Logger.WarnContext(context.Background(), "skipping profile due to error",
+				"profile_name", name,
+				"error", err,
+			)
+			continue
 		}
 
 		clusters = append(clusters, cluster)
@@ -132,6 +138,9 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *c
 	for _, pname := range profiles {
 		if pname == clusterName {
 			cluster, clusterClient, err := s.fromProfile(clusterName, "")
+			if profile.IsMissingOrInvalid(err) {
+				break
+			}
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}

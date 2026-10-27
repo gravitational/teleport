@@ -882,7 +882,7 @@ func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAdd
 	// then the profile will be missing. Add a temporary profile with necessary
 	// information. This profile should be filled in with information from the
 	// proxy by the caller.
-	if _, err := store.GetProfile(proxyAddr); trace.IsNotFound(err) {
+	if _, err := store.GetProfile(proxyAddr); profile.IsMissingOrInvalid(err) {
 		profile := &profile.Profile{
 			MissingClusterDetails: true,
 			WebProxyAddr:          proxyAddr,

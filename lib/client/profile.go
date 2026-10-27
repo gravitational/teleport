@@ -201,19 +201,25 @@ func (fs *FSProfileStore) SaveProfile(profile *profile.Profile, makeCurrent bool
 // DeleteProfile deletes the given profile. If it is the
 // current profile, it also deletes that record.
 func (fs *FSProfileStore) DeleteProfile(profileName string) error {
-	if _, err := profile.FromDir(fs.Dir, profileName); err != nil {
-		return trace.Wrap(err)
+	root, err := os.OpenRoot(fs.Dir)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer root.Close()
+
+	if err := root.Remove(keypaths.ProfileFilePath("", profileName)); err != nil {
+		return trace.ConvertSystemError(err)
 	}
 
 	if current, err := fs.CurrentProfile(); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	} else if current == profileName {
-		if err := os.Remove(keypaths.CurrentProfileFilePath(fs.Dir)); err != nil {
+		if err := root.Remove(keypaths.CurrentProfileFilePath("")); err != nil {
 			return trace.ConvertSystemError(err)
 		}
 	}
 
-	return trace.ConvertSystemError(os.Remove(keypaths.ProfileFilePath(fs.Dir, profileName)))
+	return nil
 }
 
 // ProfileStatus combines metadata from the logged in profile and associated

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apiprofile "github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -438,7 +439,7 @@ type Server struct {
 // This adjustment is only relevant for Connect and should not be persisted.
 func SaveProfileAndPreserveSiteName(clusterClient *client.TeleportClient, makeCurrent bool) error {
 	profile, err := clusterClient.GetProfile(clusterClient.WebProxyAddr)
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil && !apiprofile.IsMissingOrInvalid(err) {
 		return trace.Wrap(err)
 	}
 	if profile != nil {

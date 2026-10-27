@@ -20,6 +20,7 @@ package profile
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"io/fs"
 	"net"
 	"os"
@@ -43,6 +44,16 @@ const (
 	// profileDir is the default root directory where tsh stores profiles.
 	profileDir = ".tsh"
 )
+
+// ErrInvalid indicates that a profile exists but its content is invalid.
+var ErrInvalid = errors.New("profile is invalid")
+
+// IsMissingOrInvalid reports whether err indicates that a profile is missing or
+// invalid, meaning it can be safely discarded and recreated.
+// It returns false for filesystem errors such as permission failures.
+func IsMissingOrInvalid(err error) bool {
+	return trace.IsNotFound(err) || errors.Is(err, ErrInvalid)
+}
 
 // Profile is a collection of most frequently used CLI flags
 // for "tsh".
@@ -366,6 +377,7 @@ func UserHomeDir() (string, bool) {
 // FromDir reads the user profile from a given directory. If dir is empty,
 // this function defaults to the default tsh profile directory. If name is empty,
 // this function defaults to loading the currently active profile (if any).
+// [IsMissingOrInvalid] reports whether an error means the profile may be recreated.
 func FromDir(dir string, name string) (*Profile, error) {
 	dir = FullProfilePath(dir)
 	var err error
@@ -390,11 +402,11 @@ func profileFromFile(filePath string) (*Profile, error) {
 	}
 	var p Profile
 	if err := yaml.Unmarshal(bytes, &p); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(ErrInvalid, "failed to decode profile at %q: %v", filePath, err)
 	}
 
 	if p.Name() == "" {
-		return nil, trace.NotFound("invalid or empty profile at %q", filePath)
+		return nil, trace.Wrap(ErrInvalid, "profile at %q is missing a profile name", filePath)
 	}
 
 	p.Dir = filepath.Dir(filePath)

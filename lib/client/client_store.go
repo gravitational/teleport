@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	"github.com/gravitational/teleport/api/profile"
+	apiprofile "github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -265,7 +265,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 
 	profile, err := s.GetProfile(profileName)
 	if err != nil {
-		if trace.IsNotFound(err) {
+		if apiprofile.IsMissingOrInvalid(err) {
 			return nil, trace.Wrap(ErrNoProfile, err.Error())
 		}
 		return nil, trace.Wrap(err)
@@ -361,10 +361,16 @@ func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 	var currentProfile *ProfileStatus
 	if currentProfileName != "" {
 		profileStatus, err := s.ReadProfileStatus(currentProfileName)
-		if err != nil {
+		switch {
+		case err == nil:
+			currentProfile = profileStatus
+		case proxyAddressOrProfile == "" && apiprofile.IsMissingOrInvalid(err):
+			// If the current-profile file points to a profile that is missing or
+			// unusable, treat it as no current profile. Still list the other profiles.
+			// Explicitly requesting the corrupted profile by name must still fail.
+		default:
 			return nil, nil, trace.Wrap(err)
 		}
-		currentProfile = profileStatus
 	}
 
 	profileNames, err := s.ListProfiles()
@@ -402,7 +408,7 @@ func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 // This function speeds up the process since it removes all transversals, and
 // only reads 1 file:
 // - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.cred
-func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster, kubeCluster string) (keyPEM, certPEM []byte, err error) {
+func LoadKeysToKubeFromStore(profile *apiprofile.Profile, dirPath, teleportCluster, kubeCluster string) (keyPEM, certPEM []byte, err error) {
 	fsKeyStore := NewFSKeyStore(dirPath)
 
 	credPath := fsKeyStore.kubeCredPath(KeyRingIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)

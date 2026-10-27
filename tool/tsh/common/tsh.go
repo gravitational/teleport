@@ -66,7 +66,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
-	"github.com/gravitational/teleport/api/profile"
+	apiprofile "github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -2526,7 +2526,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	// of any other proxies the user is logged into.
 	profile, profiles, err := cf.FullProfileStatus()
 	if err != nil {
-		if !trace.IsNotFound(err) {
+		if !apiprofile.IsMissingOrInvalid(err) {
 			return trace.Wrap(err)
 		}
 	}
@@ -5634,7 +5634,7 @@ func (c *CLIConf) ListProfiles() ([]*client.ProfileStatus, error) {
 }
 
 // GetProfile loads user profile.
-func (c *CLIConf) GetProfile() (*profile.Profile, error) {
+func (c *CLIConf) GetProfile() (*apiprofile.Profile, error) {
 	clientStore := c.getClientStore()
 	profileName, err := client.ProfileNameFromProxyAddress(clientStore, c.Proxy)
 	if err != nil {
