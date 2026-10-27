@@ -28,8 +28,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -73,21 +75,7 @@ func generateAWSClientSideCredentials(
 
 	switch integration.GetSubKind() {
 	case types.IntegrationSubKindAWSRolesAnywhere:
-		// Unlike normal app access, AWS Roles Anywhere credential generation
-		// returns externally usable AWS credentials directly from Auth without
-		// flowing through the app service first, so Auth must enforce both app
-		// access and the requested AWS role ARN before calling AWS.
-		if err := authorizeAWSRolesAnywhereCredentials(ctx, a, req, appInfo, attestedKeyPolicy); err != nil {
-			if errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired) {
-				return "", trace.Wrap(err)
-			}
-			// Obfuscate ordinary app and AWS role RBAC failures to avoid
-			// leaking whether the requested app or role exists.
-			return "", utils.OpaqueAccessDenied(err)
-		}
-
-		// Only AWS Roles Anywhere integrations can generate credentials.
-		return generateAWSRolesAnywhereCredentials(ctx, a, req, appInfo, integration, notAfter)
+		return generateAWSRolesAnywhereCredentials(ctx, a, req, appInfo, integration, notAfter, attestedKeyPolicy)
 
 	case types.IntegrationSubKindAWSOIDC:
 		// AWS access using AWS OIDC integration will proxy requests, but will not send any credentials to the client.
@@ -105,7 +93,7 @@ func authorizeAWSRolesAnywhereCredentials(
 	a *Server,
 	req cert.Request,
 	appInfo types.Application,
-	attestedKeyPolicy keys.PrivateKeyPolicy,
+	identity *tlsca.Identity,
 ) error {
 	unscoped := req.CheckerContext.CertParams().UnscopedCertParams()
 	if unscoped == nil {
@@ -114,13 +102,7 @@ func authorizeAWSRolesAnywhereCredentials(
 		return trace.AccessDenied("AWS Roles Anywhere credentials require an unscoped identity")
 	}
 
-	state, err := req.CheckerContext.AccessStateFromTLSIdentity(ctx, &tlsca.Identity{
-		Username:         req.User.GetName(),
-		MFAVerified:      req.MFAVerified,
-		PrivateKeyPolicy: attestedKeyPolicy,
-		DeviceExtensions: req.DeviceExtensions,
-		BotName:          req.BotName,
-	}, a)
+	state, err := req.CheckerContext.AccessStateFromTLSIdentity(ctx, identity, a)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -153,17 +135,64 @@ func generateAWSRolesAnywhereCredentials(
 	appInfo types.Application,
 	integration types.Integration,
 	notAfter time.Time,
-) (string, error) {
+	attestedKeyPolicy keys.PrivateKeyPolicy,
+) (_ string, err error) {
+	var roleNames []string
+	if unscoped := req.CheckerContext.CertParams().UnscopedCertParams(); unscoped != nil {
+		roleNames = unscoped.RoleNames()
+	}
+	identity := &tlsca.Identity{
+		Username:         req.User.GetName(),
+		Impersonator:     req.Impersonator,
+		MFAVerified:      req.MFAVerified,
+		PrivateKeyPolicy: attestedKeyPolicy,
+		DeviceExtensions: req.DeviceExtensions,
+		BotName:          req.BotName,
+		BotInstanceID:    req.BotInstanceID,
+		BotScope:         req.BotScope,
+		BeamID:           req.BeamID,
+		Groups:           roleNames,
+		Traits:           req.Traits,
+		ActiveRequests:   req.ActiveRequests,
+		RouteToApp:       tlsca.RouteToApp{AWSRoleARN: req.AWSRoleARN},
+	}
+
+	// Emit audit event on success or failure. In failure scenarios, not all details can be gathered, so first start
+	// with what we know and accumulate the info as we progress.
+	event := &apievents.AWSRolesAnywhereCredentialsGenerated{
+		Type:         events.AWSRolesAnywhereCredentialsGeneratedEvent,
+		UserMetadata: identity.GetUserMetadata(),
+		AppName:      appInfo.GetName(),
+		Integration:  integration.GetName(),
+	}
+
+	// Unlike normal app access, AWS Roles Anywhere credential generation returns externally usable AWS credentials
+	// directly from Auth without flowing through the app service first, so Auth must enforce both app access and the
+	// requested AWS role ARN before calling AWS.
+	if err = authorizeAWSRolesAnywhereCredentials(ctx, a, req, appInfo, identity); err != nil {
+		// MFA and trusted device requirements are checks the client satisfies and then retries, so they are not audited
+		// to avoid false failure events for legitimate logins. App and AWS role RBAC denials are audited with the
+		// original error but returned obfuscated so the client cannot tell whether the requested app or role exists.
+		if errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired) {
+			return "", trace.Wrap(err)
+		}
+		a.emitAWSRolesAnywhereCredentialsEvent(ctx, event, err)
+		return "", utils.OpaqueAccessDenied(err)
+	}
+	defer func() { a.emitAWSRolesAnywhereCredentialsEvent(ctx, event, err) }()
+
 	integrationSpec := integration.GetAWSRolesAnywhereIntegrationSpec()
 	if integrationSpec == nil || integrationSpec.TrustAnchorARN == "" {
 		return "", trace.BadParameter("roles anywhere integration %q does not have a valid spec", integration.GetName())
 	}
+	event.TrustAnchorARN = integrationSpec.TrustAnchorARN
 
 	awsProfileARN := appInfo.GetAWSRolesAnywhereProfileARN()
 	acceptRoleSessionName := appInfo.GetAWSRolesAnywhereAcceptRoleSessionName()
 	if awsProfileARN == "" {
 		return "", trace.BadParameter("application %q does not have a valid AWS Roles Anywhere Profile ARN", req.AppName)
 	}
+	event.ProfileARN = awsProfileARN
 
 	durationSeconds := int(notAfter.Sub(a.clock.Now()).Seconds())
 
@@ -190,7 +219,26 @@ func generateAWSRolesAnywhereCredentials(
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	// TODO(cthach): Set CAOverride in event when the AWS RA CA supports CA overrides.
+	event.SerialNumber = resp.SerialNumber
 
 	encodedCredentials, err := resp.EncodeCredentialProcessFormat()
 	return encodedCredentials, trace.Wrap(err)
+}
+
+func (a *Server) emitAWSRolesAnywhereCredentialsEvent(
+	ctx context.Context,
+	event *apievents.AWSRolesAnywhereCredentialsGenerated,
+	err error,
+) {
+	event.Code = events.AWSRolesAnywhereCredentialsGeneratedSuccessCode
+	event.Status = apievents.Status{Success: true}
+	if err != nil {
+		event.Code = events.AWSRolesAnywhereCredentialsGeneratedFailureCode
+		event.Status = apievents.Status{Error: err.Error()}
+	}
+
+	if err := a.EmitAuditEvent(ctx, event); err != nil {
+		a.logger.WarnContext(ctx, "Failed to emit AWS RA credentials generated event", "event", event.Type, "error", err)
+	}
 }
