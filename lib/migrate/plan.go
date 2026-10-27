@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/migrate/hoststep"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 // progressEvery is how many nodes a reader reads between progress lines.
@@ -42,7 +43,7 @@ type sourceInventory struct {
 	nodesByID map[string]node
 }
 
-// targetInventory is the target cluster's nodes.
+// targetInventory is the target cluster's nodes and scoped tokens.
 type targetInventory struct {
 	// nodesByID is keyed by node.ID, the host UUID.
 	nodesByID map[string]node
@@ -52,6 +53,8 @@ type targetInventory struct {
 	// the source cluster. Or it carries types.ReconfigureSourceUUIDLabel,
 	// which teleport reconfigure stamps on its own.
 	nodesBySourceLabel map[string][]node
+	// tokensByName is keyed by the token's scope-qualified name.
+	tokensByName map[scopes.QualifiedName]scopedToken
 }
 
 // readInventories reads both clusters at once. Plan judges every host against
@@ -93,13 +96,15 @@ func (m *Migrator) readSource(ctx context.Context) (sourceInventory, error) {
 	return inventory, nil
 }
 
-// readTarget reads every node in the target cluster and indexes the ones
-// labeled as migrated from a source host, so pairing can find a host's scoped
-// agent by the host's UUID.
+// readTarget reads every node in the target cluster and the scoped tokens in
+// each migration's target scope, and indexes the nodes labeled as migrated
+// from a source host, so pairing can find a host's scoped agent by the host's
+// UUID.
 func (m *Migrator) readTarget(ctx context.Context) (targetInventory, error) {
 	inventory := targetInventory{
 		nodesByID:          make(map[string]node),
 		nodesBySourceLabel: make(map[string][]node),
+		tokensByName:       make(map[scopes.QualifiedName]scopedToken),
 	}
 	sourceCluster := m.source.ClusterName()
 	for n, err := range m.target.Nodes(ctx) {
@@ -114,6 +119,21 @@ func (m *Migrator) readTarget(ctx context.Context) (targetInventory, error) {
 		}
 		if len(inventory.nodesByID)%progressEvery == 0 {
 			m.progressf("read %d target nodes", len(inventory.nodesByID))
+		}
+	}
+	// A host joins with a token in its own target scope, so no other scope's
+	// tokens are read.
+	targetScopes := make(map[string]bool)
+	for _, mapping := range m.config.Migrations {
+		if targetScopes[mapping.TargetScope] {
+			continue
+		}
+		targetScopes[mapping.TargetScope] = true
+		for token, err := range m.target.ScopedTokens(ctx, mapping.TargetScope) {
+			if err != nil {
+				return targetInventory{}, trace.Wrap(err)
+			}
+			inventory.tokensByName[scopes.QualifiedName{Scope: token.Scope, Name: token.Name}] = token
 		}
 	}
 	return inventory, nil
@@ -255,7 +275,7 @@ func pairHost(h *host, target targetInventory) outcome {
 		}
 	}
 	// No scoped agent yet: blocked if the tool cannot migrate the host.
-	if reason := findBlockReason(h); reason != "" {
+	if reason := findBlockReason(h, target); reason != "" {
 		return outcome{state: stateBlocked, reason: reason}
 	}
 	// No scoped agent and nothing in the way: ready to migrate.
@@ -298,9 +318,9 @@ const notPreflightedReason = "not preflighted yet; run plan"
 
 // findBlockReason returns why the tool cannot migrate an unpaired host, or "".
 // The first match wins: discovery labels, then a missing preflight (plan
-// --resource preflights one host), the last preflight's error and a service a
-// scope cannot run.
-func findBlockReason(h *host) string {
+// --resource preflights one host), the last preflight's error, a service a
+// scope cannot run, and the join method.
+func findBlockReason(h *host, target targetInventory) string {
 	for _, group := range [][]string{
 		{types.AWSAccountIDLabel, types.AWSInstanceIDLabel},
 		{types.VMIDLabelInternal},
@@ -323,7 +343,7 @@ func findBlockReason(h *host) string {
 			return fmt.Sprintf("%s cannot run in a scope yet", service)
 		}
 	}
-	return ""
+	return joinBlockReason(preflight, h.TargetScope, target.tokensByName)
 }
 
 // hasAllLabels reports whether labels has a non-empty value for every key.
@@ -343,6 +363,99 @@ func isScopable(service string) bool {
 		return true
 	}
 	return false
+}
+
+// joinBlockReason returns why the host's join method blocks it, or "". The
+// minted methods pass; a delegated method needs a scoped token in scope, under
+// the source token's name, with the same method, assigning scope and granting
+// every role the host's services need.
+func joinBlockReason(preflight *hoststep.PreflightResult, scope string, tokens map[scopes.QualifiedName]scopedToken) string {
+	method := types.JoinMethod(preflight.JoinMethod)
+	if method == types.JoinMethodBoundKeypair && preflight.StaticKey {
+		return fmt.Sprintf("join method bound_keypair uses a static key (static_key_path); pre-register a key in a scoped token in %s, and join the host by hand", scope)
+	}
+	if hoststep.IsMintedJoinMethod(preflight.JoinMethod) {
+		return ""
+	}
+	switch method {
+	case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodGCP, types.JoinMethodAzure,
+		types.JoinMethodOracle, types.JoinMethodGenericOIDC, types.JoinMethodTPM:
+		tokenName, err := parseTokenName(preflight.TokenName)
+		if err != nil {
+			return fmt.Sprintf("join_params token_name %q is not a valid scope-qualified name", preflight.TokenName)
+		}
+		if tokenName.Name == "" {
+			return fmt.Sprintf("join method %s has no token name in join_params", method)
+		}
+		qualified := scopes.QualifiedName{Scope: scope, Name: tokenName.Name}
+		token, ok := tokens[qualified]
+		if !ok {
+			return fmt.Sprintf("create scoped token %s (method %s) in the target, then run plan again", qualified, method)
+		}
+		if token.Method != string(method) {
+			return fmt.Sprintf("scoped token %s uses method %s, not %s; recreate it with method %s, then run plan again", qualified, token.Method, method, method)
+		}
+		// Hosts share the token, and a rolled-back host joins with it again.
+		if mode := joining.TokenUsageMode(token.UsageMode); mode == joining.TokenUsageModeSingle || mode == joining.TokenUsageModeBot {
+			return fmt.Sprintf("scoped token %s has usage_mode %s; hosts share it, so set it to %s, then run plan again", qualified, mode, joining.TokenUsageModeUnlimited)
+		}
+		// The agent lands where the token assigns it, which can be a scope
+		// below the one the token lives in.
+		if !isSameScope(token.AssignedScope, scope) {
+			return fmt.Sprintf("scoped token %s assigns scope %s, not %s; change its assigned scope, then run plan again", qualified, token.AssignedScope, scope)
+		}
+		if missing := missingTokenRoles(token, preflight.Services); len(missing) > 0 {
+			return fmt.Sprintf("scoped token %s does not grant %s; add the role(s), then run plan again", qualified, strings.Join(missing, ", "))
+		}
+		return ""
+	}
+	return fmt.Sprintf("join method %s is not supported by the tool", method)
+}
+
+// tokenRoles returns the system roles a token must grant for a host running
+// services: Node, which every scoped agent joins as and which covers
+// ssh_service, and each other service's role.
+func tokenRoles(services []string) []string {
+	need := types.SystemRoles{types.RoleNode}
+	for _, service := range services {
+		switch service {
+		case "app_service":
+			need = append(need, types.RoleApp)
+		case "kubernetes_service":
+			need = append(need, types.RoleKube)
+		}
+	}
+	return need.StringSlice()
+}
+
+// missingTokenRoles returns the system roles a host running services needs
+// that token does not grant. Role names match ignoring case, as in Teleport.
+func missingTokenRoles(token scopedToken, services []string) []string {
+	// The target checked the roles when it stored the token, so the error is
+	// ignored: a role it does not know grants nothing.
+	granted, _ := types.NewTeleportRoles(token.Roles)
+	var missing []string
+	for _, role := range tokenRoles(services) {
+		if !granted.Include(types.SystemRole(role)) {
+			missing = append(missing, role)
+		}
+	}
+	return missing
+}
+
+// parseTokenName parses a join token_name, which has an empty scope when it
+// is not scope-qualified. token_name also takes the path of a file holding the
+// token, so only the separator, not a leading "/" as in
+// scopes.ParseOptionallyQualifiedName, makes a name qualified.
+func parseTokenName(name string) (scopes.QualifiedName, error) {
+	if !strings.Contains(name, scopes.QualifiedNameSeparator) {
+		return scopes.QualifiedName{Name: name}, nil
+	}
+	qualified, err := scopes.ParseQualifiedName(name)
+	if err != nil {
+		return scopes.QualifiedName{}, trace.Wrap(err, "parsing token_name %q", name)
+	}
+	return qualified, nil
 }
 
 // pairHosts pairs every tracked host with its scoped agent and finds the target

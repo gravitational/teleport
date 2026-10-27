@@ -24,8 +24,10 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
@@ -53,6 +55,34 @@ func newNode(s types.Server) node {
 	}
 }
 
+// scopedToken is the part of a scoped token the tool needs.
+type scopedToken struct {
+	// Name is the token's name.
+	Name string
+	// Scope is the scope the token belongs to.
+	Scope string
+	// AssignedScope is the scope an agent joining with the token lands in.
+	AssignedScope string
+	// Method is the token's join method.
+	Method string
+	// Roles are the system roles the token may provision, such as Node or App.
+	Roles []string
+	// UsageMode is the token's usage_mode, such as unlimited or single_use.
+	UsageMode string
+}
+
+// newScopedToken compacts a scoped token to the part of it the tool needs.
+func newScopedToken(token *joiningv1.ScopedToken) scopedToken {
+	return scopedToken{
+		Name:          token.GetMetadata().GetName(),
+		Scope:         token.GetScope(),
+		AssignedScope: token.GetSpec().GetAssignedScope(),
+		Method:        token.GetSpec().GetJoinMethod(),
+		Roles:         token.GetSpec().GetRoles(),
+		UsageMode:     token.GetSpec().GetUsageMode(),
+	}
+}
+
 // clusterAPI is what the migration reads from a cluster. It exists so tests
 // can substitute a fake for the cluster's API client.
 type clusterAPI interface {
@@ -60,6 +90,15 @@ type clusterAPI interface {
 	ClusterName() string
 	// Nodes streams every SSH node in every scope.
 	Nodes(ctx context.Context) iter.Seq2[node, error]
+}
+
+// targetClusterAPI is clusterAPI plus what the migration reads only from the
+// target cluster.
+type targetClusterAPI interface {
+	clusterAPI
+	// ScopedTokens streams the scoped tokens defined in scope, not those of
+	// its ancestors or descendants.
+	ScopedTokens(ctx context.Context, scope string) iter.Seq2[scopedToken, error]
 }
 
 // clusterClient reads one cluster through its API client.
@@ -100,4 +139,20 @@ func (c *clusterClient) Nodes(ctx context.Context) iter.Seq2[node, error] {
 		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 	}.Build())
 	return stream.Map(servers, newNode)
+}
+
+// ScopedTokens streams the scoped tokens defined in scope, a page at a time.
+func (c *clusterClient) ScopedTokens(ctx context.Context, scope string) iter.Seq2[scopedToken, error] {
+	tokens := clientutils.Resources(ctx, func(ctx context.Context, pageSize int, cursor string) ([]*joiningv1.ScopedToken, string, error) {
+		resp, err := c.clt.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
+			Limit:       uint32(pageSize),
+			Cursor:      cursor,
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT, Scope: scope}.Build(),
+		}.Build())
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return resp.GetTokens(), resp.GetCursor(), nil
+	})
+	return stream.MapErr(stream.Map(tokens, newScopedToken), func(err error) error { return trace.Wrap(err, "listing scoped tokens in %s", scope) })
 }

@@ -63,7 +63,7 @@ type Migrator struct {
 	progressMu sync.Mutex
 	stateFile  *stateFile
 	source     clusterAPI
-	target     clusterAPI
+	target     targetClusterAPI
 	// sourceHosts runs commands on the source cluster's hosts.
 	sourceHosts hostRunner
 	closers     []io.Closer

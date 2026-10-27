@@ -42,9 +42,9 @@ type QualifiedName struct {
 	Name string
 }
 
-// qualifiedNameSeparator is the separator between scope and name in a
+// QualifiedNameSeparator is the separator between scope and name in a
 // scope-qualified name. This separator must never appear in scope segments.
-const qualifiedNameSeparator = "::"
+const QualifiedNameSeparator = "::"
 
 // String returns the string representation of the QualifiedName.
 // If the Scope is empty, the Name is returned verbatim.
@@ -52,7 +52,7 @@ func (q QualifiedName) String() string {
 	if q.Scope == "" {
 		return q.Name
 	}
-	return q.Scope + qualifiedNameSeparator + q.Name
+	return q.Scope + QualifiedNameSeparator + q.Name
 }
 
 // Set sets a possible scope qualified name. Input that does not look like an
@@ -119,7 +119,7 @@ func (q QualifiedName) WeakValidate() error {
 // components; use [QualifiedName.StrongValidate] or [QualifiedName.WeakValidate]
 // for validation.
 func ParseOptionallyQualifiedName(s string) (QualifiedName, error) {
-	if !strings.HasPrefix(s, separator) && !strings.Contains(s, qualifiedNameSeparator) {
+	if !strings.HasPrefix(s, separator) && !strings.Contains(s, QualifiedNameSeparator) {
 		return QualifiedName{Name: s}, nil
 	}
 
@@ -136,9 +136,9 @@ func ParseOptionallyQualifiedName(s string) (QualifiedName, error) {
 // the format of the scope or name components; use [QualifiedName.StrongValidate] or
 // [QualifiedName.WeakValidate] for validation.
 func ParseQualifiedName(sqn string) (QualifiedName, error) {
-	scope, name, ok := strings.Cut(sqn, qualifiedNameSeparator)
+	scope, name, ok := strings.Cut(sqn, QualifiedNameSeparator)
 	if !ok {
-		return QualifiedName{}, trace.BadParameter("scope-qualified name %q missing %q separator", sqn, qualifiedNameSeparator)
+		return QualifiedName{}, trace.BadParameter("scope-qualified name %q missing %q separator", sqn, QualifiedNameSeparator)
 	}
 
 	if scope == "" {
