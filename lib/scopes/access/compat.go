@@ -239,7 +239,7 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 	return role, nil
 }
 
-// UnstableGetScopedSessionTTL returns the session TTL for scoped access sessions. This is currently hard-coded to be 8 hours
+// UnstableGetScopedSessionTTL returns the session TTL for scoped access sessions. This is currently hard-coded to be 12 hours
 // unless overridden by the TELEPORT_UNSTABLE_SCOPES_SESSION_TTL env var. We would eventually like to make this configurable
 // via scope-bound configuration, but the existing mechanics of session TTLs violate scope isolation principals. We will need
 // to do a deeper rework of the handling of session ttls and decouple them from certificate lifetimes before it will be sane
@@ -258,7 +258,7 @@ func UnstableGetScopedSessionTTL() time.Duration {
 		}
 	}
 
-	return time.Hour * 8
+	return time.Hour * 12
 }
 
 // UnstableGetScopedPortForwarding returns whether port forwarding should be permitted for scoped access. This is currently

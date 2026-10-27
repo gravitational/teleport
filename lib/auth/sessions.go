@@ -629,6 +629,16 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
+	// Extract the identity of the user from the certificate, this will include metadata from any actively assumed access requests.
+	certificate, err := tlsca.ParseCertificatePEM(certs.TLS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	bearer, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -638,7 +648,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		TLSPriv:     privateKeyPEM,
 		TLSCert:     certs.TLS,
 		LoginTime:   a.clock.Now().UTC(),
-		Expires:     a.clock.Now().UTC().Add(req.SessionTTL),
+		Expires:     identity.Expires.UTC(), // use cert expiry rather than req.SessionTTL as it may have been clamped by RBAC
 		BearerToken: bearer,
 	})
 	if err != nil {
@@ -660,16 +670,6 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	// connections.
 	if types.IsAppMCP(req.AppURI) {
 		return session, nil
-	}
-
-	// Extract the identity of the user from the certificate, this will include metadata from any actively assumed access requests.
-	certificate, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	userMetadata := identity.GetUserMetadata()

@@ -3830,7 +3830,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		} else {
 			// Adjust session TTL to the smaller of two values: the session TTL requested
 			// in tsh (possibly using default_session_ttl) or the session TTL for the
-			// role. For scoped identities, this returns the requested TTL unchanged.
+			// role. For scoped identities, the requested TTL is capped at the global
+			// scoped session TTL.
 			sessionTTL = certParams.AdjustSessionTTL(req.TTL)
 			// Return a list of logins that meet the session TTL limit. For scoped identities,
 			// this enumerates all possible logins across all roles in the pin.
