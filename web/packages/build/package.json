@@ -18,7 +18,7 @@
     "@swc/core": "^1.15.47",
     "@vitejs/plugin-react-swc": "^4.3.3",
     "babel-plugin-styled-components": "^2.3.0",
-    "happy-dom": "^20.14.0",
+    "happy-dom": "^21.0.4",
     "jest-environment-jsdom": "^30.5.1",
     "jest-fail-on-console": "^3.3.4",
     "jest-styled-components": "^7.4.0",
