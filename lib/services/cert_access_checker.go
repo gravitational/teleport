@@ -130,12 +130,15 @@ func (c *CertificateParameterContext) AdjustSessionTTL(ttl time.Duration) time.D
 	if !c.ctx.isScoped() {
 		return c.ctx.unscopedChecker.AdjustSessionTTL(ttl)
 	}
-	// Scoped identities: return the requested TTL unchanged. We cannot restrict TTL based on roles
+	// Scoped identities: cap the requested TTL at the global scoped session TTL. We cannot restrict TTL based on roles
 	// since we don't know which role will grant access without knowing the target resource.
 	// TODO(fspmarshall/scopes): determine how to handle session TTL restrictions for scoped identities. This will
 	// likely involve fully decoupling session TTL and certificate TTL, since scoped cert TTLs will need to
 	// be determined by non-role configuration, whereas specific resource access sessions may still be able to
 	// be controlled by roles.
+	if maxTTL := scopedaccess.UnstableGetScopedSessionTTL(); ttl > maxTTL {
+		return maxTTL
+	}
 	return ttl
 }
 

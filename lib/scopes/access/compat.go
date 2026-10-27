@@ -278,7 +278,7 @@ func UnstableGetScopedSessionTTL() time.Duration {
 		}
 	}
 
-	return time.Hour * 8
+	return time.Hour * 12
 }
 
 // UnstableGetScopedPortForwarding returns whether port forwarding should be permitted for scoped access. This is currently
