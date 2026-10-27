@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/inventory"
 )
 
@@ -55,7 +56,7 @@ func (a *Server) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName 
 		}
 
 		// If the agent group matches, we keep it.
-		if handle.Hello().UpdaterInfo.UpdateGroup == groupName {
+		if handle.Hello().GetUpdaterInfo().UpdateGroup == groupName {
 			// No need to check for UpdaterInfo being nil, it would have been filtered
 			// out by filterHandler().
 			return true
@@ -67,7 +68,7 @@ func (a *Server) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName 
 		}
 
 		// This is the catch-call group, it matches agents from every group not in groups.
-		_, ok := groupSet[handle.Hello().UpdaterInfo.UpdateGroup]
+		_, ok := groupSet[handle.Hello().GetUpdaterInfo().UpdateGroup]
 		// If the agent group is not in the group list, it falls into the catch-all.
 		return !ok
 	}
@@ -80,16 +81,17 @@ func (a *Server) SampleAgentsFromAutoUpdateGroup(ctx context.Context, groupName 
 	canaries := make([]*autoupdatev1pb.Canary, 0, len(sampled))
 	for _, h := range sampled {
 		hello := h.Hello()
-		updaterID, err := uuid.FromBytes(hello.UpdaterInfo.UpdateUUID)
+		updaterID, err := uuid.FromBytes(hello.GetUpdaterInfo().UpdateUUID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		canaries = append(canaries, &autoupdatev1pb.Canary{
+		canaries = append(canaries, autoupdatev1pb.Canary_builder{
 			UpdaterId: updaterID.String(),
-			HostId:    hello.ServerID,
-			Hostname:  hello.Hostname,
+			HostId:    hello.GetServerID(),
+			Hostname:  hello.GetHostname(),
+			Scope:     hello.GetScope(),
 			Success:   false,
-		})
+		}.Build())
 	}
 	return canaries, nil
 }
@@ -143,8 +145,8 @@ func (h *handleSampler) Sampled() []inventory.UpstreamHandle {
 // and returns all the Hello messages associated to those agents.
 // Agents that joined less than a minute ago or that are terminating/restarting
 // are ignored.
-func (a *Server) LookupAgentInInventory(ctx context.Context, hostID string) ([]*proto.UpstreamInventoryHello, error) {
-	handles := a.inventory.Handles(hostID)
+func (a *Server) LookupAgentInInventory(ctx context.Context, sqn scopes.QualifiedName) ([]*proto.UpstreamInventoryHello, error) {
+	handles := a.inventory.Handles(sqn)
 	now := a.clock.Now()
 
 	var qualifiedHellos []*proto.UpstreamInventoryHello
@@ -166,7 +168,7 @@ func (a *Server) LookupAgentInInventory(ctx context.Context, hostID string) ([]*
 	}
 
 	if len(qualifiedHellos) == 0 {
-		return nil, trace.NotFound("no control streams meet requirements for host %v", hostID)
+		return nil, trace.NotFound("no control streams meet requirements for host %v", sqn)
 	}
 
 	return qualifiedHellos, nil

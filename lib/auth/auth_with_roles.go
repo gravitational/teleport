@@ -936,12 +936,31 @@ func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.Inventory
 	return a.authServer.PingInventory(ctx, req)
 }
 
-func (a *ServerWithRoles) GetInstances(ctx context.Context, filter types.InstanceFilter) stream.Stream[types.Instance] {
-	if err := a.authorizeAction(types.KindInstance, types.VerbList, types.VerbRead); err != nil {
+func (a *ScopedServerWithRoles) GetInstances(ctx context.Context, filter types.InstanceFilter) stream.Stream[types.Instance] {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(
+		&ruleCtx,
+		types.KindInstance,
+		scopedaccess.Read,
+		scopedaccess.List,
+	); err != nil {
 		return stream.Fail[types.Instance](trace.Wrap(err))
 	}
 
-	return a.authServer.GetInstances(ctx, filter)
+	if err := scopes.ValidateFilter(filter.ScopeFilter.ToProto()); err != nil {
+		return stream.Fail[types.Instance](trace.Wrap(err))
+	}
+
+	filter.ScopeFilter = types.ScopeFilterFromProto(a.scopedContext.CheckerContext.ResolveScopeFilter(filter.ScopeFilter.ToProto()))
+
+	return stream.FilterMap(a.authServer.GetInstances(ctx, filter),
+		func(i types.Instance) (types.Instance, bool) {
+			err := a.scopedContext.CheckerContext.Decision(ctx, i.GetScope(), func(sac *services.ScopedAccessChecker) error {
+				return sac.CheckAccessToRules(&ruleCtx, types.KindInstance, scopedaccess.Read, scopedaccess.List)
+
+			})
+			return i, err == nil
+		})
 }
 
 func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
@@ -1348,7 +1367,8 @@ func supportedScopedWatchKind(kind string) bool {
 		types.KindKubernetesCluster,
 		types.KindWorkloadIdentity,
 		types.KindNode,
-		types.KindApp:
+		types.KindApp,
+		types.KindInstance:
 		return true
 	default:
 		return false

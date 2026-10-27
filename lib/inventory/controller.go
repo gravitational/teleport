@@ -385,14 +385,14 @@ func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryContro
 
 // GetControlStream gets a control stream for the given server ID if one exists (if multiple control streams
 // exist one is selected pseudorandomly).
-func (c *Controller) GetControlStream(serverID string) (handle UpstreamHandle, ok bool) {
-	handle, ok = c.store.Get(serverID)
+func (c *Controller) GetControlStream(sqn scopes.QualifiedName) (handle UpstreamHandle, ok bool) {
+	handle, ok = c.store.Get(sqn)
 	return
 }
 
 // Handles gets the handles for the given server ID if they exist.
-func (c *Controller) Handles(serverID string) iter.Seq[UpstreamHandle] {
-	return c.store.Handles(serverID)
+func (c *Controller) Handles(sqn scopes.QualifiedName) iter.Seq[UpstreamHandle] {
+	return c.store.Handles(sqn)
 }
 
 // UniqueHandles iterates across unique handles registered with this controller.

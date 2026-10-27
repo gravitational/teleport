@@ -1421,8 +1421,14 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		for _, r := range instanceRoles {
 			services = append(services, string(r))
 		}
-		hello := &proto.UpstreamInventoryHello{
+
+		var scope string
+		if conn := process.waitForInstanceConnector(ctx); conn != nil {
+			scope = conn.scope
+		}
+		hello := proto.UpstreamInventoryHello_builder{
 			ServerID:         hostID,
+			Scope:            scope,
 			Version:          teleport.Version,
 			Services:         services,
 			Hostname:         cfg.Hostname,
@@ -1442,7 +1448,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			// This ensures that older chart versions maintain the same behavior when used with newer Teleport.
 			if errors.Is(err, autoupdate.ErrConfigNotFound) &&
 				upgraderKind == types.UpgraderKindKubeController {
-				return hello, nil
+				return hello.Build(), nil
 			}
 			if err != nil {
 				// Failing to detect updater info is not fatal, we continue.
@@ -1451,7 +1457,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			}
 			hello.UpdaterInfo = info
 		}
-		return hello, nil
+		return hello.Build(), nil
 	}
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines

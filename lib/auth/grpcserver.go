@@ -1014,7 +1014,7 @@ func (g *GRPCServer) PingInventory(ctx context.Context, req *authpb.InventoryPin
 }
 
 func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream authpb.AuthService_GetInstancesServer) error {
-	auth, err := g.authenticate(stream.Context())
+	auth, err := g.scopedAuthenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}

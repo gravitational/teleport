@@ -374,4 +374,6 @@ message Canary {
   string hostname = 3;
   // success represents if the agent successfully connected back, running the target version.
   bool success = 4;
+  // The scope the host is bound to.
+  string scope = 5;
 }

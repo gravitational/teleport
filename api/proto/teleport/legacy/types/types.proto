@@ -726,6 +726,8 @@ message InstanceV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The scope the instance belongs to.
+  string scope = 3;
 }
 
 message InstanceSpecV1 {
@@ -902,6 +904,9 @@ message InstanceFilter {
 
   // UpdateGroup matches instance update group if specified.
   string UpdateGroup = 8;
+
+  // The scope the instance is pinned to. Empty for unscoped instances.
+  ScopeFilter scope_filter = 9;
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth Service instance in a Teleport cluster.

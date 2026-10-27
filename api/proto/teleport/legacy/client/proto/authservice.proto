@@ -2866,10 +2866,10 @@ message InventoryPingRequest {
   // ServerID is the ID of the instance to ping.
   string ServerID = 1;
 
-  // ControlLog used to signal that the ping should use the control log synchronization.
-  //
-  // Deprecated: the control log is unsupported and unsound to use.
-  bool ControlLog = 2 [deprecated = true];
+  reserved "ControlLog";
+  reserved 2;
+  // The scope the instance belongs to.
+  string scope = 3;
 }
 
 // InventoryPingResponse returns the result of an inventory ping initiated via an

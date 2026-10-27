@@ -159,6 +159,9 @@ func isAllowedScopedRule(kind string, verb string) bool {
 		// permissions for access list members are conferred by permissions for
 		// access list themselves, and/or list ownership.
 		return isReadWriteNoSecrets(verb)
+	case types.KindInstance:
+		// instances can be read/written, and do not currently contain a concept of a secret.
+		return isReadNoSecrets(verb)
 	default:
 		return false
 	}

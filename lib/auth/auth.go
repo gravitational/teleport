@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	mfa "github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -144,7 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/resourceusage"
-	"github.com/gravitational/teleport/lib/scopes"
+	libscopes "github.com/gravitational/teleport/lib/scopes"
 	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1369,7 +1370,7 @@ type Server struct {
 	clock clockwork.Clock
 	bk    backend.Backend
 	// scopesFeatures dictates which scoped components are enabled for this auth server.
-	scopesFeatures   scopes.Features
+	scopesFeatures   libscopes.Features
 	unstableFeatures UnstableFeatures
 
 	closeCtx   context.Context
@@ -5913,17 +5914,13 @@ func (a *Server) GetInventoryConnectedServiceCount(service types.SystemRole) uin
 }
 
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
-	stream, ok := a.inventory.GetControlStream(req.ServerID)
+	sqn := scopes.QualifiedName{Name: req.ServerID, Scope: req.Scope}
+	stream, ok := a.inventory.GetControlStream(sqn)
 	if !ok {
-		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
+		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", sqn)
 	}
 
 	id := mathrand.Uint64()
-
-	if req.ControlLog { //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		return proto.InventoryPingResponse{}, trace.BadParameter("ControlLog pings are not supported")
-	}
-
 	d, err := stream.Ping(ctx, id)
 	if err != nil {
 		return proto.InventoryPingResponse{}, trace.Wrap(err)
@@ -5937,9 +5934,10 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 // UpdateLabels updates the labels on an instance over the inventory control
 // stream.
 func (a *Server) UpdateLabels(ctx context.Context, req *proto.InventoryUpdateLabelsRequest) error {
-	stream, ok := a.inventory.GetControlStream(req.GetServerID())
+	sqn := scopes.QualifiedName{Name: req.GetServerID(), Scope: req.GetScope()}
+	stream, ok := a.inventory.GetControlStream(sqn)
 	if !ok {
-		return trace.NotFound("no control stream found for server %q", req.GetServerID())
+		return trace.NotFound("no control stream found for server %q", sqn)
 	}
 	return trace.Wrap(stream.UpdateLabels(ctx, req.GetKind(), req.GetLabels()))
 }

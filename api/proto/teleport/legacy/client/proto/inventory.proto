@@ -213,6 +213,8 @@ message InventoryUpdateLabelsRequest {
   LabelUpdateKind Kind = 2;
   // Labels is the new set of labels for the instance.
   map<string, string> Labels = 3;
+  // The scope which the server is bound to.
+  string scope = 4;
 }
 
 // DownstreamInventoryUpdateLabels is the message sent down the inventory

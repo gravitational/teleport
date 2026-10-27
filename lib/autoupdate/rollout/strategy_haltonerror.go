@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
@@ -274,7 +275,7 @@ func (h *haltOnErrorStrategy) updateCanariesStatus(ctx context.Context, group *a
 		log := h.log.With(canaryLogInfo).With("group", group.Name)
 
 		// Check if the canary is connected to our auth
-		hellos, err := h.clt.LookupAgentInInventory(ctx, canary.HostId)
+		hellos, err := h.clt.LookupAgentInInventory(ctx, scopes.QualifiedName{Name: canary.GetHostId(), Scope: canary.GetScope()})
 		if err != nil {
 			if trace.IsNotFound(err) {
 				// Canary is not registered to our Auth Service.

@@ -60,6 +60,7 @@ type PresenceService struct {
 	appServers   *generic.ScopeAwareService[types.AppServer]
 	kubeServers  *generic.ScopeAwareService[types.KubeServer]
 	sshServers   *generic.ScopeAwareService[types.Server]
+	instances    *generic.ScopeAwareService[types.Instance]
 }
 
 type appServerServiceParams struct {
@@ -171,6 +172,27 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 		panic("impossible: failed to construct node service wrapper")
 	}
 
+	instances, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[types.Instance]{
+		Backend:               b,
+		ResourceKind:          types.KindInstance,
+		UnscopedBackendPrefix: backend.NewKey(instancePrefix),
+		ScopedBackendPrefix:   backend.NewKey(scopedPrefix, instancePrefix),
+		MarshalFunc: func(i types.Instance, _ ...services.MarshalOption) ([]byte, error) {
+			return utils.FastMarshal(i)
+		},
+		UnmarshalFunc: func(b []byte, _ ...services.MarshalOption) (types.Instance, error) {
+			var i types.InstanceV1
+			if err := utils.FastUnmarshal(b, &i); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &i, nil
+		},
+	})
+	if err != nil {
+		panic("impossible: failed to construct instance service wrapper")
+	}
+
 	return &PresenceService{
 		logger:  slog.With(teleport.ComponentKey, "Presence"),
 		jitter:  retryutils.FullJitter,
@@ -180,6 +202,7 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 		appServers:   appServers,
 		kubeServers:  kubeServers,
 		sshServers:   sshServers,
+		instances:    instances,
 	}
 }
 

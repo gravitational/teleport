@@ -1352,6 +1352,7 @@ type InventoryUpdateLabelsRequest struct {
 	xxx_hidden_ServerID string                 `protobuf:"bytes,1,opt,name=ServerID,proto3"`
 	xxx_hidden_Kind     LabelUpdateKind        `protobuf:"varint,2,opt,name=Kind,proto3,enum=proto.LabelUpdateKind"`
 	xxx_hidden_Labels   map[string]string      `protobuf:"bytes,3,rep,name=Labels,proto3" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	xxx_hidden_Scope    string                 `protobuf:"bytes,4,opt,name=scope,proto3"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1402,6 +1403,13 @@ func (x *InventoryUpdateLabelsRequest) GetLabels() map[string]string {
 	return nil
 }
 
+func (x *InventoryUpdateLabelsRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *InventoryUpdateLabelsRequest) SetServerID(v string) {
 	x.xxx_hidden_ServerID = v
 }
@@ -1414,6 +1422,10 @@ func (x *InventoryUpdateLabelsRequest) SetLabels(v map[string]string) {
 	x.xxx_hidden_Labels = v
 }
 
+func (x *InventoryUpdateLabelsRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
+}
+
 type InventoryUpdateLabelsRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1423,6 +1435,8 @@ type InventoryUpdateLabelsRequest_builder struct {
 	Kind LabelUpdateKind
 	// Labels is the new set of labels for the instance.
 	Labels map[string]string
+	// The scope which the server is bound to.
+	Scope string
 }
 
 func (b0 InventoryUpdateLabelsRequest_builder) Build() *InventoryUpdateLabelsRequest {
@@ -1432,6 +1446,7 @@ func (b0 InventoryUpdateLabelsRequest_builder) Build() *InventoryUpdateLabelsReq
 	x.xxx_hidden_ServerID = b.ServerID
 	x.xxx_hidden_Kind = b.Kind
 	x.xxx_hidden_Labels = b.Labels
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -2496,11 +2511,12 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x1frelay_server_heartbeats_cleanup\x18\x13 \x01(\bR\x1crelayServerHeartbeatsCleanup\x12G\n" +
 	" database_heartbeat_graceful_stop\x18\x14 \x01(\bR\x1ddatabaseHeartbeatGracefulStop\x128\n" +
 	"\x18linux_desktop_heartbeats\x18\x15 \x01(\bR\x16linuxDesktopHeartbeats\x122\n" +
-	"\x15linux_desktop_cleanup\x18\x16 \x01(\bR\x13linuxDesktopCleanup\"\xea\x01\n" +
+	"\x15linux_desktop_cleanup\x18\x16 \x01(\bR\x13linuxDesktopCleanup\"\x80\x02\n" +
 	"\x1cInventoryUpdateLabelsRequest\x12\x1a\n" +
 	"\bServerID\x18\x01 \x01(\tR\bServerID\x12*\n" +
 	"\x04Kind\x18\x02 \x01(\x0e2\x16.proto.LabelUpdateKindR\x04Kind\x12G\n" +
-	"\x06Labels\x18\x03 \x03(\v2/.proto.InventoryUpdateLabelsRequest.LabelsEntryR\x06Labels\x1a9\n" +
+	"\x06Labels\x18\x03 \x03(\v2/.proto.InventoryUpdateLabelsRequest.LabelsEntryR\x06Labels\x12\x14\n" +
+	"\x05scope\x18\x04 \x01(\tR\x05scope\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd4\x01\n" +

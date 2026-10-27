@@ -23,6 +23,8 @@ import (
 	"iter"
 	"sync"
 	"sync/atomic"
+
+	"github.com/gravitational/teleport/api/scopes"
 )
 
 const SHARDS = 128
@@ -37,7 +39,7 @@ const SHARDS = 128
 // allocation under lock, which I suspect is why it has worse single-lock perf despite
 // being otherwise quite similar).
 type Store struct {
-	// shards is an array of individually locked mappings of the form serverID -> handle(s).
+	// shards is an array of individually locked mappings of the form sqn -> handle(s).
 	// keys are assigned to shards via a maphash.
 	shards [SHARDS]*shard
 	// seed is used to deterministically calculate key hashes in order to select
@@ -57,27 +59,33 @@ func NewStore() *Store {
 	}
 }
 
-// Get attempts to load a handle for the given server ID.
-// note: if multiple handles exist for a given server, the returned handle
+// Get attempts to load a handle for the given qualified name.
+// Note: if multiple handles exist for a given qualified name, the returned handle
 // is selected pseudorandomly from the available set.
-func (s *Store) Get(serverID string) (handle UpstreamHandle, ok bool) {
-	return s.getShard(serverID).get(serverID)
+func (s *Store) Get(sqn scopes.QualifiedName) (handle UpstreamHandle, ok bool) {
+	return s.getShard(sqn).get(sqn)
 }
 
-// Handles attempts to load all known handlers for the given server ID.
-// If you only need one handler, use Get instead.
-func (s *Store) Handles(serverID string) iter.Seq[UpstreamHandle] {
-	return s.getShard(serverID).handles(serverID)
+// Handles attempts to load all known handlers for the given qualified name.
+// If you only need one handle, use Get instead.
+func (s *Store) Handles(sqn scopes.QualifiedName) iter.Seq[UpstreamHandle] {
+	return func(yield func(UpstreamHandle) bool) {
+		for handle := range s.getShard(sqn).handles(sqn) {
+			if !yield(handle) {
+				return
+			}
+		}
+	}
 }
 
 // Insert adds a new handle to the store.
 func (s *Store) Insert(handle UpstreamHandle) {
-	s.getShard(handle.Hello().ServerID).insert(handle)
+	s.getShard(scopes.QualifiedName{Scope: handle.Hello().GetScope(), Name: handle.Hello().GetServerID()}).insert(handle)
 }
 
 // Remove removes the handle from the store.
 func (s *Store) Remove(handle UpstreamHandle) {
-	s.getShard(handle.Hello().ServerID).remove(handle)
+	s.getShard(scopes.QualifiedName{Scope: handle.Hello().GetScope(), Name: handle.Hello().GetServerID()}).remove(handle)
 }
 
 // UniqueHandles iterates across unique handles registered with this store.
@@ -108,13 +116,13 @@ func (s *Store) Len() int {
 	return total
 }
 
-// getShard loads the shard for the given serverID.
-func (s *Store) getShard(serverID string) *shard {
+// getShard loads the shard for the given SQN.
+func (s *Store) getShard(sqn scopes.QualifiedName) *shard {
 	var h maphash.Hash
 	// all hashes must use the same seed in order for subsequent calls
-	// to land at the same shard for a given serverID.
+	// to land at the same shard for a given sqn.
 	h.SetSeed(s.seed)
-	h.WriteString(serverID)
+	h.WriteString(sqn.String())
 	idx := h.Sum64() % uint64(SHARDS)
 	return s.shards[int(idx)]
 }
@@ -123,12 +131,12 @@ type shard struct {
 	// rw protects inner mapping
 	rw sync.RWMutex
 	// mapping of server id => handle(s).
-	m map[string]*entry
+	m map[scopes.QualifiedName]*entry
 }
 
 func newShard() *shard {
 	return &shard{
-		m: make(map[string]*entry),
+		m: make(map[scopes.QualifiedName]*entry),
 	}
 }
 
@@ -139,26 +147,27 @@ type entry struct {
 	handles []UpstreamHandle
 }
 
-func (s *shard) get(serverID string) (handle UpstreamHandle, ok bool) {
+func (s *shard) get(identifier scopes.QualifiedName) (handle UpstreamHandle, ok bool) {
 	s.rw.RLock()
 	defer s.rw.RUnlock()
-	entry, ok := s.m[serverID]
+
+	entry, ok := s.m[identifier]
 	if !ok {
 		return nil, false
 	}
+
 	idx := entry.ct.Add(1) % uint64(len(entry.handles))
-	handle = entry.handles[int(idx)]
-	return handle, true
+	return entry.handles[int(idx)], true
 }
 
-// handles gets all handles registered for a given hostID.
+// handles gets all handles registered for a given identifier.
 // To get a random handle, use get() instead.
-func (s *shard) handles(serverID string) iter.Seq[UpstreamHandle] {
+func (s *shard) handles(identifier scopes.QualifiedName) iter.Seq[UpstreamHandle] {
 	return func(yield func(UpstreamHandle) bool) {
 		s.rw.RLock()
 		defer s.rw.RUnlock()
 
-		entry, ok := s.m[serverID]
+		entry, ok := s.m[identifier]
 		if !ok {
 			return
 		}
@@ -194,10 +203,10 @@ func (s *shard) iterWithDuplicates(fn func(UpstreamHandle)) {
 func (s *shard) insert(handle UpstreamHandle) {
 	s.rw.Lock()
 	defer s.rw.Unlock()
-	e, ok := s.m[handle.Hello().ServerID]
+	e, ok := s.m[scopes.QualifiedName{Scope: handle.Hello().GetScope(), Name: handle.Hello().GetServerID()}]
 	if !ok {
 		e = &entry{}
-		s.m[handle.Hello().ServerID] = e
+		s.m[scopes.QualifiedName{Scope: handle.Hello().GetScope(), Name: handle.Hello().GetServerID()}] = e
 	}
 	e.handles = append(e.handles, handle)
 }
@@ -205,7 +214,7 @@ func (s *shard) insert(handle UpstreamHandle) {
 func (s *shard) remove(handle UpstreamHandle) {
 	s.rw.Lock()
 	defer s.rw.Unlock()
-	e, ok := s.m[handle.Hello().ServerID]
+	e, ok := s.m[scopes.QualifiedName{Scope: handle.Hello().GetScope(), Name: handle.Hello().GetServerID()}]
 	if !ok {
 		return
 	}
@@ -213,7 +222,7 @@ func (s *shard) remove(handle UpstreamHandle) {
 		if handle == h {
 			e.handles = swapRemove(e.handles, i)
 			if len(e.handles) == 0 {
-				delete(s.m, handle.Hello().ServerID)
+				delete(s.m, scopes.QualifiedName{Scope: handle.Hello().GetScope(), Name: handle.Hello().GetServerID()})
 			}
 			return
 		}

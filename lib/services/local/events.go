@@ -3438,7 +3438,10 @@ func botInstanceNameFromKey(key backend.Key) (apiscopes.QualifiedName, string, e
 
 func newInstanceParser() *instanceParser {
 	return &instanceParser{
-		baseParser: newBaseParser(backend.NewKey(instancePrefix)),
+		baseParser: newBaseParser(
+			backend.NewKey(instancePrefix),
+			backend.NewKey(scopedPrefix, instancePrefix),
+		),
 	}
 }
 
@@ -3449,6 +3452,28 @@ type instanceParser struct {
 func (p *instanceParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		scopedKey := backend.NewKey(scopedPrefix, instancePrefix)
+		if event.Item.Key.HasPrefix(scopedKey) {
+			components := event.Item.Key.TrimPrefix(scopedKey).Components()
+			if len(components) != 2 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			scope, err := scopes.DecodeFromKey(components[0])
+			if err != nil {
+				return nil, trace.Wrap(err, "failed decoding scope from instance key %q", event.Item.Key.String())
+			}
+
+			return &types.InstanceV1{
+				ResourceHeader: types.ResourceHeader{
+					Kind:    types.KindInstance,
+					Version: types.V1,
+					Metadata: types.Metadata{
+						Name: components[1],
+					},
+				},
+				Scope: scope,
+			}, nil
+		}
 		name := event.Item.Key.TrimPrefix(backend.NewKey(instancePrefix)).String()
 		if name == "" {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())

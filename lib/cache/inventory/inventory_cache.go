@@ -42,6 +42,7 @@ import (
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cache"
@@ -192,9 +193,9 @@ func (u *inventoryInstance) isInstance() bool {
 // For instances, this is the instance ID. For bot instances, this is the bot instance ID
 func (u *inventoryInstance) getInstanceID() string {
 	if u.isInstance() {
-		return u.instance.GetName()
+		return scopes.QualifiedName{Name: u.instance.GetName(), Scope: u.instance.GetScope()}.String()
 	}
-	return u.bot.GetSpec().GetInstanceId()
+	return scopes.QualifiedName{Name: u.bot.GetSpec().GetInstanceId(), Scope: u.bot.GetScope()}.String()
 }
 
 // getBotName returns the bot name for bot instances, or an empty string for regular instances.
@@ -202,7 +203,7 @@ func (u *inventoryInstance) getBotName() string {
 	if u.isInstance() {
 		return ""
 	}
-	return u.bot.GetSpec().GetBotName()
+	return scopes.QualifiedName{Name: u.bot.GetSpec().GetBotName(), Scope: u.bot.GetScope()}.String()
 }
 
 // getKind returns the resource kind for this instance.
@@ -218,10 +219,10 @@ func (u *inventoryInstance) getAlphabeticalKey() bytestring {
 	var name, id string
 	if u.isInstance() {
 		name = u.instance.GetHostname()
-		id = u.instance.GetName()
+		id = scopes.QualifiedName{Name: u.instance.GetName(), Scope: u.instance.GetScope()}.String()
 	} else {
 		name = u.bot.GetSpec().GetBotName()
-		id = u.bot.GetSpec().GetInstanceId()
+		id = scopes.QualifiedName{Name: u.bot.GetSpec().GetInstanceId(), Scope: u.bot.GetScope()}.String()
 	}
 
 	return bytestring(ordered.Encode(name, id, u.getKind()))
@@ -232,10 +233,10 @@ func (u *inventoryInstance) getTypeKey() bytestring {
 	var name, id string
 	if u.isInstance() {
 		name = u.instance.GetHostname()
-		id = u.instance.GetName()
+		id = scopes.QualifiedName{Name: u.instance.GetName(), Scope: u.instance.GetScope()}.String()
 	} else {
 		name = u.bot.GetSpec().GetBotName()
-		id = u.bot.GetSpec().GetInstanceId()
+		id = scopes.QualifiedName{Name: u.bot.GetSpec().GetInstanceId(), Scope: u.bot.GetScope()}.String()
 	}
 
 	return bytestring(ordered.Encode(u.getKind(), name, id))
@@ -247,13 +248,13 @@ func (u *inventoryInstance) getVersionKey() bytestring {
 	if u.isInstance() {
 		versionStr = u.instance.Spec.Version
 		name = u.instance.GetHostname()
-		id = u.instance.GetName()
+		id = scopes.QualifiedName{Name: u.instance.GetName(), Scope: u.instance.GetScope()}.String()
 	} else {
 		if u.bot.Status != nil && len(u.bot.Status.LatestHeartbeats) > 0 {
 			versionStr = u.bot.Status.LatestHeartbeats[0].Version
 		}
 		name = u.bot.GetSpec().GetBotName()
-		id = u.bot.GetSpec().GetInstanceId()
+		id = scopes.QualifiedName{Name: u.bot.GetSpec().GetInstanceId(), Scope: u.bot.GetScope()}.String()
 	}
 
 	// If version is empty, treat it as 0.0.0
@@ -590,7 +591,9 @@ func (ic *InventoryCache) setupWatcher(ctx context.Context) (types.Watcher, erro
 	watcher, err := ic.cfg.Events.NewWatcher(ctx, types.Watch{
 		Name: "inventory_cache",
 		Kinds: []types.WatchKind{
-			{Kind: types.KindInstance},
+			{Kind: types.KindInstance, ScopeFilter: types.ScopeFilterFromProto(
+				scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+			)},
 			{Kind: types.KindBotInstance, ScopeFilter: types.ScopeFilterFromProto(
 				scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 			)},
@@ -634,7 +637,11 @@ func (ic *InventoryCache) populateCache(ctx context.Context, readsPerSecond int)
 
 // populateInstances reads teleport instances from the inventory service with rate limiting.
 func (ic *InventoryCache) populateInstances(ctx context.Context, limiter *rate.Limiter) error {
-	instanceStream := ic.cfg.Inventory.GetInstances(ctx, types.InstanceFilter{})
+	instanceStream := ic.cfg.Inventory.GetInstances(ctx, types.InstanceFilter{
+		ScopeFilter: &types.ScopeFilter{
+			Mode: scopesv1.Mode_MODE_ALL,
+		},
+	})
 
 	for instanceStream.Next() {
 		if err := limiter.Wait(ctx); err != nil {
@@ -752,8 +759,7 @@ func (ic *InventoryCache) processDeleteEvent(event types.Event) error {
 	switch resource := event.Resource.(type) {
 	case *types.InstanceV1:
 		// Find and remove the instance from the cache.
-		instanceID := resource.GetName()
-		encodedID := string(ordered.Encode("", instanceID, types.KindInstance))
+		encodedID := string(ordered.Encode("", scopes.QualifiedName{Scope: resource.GetScope(), Name: resource.GetName()}.String(), types.KindInstance))
 		ic.cache.Delete(inventoryIDIndex, encodedID)
 	case *types.ResourceHeader:
 		// For regular instances, use the instance ID directly
@@ -762,8 +768,8 @@ func (ic *InventoryCache) processDeleteEvent(event types.Event) error {
 		ic.cache.Delete(inventoryIDIndex, encodedID)
 	case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
 		botInstance := resource.UnwrapT()
-		botName := botInstance.GetSpec().GetBotName()
-		instanceID := botInstance.GetSpec().GetInstanceId()
+		botName := scopes.QualifiedName{Name: botInstance.GetSpec().GetBotName(), Scope: botInstance.GetScope()}.String()
+		instanceID := scopes.QualifiedName{Name: botInstance.GetSpec().GetInstanceId(), Scope: botInstance.GetScope()}.String()
 		encodedID := string(ordered.Encode(botName, instanceID, types.KindBotInstance))
 		ic.cache.Delete(inventoryIDIndex, encodedID)
 	}

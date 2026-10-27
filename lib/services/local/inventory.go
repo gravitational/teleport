@@ -20,81 +20,67 @@ package local
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	apistream "github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	libscopes "github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // GetInstances iterates all teleport instances.
 func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFilter) apistream.Stream[types.Instance] {
-	if req.ServerID != "" {
-		instance, err := s.getInstance(ctx, req.ServerID)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return apistream.Empty[types.Instance]()
-			}
-			return apistream.Fail[types.Instance](trace.Wrap(err))
-		}
-		if !req.Match(instance) {
-			return apistream.Empty[types.Instance]()
-		}
-		return apistream.Once(instance)
+	filter := req.ScopeFilter.ToProto()
+	if err := libscopes.ValidateFilter(filter); err != nil {
+		return apistream.Fail[types.Instance](trace.Wrap(err))
 	}
 
-	startKey := backend.ExactKey(instancePrefix)
-	endKey := backend.RangeEnd(startKey)
+	// When a server id is specified a point read may be performed IFF the request is for an
+	// exact scope or an unscoped instance. The backend will search for the instance at
+	// the appropriate backend key based on the scope in the filter.
+	var instances iter.Seq2[types.Instance, error]
+	if req.ServerID != "" && (filter.GetMode() == scopesv1.Mode_MODE_UNSCOPED || filter.GetMode() == scopesv1.Mode_MODE_EXACT) {
+		instances = s.getInstance(ctx, scopes.QualifiedName{Name: req.ServerID, Scope: filter.GetScope()})
+	} else {
+		instances = s.instances.Resources(ctx, "", "")
+	}
+
 	return stream.IntoLegacy(stream.FilterMap(
-		s.Backend.Items(
-			ctx,
-			backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-		func(item backend.Item) (types.Instance, bool) {
-			instance, err := generic.FastUnmarshal[*types.InstanceV1](item)
-			if err != nil {
+		instances,
+		func(instance types.Instance) (types.Instance, bool) {
+			if !libscopes.MatchScope(filter, instance.GetScope()) {
 				return nil, false
 			}
 
-			if err := instance.CheckAndSetDefaults(); err != nil {
-				s.logger.WarnContext(ctx, "Skipping invalid instance",
-					"key", item.Key,
-					"error", err,
-				)
-				return nil, false
-			}
 			if !req.Match(instance) {
 				return nil, false
 			}
+
 			return instance, true
 		},
 	))
 }
 
-// getInstance gets an instance resource by server ID.
-func (s *PresenceService) getInstance(ctx context.Context, serverID string) (types.Instance, error) {
-	item, err := s.Get(ctx, backend.NewKey(instancePrefix, serverID))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (s *PresenceService) getInstance(ctx context.Context, sqn scopes.QualifiedName) iter.Seq2[types.Instance, error] {
+	return func(yield func(types.Instance, error) bool) {
+		instance, err := s.instances.GetResource(ctx, sqn)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return
+			}
 
-	instance, err := generic.FastUnmarshal[*types.InstanceV1](*item)
-	if err != nil {
-		return nil, trace.BadParameter("failed to unmarshal instance %q: %v", serverID, err)
-	}
+			yield(nil, trace.Wrap(err))
+			return
+		}
 
-	if err := instance.CheckAndSetDefaults(); err != nil {
-		return nil, trace.BadParameter("instance %q appears malformed: %v", serverID, err)
+		yield(instance, nil)
 	}
-
-	return instance, nil
 }
 
 // UpsertInstance creates or updates an instance resource.
@@ -110,18 +96,7 @@ func (s *PresenceService) UpsertInstance(ctx context.Context, instance types.Ins
 		instance.SyncLogAndResourceExpiry(apidefaults.ServerAnnounceTTL)
 	}
 
-	v1, ok := instance.(*types.InstanceV1)
-	if !ok {
-		return trace.BadParameter("unexpected type %T, expected %T", instance, v1)
-	}
-
-	item, err := generic.FastMarshal(backend.NewKey(instancePrefix, instance.GetName()), v1)
-	if err != nil {
-		return trace.Errorf("failed to marshal Instance: %v", err)
-	}
-
-	_, err = s.Backend.Put(ctx, item)
-
+	_, err := s.instances.UpsertResource(ctx, instance)
 	return trace.Wrap(err)
 }
 

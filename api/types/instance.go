@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -195,22 +196,34 @@ type Instance interface {
 
 	// Clone performs a deep copy on this instance.
 	Clone() Instance
+
+	// GetScope returns the scope the instance is bound to.
+	GetScope() string
 }
 
-// NewInstance assembles a new instance resource.
-func NewInstance(serverID string, spec InstanceSpecV1) (Instance, error) {
+// NewScopedInstance assembles a new instance resource.
+func NewScopedInstance(sqn scopes.QualifiedName, spec InstanceSpecV1) (*InstanceV1, error) {
 	instance := &InstanceV1{
 		ResourceHeader: ResourceHeader{
 			Metadata: Metadata{
-				Name: serverID,
+				Name: sqn.Name,
 			},
 		},
-		Spec: spec,
+		Spec:  spec,
+		Scope: sqn.Scope,
 	}
 	if err := instance.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return instance, nil
+}
+
+// NewInstance assembles a new instance resource.
+// Deprecated: Use NewScopedInstance instead.
+//
+//go:fix inline
+func NewInstance(serverID string, spec InstanceSpecV1) (Instance, error) {
+	return NewScopedInstance(scopes.QualifiedName{Name: serverID}, spec)
 }
 
 func (i *InstanceV1) CheckAndSetDefaults() error {
@@ -358,6 +371,14 @@ func (i *InstanceV1) expireControlLog(now time.Time, ttl time.Duration) time.Tim
 
 func (i *InstanceV1) Clone() Instance {
 	return utils.CloneProtoMsg(i)
+}
+
+func (i *InstanceV1) GetScope() string {
+	if i == nil {
+		return ""
+	}
+
+	return i.Scope
 }
 
 func (e *InstanceControlLogEntry) Clone() InstanceControlLogEntry {
