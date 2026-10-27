@@ -70,7 +70,7 @@
     {
       "id": "application-access",
       "name": "Applications",
-      "segments": ["app", "git", "http", "vnet"],
+      "segments": ["app", "aws_roles_anywhere", "git", "http", "vnet"],
       "introduction": "This page lists audit events related to Teleport-protected applications."
     },
     {

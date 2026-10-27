@@ -3214,3 +3214,15 @@ func (m *OAuthProxyRefresh) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *OAuthProxyAccess) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
+
+// TrimToMaxSize implements AuditEvent.
+func (m *AWSRolesAnywhereCredentialsGenerated) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AWSRolesAnywhereCredentialsGenerated) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Integration, &out.Integration),
+			newStrTrimmer(m.ProfileARN, &out.ProfileARN),
+			newStrTrimmer(m.TrustAnchorARN, &out.TrustAnchorARN),
+			newGenericTrimmer(&m.Status, &out.Status),
+		}
+	})
+}

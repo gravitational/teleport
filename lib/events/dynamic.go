@@ -574,6 +574,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case AWSICResourceSyncSuccessEvent,
 		AWSICResourceSyncFailureEvent:
 		e = &events.AWSICResourceSync{}
+	case AWSRolesAnywhereCredentialsGeneratedEvent:
+		e = &events.AWSRolesAnywhereCredentialsGenerated{}
 
 	case HealthCheckConfigCreateEvent:
 		e = &events.HealthCheckConfigCreate{}

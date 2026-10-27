@@ -2442,6 +2442,18 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.AWS_ROLES_ANYWHERE_CREDENTIALS_GENERATED]: {
+    type: 'aws_roles_anywhere.credentials.generated',
+    desc: 'AWS IAM Roles Anywhere Credentials Generated',
+    format: ({ user, aws_role_arn, app_name }) =>
+      `User [${user}] generated AWS IAM Roles Anywhere credentials for role [${aws_role_arn}] on app [${app_name}]`,
+  },
+  [eventCodes.AWS_ROLES_ANYWHERE_CREDENTIALS_GENERATED_FAILURE]: {
+    type: 'aws_roles_anywhere.credentials.generated',
+    desc: 'AWS IAM Roles Anywhere Credentials Generation Failed',
+    format: ({ user, aws_role_arn, app_name }) =>
+      `User [${user}] failed to generate AWS IAM Roles Anywhere credentials for role [${aws_role_arn}] on app [${app_name}]`,
+  },
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: {
     type: 'auto_update_config.create',
     desc: 'Automatic Update Config Created',

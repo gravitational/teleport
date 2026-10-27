@@ -5945,6 +5945,7 @@ message OneOf {
     events.OAuthProxyAuthorize OAuthProxyAuthorize = 283;
     events.OAuthProxyRefresh OAuthProxyRefresh = 284;
     events.OAuthProxyAccess OAuthProxyAccess = 285;
+    events.AWSRolesAnywhereCredentialsGenerated AWSRolesAnywhereCredentialsGenerated = 286;
   }
 }
 
@@ -11826,4 +11827,52 @@ message ClassifierMatched {
 
   // MatchedRules are the classifier rules whose refinements applied.
   repeated string MatchedRules = 8 [(gogoproto.jsontag) = "matched_rules,omitempty"];
+}
+
+// AWSRolesAnywhereCredentialsGenerated is emitted when the Auth Service generates, or fails to generate, AWS
+// credentials through an AWS IAM Roles Anywhere integration for a user or bot accessing an AWS app. It does not cover
+// tbot's workload-identity-aws-roles-anywhere service, which exchanges an X.509 SVID with AWS directly.
+message AWSRolesAnywhereCredentialsGenerated {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata. AWSRoleARN holds the AWS IAM role ARN the credentials were requested for.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the credentials were generated. On failure, Error holds the reason.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // App is the AWS app the credentials were requested for.
+  AppMetadata App = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Integration is the name of the AWS IAM Roles Anywhere integration used to generate the credentials.
+  string Integration = 5 [(gogoproto.jsontag) = "integration,omitempty"];
+
+  // ProfileARN is the ARN of the AWS IAM Roles Anywhere profile requested.
+  string ProfileARN = 6 [(gogoproto.jsontag) = "profile_arn,omitempty"];
+
+  // TrustAnchorARN is the ARN of the AWS IAM Roles Anywhere trust anchor configured on the integration.
+  string TrustAnchorARN = 7 [(gogoproto.jsontag) = "trust_anchor_arn,omitempty"];
+
+  // SerialNumber is the serial number of the X.509 certificate exchanged for the credentials. Empty on failure.
+  string SerialNumber = 8 [(gogoproto.jsontag) = "serial_number,omitempty"];
+
+  // CA override details. Optional.
+  CAOverrideCertificateDetails CAOverride = 9 [(gogoproto.jsontag) = "ca_override,omitempty"];
 }

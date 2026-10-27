@@ -845,6 +845,11 @@ const (
 	// sync attempt failure code.
 	AWSICResourceSyncFailureCode = "TAIC001E"
 
+	// AWSRolesAnywhereCredentialsGeneratedSuccessCode is the AWS Roles Anywhere credentials generated success code.
+	AWSRolesAnywhereCredentialsGeneratedSuccessCode = "TAWSRA001I"
+	// AWSRolesAnywhereCredentialsGeneratedFailureCode is the AWS Roles Anywhere credentials generated failure code.
+	AWSRolesAnywhereCredentialsGeneratedFailureCode = "TAWSRA001E"
+
 	// MCPSessionStartCode is the event code for mcp.session.start.
 	MCPSessionStartCode = "TMCP001I"
 	// MCPSessionEndCode is the event code for mcp.session.end.

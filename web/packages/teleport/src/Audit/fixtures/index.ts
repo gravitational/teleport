@@ -4220,6 +4220,47 @@ export const events = [
     total_user_groups: 5,
   },
   {
+    app_name: 'aws-prod',
+    aws_role_arn: 'arn:aws:iam::123456789012:role/ReadOnly',
+    ca_override: {
+      active: true,
+      public_key_hash:
+        'f4522365888fdddcf3c854e79e5928447fe1a2388353efb2f0d30db8ba7c81bc',
+    },
+    cluster_name: 'im-a-cluster-name',
+    code: 'TAWSRA001I',
+    ei: 0,
+    event: 'aws_roles_anywhere.credentials.generated',
+    integration: 'aws-ra',
+    profile_arn:
+      'arn:aws:rolesanywhere:us-east-1:123456789012:profile/964257e9-ff38-4338-9441-cdc5d8ac83e4',
+    serial_number: '219472593040563628457286014382962395681',
+    success: true,
+    time: '2026-10-14T15:29:30.045Z',
+    trust_anchor_arn:
+      'arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/40494fcf-ec5b-442e-8ff4-10bbb4b6a023',
+    uid: '7991a247-5330-4369-9a38-19c451df07c1',
+    user: 'alice',
+  },
+  {
+    app_name: 'aws-prod',
+    aws_role_arn: 'arn:aws:iam::123456789012:role/ReadOnly',
+    cluster_name: 'im-a-cluster-name',
+    code: 'TAWSRA001E',
+    ei: 0,
+    error: 'failed to create session: AccessDeniedException',
+    event: 'aws_roles_anywhere.credentials.generated',
+    integration: 'aws-ra',
+    profile_arn:
+      'arn:aws:rolesanywhere:us-east-1:123456789012:profile/964257e9-ff38-4338-9441-cdc5d8ac83e4',
+    success: false,
+    time: '2026-10-14T15:30:12.511Z',
+    trust_anchor_arn:
+      'arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/40494fcf-ec5b-442e-8ff4-10bbb4b6a023',
+    uid: '7991a247-5330-4369-9a38-19c451df07c1',
+    user: 'alice',
+  },
+  {
     'addr.remote': '127.0.0.1:41608',
     cluster_name: 'autest.cloud.gravitational.io',
     code: 'AUV001I',

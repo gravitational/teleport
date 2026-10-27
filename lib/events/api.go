@@ -998,6 +998,10 @@ const (
 	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
 	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
 
+	// AWSRolesAnywhereCredentialsGeneratedEvent is emitted when the Auth Service generates, or fails to generate, AWS
+	// IAM Roles Anywhere credentials for a user or bot.
+	AWSRolesAnywhereCredentialsGeneratedEvent = "aws_roles_anywhere.credentials.generated"
+
 	// HealthCheckConfigCreateEvent is emitted when a health check config
 	// resource is created.
 	HealthCheckConfigCreateEvent = "health_check_config.create"

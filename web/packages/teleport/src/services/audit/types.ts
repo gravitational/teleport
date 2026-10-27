@@ -341,6 +341,8 @@ export const eventCodes = {
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
   AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
   AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
+  AWS_ROLES_ANYWHERE_CREDENTIALS_GENERATED: 'TAWSRA001I',
+  AWS_ROLES_ANYWHERE_CREDENTIALS_GENERATED_FAILURE: 'TAWSRA001E',
   AUTOUPDATE_CONFIG_CREATE: 'AUC001I',
   AUTOUPDATE_CONFIG_UPDATE: 'AUC002I',
   AUTOUPDATE_CONFIG_DELETE: 'AUC003I',
@@ -2224,6 +2226,12 @@ export type RawEvents = {
   [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
     typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
   >;
+  [eventCodes.AWS_ROLES_ANYWHERE_CREDENTIALS_GENERATED]: RawEventAwsRolesAnywhereCredentials<
+    typeof eventCodes.AWS_ROLES_ANYWHERE_CREDENTIALS_GENERATED
+  >;
+  [eventCodes.AWS_ROLES_ANYWHERE_CREDENTIALS_GENERATED_FAILURE]: RawEventAwsRolesAnywhereCredentials<
+    typeof eventCodes.AWS_ROLES_ANYWHERE_CREDENTIALS_GENERATED_FAILURE
+  >;
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: RawEvent<
     typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
     {
@@ -2915,6 +2923,23 @@ type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
     status: boolean;
     /* message contains user message for both success and failed status */
     message: string;
+  }
+>;
+
+/**
+ * RawEventAwsRolesAnywhereCredentials extends RawEvent with custom fields
+ * present in the AWS IAM Roles Anywhere credentials generated event.
+ */
+type RawEventAwsRolesAnywhereCredentials<T extends EventCode> = RawEvent<
+  T,
+  {
+    aws_role_arn?: string;
+    app_name?: string;
+    integration?: string;
+    profile_arn?: string;
+    trust_anchor_arn?: string;
+    serial_number?: string;
+    error?: string;
   }
 >;
 
