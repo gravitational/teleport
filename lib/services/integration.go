@@ -20,11 +20,14 @@ package services
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -39,6 +42,9 @@ type Integrations interface {
 	DeleteIntegration(ctx context.Context, name string) error
 	// DeleteAllIntegrations removes all integrations.
 	DeleteAllIntegrations(context.Context) error
+
+	// DeleteIntegrationV2 removes the specified scoped or unscoped integration resource.
+	DeleteIntegrationV2(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) error
 }
 
 // IntegrationsInternal extends Integrations with methods that operate directly on
@@ -61,6 +67,13 @@ type IntegrationsGetter interface {
 	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
 	// GetIntegration returns the specified integration resources.
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+
+	// GetIntegrationV2 returns the specified integration resource.
+	GetIntegrationV2(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
+	// ListIntegrationsV2 returns a paginated list of integration resources.
+	ListIntegrationsV2(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error)
+	// RangeIntegrations returns integrations within the range [start, end).
+	RangeIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) iter.Seq2[types.Integration, error]
 }
 
 // IntegrationsTokenGenerator defines methods to generate tokens for Integrations.
@@ -123,4 +136,11 @@ func UnmarshalIntegration(data []byte, opts ...MarshalOption) (types.Integration
 		ig.SetExpiry(cfg.Expires)
 	}
 	return &ig, nil
+}
+
+// GetCursorForIntegration returns the resource cursor identifying an integration in the logical
+// resource stream: "<name>" for unscoped integrations and "~scoped/<encoded-scope>/<name>"
+// for scoped integrations.
+func GetCursorForIntegration(integration types.Integration) string {
+	return scopes.MakeResourceCursor(integration.GetScope(), integration.GetName())
 }

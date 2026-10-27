@@ -261,7 +261,8 @@ func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, i
 	if integration.GetAWSOIDCIntegrationSpec() == nil {
 		return backend.Key{}, "", trace.BadParameter("%q is not an AWS OIDC integration", integrationName)
 	}
-	return integrationsSvc.svc.MakeKey(backend.NewKey(integrationName)), integration.GetRevision(), nil
+	// External Audit Storage are only supported with unscoped integrations for now.
+	return integrationsSvc.svc.UnscopedService.MakeKey(backend.NewKey(integrationName)), integration.GetRevision(), nil
 }
 
 func getExternalAuditStorage(ctx context.Context, bk backend.Backend, key backend.Key) (*externalauditstorage.ExternalAuditStorage, error) {

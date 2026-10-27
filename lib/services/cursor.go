@@ -29,6 +29,8 @@ func GetCursorForResource(r types.ResourceWithLabels) string {
 		return GetCursorForAppServer(res)
 	case types.Application:
 		return GetCursorForApp(res)
+	case types.Integration:
+		return GetCursorForIntegration(res)
 	case types.KubeServer:
 		return GetCursorForKubeServer(res)
 	case types.Server:

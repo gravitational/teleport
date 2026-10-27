@@ -130,6 +130,13 @@ func (s *Service) newGitHubSSHCA(ctx context.Context) (*types.PluginStaticCreden
 func (s *Service) createGitHubCredentials(ctx context.Context, ig types.Integration) error {
 	var creds []types.PluginStaticCredentials
 
+	// For now we do not allow creating github credentials when the integration is scoped.
+	// The storage layer checks for the github subkind when creating the integration,
+	// but we do not want to allow creating the credentials beforehand.
+	if ig.GetScope() != "" {
+		return trace.BadParameter("scoped integrations do not support the %q subkind", ig.GetSubKind())
+	}
+
 	if ig.GetCredentials() == nil || ig.GetCredentials().GetIdSecret() == nil {
 		return trace.BadParameter("GitHub integration requires OAuth ID and secret for credentials")
 	}
@@ -172,6 +179,11 @@ func (s *Service) maybeUpdateStaticCredentials(ctx context.Context, newIg, oldIg
 	// Preserve existing credentials.
 	if newIg.GetCredentials() == nil {
 		return trace.Wrap(newIg.SetCredentials(oldIg.GetCredentials()))
+	}
+
+	// For now we do not allow updating github credentials when the integration is scoped.
+	if newIg.GetScope() != "" {
+		return trace.BadParameter("scoped integrations do not support the %q subkind", newIg.GetSubKind())
 	}
 
 	switch newIg.GetSubKind() {

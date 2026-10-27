@@ -1345,7 +1345,8 @@ func supportedScopedWatchKind(kind string) bool {
 		types.KindWorkloadIdentity,
 		types.KindNode,
 		types.KindApp,
-		types.KindInstance:
+		types.KindInstance,
+		types.KindIntegration:
 		return true
 	default:
 		return false
