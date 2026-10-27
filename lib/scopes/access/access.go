@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/label"
 	"github.com/gravitational/teleport/lib/traits"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -591,30 +592,15 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		}
 	}
 
-	var totalTraitSize int
-	for i, traitAssn := range assignment.GetSpec().GetTraits() {
-		if err := scopes.StrongValidate(traitAssn.GetScope()); err != nil {
-			return trace.BadParameter("scoped role assignment %q has invalid scope in trait assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
-		}
+	// check trait assignments are valid
+	if err := ValidateTraitAssignments(stream.Slice(assignment.GetSpec().GetTraits()), "traits"); err != nil {
+		return trace.BadParameter("scoped role assignment %q: %v", assignment.GetMetadata().GetName(), err)
+	}
 
+	// check trait assignments are valid within their scoped role assignment
+	for i, traitAssn := range assignment.GetSpec().GetTraits() {
 		if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(traitAssn.GetScope()) {
 			return trace.BadParameter("scoped role assignment %q has trait assignment %d with scope %q that is not a sub-scope of the assignment's scope %q", assignment.GetMetadata().GetName(), i, traitAssn.GetScope(), assignment.GetScope())
-		}
-
-		var keysSeen map[string]struct{}
-		for _, trait := range traitAssn.GetTraits() {
-			if err := validateAssignedTrait(trait); err != nil {
-				return trace.BadParameter("scoped role assignment %q has trait assignment %d with %v", assignment.GetMetadata().GetName(), i, err)
-			}
-
-			if keysSeen == nil {
-				keysSeen = make(map[string]struct{})
-			}
-
-			if _, ok := keysSeen[trait.GetKey()]; ok {
-				return trace.BadParameter("scoped role assignment %q has trait assignment %d with duplicate entries for %q", assignment.GetMetadata().GetName(), i, trait.GetKey())
-			}
-			keysSeen[trait.GetKey()] = struct{}{}
 		}
 
 		// As per the MWI Scopes RFD, we enforce a special requirement for Bot
@@ -631,20 +617,52 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 				)
 			}
 		}
-		// exclude scope from size calculation so that trait size is consistent regardless of which scope is being
-		// assigned
-		totalTraitSize += proto.Size(traitAssn) - len(traitAssn.GetScope())
-	}
-
-	if totalTraitSize > maxTraitSize {
-		return trace.BadParameter("scoped role assignment %q has trait assignments with total byte size %d over the maximum %d", assignment.GetMetadata().GetName(), totalTraitSize-maxTraitSize, maxTraitSize)
 	}
 
 	return nil
 }
 
-// validateAssignedTrait validates individual traits assigned within a [*scopedaccessv1.TraitAssignment].
-func validateAssignedTrait(trait *traitv1.Trait) error {
+// ValidateTraitAssignments validates a [stream.Stream] of [*scopedaccessv1.TraitsAssignment].
+func ValidateTraitAssignments(assignments stream.Stream[*scopedaccessv1.TraitsAssignment], fieldName string) error {
+	var keysSeen map[string]struct{}
+	var totalTraitSize int
+	var idx int
+	for assn := range assignments {
+		if err := scopes.StrongValidate(assn.GetScope()); err != nil {
+			return trace.BadParameter("%s[%d]: invalid scope: %v", fieldName, idx, err)
+		}
+		for _, trait := range assn.GetTraits() {
+			if err := ValidateAssignedTrait(trait); err != nil {
+				return trace.BadParameter("%s[%d]: %v", fieldName, idx, err)
+			}
+
+			if keysSeen == nil {
+				keysSeen = make(map[string]struct{})
+			}
+
+			if _, ok := keysSeen[trait.GetKey()]; ok {
+				return trace.BadParameter("%s[%d]: duplicate entries for %q", fieldName, idx, trait.GetKey())
+			}
+			keysSeen[trait.GetKey()] = struct{}{}
+		}
+
+		// exclude scope from size calculation so that trait size is consistent regardless of which scope is being
+		// assigned
+		totalTraitSize += proto.Size(assn) - len(assn.GetScope())
+
+		idx++
+		clear(keysSeen)
+	}
+
+	if totalTraitSize > maxTraitSize {
+		return trace.BadParameter("%s: byte size %d over the maximum %d", fieldName, totalTraitSize-maxTraitSize, maxTraitSize)
+	}
+
+	return nil
+}
+
+// ValidateAssignedTrait validates individual traits assigned within a [*scopedaccessv1.TraitAssignment]
+func ValidateAssignedTrait(trait *traitv1.Trait) error {
 	key := trait.GetKey()
 	if len(key) == 0 {
 		return trace.BadParameter("empty key")
