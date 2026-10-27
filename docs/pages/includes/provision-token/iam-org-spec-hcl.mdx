@@ -1,0 +1,27 @@
+```hcl
+spec = {
+    # ...
+
+    # When configuring allow rules for AWS Organizations, Teleport needs access to the `organizations:DescribeAccount` API.
+    # For Teleport Cloud, set the integration to the name of your AWS OIDC integration that has that permission.
+    # Self-hosted clusters can use either the integration or provide the necessary AWS credentials directly to the Auth Service.
+    #
+    # integration = "<Var name="integration-name" />"
+
+    allow = [
+      # ...
+      {
+        # restrict joining accounts to OUs in this AWS Organization
+        aws_organization_id = "o-organization-id"
+        aws_organizational_units = {
+          # include is required. List OU IDs or the organization's root ID.
+          # Matches include accounts in descendant OUs. Use ["*"] to include all OUs.
+          include: ["ou-abcd-12345678"]
+          # exclude is optional and uses the same matching. Within this rule,
+          # exclusions take precedence over inclusions.
+          exclude: ["ou-abcd-87654321"]
+        }        
+      },
+    ]
+}
+```

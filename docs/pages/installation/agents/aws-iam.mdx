@@ -35,7 +35,8 @@ The IAM join method is available to any Teleport process running anywhere with
 access to IAM credentials, such as an EC2 instance with an attached IAM role.
 No specific permissions or IAM policy is required: an IAM role with no attached
 policies is sufficient. No IAM credentials are required on the Teleport Auth
-Service.
+Service for the basic account and ARN-based join flow.
+If you need to restrict joins by AWS Organization, see [Restrict joins by AWS Organization](#optional-restrict-joins-by-aws-organization).
 
 Teleport processes prove that they are running in your AWS account by sending a
 pre-signed `sts:GetCallerIdentity` request to the Teleport Auth Service. The
@@ -130,6 +131,9 @@ The optional `aws_arn` field in the allow rules supports wildcard characters:
 - `*` to match any combination of characters
 - `?` to match any single character
 
+If you plan to restrict joins by AWS Organization,
+complete the [optional organization setup](#optional-restrict-joins-by-aws-organization) before creating or applying this token.
+
 <Tabs>
 <TabItem label="tctl">
 
@@ -158,6 +162,80 @@ Add the following Kubernetes resource manifest, replacing values as indicated:
 
 </TabItem>
 </Tabs>
+
+## Optional: Restrict joins by AWS Organization
+
+This optional section is only relevant if you are using AWS Organizations and want to allow multiple accounts to join your cluster.
+
+If you are not using AWS Organizations or are only managing a single AWS account, you can skip this section.
+
+<details>
+<summary>Configure organization joins</summary>
+
+Joining by AWS Organization requires access to the AWS API `organizations:DescribeAccount`, which can be done using an [AWS OIDC integration](../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx) or the Auth Service's AWS credentials.
+
+<Admonition type="warning">
+The IAM role used by the integration or Auth Service must be created in the AWS organization management account or in a member account that is a delegated administrator.
+
+AWS only allows the `organizations:DescribeAccount` API to be called from those account contexts.
+</Admonition>
+
+Teleport Cloud clusters must use an AWS OIDC integration.
+
+Self-hosted clusters that are not publicly accessible must use the Auth Service's AWS credentials, while publicly accessible clusters can use either.
+
+<Tabs>
+<TabItem label="AWS OIDC integration">
+
+Create an [AWS OIDC integration](../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx) if you do not already have one.
+
+Use `tctl get integrations` to list integrations, then validate the integration:
+
+```code
+$ tctl integrations test <Var name="integration-name" />
+```
+
+Grant the integration IAM role the `organizations:DescribeAccount` permission, then set the integration name in the `spec.integration` field of the token.
+
+</TabItem>
+<TabItem label="Auth Service's AWS credentials">
+
+Grant the `organizations:DescribeAccount` permission to the Auth Service's IAM role as described in [Allow the Auth Service to verify organization membership](../../enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-organization.mdx#step-27-allow-the-auth-service-to-verify-organization-membership).
+
+Do not set `spec.integration` in the token.
+
+</TabItem>
+</Tabs>
+
+To restrict joins to accounts in specific AWS Organizational Units (OUs), set `aws_organization_id` and `aws_organizational_units` in the same `allow` rule.
+The `aws_organizational_units.include` list is required, and `aws_organizational_units.exclude` is optional.
+
+The lists match exact OU IDs or the organization's root ID, including accounts in descendant OUs.
+Set `include: ["*"]` to include all OUs in the organization.
+Exclusions take precedence over inclusions within the same rule.
+A joining process only needs to match one `allow` rule, so ensure that other rules do not permit accounts you intend to exclude.
+
+Update the token configuration from the basic example using the provisioning method you selected, and re-apply the configuration:
+
+<Tabs>
+<TabItem label="tctl">
+
+(!docs/pages/includes/provision-token/iam-org-spec.mdx!)
+
+</TabItem>
+<TabItem label="Terraform">
+
+(!docs/pages/includes/provision-token/iam-org-spec-hcl.mdx!)
+
+</TabItem>
+<TabItem label="Kubernetes">
+
+(!docs/pages/includes/provision-token/iam-org-spec-kube.mdx!)
+
+</TabItem>
+</Tabs>
+
+</details>
 
 ## Step 3/3. Launch a Teleport Agent
 
