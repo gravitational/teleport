@@ -21,6 +21,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"strings"
 	"time"
@@ -31,8 +32,9 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/gravitational/teleport"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -103,8 +105,8 @@ type AWSOIDCDeployServiceUpdaterCache interface {
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
-	// ListIntegrations returns a paginated list of all integration resources.
-	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
+	// RangeIntegrations returns integrations within the range [start, end) respecting scope filters.
+	RangeIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) iter.Seq2[types.Integration, error]
 }
 
 // AWSOIDCDeployServiceUpdaterClient provides methods to interact with other cluster services.
@@ -265,7 +267,11 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	}
 
 	sem := semaphore.NewWeighted(maxConcurrentUpdates)
-	for integration, err := range clientutils.Resources(ctx, updater.Cache.ListIntegrations) {
+	// Deployed services only come from unscoped integrations.
+	unscopedIntegrations := updater.Cache.RangeIntegrations(ctx, integrationpb.ListIntegrationsRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+	}.Build())
+	for integration, err := range unscopedIntegrations {
 		if err != nil {
 			return trace.Wrap(err)
 		}

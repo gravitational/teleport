@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -650,7 +651,7 @@ func (s *localCluster) getConn(params reversetunnelclient.DialParams) (conn net.
 			return nil, false, trace.BadParameter("failed to generate aws token: %v", err)
 		}
 
-		integration, err := s.client.GetIntegration(s.srv.ctx, awsInfo.Integration)
+		integration, err := s.client.GetIntegration(s.srv.ctx, integrationpb.GetIntegrationRequest_builder{Name: awsInfo.Integration}.Build())
 		if err != nil {
 			return nil, false, trace.BadParameter("failed to fetch integration details: %v", err)
 		}

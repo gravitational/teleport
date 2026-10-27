@@ -38,13 +38,10 @@ type Integrations interface {
 	CreateIntegration(context.Context, types.Integration) (types.Integration, error)
 	// UpdateIntegration updates an existing integration resource.
 	UpdateIntegration(context.Context, types.Integration) (types.Integration, error)
-	// DeleteIntegration removes the specified integration resource.
-	DeleteIntegration(ctx context.Context, name string) error
+	// DeleteIntegration removes the specified scoped or unscoped integration resource.
+	DeleteIntegration(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) error
 	// DeleteAllIntegrations removes all integrations.
 	DeleteAllIntegrations(context.Context) error
-
-	// DeleteIntegrationV2 removes the specified scoped or unscoped integration resource.
-	DeleteIntegrationV2(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) error
 }
 
 // IntegrationsInternal extends Integrations with methods that operate directly on
@@ -63,16 +60,11 @@ type IntegrationsInternal interface {
 
 // IntegrationsGetter defines methods for List/Read operations on Integration Resources.
 type IntegrationsGetter interface {
-	// ListIntegrations returns a paginated list of all integration resources.
-	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
-	// GetIntegration returns the specified integration resources.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
-
-	// GetIntegrationV2 returns the specified integration resource.
-	GetIntegrationV2(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
-	// ListIntegrationsV2 returns a paginated list of integration resources.
-	ListIntegrationsV2(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error)
-	// RangeIntegrations returns integrations within the range [start, end).
+	// GetIntegration returns the specified scoped or unscoped integration resource.
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
+	// ListIntegrations returns a page of integration resources respecting scope filters.
+	ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error)
+	// RangeIntegrations returns integrations within the range [start, end) respecting scope filters.
 	RangeIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) iter.Seq2[types.Integration, error]
 }
 

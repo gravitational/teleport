@@ -171,7 +171,9 @@ func (s *OAuthProxyService) StartOAuthProxyAuthorization(ctx context.Context, re
 		return nil, trace.BadParameter("username is required")
 	}
 
-	ig, err := s.backend.GetIntegration(ctx, req.GetName())
+	ig, err := s.backend.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name: req.GetName(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -235,7 +237,9 @@ func (s *OAuthProxyService) CompleteOAuthProxyAuthorization(ctx context.Context,
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.backend.GetIntegration(ctx, req.GetName())
+	ig, err := s.backend.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name: req.GetName(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

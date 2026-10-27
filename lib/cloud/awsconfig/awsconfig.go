@@ -59,7 +59,7 @@ const (
 // Required when using integration credentials.
 type IntegrationGetter interface {
 	// GetIntegration returns the specified integration resource.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 }
 
 // OIDCIntegrationClient is an interface that indicates which APIs are
@@ -506,7 +506,7 @@ type integrationCredentialsProvider struct {
 
 // Retrieve provides [aws.Credentials] for an AWS integration.
 func (p *integrationCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
-	integration, err := p.integrationGetter.GetIntegration(ctx, p.integrationName)
+	integration, err := p.integrationGetter.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: p.integrationName}.Build())
 	if err != nil {
 		return aws.Credentials{}, trace.Wrap(err)
 	}

@@ -350,11 +350,8 @@ type ReadProxyAccessPoint interface {
 	// ListRelayServers returns a paginated list of relay server heartbeats.
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 
-	// ListIntegrations returns a paginated list of all unscoped integration resources.
-	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
-
-	// ListIntegrationsV2 returns a page of integration resources respecting scope filters.
-	ListIntegrationsV2(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error)
+	// ListIntegrations returns a page of integration resources respecting scope filters.
+	ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error)
 
 	// RangeIntegrations returns integrations within the range [start, end) respecting scope filters.
 	RangeIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) iter.Seq2[types.Integration, error]
@@ -903,11 +900,8 @@ type ReadDiscoveryAccessPoint interface {
 	// DiscoveryConfigsGetter lists and reads discovery config resources.
 	services.DiscoveryConfigsGetter
 
-	// GetIntegration returns the specified unscoped integration resource.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
-
-	// GetIntegrationV2 returns the specified scoped or unscoped integration resource.
-	GetIntegrationV2(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
+	// GetIntegration returns the specified scoped or unscoped integration resource.
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 
 	// GetProxies returns a list of registered proxies.
 	//

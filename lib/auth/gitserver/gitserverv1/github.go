@@ -26,6 +26,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -84,7 +85,9 @@ func (s *Service) createGitHubAuthRequestForTest(ctx context.Context, in *pb.Cre
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.cfg.Backend.GetIntegration(ctx, integration)
+	ig, err := s.cfg.Backend.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name: integration,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

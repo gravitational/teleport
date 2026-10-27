@@ -41,7 +41,7 @@ func (s *Service) ExportIntegrationCertAuthorities(ctx context.Context, in *inte
 	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ig, err := s.cache.GetIntegration(ctx, in.GetIntegration())
+	ig, err := s.cache.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: in.GetIntegration()}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

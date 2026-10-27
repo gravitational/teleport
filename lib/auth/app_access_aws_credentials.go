@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
@@ -65,7 +66,7 @@ func generateAWSClientSideCredentials(
 		return "", errAppWithoutAWSClientSideCredentials
 	}
 
-	integration, err := a.GetIntegration(ctx, integrationName)
+	integration, err := a.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -67,22 +67,9 @@ func newIntegrationCollection(upstream services.Integrations, w types.WatchKind)
 	}, nil
 }
 
-// ListIntegrations returns a paginated list of unscoped Integration resources.
-//
-// This predates scope filtering and only returns unscoped integrations. Prefer
-// ListIntegrationsV2, which takes a scope filter.
-func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, pageToken string) ([]types.Integration, string, error) {
+// ListIntegrations returns a page of Integration resources respecting scope filters.
+func (c *Cache) ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
-	defer span.End()
-
-	unscoped := scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build()
-	out, next, err := c.integrationLister(unscoped).list(ctx, pageSize, pageToken)
-	return out, next, trace.Wrap(err)
-}
-
-// ListIntegrationsV2 returns a page of Integration resources respecting scope filters.
-func (c *Cache) ListIntegrationsV2(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrationsV2")
 	defer span.End()
 
 	scopeFilter := req.GetScopeFilter()
@@ -113,7 +100,7 @@ func (c *Cache) integrationLister(scopeFilter *scopesv1.Filter) genericLister[ty
 		collection: c.collections.integrations,
 		index:      integrationNameIndex,
 		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.Integration, string, error) {
-			return c.Config.Integrations.ListIntegrationsV2(ctx, integrationpb.ListIntegrationsRequest_builder{
+			return c.Config.Integrations.ListIntegrations(ctx, integrationpb.ListIntegrationsRequest_builder{
 				Limit:       int32(pageSize),
 				NextKey:     pageToken,
 				ScopeFilter: scopeFilter,
@@ -126,16 +113,9 @@ func (c *Cache) integrationLister(scopeFilter *scopesv1.Filter) genericLister[ty
 	}
 }
 
-// GetIntegration returns the specified unscoped Integration resource.
-//
-// This predates scoping and only resolves unscoped integrations. Prefer GetIntegrationV2.
-func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
-	return c.GetIntegrationV2(ctx, integrationpb.GetIntegrationRequest_builder{Name: name}.Build())
-}
-
-// GetIntegrationV2 returns the specified scoped or unscoped Integration resource.
-func (c *Cache) GetIntegrationV2(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegrationV2")
+// GetIntegration returns the specified scoped or unscoped Integration resource.
+func (c *Cache) GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
 	defer span.End()
 
 	getter := genericGetter[types.Integration, integrationIndex]{
@@ -143,7 +123,7 @@ func (c *Cache) GetIntegrationV2(ctx context.Context, req *integrationpb.GetInte
 		collection: c.collections.integrations,
 		index:      integrationNameIndex,
 		upstreamGet: func(ctx context.Context, _ string) (types.Integration, error) {
-			return c.Config.Integrations.GetIntegrationV2(ctx, req)
+			return c.Config.Integrations.GetIntegration(ctx, req)
 		},
 	}
 	out, err := getter.get(ctx, scopes.MakeResourceCursor(req.GetScope(), req.GetName()))

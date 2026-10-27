@@ -94,7 +94,7 @@ func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req 
 }
 
 func (s *Service) getAWSRolesAnywhereIntegrationSpec(ctx context.Context, integrationName string) (*types.AWSRAIntegrationSpecV1, error) {
-	integration, err := s.cache.GetIntegration(ctx, integrationName)
+	integration, err := s.cache.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
@@ -37,8 +38,8 @@ import (
 
 // Cache is the subset of the cached resources that the AWS OIDC Token Generation queries.
 type Cache interface {
-	// GetIntegration returns the specified integration resources.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	// GetIntegration returns the specified integration resource.
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 
 	// GetClusterName returns local cluster name of the current auth server
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
@@ -101,7 +102,7 @@ func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationName s
 		return issuer, trace.Wrap(err)
 	}
 
-	integration, err := cacheClt.GetIntegration(ctx, integrationName)
+	integration, err := cacheClt.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

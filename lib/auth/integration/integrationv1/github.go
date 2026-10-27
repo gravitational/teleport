@@ -88,7 +88,7 @@ func (s *Service) prepareGitHubCert(in *integrationpb.GenerateGitHubUserCertRequ
 }
 
 func (s *Service) getGitHubSigner(ctx context.Context, integration string) (ssh.Signer, error) {
-	ig, err := s.cache.GetIntegration(ctx, integration)
+	ig, err := s.cache.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: integration}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

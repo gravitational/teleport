@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -241,7 +242,12 @@ func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListI
 		return nil, trace.Wrap(err)
 	}
 
-	results, nextKey, err := s.cache.ListIntegrations(ctx, int(req.GetLimit()), req.GetNextKey())
+	// identity based defaulting for the filter is not yet implemented, so
+	// default to the unscoped mode.
+	if req.GetScopeFilter() == nil {
+		req.SetScopeFilter(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build())
+	}
+	results, nextKey, err := s.cache.ListIntegrations(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -272,7 +278,7 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	integration, err := s.cache.GetIntegration(ctx, req.GetName())
+	integration, err := s.cache.GetIntegration(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -369,6 +375,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    ig.GetName(),
 			Expires: ig.Expiry(),
+			Scope:   ig.GetScope(),
 		},
 		IntegrationMetadata: igMeta,
 		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
@@ -429,7 +436,10 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		}
 	}
 
-	oldIg, err := s.backend.GetIntegration(ctx, req.GetIntegration().GetName())
+	oldIg, err := s.backend.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name:  req.GetIntegration().GetName(),
+		Scope: req.GetIntegration().GetScope(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -475,6 +485,7 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    ig.GetName(),
 			Expires: ig.Expiry(),
+			Scope:   ig.GetScope(),
 		},
 		IntegrationMetadata: igMeta,
 		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
@@ -574,12 +585,16 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.cache.GetIntegration(ctx, req.GetName())
+	ig, err := s.cache.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name:  req.GetName(),
+		Scope: req.GetScope(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.GetDeleteAssociatedResources() {
+	// We currently only allow deleting associated resources when the integration is unscoped.
+	if req.GetDeleteAssociatedResources() && req.GetScope() == "" {
 		if err := s.deleteAssociatedResources(ctx, authCtx, ig); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -594,7 +609,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteIntegration(ctx, req.GetName()); err != nil {
+	if err := s.backend.DeleteIntegration(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -616,7 +631,8 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		},
 		UserMetadata: authCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: ig.GetName(),
+			Name:  ig.GetName(),
+			Scope: ig.GetScope(),
 		},
 		IntegrationMetadata: igMeta,
 		ConnectionMetadata:  authz.ConnectionMetadata(ctx),

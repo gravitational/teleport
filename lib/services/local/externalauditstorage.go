@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
@@ -254,7 +255,7 @@ func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, i
 	if err != nil {
 		return backend.Key{}, "", trace.Wrap(err)
 	}
-	integration, err := integrationsSvc.GetIntegration(ctx, integrationName)
+	integration, err := integrationsSvc.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	if err != nil {
 		return backend.Key{}, "", trace.Wrap(err, "getting integration")
 	}

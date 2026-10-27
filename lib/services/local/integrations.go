@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -85,20 +84,8 @@ func NewIntegrationsService(b backend.Backend, opts ...IntegrationsServiceOption
 	return integrationsSvc, nil
 }
 
-// ListIntegrations returns a paginated list of unscoped Integration resources.
-//
-// This predates scope filtering and only returns unscoped integrations. Prefer
-// ListIntegrationsV2, which takes a scope filter.
-func (s *IntegrationsService) ListIntegrations(ctx context.Context, pageSize int, pageToken string) ([]types.Integration, string, error) {
-	return s.ListIntegrationsV2(ctx, integrationpb.ListIntegrationsRequest_builder{
-		Limit:       int32(pageSize),
-		NextKey:     pageToken,
-		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
-	}.Build())
-}
-
-// ListIntegrationsV2 returns a page of Integration resources respecting scope filters.
-func (s *IntegrationsService) ListIntegrationsV2(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error) {
+// ListIntegrations returns a page of Integration resources respecting scope filters.
+func (s *IntegrationsService) ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error) {
 	scopeFilter := req.GetScopeFilter()
 	if err := scopes.ValidateFilter(scopeFilter); err != nil {
 		return nil, "", trace.Wrap(err)
@@ -123,15 +110,8 @@ func (s *IntegrationsService) RangeIntegrations(ctx context.Context, req *integr
 	return stream.FilterMap(s.svc.Resources(ctx, req.GetNextKey(), ""), filterFn)
 }
 
-// GetIntegration returns the specified unscoped Integration resource.
-//
-// This predates scoping and only resolves unscoped integrations. Prefer GetIntegrationV2.
-func (s *IntegrationsService) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
-	return s.GetIntegrationV2(ctx, integrationpb.GetIntegrationRequest_builder{Name: name}.Build())
-}
-
-// GetIntegrationV2 returns the specified scoped or unscoped Integration resource.
-func (s *IntegrationsService) GetIntegrationV2(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error) {
+// GetIntegration returns the specified scoped or unscoped Integration resource.
+func (s *IntegrationsService) GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error) {
 	sqn := apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
@@ -157,15 +137,8 @@ func (s *IntegrationsService) UpdateIntegration(ctx context.Context, ig types.In
 	return updated, trace.Wrap(err)
 }
 
-// DeleteIntegration removes the specified unscoped Integration resource.
-//
-// This predates scoping and only deletes unscoped integrations. Prefer DeleteIntegrationV2.
-func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string) error {
-	return s.DeleteIntegrationV2(ctx, integrationpb.DeleteIntegrationRequest_builder{Name: name}.Build())
-}
-
-// DeleteIntegrationV2 removes the specified scoped or unscoped Integration resource.
-func (s *IntegrationsService) DeleteIntegrationV2(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) error {
+// DeleteIntegration removes the specified scoped or unscoped Integration resource.
+func (s *IntegrationsService) DeleteIntegration(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) error {
 	sqn := apiscopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),

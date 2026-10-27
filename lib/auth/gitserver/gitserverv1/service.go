@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -39,12 +40,11 @@ import (
 type Backend interface {
 	services.GitServers
 
-	// GetIntegration returns the specified integration resources.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
-
 	// GetUserExternalCredentials returns the user external credentials
 	// session for the given encryption key ID.
 	GetUserExternalCredentials(ctx context.Context, keyID *usercredpb.EncryptionKeyID) (*usercredpb.UserExternalCredentials, error)
+	// GetIntegration returns the specified integration resource.
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 }
 
 // GitHubAuthRequestCreator creates a new auth request for GitHub OAuth2 flow.
@@ -235,7 +235,7 @@ func (s *Service) checkIntegration(ctx context.Context, server *types.ServerV2) 
 	switch {
 	case server.GetGitHub() != nil:
 		serverSpec := server.GetGitHub()
-		ig, err := s.cfg.Backend.GetIntegration(ctx, serverSpec.Integration)
+		ig, err := s.cfg.Backend.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: serverSpec.Integration}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}

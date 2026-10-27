@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -108,8 +109,8 @@ type SyncerCache interface {
 	GetProxies() ([]types.Server, error)
 	// ListProxyServers returns a paginated list of registered proxy servers.
 	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
-	// ListIntegrations returns a paginated list of all integration resources.
-	ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error)
+	// ListIntegrations returns a page of integration resources respecting scope filters.
+	ListIntegrations(ctx context.Context, req *integrationv1.ListIntegrationsRequest) ([]types.Integration, string, error)
 }
 
 // RolesAnywhereClient is an interface that defines methods to interact with the AWS IAM Roles Anywhere service.
@@ -333,7 +334,12 @@ func integrationsWithProfileSyncEnabled(ctx context.Context, cache SyncerCache) 
 	var nextKey string
 
 	for {
-		resp, respNextKey, err := cache.ListIntegrations(ctx, 0, nextKey)
+		// Only unscoped integrations are synced for now: a scoped integration's profiles
+		// must become scoped apps, which the syncer does not support yet.
+		resp, respNextKey, err := cache.ListIntegrations(ctx, integrationv1.ListIntegrationsRequest_builder{
+			NextKey:     nextKey,
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

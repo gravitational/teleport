@@ -28,6 +28,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	awsConfig "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/modules"
@@ -90,8 +91,8 @@ type Config struct {
 }
 
 type integrationGetter interface {
-	// GetIntegration returns an integration by name from the backend.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	// GetIntegration returns an integration by scope and name from the backend.
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 }
 
 type tokenGenerator interface {
@@ -123,7 +124,7 @@ func (c *Config) checkAndSetDefaults() error {
 }
 
 func newAWSCredCache(ctx context.Context, cfg Config, stsClient stscreds.AssumeRoleWithWebIdentityAPIClient) (*CredentialsCache, error) {
-	integration, err := cfg.IntegrationGetter.GetIntegration(ctx, cfg.IntegrationName)
+	integration, err := cfg.IntegrationGetter.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: cfg.IntegrationName}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

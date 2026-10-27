@@ -27,8 +27,9 @@ import (
 
 	"github.com/gravitational/trace"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -85,14 +86,16 @@ func integrationHandler() Handler {
 
 func getIntegration(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	if ref.Name != "" {
-		ig, err := client.GetIntegration(ctx, ref.Name)
+		ig, err := client.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: ref.Name}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return NewIntegrationCollection([]types.Integration{ig}), nil
 	}
 
-	resources, err := stream.Collect(clientutils.Resources(ctx, client.ListIntegrations))
+	resources, err := stream.Collect(client.RangeIntegrations(ctx, integrationpb.ListIntegrationsRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,7 +108,10 @@ func createIntegration(ctx context.Context, client *authclient.Client, raw servi
 		return trace.Wrap(err)
 	}
 
-	existingIntegration, err := client.GetIntegration(ctx, integration.GetName())
+	existingIntegration, err := client.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name:  integration.GetName(),
+		Scope: integration.GetScope(),
+	}.Build())
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -135,7 +141,10 @@ func updateIntegration(ctx context.Context, client *authclient.Client, raw servi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	existingIntegration, err := client.GetIntegration(ctx, integration.GetName())
+	existingIntegration, err := client.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name:  integration.GetName(),
+		Scope: integration.GetScope(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -180,7 +189,7 @@ func updateExistingIntegration(ctx context.Context, client *authclient.Client, e
 }
 
 func deleteIntegration(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if err := client.DeleteIntegration(ctx, ref.Name); err != nil {
+	if err := client.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{Name: ref.Name}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("Integration %q removed\n", ref.Name)

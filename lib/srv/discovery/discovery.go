@@ -49,6 +49,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -984,7 +985,7 @@ func (s *Server) handleAzureSubscriptionListError(integration string, err error)
 	}
 
 	var tenantID, clientID string
-	integrationResource, err := s.Config.AccessPoint.GetIntegration(s.ctx, integration)
+	integrationResource, err := s.Config.AccessPoint.GetIntegration(s.ctx, integrationpb.GetIntegrationRequest_builder{Name: integration}.Build())
 	if err != nil {
 		s.Log.WarnContext(s.ctx, "Failed to get Azure integration identity for User Task",
 			"integration", integration,

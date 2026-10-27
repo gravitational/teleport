@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -38,7 +39,7 @@ const fetcherConcurrency = 4
 
 type AzureOIDCCredentials interface {
 	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 }
 
 // Config defines parameters required for fetching resources from Azure
@@ -98,7 +99,7 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 		}
 	} else {
 		// Establish the credential from OIDC credential assertion
-		integration, err := cfg.OIDCCredentials.GetIntegration(ctx, cfg.Integration)
+		integration, err := cfg.OIDCCredentials.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: cfg.Integration}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

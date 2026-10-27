@@ -6002,8 +6002,10 @@ func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {
 	return integrationpb.NewIntegrationServiceClient(c.conn)
 }
 
-// ListIntegrations returns a paginated list of Integrations.
+// ListIntegrations returns a paginated list of unscoped Integrations.
 // The response includes a nextKey which must be used to fetch the next page.
+//
+// Deprecated: use [Client.ListIntegrationsV2]
 func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
 	return c.ListIntegrationsV2(ctx, &integrationpb.ListIntegrationsRequest{
 		Limit:   int32(pageSize),
@@ -6043,7 +6045,9 @@ func (c *Client) RangeIntegrations(ctx context.Context, req *integrationpb.ListI
 	return clientutils.RangeResources(ctx, req.GetNextKey(), "", pageFn, types.Integration.GetName)
 }
 
-// ListAllIntegrations returns the list of all Integrations.
+// ListAllIntegrations returns the list of all unscoped Integrations.
+//
+// Deprecated: use [Client.RangeIntegrations], which takes a scope filter.
 func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, error) {
 	var result []types.Integration
 	var nextKey string
@@ -6059,7 +6063,9 @@ func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, 
 	}
 }
 
-// GetIntegration returns an Integration by its name.
+// GetIntegration returns an unscoped Integration by its name.
+//
+// Deprecated: use [Client.GetIntegrationV2]
 func (c *Client) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
 	return c.GetIntegrationV2(ctx, &integrationpb.GetIntegrationRequest{
 		Name: name,
@@ -6106,7 +6112,9 @@ func (c *Client) UpdateIntegration(ctx context.Context, ig types.Integration) (t
 	return ig, nil
 }
 
-// DeleteIntegration removes an Integration by its name.
+// DeleteIntegration removes an unscoped Integration by its name.
+//
+// Deprecated: use [Client.DeleteIntegrationV2]
 func (c *Client) DeleteIntegration(ctx context.Context, name string) error {
 	return c.DeleteIntegrationV2(ctx, &integrationpb.DeleteIntegrationRequest{
 		Name: name,

@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apissh "github.com/gravitational/teleport/api/ssh"
@@ -705,7 +706,7 @@ func (s *Server) Serve() {
 				return
 			}
 
-			integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
+			integration, err := s.authClient.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: awsInfo.Integration}.Build())
 			if err != nil {
 				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
 				return
