@@ -384,7 +384,11 @@ func (w *watcher) parseEvent(e backend.Event) ([]types.Event, []error) {
 			resource, err := p.parse(e)
 			if err != nil {
 				if eo := parseEventOverrideError(nil); errors.As(err, &eo) {
-					events = append(events, eo...)
+					for _, ev := range eo {
+						if services.WatchKindMatchesScope(w.kinds[i], ev.Resource) {
+							events = append(events, ev)
+						}
+					}
 					continue
 				}
 				errs = append(errs, trace.Wrap(err))
@@ -453,7 +457,7 @@ type resourceParser interface {
 	// parse parses resource from the backend event; if the returned error is a
 	// parseEventOverrideError then the returned resource is ignored and the
 	// events in the parseEventOverrideError will be added to the generated
-	// events instead.
+	// events instead. The watch kind's scope filter applies to those events.
 	parse(event backend.Event) (types.Resource, error)
 	// match returns true if event key matches
 	match(key backend.Key) bool
