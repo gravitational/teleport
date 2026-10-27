@@ -209,6 +209,53 @@ test('renders usernames when display values are empty, partial, or absent', () =
   expect(within(reviewers).getByText('secondary@example.com')).toBeVisible();
 });
 
+test('scheduled requests render fixed timing', async () => {
+  // Setup a scheduled request whose approval deadline precedes its access window.
+  const user = userEvent.setup();
+  const start = new Date('2026-11-01T16:00:00Z');
+  const duration = 4 * 60 * 60 * 1000;
+  const end = new Date(start.getTime() + duration);
+  const request = {
+    ...requestRolePending,
+    created: new Date('2026-10-22T20:00:00Z'),
+    expires: new Date('2026-10-29T20:00:00Z'),
+    maxDuration: end,
+    timing: {
+      scheduled: {
+        start,
+        duration,
+      },
+    },
+  };
+
+  // Execute.
+  render(
+    <RequestView {...props} fetchRequestAttempt={makeSuccessAttempt(request)} />
+  );
+
+  // Assert the detail summary uses server-confirmed timing and local timezone.
+  const requestHeader = screen.getByText('is requesting roles:')
+    .parentElement as HTMLElement;
+  expect(within(requestHeader).getByText(/for 4 hours/)).toBeVisible();
+  expect(within(requestHeader).getByText(/UTC\+00:00 UTC/)).toBeVisible();
+  expect(screen.getByText(/Request expires in/)).toBeVisible();
+
+  // Execute approval selection.
+  await user.click(
+    screen.getByRole('radio', { name: /Approve short-term access/ })
+  );
+
+  // Assert scheduled review timing is read-only.
+  expect(screen.getByText('Starts')).toBeVisible();
+  expect(screen.getByText('Ends')).toBeVisible();
+  expect(
+    screen.getByText('Nov 1, 2026, 8:00 PM (UTC+00:00 UTC)')
+  ).toBeVisible();
+  expect(screen.getByText('Duration')).toBeVisible();
+  expect(screen.queryByText('Start Date')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('reset-btn')).not.toBeInTheDocument();
+});
+
 // When no Access List can be promoted to (e.g., reviewer doesn't own one that
 // grants every requested resource, including implicitly-added ones), long-term
 // approval is disabled, leaving only Reject. The disabled option explains why.

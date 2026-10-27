@@ -16,13 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  addDays,
-  addHours,
-  addWeeks,
-  differenceInHours,
-  isAfter,
-} from 'date-fns';
+import { addHours, differenceInHours, isAfter } from 'date-fns';
 
 import { Option } from 'shared/components/Select';
 import { AccessRequest } from 'shared/services/accessRequests';
@@ -38,15 +32,15 @@ export const PRESET_DAYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
 export type DurationOption = Option<number>;
 
-function getMaxDurationOption(
+function getMaxAccessEndOption(
   startDateTime: Date,
-  maxDuration: Date
+  maxAccessEnd: Date
 ): Option<number> {
   return {
-    value: maxDuration.getTime(),
+    value: maxAccessEnd.getTime(),
     label: getFormattedDurationTxt({
       start: startDateTime,
-      end: maxDuration,
+      end: maxAccessEnd,
     }),
   };
 }
@@ -54,7 +48,7 @@ function getMaxDurationOption(
 /**
  * Calculates the selectable access duration options depending
  * on the selected start time. The duration range is starting from the
- * "selected start time" to the request's "max duration".
+ * selected start time to the maximum allowed access end.
  *
  * Access duration refers to how long access should last after
  * start date/time.
@@ -63,19 +57,20 @@ export function getDurationOptionsFromStartTime(
   startDate: Date | null,
   accessRequest: AccessRequest
 ): DurationOption[] {
-  const start = startDate || accessRequest.created;
+  const scheduledTiming = accessRequest.timing?.scheduled;
+  const start = startDate || scheduledTiming?.start || accessRequest.created;
+  const maxAccessEnd = scheduledTiming
+    ? new Date(start.getTime() + scheduledTiming.duration)
+    : accessRequest.maxDuration;
   // The setSeconds(0,0) removes the seconds and milliseconds since
   // `startDateTime` is constructed without them. Makes comparing difference
   // in hours ignore the small time difference.
   const createdTimestamp = new Date(accessRequest.created).setSeconds(0, 0);
-  const maxDurationTimestamp = new Date(accessRequest.maxDuration).setSeconds(
-    0,
-    0
-  );
+  const maxAccessEndTimestamp = new Date(maxAccessEnd).setSeconds(0, 0);
 
   if (
-    start.getTime() >= maxDurationTimestamp ||
-    start.getTime() < createdTimestamp
+    start.getTime() >= maxAccessEndTimestamp ||
+    (!scheduledTiming && start.getTime() < createdTimestamp)
   ) {
     return [];
   }
@@ -83,7 +78,7 @@ export function getDurationOptionsFromStartTime(
   let durationOpts: Option<number>[] = [];
 
   const totalHoursDiff = differenceInHours(
-    maxDurationTimestamp,
+    maxAccessEndTimestamp,
     start.getTime(),
     {
       roundingMethod: 'ceil',
@@ -93,14 +88,14 @@ export function getDurationOptionsFromStartTime(
   // If there is less than an hour available for access, return
   // it as max duration as the only option.
   if (totalHoursDiff <= 1) {
-    durationOpts.push(getMaxDurationOption(start, accessRequest.maxDuration));
+    durationOpts.push(getMaxAccessEndOption(start, maxAccessEnd));
     return durationOpts;
   }
 
   // Add preset hour options up to maximum allowed.
   for (const hour of PRESET_HOURS) {
     const updatedDateTime = addHours(start, hour);
-    if (isAfter(updatedDateTime, accessRequest.maxDuration)) {
+    if (isAfter(updatedDateTime, maxAccessEnd)) {
       break;
     }
     durationOpts.push({
@@ -115,8 +110,8 @@ export function getDurationOptionsFromStartTime(
   // Add preset days up to maximum allowed.
   if (totalHoursDiff >= 24) {
     for (const day of PRESET_DAYS) {
-      const updatedEndDate = addDays(start, day);
-      if (isAfter(updatedEndDate, accessRequest.maxDuration)) {
+      const updatedEndDate = addHours(start, day * 24);
+      if (isAfter(updatedEndDate, maxAccessEnd)) {
         break;
       }
       durationOpts.push({
@@ -130,8 +125,8 @@ export function getDurationOptionsFromStartTime(
   }
 
   const lastDurationOption = durationOpts[durationOpts.length - 1];
-  if (maxDurationTimestamp > lastDurationOption.value) {
-    durationOpts.push(getMaxDurationOption(start, accessRequest.maxDuration));
+  if (maxAccessEndTimestamp > lastDurationOption.value) {
+    durationOpts.push(getMaxAccessEndOption(start, maxAccessEnd));
   }
 
   return durationOpts;
@@ -150,7 +145,7 @@ export function getDurationOptionIndexClosestToOneWeek(
   durationOptions: DurationOption[],
   startDate: Date
 ) {
-  const oneWeekFromSelectedTime = addWeeks(startDate, 1).getTime();
+  const oneWeekFromSelectedTime = addHours(startDate, 7 * 24).getTime();
   const lastDurationIndex = durationOptions.length - 1;
 
   // Default to the last option, since that is the max the user can get.

@@ -16,10 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { addDays, addHours, isAfter } from 'date-fns';
+import { addHours, isAfter, isSameDay } from 'date-fns';
 
+import { displayTimeWithTimeZone } from 'design/datetime';
 import { Option } from 'shared/components/Select';
 
+import { TimeOption } from '../../Shared/types';
 import { getFormattedDurationTxt } from '../../Shared/utils';
 
 // Preset hour options for the time option dropdowns.
@@ -27,6 +29,17 @@ export const presetHours = [1, 2, 3, 4, 6, 8, 12, 18];
 // Preset day options for the time option dropdowns.
 export const presetDays = [1, 2, 3, 4, 5, 6, 7];
 const HourInMs = 60 * 60 * 1000;
+// Keep this aligned with services.MaxScheduledStartDelay, which the server
+// uses to reject starts more than 30 days in the future.
+const SCHEDULED_START_LIMIT_MS = 30 * 24 * HourInMs;
+const TIME_OPTION_INTERVAL_MINUTES = 30;
+
+export function makeAccessEndOption(start: Date, end: Date): Option<number> {
+  return {
+    value: end.getTime(),
+    label: getFormattedDurationTxt({ start, end }),
+  };
+}
 
 export function getPendingRequestDurationOptions(
   accessRequestCreated: Date,
@@ -39,9 +52,9 @@ export function getPendingRequestDurationOptions(
   // Pick the smaller of the two.
   let maxPendingDate = new Date(maxDuration);
   const maxPendingDay = presetDays.length - 1;
-  const possiblySmallerMaxPendingDate = addDays(
+  const possiblySmallerMaxPendingDate = addHours(
     createdDate,
-    presetDays[maxPendingDay]
+    presetDays[maxPendingDay] * 24
   );
   if (maxPendingDate.getTime() > possiblySmallerMaxPendingDate.getTime()) {
     maxPendingDate = possiblySmallerMaxPendingDate;
@@ -85,7 +98,7 @@ export function getPendingRequestDurationOptions(
   // Add preset days up to maximum allowed.
   if (totalHoursDiff >= 24) {
     for (const day of presetDays) {
-      const updatedEndDate = addDays(createdDate, day);
+      const updatedEndDate = addHours(createdDate, day * 24);
       if (isAfter(updatedEndDate, maxPendingDate)) {
         break;
       }
@@ -122,4 +135,99 @@ export function getPendingRequestDurationOptions(
 export function getDryRunMaxDuration() {
   const sevenDaysInMs = 1000 * 60 * 60 * 24 * 7;
   return new Date(Date.now() + sevenDaysInMs);
+}
+
+export function getScheduledStartLimit(now = new Date()): Date {
+  return new Date(now.getTime() + SCHEDULED_START_LIMIT_MS);
+}
+
+export function getScheduledStartTimeOptions(
+  selectedDate: Date,
+  now = new Date()
+): TimeOption[] {
+  return getTimeOptionsWithinLimits(
+    selectedDate,
+    now,
+    getScheduledStartLimit(now)
+  );
+}
+
+export function getPreferredTimeOption(
+  preferredTime: Date,
+  options: TimeOption[]
+): TimeOption | undefined {
+  return (
+    options.find(
+      option =>
+        option.value.getHours() === preferredTime.getHours() &&
+        option.value.getMinutes() === preferredTime.getMinutes()
+    ) || options[0]
+  );
+}
+
+export function getDefaultScheduledStartTimeOption(
+  selectedDate: Date,
+  now = new Date()
+): TimeOption | undefined {
+  const preferredStart = new Date(selectedDate);
+  preferredStart.setHours(9, 0, 0, 0);
+  return getPreferredTimeOption(
+    preferredStart,
+    getScheduledStartTimeOptions(selectedDate, now)
+  );
+}
+
+export function getScheduledEndTimeOptions(
+  selectedDate: Date,
+  start: Date,
+  maxAllowedDuration: number
+): TimeOption[] {
+  return getTimeOptionsWithinLimits(
+    selectedDate,
+    start,
+    new Date(start.getTime() + maxAllowedDuration)
+  );
+}
+
+// Returns 30-minute options after the minimum and through the maximum.
+// Adds the exact maximum when the last 30-minute option is earlier.
+function getTimeOptionsWithinLimits(
+  selectedDate: Date,
+  minimum: Date,
+  maximum: Date
+): TimeOption[] {
+  const options: TimeOption[] = [];
+  for (
+    let minutes = 0;
+    minutes < 24 * 60;
+    minutes += TIME_OPTION_INTERVAL_MINUTES
+  ) {
+    const option = new Date(selectedDate);
+    option.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+    if (
+      option.getTime() <= minimum.getTime() ||
+      option.getTime() > maximum.getTime()
+    ) {
+      continue;
+    }
+    options.push({
+      value: option,
+      label: displayTimeWithTimeZone(option),
+    });
+  }
+
+  if (
+    isSameDay(selectedDate, maximum) &&
+    maximum.getTime() > minimum.getTime() &&
+    !options.some(option => option.value.getTime() === maximum.getTime())
+  ) {
+    options.push({
+      value: maximum,
+      label: displayTimeWithTimeZone(maximum),
+    });
+  }
+
+  return options.sort(
+    (left, right) => left.value.getTime() - right.value.getTime()
+  );
 }

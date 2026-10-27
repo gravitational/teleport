@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { formatDuration, intervalToDuration } from 'date-fns';
+import { formatDuration } from 'date-fns';
 
 import {
   getResourceIDString,
@@ -27,6 +27,11 @@ import {
 
 import { PendingListItem, ResourceMap } from '../NewRequest';
 
+const MinuteInMs = 60 * 1000;
+const HourInMs = 60 * MinuteInMs;
+// Exactly 24 hours, not a calendar day that daylight saving shifts.
+const DayInMs = 24 * HourInMs;
+
 export function getFormattedDurationTxt({
   start,
   end,
@@ -34,9 +39,15 @@ export function getFormattedDurationTxt({
   start: Date;
   end: Date;
 }) {
-  return formatDuration(intervalToDuration({ start, end }), {
-    format: ['weeks', 'days', 'hours', 'minutes'],
-  });
+  const totalMs = end.getTime() - start.getTime();
+  return formatDuration(
+    {
+      days: Math.trunc(totalMs / DayInMs),
+      hours: Math.trunc((totalMs % DayInMs) / HourInMs),
+      minutes: Math.trunc((totalMs % HourInMs) / MinuteInMs),
+    },
+    { format: ['days', 'hours', 'minutes'] }
+  );
 }
 
 export function getNumAddedResources(addedResources: ResourceMap) {

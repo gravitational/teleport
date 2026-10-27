@@ -101,3 +101,61 @@ export function dateTimeShortFormat(date: Date): string {
   const locale = isTest ? DEFAULT_LOCALE : undefined;
   return new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(date);
 }
+
+export function formatTimeZone(date: Date, timeZone?: string): string {
+  const abbreviation = formatTimeZoneAbbreviation(date, timeZone);
+  const offset = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
+    timeZone,
+    timeZoneName: 'longOffset',
+  })
+    .formatToParts(date)
+    .find(part => part.type === 'timeZoneName')?.value;
+  const utcOffset =
+    offset === 'GMT' ? 'UTC+00:00' : offset?.replace('GMT', 'UTC');
+
+  return [utcOffset, abbreviation].filter(Boolean).join(' ');
+}
+
+export function formatTimeZoneOffset(date: Date, timeZone?: string): string {
+  const offset = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
+    timeZone,
+    timeZoneName: 'shortOffset',
+  })
+    .formatToParts(date)
+    .find(part => part.type === 'timeZoneName')?.value;
+
+  return offset === 'GMT' ? 'UTC+0' : offset?.replace('GMT', 'UTC') || '';
+}
+
+function formatTimeZoneAbbreviation(date: Date, timeZone?: string): string {
+  return (
+    new Intl.DateTimeFormat(DEFAULT_LOCALE, {
+      timeZone,
+      timeZoneName: 'short',
+    })
+      .formatToParts(date)
+      .find(part => part.type === 'timeZoneName')?.value || ''
+  );
+}
+
+export function displayDateTimeWithTimeZone(
+  date: Date,
+  timeZone?: string
+): string {
+  const locale = isTest ? DEFAULT_LOCALE : undefined;
+  const formattedDate = new Intl.DateTimeFormat(locale, {
+    timeZone,
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+  return `${formattedDate} (${formatTimeZone(date, timeZone)})`;
+}
+
+export function displayTimeWithTimeZone(date: Date, timeZone?: string): string {
+  const locale = isTest ? DEFAULT_LOCALE : undefined;
+  const formattedTime = new Intl.DateTimeFormat(locale, {
+    timeZone,
+    timeStyle: 'short',
+  }).format(date);
+  return `${formattedTime} (${formatTimeZoneAbbreviation(date, timeZone)})`;
+}

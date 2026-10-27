@@ -29,6 +29,7 @@ import {
   getDurationOptionIndexClosestToOneWeek,
   getDurationOptionsFromStartTime,
 } from '../AccessDuration/durationOptions';
+import { makeAccessEndOption } from './RequestCheckout/utils';
 
 export function useSpecifiableFields() {
   /**
@@ -65,12 +66,9 @@ export function useSpecifiableFields() {
    */
   const [startTime, setStartTime] = useState<Date | null>();
 
-  /**
-   * Specifies how long the access request should last for.
-   * Duration countdown starts from access request creation.
-   * Resets when startTime changes.
-   */
-  const [maxDuration, setMaxDuration] = useState<Option<number>>();
+  // The public checkout contract calls this maxDuration, but the option value
+  // is the selected absolute access end.
+  const [selectedAccessEnd, setSelectedAccessEnd] = useState<Option<number>>();
 
   /**
    * How long the request can be in a PENDING state before it expires.
@@ -85,7 +83,7 @@ export function useSpecifiableFields() {
   /**
    * Options for extending or shortening the access request duration.
    */
-  let maxDurationOptions: Option<number>[] = [];
+  let accessDurationOptions: Option<number>[] = [];
 
   const [requestKind, setRequestKind] = useState<RequestKind>(
     RequestKind.ShortTerm
@@ -94,12 +92,26 @@ export function useSpecifiableFields() {
   if (dryRunResponse) {
     pendingRequestTtlOptions = getPendingRequestDurationOptions(
       dryRunResponse.created,
-      maxDuration.value
+      selectedAccessEnd.value
     );
-    maxDurationOptions = getDurationOptionsFromStartTime(
+    accessDurationOptions = getDurationOptionsFromStartTime(
       startTime,
       dryRunResponse
     );
+    // Keep the user's selected duration in the list when they switch back to
+    // "Immediately".
+    if (
+      dryRunResponse.timing?.scheduled &&
+      selectedAccessEnd &&
+      !accessDurationOptions.some(
+        option => option.value === selectedAccessEnd.value
+      )
+    ) {
+      accessDurationOptions = [
+        ...accessDurationOptions,
+        selectedAccessEnd,
+      ].sort((left, right) => left.value - right.value);
+    }
   }
 
   function reset() {
@@ -108,18 +120,18 @@ export function useSpecifiableFields() {
     setSelectedResourceRequestRoles([]);
     setSelectedReviewers([]);
     setStartTime(null);
-    setMaxDuration(null);
+    setSelectedAccessEnd(null);
     setPendingRequestTtl(null);
     setRequestKind(RequestKind.ShortTerm);
   }
 
   function preselectPendingRequestTtlOption(
-    newMaxDuration: number,
+    accessEnd: number,
     dryRequestCreated: Date
   ) {
     const newRequestTtlOptions = getPendingRequestDurationOptions(
       dryRequestCreated,
-      newMaxDuration
+      accessEnd
     );
     const ttlIndex = getDurationOptionIndexClosestToOneWeek(
       newRequestTtlOptions,
@@ -128,12 +140,12 @@ export function useSpecifiableFields() {
     setPendingRequestTtl(newRequestTtlOptions[ttlIndex]);
   }
 
-  function onMaxDurationChange(newMaxDurationOption: Option<number>) {
-    setMaxDuration(newMaxDurationOption);
+  function onMaxDurationChange(newAccessEndOption: Option<number>) {
+    setSelectedAccessEnd(newAccessEndOption);
     // Re-set pending request TTL, since pending duration
     // can't be greater than max duration.
     preselectPendingRequestTtlOption(
-      newMaxDurationOption.value,
+      newAccessEndOption.value,
       dryRunResponse.created
     );
   }
@@ -142,26 +154,35 @@ export function useSpecifiableFields() {
    * An empty start date will default to dry run's response created date.
    */
   function onStartTimeChange(start?: Date) {
-    updateStartAndDurationFields(start, dryRunResponse);
+    updateStartAndDurationFields(start, dryRunResponse, selectedAccessEnd);
   }
 
   function updateStartAndDurationFields(
     start: Date,
-    dryRequest: AccessRequest
+    dryRequest: AccessRequest,
+    accessEndToPreserve?: Option<number> | null
   ) {
+    const scheduledTiming = dryRequest.timing?.scheduled;
+    const selectedStart = start ?? scheduledTiming?.start ?? dryRequest.created;
+    let accessEndOption: Option<number>;
+
+    if (scheduledTiming && accessEndToPreserve) {
+      // Keep the user's duration unchanged when the start changes.
+      const previousStart = getSelectedStart(dryRequest, startTime);
+      const selectedDuration =
+        accessEndToPreserve.value - previousStart.getTime();
+      accessEndOption = makeAccessEndOption(
+        selectedStart,
+        new Date(selectedStart.getTime() + selectedDuration)
+      );
+    } else {
+      // Use the default duration when no scheduled duration is selected.
+      accessEndOption = getDefaultAccessEndOption(selectedStart, dryRequest);
+    }
+
     setStartTime(start);
-
-    // Pre-select default max duration.
-    const newDurationOpts = getDurationOptionsFromStartTime(start, dryRequest);
-
-    const durationIndex = getDurationOptionIndexClosestToOneWeek(
-      newDurationOpts,
-      start || dryRequest.created
-    );
-    const newMaxDuration = newDurationOpts[durationIndex];
-    setMaxDuration(newMaxDuration);
-
-    preselectPendingRequestTtlOption(newMaxDuration.value, dryRequest.created);
+    setSelectedAccessEnd(accessEndOption);
+    preselectPendingRequestTtlOption(accessEndOption.value, dryRequest.created);
   }
 
   /**
@@ -195,9 +216,9 @@ export function useSpecifiableFields() {
     setResourceRequestRoles,
     selectedResourceRequestRoles,
     setSelectedResourceRequestRoles,
-    maxDuration,
+    maxDuration: selectedAccessEnd,
     onMaxDurationChange,
-    maxDurationOptions,
+    maxDurationOptions: accessDurationOptions,
     pendingRequestTtl,
     setPendingRequestTtl,
     pendingRequestTtlOptions,
@@ -211,4 +232,24 @@ export function useSpecifiableFields() {
     reasonMode: dryRunResponse?.reasonMode,
     reasonPrompts: dryRunResponse?.reasonPrompts,
   };
+}
+
+function getDefaultAccessEndOption(
+  start: Date,
+  accessRequest: AccessRequest
+): Option<number> {
+  const options = getDurationOptionsFromStartTime(start, accessRequest);
+  const index = getDurationOptionIndexClosestToOneWeek(options, start);
+  return options[index];
+}
+
+function getSelectedStart(
+  accessRequest: AccessRequest,
+  selectedStart: Date
+): Date {
+  return (
+    selectedStart ||
+    accessRequest.timing?.scheduled?.start ||
+    accessRequest.created
+  );
 }

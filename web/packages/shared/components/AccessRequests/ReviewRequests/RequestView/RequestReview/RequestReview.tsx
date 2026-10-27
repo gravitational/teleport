@@ -20,6 +20,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, ButtonPrimary, Flex, H3, Label, Text } from 'design';
+import { displayDateTimeWithTimeZone } from 'design/datetime';
 import { Warning } from 'design/Icon';
 import { Radio } from 'design/RadioGroup';
 import { HoverTooltip } from 'design/Tooltip';
@@ -39,6 +40,7 @@ import {
 
 import { AccessDurationReview } from '../../../AccessDuration';
 import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
+import { getFormattedDurationTxt } from '../../../Shared/utils';
 import { SubmitReview, SuggestedAccessList } from '../types';
 
 type ReviewStateOption = Option<RequestState, React.ReactElement> & {
@@ -163,16 +165,22 @@ export default function RequestReview({
                       <Box ml={4} mt={2} css={{ position: 'relative' }} mb={3}>
                         <HorizontalLine height={120} />
                         <Box ml={1}>
-                          <AssumeStartTime
-                            start={assumeStartTime}
-                            onStartChange={setStart}
-                            accessRequest={request}
-                            reviewing={true}
-                          />
-                          <AccessDurationReview
-                            assumeStartTime={assumeStartTime}
-                            accessRequest={request}
-                          />
+                          {request.timing?.scheduled ? (
+                            <ScheduledReviewTiming request={request} />
+                          ) : (
+                            <>
+                              <AssumeStartTime
+                                start={assumeStartTime}
+                                onStartChange={setStart}
+                                accessRequest={request}
+                                reviewing={true}
+                              />
+                              <AccessDurationReview
+                                assumeStartTime={assumeStartTime}
+                                accessRequest={request}
+                              />
+                            </>
+                          )}
                         </Box>
                       </Box>
                     </React.Fragment>
@@ -255,6 +263,44 @@ export default function RequestReview({
         </Box>
       )}
     </Validation>
+  );
+}
+
+function ScheduledReviewTiming({ request }: { request: AccessRequest }) {
+  const scheduled = request.timing.scheduled;
+  const scheduledAccessEnd = new Date(
+    scheduled.start.getTime() + scheduled.duration
+  );
+
+  return (
+    <Flex flexDirection="column" gap={2}>
+      <ReadOnlyTimingRow
+        label="Starts"
+        value={displayDateTimeWithTimeZone(scheduled.start)}
+      />
+      <ReadOnlyTimingRow
+        label="Ends"
+        value={displayDateTimeWithTimeZone(scheduledAccessEnd)}
+      />
+      <ReadOnlyTimingRow
+        label="Duration"
+        value={getFormattedDurationTxt({
+          start: scheduled.start,
+          end: scheduledAccessEnd,
+        })}
+      />
+    </Flex>
+  );
+}
+
+function ReadOnlyTimingRow({ label, value }: { label: string; value: string }) {
+  return (
+    <Box>
+      <Text typography="body4" color="text.slightlyMuted">
+        {label}
+      </Text>
+      <Text>{value}</Text>
+    </Box>
   );
 }
 

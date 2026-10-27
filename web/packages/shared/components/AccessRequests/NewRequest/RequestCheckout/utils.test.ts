@@ -16,12 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { addDays, addHours } from 'date-fns';
+import { addDays, addHours, addMinutes } from 'date-fns';
 
 import { Option } from 'shared/components/Select';
 
 import {
+  getDefaultScheduledStartTimeOption,
   getPendingRequestDurationOptions,
+  getScheduledEndTimeOptions,
+  getScheduledStartTimeOptions,
+  getScheduledStartLimit,
   presetDays,
   presetHours,
 } from './utils';
@@ -112,3 +116,55 @@ function testPresetHours(opts: Option<number>[], createdDate: Date) {
     expect(opts[i].value).toBe(addedDate.getTime());
   }
 }
+
+test('scheduled start options exclude past times and stop at 30 days', () => {
+  // Setup the current time and the server-aligned 30-day limit.
+  const now = new Date('2026-10-19T20:15:00Z');
+  const limit = getScheduledStartLimit(now);
+
+  // Execute.
+  const currentDayOptions = getScheduledStartTimeOptions(now, now);
+  const limitDayOptions = getScheduledStartTimeOptions(limit, now);
+
+  // Assert options start in the future and do not exceed the limit.
+  expect(currentDayOptions[0].value).toEqual(new Date('2026-10-19T20:30:00Z'));
+  expect(
+    currentDayOptions.every(option => option.value.getTime() > now.getTime())
+  ).toBe(true);
+  expect(limitDayOptions.at(-1).value).toEqual(limit);
+  expect(
+    limitDayOptions.every(option => option.value.getTime() <= limit.getTime())
+  ).toBe(true);
+});
+
+test('scheduled start defaults to 9 AM local time on a future date', () => {
+  // Setup a future date with 9:00 AM available.
+  const now = new Date(2026, 9, 21, 20, 15);
+  const selectedDate = new Date(2026, 9, 22);
+
+  // Execute.
+  const option = getDefaultScheduledStartTimeOption(selectedDate, now);
+
+  // Assert the default start time is 9:00 AM.
+  expect(option.value.getHours()).toBe(9);
+  expect(option.value.getMinutes()).toBe(0);
+});
+
+test('scheduled end options are after start and include the exact cap', () => {
+  // Setup a start and a duration cap between 30-minute options.
+  const start = new Date('2026-11-01T10:00:00Z');
+  const maxAllowedDuration = 2 * 60 * 60 * 1000 + 15 * 60 * 1000;
+  const cap = addMinutes(start, 135);
+
+  // Execute.
+  const options = getScheduledEndTimeOptions(start, start, maxAllowedDuration);
+
+  // Assert options are after start, within the cap, and include it.
+  expect(
+    options.every(option => option.value.getTime() > start.getTime())
+  ).toBe(true);
+  expect(options.at(-1).value).toEqual(cap);
+  expect(options.every(option => option.value.getTime() <= cap.getTime())).toBe(
+    true
+  );
+});

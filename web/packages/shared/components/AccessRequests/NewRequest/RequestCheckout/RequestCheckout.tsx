@@ -95,6 +95,7 @@ import {
 import { AdditionalOptions } from './AdditionalOptions';
 import { CrossIcon } from './CrossIcon';
 import { KubeNamespaceSelector } from './KubeNamespaceSelector';
+import { ScheduledAccessTiming } from './ScheduledAccessTiming';
 import { SelectReviewers } from './SelectReviewers';
 import shieldCheck from './shield-check.png';
 import { ReviewerOption } from './types';
@@ -292,8 +293,8 @@ export function RequestCheckout<T extends PendingListItem>({
   numRequestedResources,
   setSelectedResourceRequestRoles,
   fetchStatus,
-  onMaxDurationChange,
-  maxDurationOptions,
+  onMaxDurationChange: onAccessEndChange,
+  maxDurationOptions: accessEndOptions,
   setPendingRequestTtl,
   pendingRequestTtlOptions,
   dryRunResponse,
@@ -303,7 +304,7 @@ export function RequestCheckout<T extends PendingListItem>({
   fetchResourceRequestRolesAttempt,
   createRequest,
   selectedReviewers,
-  maxDuration,
+  maxDuration: selectedAccessEnd,
   pendingRequestTtl,
   resourceRequestRoles,
   isResourceRequest,
@@ -354,7 +355,7 @@ export function RequestCheckout<T extends PendingListItem>({
     createRequest({
       reason,
       suggestedReviewers: selectedReviewers.map(r => r.value),
-      maxDuration: maxDuration ? new Date(maxDuration.value) : null,
+      maxDuration: selectedAccessEnd ? new Date(selectedAccessEnd.value) : null,
       requestTTL: pendingRequestTtl ? new Date(pendingRequestTtl.value) : null,
       start: startTime,
       requestKind,
@@ -790,16 +791,31 @@ export function RequestCheckout<T extends PendingListItem>({
                     {/* Start time / max duration are only valid for non-Long-Term requests */}
                     {!isLongTerm && dryRunResponse && (
                       <Box mb={1}>
-                        <AssumeStartTime
-                          start={startTime}
-                          onStartChange={onStartTimeChange}
-                          accessRequest={dryRunResponse}
-                        />
-                        <AccessDurationRequest
-                          maxDuration={maxDuration}
-                          onMaxDurationChange={onMaxDurationChange}
-                          maxDurationOptions={maxDurationOptions}
-                        />
+                        {dryRunResponse.timing?.scheduled ? (
+                          <ScheduledAccessTiming
+                            start={startTime}
+                            maxAllowedDuration={
+                              dryRunResponse.timing.scheduled.duration
+                            }
+                            durationOptions={accessEndOptions}
+                            selectedAccessEnd={selectedAccessEnd}
+                            onStartChange={onStartTimeChange}
+                            onAccessEndChange={onAccessEndChange}
+                          />
+                        ) : (
+                          <>
+                            <AssumeStartTime
+                              start={startTime}
+                              onStartChange={onStartTimeChange}
+                              accessRequest={dryRunResponse}
+                            />
+                            <AccessDurationRequest
+                              maxDuration={selectedAccessEnd}
+                              onMaxDurationChange={onAccessEndChange}
+                              maxDurationOptions={accessEndOptions}
+                            />
+                          </>
+                        )}
                       </Box>
                     )}
                     <TextBox
@@ -809,9 +825,9 @@ export function RequestCheckout<T extends PendingListItem>({
                       reasonPrompts={reasonPrompts}
                       numPendingAccessRequests={numPendingAccessRequests}
                     />
-                    {!isLongTerm && dryRunResponse && maxDuration && (
+                    {!isLongTerm && dryRunResponse && selectedAccessEnd && (
                       <AdditionalOptions
-                        selectedMaxDurationTimestamp={maxDuration.value}
+                        selectedMaxDurationTimestamp={selectedAccessEnd.value}
                         setPendingRequestTtl={setPendingRequestTtl}
                         pendingRequestTtl={pendingRequestTtl}
                         dryRunResponse={dryRunResponse}

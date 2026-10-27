@@ -16,7 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { dateTimeShortFormat, displayDate, displayDateTime } from './format';
+import {
+  dateTimeShortFormat,
+  displayDate,
+  displayDateTime,
+  displayDateTimeWithTimeZone,
+  formatTimeZone,
+  formatTimeZoneOffset,
+} from './format';
 
 const testDate = new Date('2022-01-28T16:00:44.309Z');
 
@@ -34,4 +41,35 @@ test('displayDateTime', () => {
 
 test('dateTimeShortFormat', () => {
   expect(dateTimeShortFormat(testDate)).toEqual('4:00 PM');
+});
+
+test('formatTimeZone uses the offset and abbreviation at the displayed instant', () => {
+  // Setup winter and summer instants in New York.
+  const winter = new Date('2026-01-15T12:00:00Z');
+  const summer = new Date('2026-07-15T12:00:00Z');
+
+  // Execute.
+  const winterZone = formatTimeZone(winter, 'America/New_York');
+  const summerZone = formatTimeZone(summer, 'America/New_York');
+
+  // Assert each instant uses its applicable offset and abbreviation.
+  expect(winterZone).toBe('UTC-05:00 EST');
+  expect(summerZone).toBe('UTC-04:00 EDT');
+});
+
+test('formatTimeZoneOffset uses a compact UTC offset', () => {
+  const date = new Date('2026-07-15T12:00:00Z');
+
+  expect(formatTimeZoneOffset(date, 'America/Edmonton')).toBe('UTC-6');
+});
+
+test('displayDateTimeWithTimeZone formats the browser-local instant', () => {
+  // Setup a summer instant in Edmonton.
+  const date = new Date('2026-07-15T12:00:00Z');
+
+  // Execute.
+  const output = displayDateTimeWithTimeZone(date, 'America/Edmonton');
+
+  // Assert the output includes local time, offset, and abbreviation.
+  expect(output).toBe('Jul 15, 2026, 6:00 AM (UTC-06:00 MDT)');
 });

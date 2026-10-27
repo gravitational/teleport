@@ -18,6 +18,7 @@
 
 import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 import {
+  AccessRequest,
   getResourceIDString,
   RequestState,
   ResourceConstraintsMap,
@@ -125,15 +126,37 @@ test('changing access duration, also changes pending TTL options and the request
   expect(screen.getAllByText(/1 day/i)).toHaveLength(3);
 });
 
-const RequestCheckout = ({ reviewers = [] }: { reviewers?: string[] }) => {
+test('scheduled dry runs render the immediate timing layout', () => {
+  // Setup a scheduled dry run in the immediate layout.
+  const start = new Date('2026-10-19T20:00:00Z');
+  jest.useFakeTimers().setSystemTime(start);
+  const request = makeScheduledDryRun(start);
+
+  // Execute.
+  render(<RequestCheckout request={request} />);
+
+  // Assert scheduled controls replace the legacy timing controls.
+  expect(screen.getByText('Immediately on Approval')).toBeInTheDocument();
+  expect(screen.getByText(/Access will end on/)).toBeInTheDocument();
+  expect(screen.queryByText(/^Immediately$/)).not.toBeInTheDocument();
+});
+
+const RequestCheckout = ({
+  reviewers = [],
+  request = dryRunResponse,
+}: {
+  reviewers?: string[];
+  request?: AccessRequest;
+}) => {
   const specifiableProps = useSpecifiableFields();
 
   if (!specifiableProps.dryRunResponse) {
-    const request = {
+    const requestWithReviewers = {
       ...dryRunResponse,
+      ...request,
       reviewers: reviewers.map(r => ({ name: r, state: '' as RequestState })),
     };
-    specifiableProps.onDryRunChange(request);
+    specifiableProps.onDryRunChange(requestWithReviewers);
   }
 
   return (
@@ -147,6 +170,24 @@ const RequestCheckout = ({ reviewers = [] }: { reviewers?: string[] }) => {
     </div>
   );
 };
+
+function makeScheduledDryRun(start: Date): AccessRequest {
+  const duration = 10 * 24 * 60 * 60 * 1000;
+  const end = new Date(start.getTime() + duration);
+  return {
+    ...dryRunResponse,
+    created: start,
+    expires: end,
+    maxDuration: end,
+    requestTTL: end,
+    timing: {
+      scheduled: {
+        start,
+        duration,
+      },
+    },
+  };
+}
 
 const props: RequestCheckoutWithSliderProps = {
   createAttempt: { status: '' },

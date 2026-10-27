@@ -31,7 +31,10 @@ import {
   Text,
 } from 'design';
 import Table from 'design/DataTable';
-import { displayDateWithPrefixedTime } from 'design/datetime';
+import {
+  displayDateTimeWithTimeZone,
+  displayDateWithPrefixedTime,
+} from 'design/datetime';
 import {
   ArrowFatLinesUp,
   ChevronCircleDown,
@@ -167,7 +170,14 @@ export function RequestView({
     end: request.expires,
   });
   let startingTime = displayDateWithPrefixedTime(request.created);
-  if (request.assumeStartTime) {
+  const scheduledTiming = request.timing?.scheduled;
+  if (scheduledTiming) {
+    startingTime = displayDateTimeWithTimeZone(scheduledTiming.start);
+    requestedAccessTime = getFormattedDurationTxt({
+      start: scheduledTiming.start,
+      end: new Date(scheduledTiming.start.getTime() + scheduledTiming.duration),
+    });
+  } else if (request.assumeStartTime) {
     startingTime = displayDateWithPrefixedTime(request.assumeStartTime);
     requestedAccessTime = getFormattedDurationTxt({
       start: request.assumeStartTime,
