@@ -99,6 +99,10 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 		return nil, trace.Wrap(err)
 	}
 
+	if err := scopedaccess.WeakValidateRole(rsp.GetRole()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// verify that the role is enforceable at this enforcement point. if not, the assignment is
 	// skipped. this check is a critical part of the scopes security model and must always be
 	// performed prior to any enforcement logic related to a scoped role.
@@ -136,6 +140,7 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 			scopeOfOrigin: key.ScopeOfOrigin,
 			scopeOfEffect: key.ScopeOfEffect,
 			role:          rsp.GetRole(),
+			compatRole:    role,
 		},
 		scopedCompatChecker: checker,
 	}, nil
@@ -224,6 +229,10 @@ type scopedRoleAssignment struct {
 
 	// role is the assigned scoped role, or nil for unscoped identities.
 	role *scopedaccessv1.ScopedRole
+
+	// compatRole is the classic role equivalent of role (as produced by [scopedaccess.ScopedRoleToRole]
+	// with traits applied).
+	compatRole types.Role
 }
 
 // NewScopedAccessCheckerFromUnscoped creates a ScopedAccessChecker wrapping an unscoped AccessChecker.
@@ -253,6 +262,15 @@ func NewScopedAccessCheckerForSystemRole(roleName string, checker AccessChecker)
 				Version: types.V1,
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{scopes.Root},
+					// system role checkers draw all meaningful functionality from the supplied unscoped
+					// checker and have no scoped role to convert, so they cannot participate in the
+					// summing of permissions across roles. Marking them exclusive keeps them from being
+					// aggregated with one another by [ScopedAccessCheckerContext.Decision]. Note that
+					// summing across system roles isn't obviously desirable in the first place, and
+					// nothing relies on it today.
+					Evaluation: scopedaccessv1.ScopedRoleEvaluation_builder{
+						Mode: scopedaccess.EvaluationModeExclusive,
+					}.Build(),
 				}.Build(),
 			}.Build(),
 		},
@@ -285,6 +303,43 @@ func (c *ScopedAccessChecker) roles() iter.Seq[*scopedaccessv1.ScopedRole] {
 			}
 		}
 	}
+}
+
+// assignments iterates all scoped role assignments that contribute to the permissions/controls of this
+// checker.
+//
+// NOTE: this method panics if called on an unscoped checker.
+func (c *ScopedAccessChecker) assignments() iter.Seq[scopedRoleAssignment] {
+	if !c.isScoped() {
+		panic("ScopedAccessChecker.assignments called on unscoped checker (this is a bug)")
+	}
+	return func(yield func(scopedRoleAssignment) bool) {
+		if !yield(c.scopedRoleAssignment) {
+			return
+		}
+		for _, assignment := range c.additionalRoles {
+			if !yield(assignment) {
+				return
+			}
+		}
+	}
+}
+
+// aggregateRoleSet is a temporary workaround to get summing support working for scoped methds that fallback
+// to unscoped logic. Future changes will make the scopedCompatChecker itself summed, and do away with the
+// need for this helper.
+func (c *ScopedAccessChecker) aggregateRoleSet() RoleSet {
+	if !c.isScoped() {
+		panic("ScopedAccessChecker.aggregateRoleSet called on unscoped checker (this is a bug)")
+	}
+	if len(c.additionalRoles) == 0 {
+		return RoleSet(c.scopedCompatChecker.Roles())
+	}
+	set := make(RoleSet, 0, len(c.additionalRoles)+1)
+	for assignment := range c.assignments() {
+		set = append(set, assignment.compatRole)
+	}
+	return set
 }
 
 // SSH returns an SSH-specific access checker backed by this checker. All SSH-specific methods

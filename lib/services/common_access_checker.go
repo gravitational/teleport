@@ -21,62 +21,9 @@ import (
 	"cmp"
 	"iter"
 	"slices"
-	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
-
-	"github.com/gravitational/teleport/api/constants"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 )
-
-// adjust the client idle timeout value - preferring the default if not set
-func (c *ScopedAccessChecker) adjustScopedClientIdleTimeout(idleStr string, timeout time.Duration) (time.Duration, error) {
-	if idleStr == "" {
-		idleStr = c.role.GetSpec().GetDefaults().GetClientIdleTimeout()
-	}
-	if idleStr != "" {
-		d, err := time.ParseDuration(idleStr)
-		if err != nil {
-			return 0, trace.Errorf("invalid client_idle_timeout %q in scoped role %q: %w", idleStr, c.role.GetMetadata().GetName(), err)
-		}
-		if d > 0 && (timeout == 0 || d < timeout) {
-			return max(d, 0), nil
-		}
-	}
-	return max(timeout, 0), nil
-}
-
-// adjustScopedDisconnectExpiredCert returns the disconnect on Expired Cert condition - - applying the default if applicable.
-func (c *ScopedAccessChecker) adjustScopedDisconnectExpiredCert(roleSpecifiedDisconnect *bool, defaultdisconnect bool) bool {
-	if roleSpecifiedDisconnect == nil && c.role.GetSpec().GetDefaults() != nil {
-		roleSpecifiedDisconnect = proto.ValueOrNil(c.role.GetSpec().GetDefaults().HasDisconnectExpiredCert(), c.role.GetSpec().GetDefaults().GetDisconnectExpiredCert)
-	}
-
-	if roleSpecifiedDisconnect != nil {
-		return *roleSpecifiedDisconnect
-	}
-	return defaultdisconnect
-}
-
-// LockingMode returns the lock enforcement mode to apply - applying the default if applicable.
-func (c *ScopedAccessChecker) scopedLockingMode(lock *accessv1.Lock, defaultMode constants.LockingMode) constants.LockingMode {
-	if lock == nil {
-		lock = c.role.GetSpec().GetDefaults().GetLock()
-	}
-	// both protocol specific lock and the default locks are nil, so return the defaultMode.
-	if lock == nil {
-		return defaultMode
-	}
-
-	mode := constants.LockingMode(lock.GetMode())
-	switch mode {
-	case constants.LockingModeStrict, constants.LockingModeBestEffort:
-		return mode
-	default:
-		return defaultMode
-	}
-}
 
 // minNonZero returns the smallest positive value in seq, or zero if seq contains no positive values. Useful for
 // summing controls such as max_sessions where the smallest nonzero value is always selected.
