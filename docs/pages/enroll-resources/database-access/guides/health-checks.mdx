@@ -190,6 +190,13 @@ For automatically discovered AWS databases registered with Teleport, use
 with `--failures-only` to check for unhealthy connections, missing Database
 Service heartbeats, and RDS IAM authentication issues.
 
+For `No Database Service` or `IAM Auth disabled` results, follow the
+[missing Database Service](../troubleshooting.mdx#no-database-service) or
+[IAM authentication](../troubleshooting.mdx#iam-authentication-disabled)
+troubleshooting steps. For `Unhealthy connection`, inspect the target health
+error described above and follow the [connection timeout troubleshooting
+steps](../troubleshooting.mdx#timeout-errors).
+
 The Teleport web UI will highlight unhealthy databases.
 You can click on a highlighted database to view some health check failure details or other warnings:
 

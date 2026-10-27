@@ -10,17 +10,27 @@ $ tctl discovery databases --failures-only
 
 Use the `Details` column to identify the next troubleshooting step:
 
-- **No Database Service is proxying this database**: Check that a Database
+- **No Database Service**: Check that a Database
   Service is running and that its `db_service.resources` labels match the
-  registered database.
+  registered database. Follow the [missing Database Service troubleshooting
+  steps](../../enroll-resources/database-access/troubleshooting.mdx#no-database-service).
 - **IAM Auth disabled**: Enable IAM database authentication for the RDS instance
-  or Aurora cluster.
-- **The Database Service connection to this database is unhealthy**: Check
+  or Aurora cluster. Follow the [IAM authentication troubleshooting
+  steps](../../enroll-resources/database-access/troubleshooting.mdx#iam-authentication-disabled).
+- **Unhealthy connection**: Check
   network connectivity from the Database Service to the database, including VPC
-  routes and security group rules.
+  routes and security group rules. Inspect the [target health
+  error](../../enroll-resources/database-access/guides/health-checks.mdx#target-health)
+  and follow the [connection timeout troubleshooting
+  steps](../../enroll-resources/database-access/troubleshooting.mdx#timeout-errors).
 
 A database can have more than one issue. An `Online` status does not verify
 database user provisioning, user permissions, or successful authentication.
+
+The command only checks database resources already registered with Teleport.
+If an expected database has no `db` resource, follow the Discovery Service
+troubleshooting steps below. An empty result with `--failures-only` means no
+failures were reported for the databases examined.
 
 See [`tctl discovery databases`](../../reference/cli/tctl.mdx#tctl-discovery-databases)
 for the output fields and full flag reference.

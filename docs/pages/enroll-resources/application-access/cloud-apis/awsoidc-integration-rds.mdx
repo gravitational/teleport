@@ -175,6 +175,27 @@ an ECS deployment in your AWS account, and run a database connection test.
 
 ## Troubleshooting
 
+For databases already registered with Teleport, check their availability with:
+
+```code
+$ tctl discovery databases --failures-only
+```
+
+Use the `Details` column to choose the next step:
+
+- **No Database Service**: Check for [ECS tasks that are not
+  running](#ecs-tasks-not-running), inspect the [Database Service
+  logs](#how-to-find-teleport-database-service-logs), and verify the service's
+  [database label selectors](../../database-access/troubleshooting.mdx#no-database-service).
+- **Unhealthy connection**: Follow the [database connection timeout
+  troubleshooting steps](#database-connection-test-timeout).
+- **IAM Auth disabled**: Follow the [IAM authentication troubleshooting
+  steps](../../database-access/troubleshooting.mdx#iam-authentication-disabled).
+
+The command only checks database resources already registered with Teleport.
+See the [CLI reference](../../../reference/cli/tctl.mdx#tctl-discovery-databases)
+for diagnostic coverage and permission requirements.
+
 The enrollment wizard waits for the ECS deployment tasks to start and connect to
 your Teleport cluster.
 If that does not happen, then either the ECS tasks have failed to start or they

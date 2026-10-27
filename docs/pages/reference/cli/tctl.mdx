@@ -1584,6 +1584,16 @@ Missing or unknown target health information does not by itself mark a database
 as Offline. An Online status does not verify database user provisioning,
 user permissions, or successful authentication.
 
+The command only checks database resources already registered with Teleport
+and visible to the caller. It does not report cloud databases that have not
+been registered. With --failures-only, an empty result means no failures were
+reported for the databases examined.
+
+RDS discovery issue checks require read and list permissions on user_task
+resources. If access is denied, these checks are skipped and the command uses
+only Database Service heartbeats and target health. An Online status in that
+case does not confirm that there are no RDS discovery issues.
+
 Usage:
 
 ```code

@@ -12,6 +12,70 @@ page_type: troubleshooting
 This page describes common issues that occur when enrolling databases with
 Teleport and how to work around or resolve them.
 
+## No Database Service
+
+For automatically discovered AWS databases, `tctl discovery databases` reports
+`No Database Service` when no Database Service heartbeat exists for a registered
+database.
+
+1. Inspect the database resource and its labels:
+
+   ```code
+   $ tctl get db/<Var name="database-name" />
+   ```
+
+   If the resource is missing, troubleshoot [database
+   auto-discovery](../auto-discovery/databases/databases.mdx). The diagnostic
+   command only checks database resources already registered with Teleport.
+
+2. List running Database Services:
+
+   ```code
+   $ tctl get db_service
+   ```
+
+   If no services are listed, check that your Database Service is running and
+   connected to the Teleport cluster. If you have not deployed one, follow the
+   appropriate [database enrollment guide](enrollment/enrollment.mdx).
+
+3. Compare the database labels with each service's `spec.resources` label
+   selectors. At least one service must match the database and have network
+   connectivity to its endpoint. Update the service's `db_service.resources`
+   configuration as needed, following [Dynamic Database
+   Registration](guides/dynamic-registration.mdx).
+
+4. Confirm that the service has started proxying the database:
+
+   ```code
+   $ tctl get db_server/<Var name="database-name" />
+   ```
+
+   If no heartbeat appears, inspect the Database Service logs for registration,
+   network, or permission errors.
+
+## IAM authentication disabled
+
+For RDS instances and Aurora clusters, `tctl discovery databases` can report
+`IAM Auth disabled` when an open discovery issue task records that IAM database
+authentication is disabled.
+
+Enable IAM database authentication using the AWS instructions for your resource:
+
+- [RDS DB instances](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Enabling.html).
+- [Aurora DB clusters](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.Enabling.html).
+
+The Database Service attempts to enable IAM authentication automatically, but
+its AWS credentials might lack `rds:ModifyDBInstance` or `rds:ModifyDBCluster`
+permission for the target resource. Check the service logs with DEBUG logging
+enabled for permission errors. You can have an authorized AWS operator enable
+IAM authentication manually.
+
+After AWS applies the change, allow the Discovery Service to synchronize again
+and rerun the diagnostic command. Enabling IAM database authentication is
+separate from provisioning a database user and granting access. Follow the
+[RDS and Aurora enrollment guide](enrollment/aws/rds/mysql-postgres-mariadb.mdx)
+to configure database users and permissions.
+
 ## Connection attempts fail
 
 ### Timeout errors

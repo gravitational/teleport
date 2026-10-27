@@ -108,31 +108,48 @@ func (diagnostics DatabaseDiagnostics) Recommendations() []Recommendation {
 	}
 
 	var recommendations []Recommendation
-	// TODO(gavin): add docs links for each step.
 	if hasNoService {
 		recommendations = append(recommendations, Recommendation{
 			Detail: DatabaseDetailNoService,
 			Description: `
 Deploy a Teleport Database Service and ensure its db_service.resources label
-selectors match the database's labels.`,
+selectors match the database's labels [1].
+
+[1]: https://goteleport.com/docs/enroll-resources/database-access/troubleshooting/#no-database-service`,
 		})
 	}
 	if hasUnhealthy {
 		recommendations = append(recommendations, Recommendation{
 			Detail: DatabaseDetailUnhealthy,
 			Description: `
-Inspect the health check failure in db_server status.target_health and the
+Inspect the health check failure in db_server status.target_health [1] and the
 Database Service logs. Ensure the Database Service can reach the database
-endpoint over the network, including VPC routes and security group rules.`,
+endpoint over the network, including VPC routes and security group rules [2].
+
+[1]: https://goteleport.com/docs/enroll-resources/database-access/guides/health-checks/#target-health
+[2]: https://goteleport.com/docs/enroll-resources/database-access/troubleshooting/#timeout-errors`,
 		})
 	}
 	for _, issueType := range slices.Sorted(maps.Keys(issueTypes)) {
 		title, description := usertasks.DescriptionForDiscoverRDSIssue(issueType)
+		if issueType == usertaskstypes.AutoDiscoverRDSIssueIAMAuthenticationDisabled {
+			description = `The Teleport Database Service uses IAM authentication to communicate with RDS.
+
+These RDS databases do not have IAM authentication enabled.
+
+You can enable IAM authentication by modifying the IAM DB Authentication property of the database [1].
+
+[1]: https://goteleport.com/docs/enroll-resources/database-access/troubleshooting/#iam-authentication-disabled`
+		} else {
+			description = cmp.Or(description, "No troubleshooting guidance for this issue is available in this version of Teleport.") + `
+
+See Database Access troubleshooting [1].
+
+[1]: https://goteleport.com/docs/enroll-resources/database-access/troubleshooting/`
+		}
 		recommendations = append(recommendations, Recommendation{
-			Detail: cmp.Or(title, issueType),
-			Description: cmp.Or(description, `
-No troubleshooting guidance for this issue is available in this version of Teleport.
-`),
+			Detail:      cmp.Or(title, issueType),
+			Description: description,
 		})
 	}
 	return recommendations
@@ -140,6 +157,7 @@ No troubleshooting guidance for this issue is available in this version of Telep
 
 // DiagnoseDatabases correlates automatically discovered AWS databases with
 // Database Service heartbeats and open RDS discovery issue tasks.
+// If user tasks are not accessible, only heartbeat and target health data is used.
 // If failuresOnly is true, only offline databases are returned.
 // An empty result is a non-nil slice so that it encodes as a JSON array.
 func DiagnoseDatabases(ctx context.Context, clt DatabaseClient, userTasks services.UserTasks, failuresOnly bool) (DatabaseDiagnostics, error) {
@@ -180,7 +198,11 @@ func DiagnoseDatabases(ctx context.Context, clt DatabaseClient, userTasks servic
 		}.Build())
 	}))
 	if err != nil {
-		return nil, trace.Wrap(err, "fetching database user tasks")
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err, "fetching database user tasks")
+		}
+		slog.DebugContext(ctx, "Skipping database discovery issues because user tasks are not accessible")
+		tasks = nil
 	}
 	slog.DebugContext(ctx, "Fetched open user tasks", "count", len(tasks))
 	issues := collectRDSIssues(tasks)
