@@ -25,11 +25,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"runtime"
 	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 
@@ -521,4 +523,28 @@ func consumeStringControl(s string, i int) int {
 		i += size
 	}
 	return i
+}
+
+// OnlyOn will hide and disable commands on OSes different then provided
+func OnlyOn(os string, cmds ...*kingpin.CmdClause) {
+	if runtime.GOOS == os {
+		return
+	}
+	for _, cmd := range cmds {
+		cmd.Hidden().Validate(func(clause *kingpin.CmdClause) error {
+			return fmt.Errorf("%s is only supported on %s", cmd.FullCommand(), os)
+		})
+	}
+}
+
+// NotOn will hide and disable commands on OS provided
+func NotOn(os string, cmds ...*kingpin.CmdClause) {
+	if runtime.GOOS != os {
+		return
+	}
+	for _, cmd := range cmds {
+		cmd.Hidden().Validate(func(clause *kingpin.CmdClause) error {
+			return fmt.Errorf("%s is not supported on %s", cmd.FullCommand(), os)
+		})
+	}
 }

@@ -820,6 +820,18 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 	return out, nil
 }
 
+// ActiveRevision returns the currently active revision from local state in
+// update.yaml, or the zero Revision if auto-updates are not configured.
+// Unlike Status, ActiveRevision performs no proxy lookup, so it remains
+// accurate even when the proxy is unreachable.
+func (u *Updater) ActiveRevision() (Revision, error) {
+	cfg, err := readConfig(u.UpdateConfigFile)
+	if err != nil {
+		return Revision{}, trace.Wrap(err, "failed to read %s", UpdateConfigName)
+	}
+	return cfg.Status.Active, nil
+}
+
 // Disable disables agent auto-updates.
 // This function is idempotent.
 func (u *Updater) Disable(ctx context.Context) error {

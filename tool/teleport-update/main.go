@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	tools "github.com/gravitational/teleport/tool/common"
 )
 
 const appHelp = `Teleport Updater
@@ -224,6 +225,12 @@ func Run(args []string) int {
 	setupCmd.Flag("tbot", "Setup a systemd service for tbot.").
 		Envar(autoupdate.SetupTbotEnvVar).BoolVar(&ccfg.SetupTbot)
 
+	// serviceCmd is invoked by the TeleportUpdater Windows service, so this contract must be stable.
+	serviceCmd := app.Command("windows-service", "Run the update subcommand periodically as a Windows service.").
+		Hidden()
+
+	tools.OnlyOn("windows", serviceCmd)
+
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 	statusCmd.Flag("err-if-should-update-now",
 		fmt.Sprintf("Exits with code %d if the agent should update now. Exit code 0 means that the agent should not update now, even if it might not run the target version.", notUpToDateExitCode),
@@ -250,8 +257,7 @@ func Run(args []string) int {
 	switch command {
 	case statusCmd.FullCommand(), versionCmd.FullCommand():
 	default:
-		if os.Geteuid() != 0 {
-			plog.ErrorContext(ctx, "This command must be run as root. Try running with sudo.")
+		if !checkRoot(ctx, plog) {
 			return 1
 		}
 		// Set required umask for commands that write files to system directories as root, and warn loudly if it changes.
@@ -279,6 +285,8 @@ func Run(args []string) int {
 		err = cmdUnlinkPackage(ctx, &ccfg)
 	case setupCmd.FullCommand():
 		err = cmdSetup(ctx, &ccfg)
+	case serviceCmd.FullCommand():
+		err = cmdService(ctx, &ccfg)
 	case uninstallCmd.FullCommand():
 		err = cmdUninstall(ctx, &ccfg)
 	case versionCmd.FullCommand():
