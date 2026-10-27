@@ -41,6 +41,7 @@ type LoginRequest struct {
 	state                        protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_RouteToCluster    string                 `protobuf:"bytes,1,opt,name=route_to_cluster,json=routeToCluster,proto3"`
 	xxx_hidden_KubernetesCluster string                 `protobuf:"bytes,2,opt,name=kubernetes_cluster,json=kubernetesCluster,proto3"`
+	xxx_hidden_Scope             string                 `protobuf:"bytes,3,opt,name=scope,proto3"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
@@ -84,12 +85,23 @@ func (x *LoginRequest) GetKubernetesCluster() string {
 	return ""
 }
 
+func (x *LoginRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *LoginRequest) SetRouteToCluster(v string) {
 	x.xxx_hidden_RouteToCluster = v
 }
 
 func (x *LoginRequest) SetKubernetesCluster(v string) {
 	x.xxx_hidden_KubernetesCluster = v
+}
+
+func (x *LoginRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type LoginRequest_builder struct {
@@ -101,6 +113,8 @@ type LoginRequest_builder struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	// Scope is an optional scope pin to add to the credentials.
+	Scope string
 }
 
 func (b0 LoginRequest_builder) Build() *LoginRequest {
@@ -109,6 +123,7 @@ func (b0 LoginRequest_builder) Build() *LoginRequest {
 	_, _ = b, x
 	x.xxx_hidden_RouteToCluster = b.RouteToCluster
 	x.xxx_hidden_KubernetesCluster = b.KubernetesCluster
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -342,10 +357,11 @@ var File_teleport_loginagent_v1_login_agent_proto protoreflect.FileDescriptor
 
 const file_teleport_loginagent_v1_login_agent_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/loginagent/v1/login_agent.proto\x12\x16teleport.loginagent.v1\"g\n" +
+	"(teleport/loginagent/v1/login_agent.proto\x12\x16teleport.loginagent.v1\"}\n" +
 	"\fLoginRequest\x12(\n" +
 	"\x10route_to_cluster\x18\x01 \x01(\tR\x0erouteToCluster\x12-\n" +
-	"\x12kubernetes_cluster\x18\x02 \x01(\tR\x11kubernetesCluster\"\xcb\x01\n" +
+	"\x12kubernetes_cluster\x18\x02 \x01(\tR\x11kubernetesCluster\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"\xcb\x01\n" +
 	"\rLoginResponse\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x19\n" +
 	"\bssh_cert\x18\x02 \x01(\fR\asshCert\x12\x19\n" +

@@ -2498,9 +2498,15 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		cf.DesiredRoles = ""
 	}
 
-	// For login operations, we use the hardware key
-	// service directly instead of the agent.
-	cf.disableHardwareKeyAgentClient = true
+	if os.Getenv(client.LoginAgentDirEnvVar) == "" {
+		// For login operations, we use the hardware key service directly instead of
+		// the agent; unless we're using the login agent which requires it.
+		cf.disableHardwareKeyAgentClient = true
+	} else {
+		// Force authentication through the login agent rather than silently
+		// retaining an unrelated cached profile.
+		cf.ForceReauth = true
+	}
 
 	if cf.IdentityFileIn != "" {
 		err := flattenIdentity(cf)

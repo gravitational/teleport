@@ -35,6 +35,9 @@ message LoginRequest {
   // KubernetesCluster is an optional k8s cluster name to route the response
   // credentials to.
   string kubernetes_cluster = 2;
+
+  // Scope is an optional scope pin to add to the credentials.
+  string scope = 3;
 }
 
 // LoginResponse contains the result of Login.

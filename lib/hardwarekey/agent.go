@@ -17,6 +17,7 @@
 package hardwarekey
 
 import (
+	"cmp"
 	"context"
 	"os"
 	"path/filepath"
@@ -39,18 +40,20 @@ const (
 	// server certificate.
 	CertFileName = ipc.CertFileName
 
-	dirName     = ".Teleport-PIV"
-	agentDirEnv = "TELEPORT_KEY_AGENT_DIR"
+	dirName          = ".Teleport-PIV"
+	keyAgentDirEnv   = "TELEPORT_KEY_AGENT_DIR"
+	loginAgentDirEnv = "TELEPORT_LOGIN_AGENT_DIR"
 )
 
 // AgentDirFromEnv returns the directory for the hardware key agent's socket and
-// certificate files from $TELEPORT_KEY_AGENT_DIR, or defaultDir if the environment
-// variable was not set.
+// certificate files from $TELEPORT_KEY_AGENT_DIR, $TELEPORT_LOGIN_AGENT_DIR, or
+// defaultDir if neither environment variable was set.
 func AgentDirFromEnv(defaultDir string) string {
-	if dir := os.Getenv(agentDirEnv); dir != "" {
-		return dir
-	}
-	return defaultDir
+	return cmp.Or(
+		os.Getenv(keyAgentDirEnv),
+		os.Getenv(loginAgentDirEnv),
+		defaultDir,
+	)
 }
 
 // DefaultAgentDir is the default dir for the hardware key agent's socket and certificate files.

@@ -195,6 +195,11 @@ func (s *AgentService) Login(ctx context.Context, req *loginagentv1.LoginRequest
 		return nil, trace.NotImplemented("login agent does not support logging in to a remote cluster")
 	}
 
+	// We also do not support scope pins, yet.
+	if req.GetScope() != "" {
+		return nil, trace.NotImplemented("login agent does not support scopes")
+	}
+
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 
 	opts := []identity.GenerateOption{
