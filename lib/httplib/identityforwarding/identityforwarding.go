@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package internal
+// Package identityforwarding sets the headers that let a Proxy forward the
+// identity behind a request to the service it calls, which reads them with
+// [authz.Middleware].
+package identityforwarding
 
 import (
 	"context"
@@ -28,30 +31,22 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-const (
-	// teleportImpersonateUserHeader is a header that specifies teleport user identity
-	// that the proxy is impersonating.
-	teleportImpersonateUserHeader = "Teleport-Impersonate-User"
-	// teleportImpersonateIPHeader is a header that specifies the real user IP address.
-	teleportImpersonateIPHeader = "Teleport-Impersonate-IP"
-)
-
-// ImpersonatorRoundTripper is a round tripper that impersonates a user with
-// the identity provided.
-type ImpersonatorRoundTripper struct {
+// RoundTripper adds the user identity and client address in each request's
+// context as headers, which [authz.Middleware] accepts only from a Proxy.
+type RoundTripper struct {
 	http.RoundTripper
 }
 
-// NewImpersonatorRoundTripper returns a new impersonator round tripper.
-func NewImpersonatorRoundTripper(rt http.RoundTripper) *ImpersonatorRoundTripper {
-	return &ImpersonatorRoundTripper{
+// NewRoundTripper wraps rt to forward identities.
+func NewRoundTripper(rt http.RoundTripper) *RoundTripper {
+	return &RoundTripper{
 		RoundTripper: rt,
 	}
 }
 
 // RoundTrip implements [http.RoundTripper] to include the identity
 // in the request header.
-func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (r *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
 
 	identity, err := authz.UserFromContext(req.Context())
@@ -62,21 +57,21 @@ func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.Header.Set(teleportImpersonateUserHeader, string(b))
+	req.Header.Set(authz.TeleportImpersonateUserHeader, string(b))
 
 	clientSrcAddr, err := authz.ClientSrcAddrFromContext(req.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	req.Header.Set(teleportImpersonateIPHeader, clientSrcAddr.String())
+	req.Header.Set(authz.TeleportImpersonateIPHeader, clientSrcAddr.String())
 
 	return r.RoundTripper.RoundTrip(req)
 }
 
-// CloseIdleConnections ensures that the returned [net.RoundTripper]
+// CloseIdleConnections ensures that the returned [http.RoundTripper]
 // has a CloseIdleConnections method.
-func (r *ImpersonatorRoundTripper) CloseIdleConnections() {
+func (r *RoundTripper) CloseIdleConnections() {
 	type closeIdler interface {
 		CloseIdleConnections()
 	}
@@ -85,12 +80,11 @@ func (r *ImpersonatorRoundTripper) CloseIdleConnections() {
 	}
 }
 
-// IdentityForwardingHeaders returns a copy of the provided headers with
-// the TeleportImpersonateUserHeader and TeleportImpersonateIPHeader headers
-// set to the identity provided.
+// Headers returns a copy of the provided headers with the identity and client
+// address in ctx set in the headers that [authz.Middleware] reads.
 // The returned headers shouldn't be used across requests as they contain
 // the client's IP address and the user's identity.
-func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header) (http.Header, error) {
+func Headers(ctx context.Context, originalHeaders http.Header) (http.Header, error) {
 	identity, err := authz.UserFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -101,14 +95,14 @@ func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header)
 	}
 
 	headers := originalHeaders.Clone()
-	headers.Set(teleportImpersonateUserHeader, string(b))
+	headers.Set(authz.TeleportImpersonateUserHeader, string(b))
 
 	clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	headers.Set(teleportImpersonateIPHeader, clientSrcAddr.String())
+	headers.Set(authz.TeleportImpersonateIPHeader, clientSrcAddr.String())
 	return headers, nil
 }
 

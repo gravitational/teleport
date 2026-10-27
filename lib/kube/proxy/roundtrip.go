@@ -41,7 +41,7 @@ import (
 	streamspdy "k8s.io/streaming/pkg/httpstream/spdy"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/kube/internal"
+	"github.com/gravitational/teleport/lib/httplib/identityforwarding"
 )
 
 // SpdyRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -227,7 +227,7 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	// If we're using identity forwarding, we need to add the impersonation
 	// headers to the request before we send the request.
 	if s.useIdentityForwarding {
-		h, err := internal.IdentityForwardingHeaders(s.ctx, header)
+		h, err := identityforwarding.Headers(s.ctx, header)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

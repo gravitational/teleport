@@ -39,11 +39,11 @@ import (
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
 
 const (
-	// teleportImpersonateUserHeader is a header that specifies teleport user identity
+	// TeleportImpersonateUserHeader is a header that specifies teleport user identity
 	// that the proxy is impersonating.
-	teleportImpersonateUserHeader = "Teleport-Impersonate-User"
-	// teleportImpersonateIPHeader is a header that specifies the real user IP address.
-	teleportImpersonateIPHeader = "Teleport-Impersonate-IP"
+	TeleportImpersonateUserHeader = "Teleport-Impersonate-User"
+	// TeleportImpersonateIPHeader is a header that specifies the real user IP address.
+	TeleportImpersonateIPHeader = "Teleport-Impersonate-IP"
 )
 
 // Middleware is authentication middleware that extracts user information
@@ -83,7 +83,7 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// instead of the user in the TLS certificate.
 	// This is used by the proxy to impersonate the end user when making requests
 	// without re-signing the client certificate.
-	impersonateUser := r.Header.Get(teleportImpersonateUserHeader)
+	impersonateUser := r.Header.Get(TeleportImpersonateUserHeader)
 	if impersonateUser != "" {
 		if !isProxyRole(user) {
 			trace.WriteError(w, trace.AccessDenied("Credentials forwarding is only permitted for Proxy"))
@@ -100,7 +100,7 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			trace.WriteError(w, err)
 			return
 		}
-		remoteAddr = r.Header.Get(teleportImpersonateIPHeader)
+		remoteAddr = r.Header.Get(TeleportImpersonateIPHeader)
 	}
 
 	// If the request is coming from a trusted proxy, we already know the user
@@ -108,8 +108,8 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// TeleportImpersonateHeader from the request, otherwise the proxy will
 	// attempt sending the request to upstream servers with the impersonation
 	// header from a fake user.
-	r.Header.Del(teleportImpersonateUserHeader)
-	r.Header.Del(teleportImpersonateIPHeader)
+	r.Header.Del(TeleportImpersonateUserHeader)
+	r.Header.Del(TeleportImpersonateIPHeader)
 
 	// determine authenticated user based on the request parameters
 	ctx := r.Context()

@@ -29,7 +29,7 @@ import (
 	kwebsocket "k8s.io/client-go/transport/websocket"
 	"k8s.io/streaming/pkg/httpstream"
 
-	"github.com/gravitational/teleport/lib/kube/internal"
+	"github.com/gravitational/teleport/lib/httplib/identityforwarding"
 )
 
 // WebsocketRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -82,7 +82,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	// If we're using identity forwarding, we need to add the impersonation
 	// headers to the request before we send the request.
 	if w.useIdentityForwarding {
-		if header, err = internal.IdentityForwardingHeaders(w.ctx, header); err != nil {
+		if header, err = identityforwarding.Headers(w.ctx, header); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

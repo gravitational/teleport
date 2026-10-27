@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/healthcheck"
-	"github.com/gravitational/teleport/lib/kube/internal"
+	"github.com/gravitational/teleport/lib/httplib/identityforwarding"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -187,7 +187,7 @@ func (f *Forwarder) newRemoteClusterTransport(clusterName string) (http.RoundTri
 
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
-		internal.NewImpersonatorRoundTripper(h2Transport),
+		identityforwarding.NewRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
 }
 
@@ -288,7 +288,7 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName, scope string) (htt
 
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
-		internal.NewImpersonatorRoundTripper(h2Transport),
+		identityforwarding.NewRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
 }
 

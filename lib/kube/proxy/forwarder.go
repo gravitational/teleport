@@ -78,8 +78,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/identityforwarding"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1569,7 +1569,7 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 	headers := http.Header{}
 	if impersonationHeaders {
-		if headers, err = internal.IdentityForwardingHeaders(req.Context(), headers); err != nil {
+		if headers, err = identityforwarding.Headers(req.Context(), headers); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
