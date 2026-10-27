@@ -57,6 +57,7 @@ type phasePublishCommand struct {
 type phasePublication struct {
 	req        *beamsv1.PublishPhaseRequest
 	generation string
+	beamID     string
 }
 
 func newPhasePublishCommand(parent *kingpin.CmdClause) *phasePublishCommand {
@@ -141,23 +142,26 @@ func (c *phasePublishCommand) prepareRequest(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	publication := newPhasePublication(current, parent, digest)
+	if c.final {
+		publication.beamID = env.BeamID()
+	}
+	return publication, nil
+}
+
+func newPhasePublication(current *beamsv1.Phase, parent, digest string) *phasePublication {
 	return &phasePublication{
 		req: beamsv1.PublishPhaseRequest_builder{
-			Name:             name,
+			Name:             current.GetMetadata().GetName(),
 			Parent:           parent,
 			ImageDigest:      digest,
 			ExpectedRevision: current.GetMetadata().GetRevision(),
 		}.Build(),
 		generation: current.GetStatus().GetPublished().GetGeneration(),
-	}, nil
+	}
 }
 
-func (c *phasePublishCommand) publish(
-	ctx context.Context,
-	api beamsv1.PhaseServiceClient,
-	publication *phasePublication,
-	env phaseEnvironment,
-) (*beamsv1.Phase, error) {
+func (publication *phasePublication) publish(ctx context.Context, api beamsv1.PhaseServiceClient) (*beamsv1.Phase, error) {
 	for attempt := 1; ; attempt++ {
 		resp, err := api.PublishPhase(ctx, publication.req)
 		if err == nil {
@@ -176,8 +180,8 @@ func (c *phasePublishCommand) publish(
 		if phase.GetStatus().GetPublished().GetGeneration() != publication.generation {
 			return nil, trace.CompareFailed("Phase snapshot changed since this command started. Run the command again to retry")
 		}
-		if c.final {
-			if err := validatePhaseFinalBuild(phase, env.BeamID()); err != nil {
+		if publication.beamID != "" {
+			if err := validatePhaseFinalBuild(phase, publication.beamID); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -225,7 +229,7 @@ func (c *phasePublishCommand) run(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 		}
-		published, err = c.publish(cf.Context, api, publication, beam)
+		published, err = publication.publish(cf.Context, api)
 		return trace.Wrap(err)
 	})
 	if _, writeErr := io.Copy(cf.Stderr(), &diagnostics); writeErr != nil {
@@ -266,6 +270,11 @@ func (c *phasePublishCommand) printPublished(cf *CLIConf, published *beamsv1.Pha
 				"Start a Beam from the latest snapshot: tsh beams add --phase=%s\n",
 			published.GetStatus().GetPublished().GetDigest(), name, name)
 		if err != nil || published.GetSpec().GetBuildConfig() != "" {
+			return trace.Wrap(err)
+		}
+		if published.GetStatus().GetStrategy() == beamsv1.PhaseStrategy_PHASE_STRATEGY_COPY {
+			_, err = fmt.Fprintln(cf.Stdout(),
+				"Replace its copied files using --copy. Interactive editing and forking are not supported.")
 			return trace.Wrap(err)
 		}
 		_, err = fmt.Fprintf(cf.Stdout(),

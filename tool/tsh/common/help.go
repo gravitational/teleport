@@ -144,22 +144,64 @@ Examples:
   Build a Phase from a raw command file:
   $ tsh phase add dev-tools --commands-file=build.yaml
 
+  Copy local files outside /home into a new Phase:
+  $ tsh phase add app-files --copy=/opt/app/config:./config --copy=/etc/app.conf:./app.conf
+
   Use another Phase as the base image:
   $ tsh phase add project-tools --from=dev-tools
 
   From inside a build Beam, fork the current filesystem:
   $ tsh phase add my-fork --fork
 
-  Fork an existing Phase's last successful snapshot:
+  Fork another Phase's last saved interactive filesystem:
   $ tsh phase add my-fork --fork-from=dev-tools`
+
+	phaseApplyHelp = `
+Examples:
+  Create or update every stage, in order, streaming command logs:
+  $ tsh phase apply -f phase.yaml
+
+  Reapply after changing local files or commands. Existing stages keep their
+  parent and cannot switch between files and commands. If a stage fails,
+  completed stages remain saved.
+
+Example phase.yaml:
+version: v1
+metadata:
+  name: app-files                  # Unique within this file and the cluster.
+                                   # Omit from here to use the default base image.
+files:                             # Use files or commands, never both.
+  - from: ./config                 # Local path, relative to this YAML file.
+    to: /opt/app-config             # Required absolute destination outside /home.
+                                   # Directories merge into the destination.
+---                                # Separate stages with a YAML document separator.
+version: v1
+metadata:
+  name: app
+  from: app-files                   # Every later stage names the preceding stage.
+commands:                          # Nonempty list, run in order as root outside /home.
+  - comment: Install tools         # Displayed in build logs as >> Install tools.
+    shell: apt-get update && apt-get install -y git curl
+                                   # Or use command with an optional args list.
+services:
+  - name: prepare-config           # Replaces any inherited service with this name.
+    type: pre-start
+    context: user                  # Default: interactive builds and ordinary Beams.
+    shell: cp /opt/app-config/app.json /home/beams/app.json
+
+Full format reference, service options, and examples:
+  https://goteleport.com/docs/beams/beams/#yaml-configuration-reference`
 
 	phaseEditHelp = `
 Examples:
-  Edit a Phase from its last successful snapshot:
+  Open a build console to edit a Phase's saved interactive files:
   $ tsh phase edit dev-tools
 
   Replace the raw command file:
   $ tsh phase edit dev-tools --commands-file=build.yaml
+
+  Replace a Phase's copied files using current local files:
+  $ tsh phase edit app-files --copy=/opt/app/config:./config
 
   Edit using another Phase's snapshot with the same parent:
   $ tsh phase edit dev-tools --from=other-tools`

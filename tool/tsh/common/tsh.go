@@ -2187,6 +2187,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = phaseCmd.publish.run(&cf)
 	case phaseCmd.add.FullCommand():
 		err = phaseCmd.add.run(&cf)
+	case phaseCmd.apply.FullCommand():
+		err = phaseCmd.apply.run(&cf)
 	case phaseCmd.edit.FullCommand():
 		err = phaseCmd.edit.run(&cf)
 	case phaseCmd.ls.FullCommand():

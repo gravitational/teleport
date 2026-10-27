@@ -29,6 +29,7 @@ import (
 type phaseCommands struct {
 	publish  *phasePublishCommand
 	add      *phaseAddCommand
+	apply    *phaseApplyCommand
 	edit     *phaseEditCommand
 	ls       *phaseLSCommand
 	lsFailed *phaseLSCommand
@@ -40,6 +41,7 @@ func newPhaseCommands(app *kingpin.Application) phaseCommands {
 	return phaseCommands{
 		publish:  newPhasePublishCommand(parent),
 		add:      newPhaseAddCommand(parent),
+		apply:    newPhaseApplyCommand(parent),
 		edit:     newPhaseEditCommand(parent),
 		ls:       newPhaseLSCommand(parent),
 		lsFailed: newPhaseFailedLSCommand(parent),

@@ -62,6 +62,8 @@ type phaseEditCommand struct {
 
 type phaseBuildOptions struct {
 	commandsFile string
+	copies       []string
+	files        []phaseConfigFile
 	region       string
 	format       string
 }
@@ -72,10 +74,10 @@ func newPhaseAddCommand(parent *kingpin.CmdClause) *phaseAddCommand {
 	cmd.Arg("name", "Optional Phase name. If omitted, a name is generated.").StringVar(&cmd.name)
 	cmd.Flag("from", "Upstream Phase image to use as the base image.").IsSetByUser(&cmd.fromSet).StringVar(&cmd.parent)
 	cmd.Flag("fork", "Capture the current build Beam's filesystem and start a new Phase from it.").BoolVar(&cmd.forkLocal)
-	cmd.Flag("fork-from", "Fork a Phase name or parent@sha256:digest into a new Phase.").
+	cmd.Flag("fork-from", "Fork a Phase name or parent@sha256:digest. Copy and rebuild Phases cannot be forked.").
 		IsSetByUser(&cmd.forkFromSet).
 		StringVar(&cmd.forkSource)
-	cmd.registerBuildFlags(cmd.CmdClause)
+	cmd.registerBuildFlags(cmd.CmdClause).Short('f')
 	return cmd
 }
 
@@ -85,21 +87,23 @@ func newPhaseEditCommand(parent *kingpin.CmdClause) *phaseEditCommand {
 	}
 	cmd.Alias(phaseEditHelp)
 	cmd.Arg("name", "Existing Phase to edit.").Required().StringVar(&cmd.name)
-	cmd.Flag("from", "Source Phase name or parent@sha256:digest. Defaults to the target's last successful snapshot.").
+	cmd.Flag("from", "Snapshot source: Phase name or parent@sha256:digest. Copy targets require --copy.").
 		IsSetByUser(&cmd.fromSet).
 		StringVar(&cmd.editSource)
-	cmd.registerBuildFlags(cmd.CmdClause)
+	cmd.registerBuildFlags(cmd.CmdClause).Short('f')
 	return cmd
 }
 
-func (c *phaseBuildOptions) registerBuildFlags(cmd *kingpin.CmdClause) {
+func (c *phaseBuildOptions) registerBuildFlags(cmd *kingpin.CmdClause) *kingpin.FlagClause {
 	cmd.Flag("commands-file", "Path to a YAML file in the raw command format. Omit for an interactive build.").
 		ExistingFileVar(&c.commandsFile)
+	cmd.Flag("copy", "Copy files outside /home using absolute-destination:local-source. Repeat for more paths.").
+		StringsVar(&c.copies)
 	cmd.Flag("region", "Region in which to build the Phase.").StringVar(&c.region)
-	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&c.format, defaults.DefaultFormats...)
+	format := cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
+		Default(teleport.Text)
+	format.EnumVar(&c.format, defaults.DefaultFormats...)
+	return format
 }
 
 func (c *phaseAddCommand) run(cf *CLIConf) error {
@@ -129,6 +133,14 @@ func (c *phaseEditCommand) run(cf *CLIConf) error {
 }
 
 func (c *phaseBuildOptions) buildRequest(name string) (*beamsv1.CreatePhaseRequest, error) {
+	if c.commandsFile != "" && len(c.copies) != 0 {
+		return nil, trace.BadParameter("--copy and --commands-file are mutually exclusive")
+	}
+	var err error
+	c.files, err = phaseCopyFiles(c.copies)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	req := beamsv1.CreatePhaseRequest_builder{
 		Name:            name,
 		BuildType:       beamsv1.PhaseBuildType_PHASE_BUILD_TYPE_SNAPSHOT,
@@ -142,11 +154,13 @@ func (c *phaseBuildOptions) buildRequest(name string) (*beamsv1.CreatePhaseReque
 		}
 		req.SetBuildConfig(string(contents))
 		req.SetBuildType(beamsv1.PhaseBuildType_PHASE_BUILD_TYPE_REBUILD)
+	} else if len(c.files) != 0 {
+		req.SetBuildType(beamsv1.PhaseBuildType_PHASE_BUILD_TYPE_COPY)
 	} else {
 		switch strings.ToLower(c.format) {
 		case teleport.JSON, teleport.YAML:
 			return nil, trace.BadParameter(
-				"--format=%s cannot be used with interactive builds. Specify --commands-file or use text format",
+				"--format=%s cannot be used with interactive builds. Specify --commands-file or --copy, or use text format",
 				c.format,
 			)
 		}
@@ -193,6 +207,11 @@ func (c *phaseBuildOptions) runBuild(cf *CLIConf, req *beamsv1.CreatePhaseReques
 				if source.GetStatus().GetStrategy() == beamsv1.PhaseStrategy_PHASE_STRATEGY_REBUILD {
 					return nil, trace.BadParameter("cannot fork rebuild Phase %q. Use --from to build on its image", name)
 				}
+				if req.GetReplace() &&
+					name == req.GetName() &&
+					source.GetStatus().GetStrategy() == beamsv1.PhaseStrategy_PHASE_STRATEGY_COPY {
+					return nil, trace.BadParameter("copy Phases must be edited with --copy or a files stage")
+				}
 				return source, nil
 			},
 		)
@@ -230,17 +249,31 @@ func (c *phaseBuildOptions) runBuild(cf *CLIConf, req *beamsv1.CreatePhaseReques
 	}
 	phase := rsp.GetPhase()
 	name := phase.GetMetadata().GetName()
-	if beam := rsp.GetBuildBeam(); beam != nil && req.GetStreamBuildLogs() {
-		output := cf.Stdout()
-		if c.format == teleport.JSON || c.format == teleport.YAML {
-			output = cf.Stderr()
-		}
-		originalOutput := tc.Stdout
-		tc.Stdout = output
-		err := sshBeamWithRetry(cf, tc, beam, []string{"/usr/local/bin/beam-logs"}, false)
-		tc.Stdout = originalOutput
-		if err != nil {
-			return trace.Wrap(err, "build log connection ended; the build continues independently (check tsh phase ls)")
+	automated := req.GetStreamBuildLogs() || len(c.files) != 0
+	if beam := rsp.GetBuildBeam(); beam != nil && automated {
+		if len(c.files) != 0 {
+			doc := phaseDocument{Files: &c.files}
+			doc.Metadata.Name = name
+			runner := phaseDocumentClient{
+				cf:     cf,
+				client: tc,
+			}
+			if err := runner.build(cf.Context, doc, beam, phase); err != nil {
+				return trace.Wrap(err, "copy build Beam %q. Check tsh phase ls for the operation's result",
+					beam.GetMetadata().GetName())
+			}
+		} else {
+			output := cf.Stdout()
+			if c.format == teleport.JSON || c.format == teleport.YAML {
+				output = cf.Stderr()
+			}
+			originalOutput := tc.Stdout
+			tc.Stdout = output
+			err := sshBeamWithRetry(cf, tc, beam, []string{"/usr/local/bin/beam-logs"}, false)
+			tc.Stdout = originalOutput
+			if err != nil {
+				return trace.Wrap(err, "build log connection ended; the build continues independently (check tsh phase ls)")
+			}
 		}
 		err = client.RetryWithRelogin(cf.Context, tc, func() error {
 			clusterClient, err := tc.ConnectToCluster(cf.Context)
@@ -257,10 +290,10 @@ func (c *phaseBuildOptions) runBuild(cf *CLIConf, req *beamsv1.CreatePhaseReques
 			// for Auth to record the result, not provisioning or the build.
 			ctx, cancel := context.WithTimeout(cf.Context, 2*time.Minute)
 			defer cancel()
-			phase, err = waitForPhaseBuild(ctx, rsp.GetPhase(), func(ctx context.Context) (*beamsv1.Phase, error) {
+			phase, err = waitForPhaseOperation(ctx, rsp.GetPhase(), func(ctx context.Context) (*beamsv1.Phase, error) {
 				response, err := rootClient.PhaseServiceClient().GetPhase(ctx, beamsv1.GetPhaseRequest_builder{Name: name}.Build())
 				return response.GetPhase(), trace.Wrap(err)
-			})
+			}, len(c.files) != 0)
 			return trace.Wrap(err, "waiting for Phase %q build result. Check tsh phase ls", name)
 		})
 		if err != nil {
@@ -277,14 +310,14 @@ func (c *phaseBuildOptions) runBuild(cf *CLIConf, req *beamsv1.CreatePhaseReques
 		action := "created"
 		if req.GetReplace() {
 			action = "edit started"
-			if req.GetStreamBuildLogs() {
+			if automated {
 				action = "updated"
 			}
 		}
 		if _, err := fmt.Fprintf(cf.Stdout(), "Phase %q %s.\n", name, action); err != nil {
 			return trace.Wrap(err)
 		}
-		if beam := rsp.GetBuildBeam(); beam != nil && !req.GetStreamBuildLogs() {
+		if beam := rsp.GetBuildBeam(); beam != nil && !automated {
 			if _, err := fmt.Fprintln(cf.Stdout(),
 				"Save your work at any time with \"tsh phase snapshot\".\n"+
 					"Use \"tsh phase snapshot --final\" to save and end this build."); err != nil {
@@ -304,10 +337,32 @@ func (c *phaseBuildOptions) runBuild(cf *CLIConf, req *beamsv1.CreatePhaseReques
 	}
 }
 
-func waitForPhaseBuild(
+func waitForPhaseOperation(
 	ctx context.Context,
 	expected *beamsv1.Phase,
 	get func(context.Context) (*beamsv1.Phase, error),
+	cleanup bool,
+) (*beamsv1.Phase, error) {
+	return waitForPhaseObservation(ctx, expected, get, func(phase *beamsv1.Phase) (bool, error) {
+		state := phase.GetStatus().GetState()
+		return (state == beamsv1.PhaseBuildState_PHASE_BUILD_STATE_READY ||
+			state == beamsv1.PhaseBuildState_PHASE_BUILD_STATE_BLOCKED) &&
+			(!cleanup || phase.GetStatus().GetOperation().GetBuildBeam() == ""), phaseBuildError(phase)
+	})
+}
+
+func phaseBuildError(phase *beamsv1.Phase) error {
+	if phase.GetStatus().GetState() == beamsv1.PhaseBuildState_PHASE_BUILD_STATE_FAILED {
+		return trace.Errorf("Phase %q build failed: %s", phase.GetMetadata().GetName(), phase.GetStatus().GetLastError())
+	}
+	return nil
+}
+
+func waitForPhaseObservation(
+	ctx context.Context,
+	expected *beamsv1.Phase,
+	get func(context.Context) (*beamsv1.Phase, error),
+	ready func(*beamsv1.Phase) (bool, error),
 ) (*beamsv1.Phase, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  time.Second,
@@ -339,12 +394,8 @@ func waitForPhaseBuild(
 			(phase.GetStatus().GetOperation().GetId() == operationID || completed) {
 			observed = true
 			consistencyDeadline = time.Now().Add(2 * time.Minute)
-			switch phase.GetStatus().GetState() {
-			case beamsv1.PhaseBuildState_PHASE_BUILD_STATE_READY,
-				beamsv1.PhaseBuildState_PHASE_BUILD_STATE_BLOCKED:
-				return phase, nil
-			case beamsv1.PhaseBuildState_PHASE_BUILD_STATE_FAILED:
-				return nil, trace.Errorf("Phase %q build failed: %s", expected.GetMetadata().GetName(), phase.GetStatus().GetLastError())
+			if done, err := ready(phase); done || err != nil {
+				return phase, trace.Wrap(err)
 			}
 		} else if !time.Now().Before(consistencyDeadline) {
 			return nil, trace.Wrap(context.DeadlineExceeded, "waiting for the expected Phase build to appear, check tsh phase ls")

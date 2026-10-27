@@ -114,21 +114,21 @@ func (c *phaseAddCommand) validateSnapshotSource() error {
 	if !c.forkLocal && !c.forkFromSet {
 		return nil
 	}
-	if c.fromSet || c.commandsFile != "" {
-		return trace.BadParameter("--fork and --fork-from cannot be combined with --from or --commands-file")
+	if c.fromSet || c.commandsFile != "" || len(c.copies) != 0 {
+		return trace.BadParameter("--fork and --fork-from cannot be combined with --from, --commands-file, or --copy")
 	}
 	return nil
 }
 
 func (c *phaseEditCommand) snapshotSource() (string, error) {
-	if c.commandsFile != "" && c.fromSet {
-		return "", trace.BadParameter("--commands-file cannot be combined with --from when editing")
+	if (c.commandsFile != "" || len(c.copies) != 0) && c.fromSet {
+		return "", trace.BadParameter("--commands-file or --copy cannot be combined with --from when editing")
 	}
 	if c.fromSet && c.editSource == "" {
 		return "", trace.BadParameter("--from requires a Phase name or parent@sha256:digest")
 	}
-	if c.commandsFile != "" {
-		return "", nil // Auth preserves the existing parent for command edits.
+	if c.commandsFile != "" || len(c.copies) != 0 {
+		return "", nil // Auth preserves the existing parent for command and file edits.
 	}
 	return cmp.Or(c.editSource, c.name), nil
 }
@@ -162,6 +162,9 @@ func resolvePhaseSnapshot(
 	source, err := get(ctx, ref)
 	if err != nil {
 		return phaseSnapshotSource{}, trace.Wrap(err, "resolving snapshot source Phase %q", ref)
+	}
+	if source.GetStatus().GetStrategy() == beamsv1.PhaseStrategy_PHASE_STRATEGY_COPY {
+		return phaseSnapshotSource{}, trace.BadParameter("cannot fork copy Phase %q. Use --from to build on its image", ref)
 	}
 	digest := source.GetStatus().GetPublished().GetDigest()
 	if !services.IsValidImageDigest(digest) {

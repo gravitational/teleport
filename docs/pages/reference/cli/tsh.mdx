@@ -1387,8 +1387,9 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--commands-file`|*no default*|Path to a YAML file in the raw command format. Omit for an interactive build.|
+|`--copy`|*no default*|Copy files outside /home using absolute-destination:local-source. Repeat for more paths.|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
-|`--fork-from`|*no default*|Fork a Phase name or parent@sha256:digest into a new Phase.|
+|`--fork-from`|*no default*|Fork a Phase name or parent@sha256:digest. Copy and rebuild Phases cannot be forked.|
 |`--from`|*no default*|Upstream Phase image to use as the base image.|
 |`--[no-]fork`|`false`|Capture the current build Beam's filesystem and start a new Phase from it.|
 |`--region`|*no default*|Region in which to build the Phase.|
@@ -1398,6 +1399,24 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |name|*no default* (optional)|Optional Phase name. If omitted, a name is generated.|
+
+## tsh phase apply
+
+Create or update Phases from a multi-document YAML configuration.
+
+Usage:
+
+```code
+$ tsh phase apply --file=FILE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--file`|*no default*|Path to a multi-document YAML Phase configuration.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--region`|*no default*|Region in which to build the Phases.|
 
 ## tsh phase edit
 
@@ -1414,8 +1433,9 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--commands-file`|*no default*|Path to a YAML file in the raw command format. Omit for an interactive build.|
+|`--copy`|*no default*|Copy files outside /home using absolute-destination:local-source. Repeat for more paths.|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
-|`--from`|*no default*|Source Phase name or parent@sha256:digest. Defaults to the target's last successful snapshot.|
+|`--from`|*no default*|Snapshot source: Phase name or parent@sha256:digest. Copy targets require --copy.|
 |`--region`|*no default*|Region in which to build the Phase.|
 
 Arguments:
