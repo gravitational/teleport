@@ -200,6 +200,41 @@ func GenSchemaAccessListResource(ctx context.Context) (github_com_hashicorp_terr
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 						},
+						"scoped_traits": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+							Computed:    true,
+							Description: "scoped_traits are the scoped traits to be granted to users.",
+							NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+								"scope": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The scope the traits will be granted at.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"traits": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+									Computed:    true,
+									Description: "The list of traits to be granted.",
+									NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+										"key": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+											Computed:      true,
+											Description:   "key is the name of the trait.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+										},
+										"values": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+											Computed:      true,
+											Description:   "values is the list of trait values.",
+											ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+										},
+									}},
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+								},
+							}},
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+						},
 						"traits": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
 							Computed:    true,
 							Description: "traits are the traits to be granted to users.",
@@ -287,6 +322,41 @@ func GenSchemaAccessListResource(ctx context.Context) (github_com_hashicorp_terr
 									Description:   "scope is the scope the role will be granted at. It must be an assignable scope of the role.",
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+							}},
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+						},
+						"scoped_traits": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+							Computed:    true,
+							Description: "scoped_traits are the scoped traits to be granted to users.",
+							NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+								"scope": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      true,
+									Description:   "The scope the traits will be granted at.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+								},
+								"traits": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+									Computed:    true,
+									Description: "The list of traits to be granted.",
+									NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+										"key": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+											Computed:      true,
+											Description:   "key is the name of the trait.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+										},
+										"values": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+											Computed:      true,
+											Description:   "values is the list of trait values.",
+											ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
+										},
+									}},
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 								},
 							}},
 							Optional:      true,
@@ -526,6 +596,36 @@ func GenSchemaAccessListDataSource(ctx context.Context) (github_com_hashicorp_te
 							}},
 							Optional: true,
 						},
+						"scoped_traits": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+							Computed:    true,
+							Description: "scoped_traits are the scoped traits to be granted to users.",
+							NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+								"scope": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The scope the traits will be granted at.",
+									Optional:    true,
+								},
+								"traits": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+									Computed:    true,
+									Description: "The list of traits to be granted.",
+									NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+										"key": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+											Computed:    true,
+											Description: "key is the name of the trait.",
+											Optional:    true,
+										},
+										"values": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+											Computed:    true,
+											Description: "values is the list of trait values.",
+											ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Optional:    true,
+										},
+									}},
+									Optional: true,
+								},
+							}},
+							Optional: true,
+						},
 						"traits": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
 							Computed:    true,
 							Description: "traits are the traits to be granted to users.",
@@ -601,6 +701,36 @@ func GenSchemaAccessListDataSource(ctx context.Context) (github_com_hashicorp_te
 									Computed:    true,
 									Description: "scope is the scope the role will be granted at. It must be an assignable scope of the role.",
 									Optional:    true,
+								},
+							}},
+							Optional: true,
+						},
+						"scoped_traits": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+							Computed:    true,
+							Description: "scoped_traits are the scoped traits to be granted to users.",
+							NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+								"scope": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:    true,
+									Description: "The scope the traits will be granted at.",
+									Optional:    true,
+								},
+								"traits": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+									Computed:    true,
+									Description: "The list of traits to be granted.",
+									NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+										"key": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+											Computed:    true,
+											Description: "key is the name of the trait.",
+											Optional:    true,
+										},
+										"values": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+											Computed:    true,
+											Description: "values is the list of trait values.",
+											ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Optional:    true,
+										},
+									}},
+									Optional: true,
 								},
 							}},
 							Optional: true,
@@ -1681,6 +1811,125 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											}
 										}
 									}
+									{
+										a, ok := tf.Attributes()["scoped_traits"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AccessList.spec.grants.scoped_traits"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_traits", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.ScopedTraits = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedTraitGrant, len(v.Elements()))
+												if !v.IsNull() && !v.IsUnknown() {
+													for k, a := range v.Elements() {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_traits", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedTraitGrant
+															if !v.IsNull() && !v.IsUnknown() {
+																tf := v
+																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedTraitGrant{}
+																obj := t
+																{
+																	a, ok := tf.Attributes()["scope"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AccessList.spec.grants.scoped_traits.scope"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_traits.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.Scope = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["traits"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AccessList.spec.grants.scoped_traits.traits"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_traits.traits", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+																		} else {
+																			obj.Traits = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_trait_v1.Trait, len(v.Elements()))
+																			if !v.IsNull() && !v.IsUnknown() {
+																				for k, a := range v.Elements() {
+																					v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if !ok {
+																						diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_traits.traits", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+																					} else {
+																						var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_trait_v1.Trait
+																						if !v.IsNull() && !v.IsUnknown() {
+																							tf := v
+																							t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_trait_v1.Trait{}
+																							obj := t
+																							{
+																								a, ok := tf.Attributes()["key"]
+																								if !ok {
+																									diags.Append(attrReadMissingDiag{"AccessList.spec.grants.scoped_traits.traits.key"})
+																								} else {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_traits.traits.key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																									} else {
+																										var t string
+																										if !v.IsNull() && !v.IsUnknown() {
+																											t = (v.ValueString())
+																										}
+																										obj.Key = t
+																									}
+																								}
+																							}
+																							{
+																								a, ok := tf.Attributes()["values"]
+																								if !ok {
+																									diags.Append(attrReadMissingDiag{"AccessList.spec.grants.scoped_traits.traits.values"})
+																								} else {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_traits.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+																									} else {
+																										obj.Values = make([]string, len(v.Elements()))
+																										if !v.IsNull() && !v.IsUnknown() {
+																											for k, a := range v.Elements() {
+																												v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																												if !ok {
+																													diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_traits.traits.values", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																												} else {
+																													var t string
+																													if !v.IsNull() && !v.IsUnknown() {
+																														t = (v.ValueString())
+																													}
+																													obj.Values[k] = t
+																												}
+																											}
+																										}
+																									}
+																								}
+																							}
+																						}
+																						obj.Traits[k] = t
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+															obj.ScopedTraits[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -1873,6 +2122,125 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 																}
 															}
 															obj.ScopedRoles[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attributes()["scoped_traits"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AccessList.spec.owner_grants.scoped_traits"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.ScopedTraits = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedTraitGrant, len(v.Elements()))
+												if !v.IsNull() && !v.IsUnknown() {
+													for k, a := range v.Elements() {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedTraitGrant
+															if !v.IsNull() && !v.IsUnknown() {
+																tf := v
+																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedTraitGrant{}
+																obj := t
+																{
+																	a, ok := tf.Attributes()["scope"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AccessList.spec.owner_grants.scoped_traits.scope"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.Scope = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attributes()["traits"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AccessList.spec.owner_grants.scoped_traits.traits"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits.traits", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+																		} else {
+																			obj.Traits = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_trait_v1.Trait, len(v.Elements()))
+																			if !v.IsNull() && !v.IsUnknown() {
+																				for k, a := range v.Elements() {
+																					v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if !ok {
+																						diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits.traits", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+																					} else {
+																						var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_trait_v1.Trait
+																						if !v.IsNull() && !v.IsUnknown() {
+																							tf := v
+																							t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_trait_v1.Trait{}
+																							obj := t
+																							{
+																								a, ok := tf.Attributes()["key"]
+																								if !ok {
+																									diags.Append(attrReadMissingDiag{"AccessList.spec.owner_grants.scoped_traits.traits.key"})
+																								} else {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits.traits.key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																									} else {
+																										var t string
+																										if !v.IsNull() && !v.IsUnknown() {
+																											t = (v.ValueString())
+																										}
+																										obj.Key = t
+																									}
+																								}
+																							}
+																							{
+																								a, ok := tf.Attributes()["values"]
+																								if !ok {
+																									diags.Append(attrReadMissingDiag{"AccessList.spec.owner_grants.scoped_traits.traits.values"})
+																								} else {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+																									} else {
+																										obj.Values = make([]string, len(v.Elements()))
+																										if !v.IsNull() && !v.IsUnknown() {
+																											for k, a := range v.Elements() {
+																												v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																												if !ok {
+																													diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits.traits.values", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																												} else {
+																													var t string
+																													if !v.IsNull() && !v.IsUnknown() {
+																														t = (v.ValueString())
+																													}
+																													obj.Values[k] = t
+																												}
+																											}
+																										}
+																									}
+																								}
+																							}
+																						}
+																						obj.Traits[k] = t
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+															obj.ScopedTraits[k] = t
 														}
 													}
 												}
@@ -2945,6 +3313,171 @@ func CopyAccessListToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 															}
 														}
 													}
+													{
+														attrType, ok := attrType.AttributeTypes()["scoped_traits"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AccessList.spec.grants.scoped_traits"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.scoped_traits", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["scoped_traits"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																} else {
+																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedTraits))
+																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																	if ok && c.Elements() != nil {
+																		oldElems = c.Elements()
+																	}
+																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedTraits))
+																	copy(elems, oldElems)
+																	for k, a := range obj.ScopedTraits {
+																		attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																		existing := elems[k]
+																		v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																			if preserveUnknown && existing != nil && existing.IsUnknown() {
+																				return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																			} else {
+																				if a == nil {
+																					return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																				} else {
+																					obj := a
+																					attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																					v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if ok && v.Attributes() != nil {
+																						attrs = v.Attributes()
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["scope"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Scope))
+																						}
+																						attrs["scope"] = v
+																					}
+																					{
+																						attrType, ok := attrType.AttributeTypes()["traits"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"AccessList.spec.grants.scoped_traits.traits"})
+																						} else {
+																							attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.scoped_traits.traits", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																							} else {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := attrs["traits"]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																								} else {
+																									oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+																									c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																									if ok && c.Elements() != nil {
+																										oldElems = c.Elements()
+																									}
+																									elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+																									copy(elems, oldElems)
+																									for k, a := range obj.Traits {
+																										attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																										existing := elems[k]
+																										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																											if preserveUnknown && existing != nil && existing.IsUnknown() {
+																												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																											} else {
+																												if a == nil {
+																													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																												} else {
+																													obj := a
+																													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																													if ok && v.Attributes() != nil {
+																														attrs = v.Attributes()
+																													}
+																													{
+																														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																														existing := attrs["key"]
+																														if preserveUnknown && existing != nil && existing.IsUnknown() {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																														} else {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Key))
+																														}
+																														attrs["key"] = v
+																													}
+																													{
+																														attrType, ok := attrType.AttributeTypes()["values"]
+																														if !ok {
+																															diags.Append(attrWriteMissingDiag{"AccessList.spec.grants.scoped_traits.traits.values"})
+																														} else {
+																															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																															if !ok {
+																																diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.scoped_traits.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																															} else {
+																																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																																existing := attrs["values"]
+																																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																																} else {
+																																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																																	if ok && c.Elements() != nil {
+																																		oldElems = c.Elements()
+																																	}
+																																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																																	copy(elems, oldElems)
+																																	for k, a := range obj.Values {
+																																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																																		existing := elems[k]
+																																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																																		} else {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																																		}
+																																		elems[k] = v
+																																	}
+																																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																																	diags.Append(resultDiags...)
+																																	v = result
+																																}
+																																attrs["values"] = v
+																															}
+																														}
+																													}
+																													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																													diags.Append(resultDiags...)
+																													return result
+																												}
+																											}
+																										}()
+																										elems[k] = v
+																									}
+																									result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																									diags.Append(resultDiags...)
+																									v = result
+																								}
+																								attrs["traits"] = v
+																							}
+																						}
+																					}
+																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																					diags.Append(resultDiags...)
+																					return result
+																				}
+																			}
+																		}()
+																		elems[k] = v
+																	}
+																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																	diags.Append(resultDiags...)
+																	v = result
+																}
+																attrs["scoped_traits"] = v
+															}
+														}
+													}
 													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 													diags.Append(resultDiags...)
 													return result
@@ -3199,6 +3732,171 @@ func CopyAccessListToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																	v = result
 																}
 																attrs["scoped_roles"] = v
+															}
+														}
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["scoped_traits"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AccessList.spec.owner_grants.scoped_traits"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																existing := attrs["scoped_traits"]
+																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																} else {
+																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedTraits))
+																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																	if ok && c.Elements() != nil {
+																		oldElems = c.Elements()
+																	}
+																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedTraits))
+																	copy(elems, oldElems)
+																	for k, a := range obj.ScopedTraits {
+																		attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																		existing := elems[k]
+																		v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																			if preserveUnknown && existing != nil && existing.IsUnknown() {
+																				return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																			} else {
+																				if a == nil {
+																					return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																				} else {
+																					obj := a
+																					attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																					v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if ok && v.Attributes() != nil {
+																						attrs = v.Attributes()
+																					}
+																					{
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["scope"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																						} else {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Scope))
+																						}
+																						attrs["scope"] = v
+																					}
+																					{
+																						attrType, ok := attrType.AttributeTypes()["traits"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"AccessList.spec.owner_grants.scoped_traits.traits"})
+																						} else {
+																							attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																							if !ok {
+																								diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits.traits", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																							} else {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := attrs["traits"]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																								} else {
+																									oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+																									c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																									if ok && c.Elements() != nil {
+																										oldElems = c.Elements()
+																									}
+																									elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+																									copy(elems, oldElems)
+																									for k, a := range obj.Traits {
+																										attrType := attrType.ElementType().(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																										existing := elems[k]
+																										v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																											if preserveUnknown && existing != nil && existing.IsUnknown() {
+																												return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																											} else {
+																												if a == nil {
+																													return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																												} else {
+																													obj := a
+																													attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																													v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																													if ok && v.Attributes() != nil {
+																														attrs = v.Attributes()
+																													}
+																													{
+																														var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																														existing := attrs["key"]
+																														if preserveUnknown && existing != nil && existing.IsUnknown() {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																														} else {
+																															v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(obj.Key))
+																														}
+																														attrs["key"] = v
+																													}
+																													{
+																														attrType, ok := attrType.AttributeTypes()["values"]
+																														if !ok {
+																															diags.Append(attrWriteMissingDiag{"AccessList.spec.owner_grants.scoped_traits.traits.values"})
+																														} else {
+																															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																															if !ok {
+																																diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.scoped_traits.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																															} else {
+																																var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																																existing := attrs["values"]
+																																if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																	v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																																} else {
+																																	oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																																	c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																																	if ok && c.Elements() != nil {
+																																		oldElems = c.Elements()
+																																	}
+																																	elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																																	copy(elems, oldElems)
+																																	for k, a := range obj.Values {
+																																		var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																																		existing := elems[k]
+																																		if preserveUnknown && existing != nil && existing.IsUnknown() {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																																		} else {
+																																			v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																																		}
+																																		elems[k] = v
+																																	}
+																																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																																	diags.Append(resultDiags...)
+																																	v = result
+																																}
+																																attrs["values"] = v
+																															}
+																														}
+																													}
+																													result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																													diags.Append(resultDiags...)
+																													return result
+																												}
+																											}
+																										}()
+																										elems[k] = v
+																									}
+																									result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																									diags.Append(resultDiags...)
+																									v = result
+																								}
+																								attrs["traits"] = v
+																							}
+																						}
+																					}
+																					result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																					diags.Append(resultDiags...)
+																					return result
+																				}
+																			}
+																		}()
+																		elems[k] = v
+																	}
+																	result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																	diags.Append(resultDiags...)
+																	v = result
+																}
+																attrs["scoped_traits"] = v
 															}
 														}
 													}
