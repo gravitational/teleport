@@ -144,9 +144,7 @@ it('does not display a button for Connect My Computer in the empty state if the 
 
   act(mio.enterAll);
 
-  await expect(
-    screen.findByText('No Resources Found')
-  ).resolves.toBeInTheDocument();
+  await expect(screen.findByText('No resources')).resolves.toBeInTheDocument();
 
   expect(
     screen.queryByRole('button', { name: 'Connect My Computer' })

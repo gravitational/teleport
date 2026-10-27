@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Empty, { EmptyStateInfo as _EmptyStateInfo } from './Empty';
+import Empty from './Empty';
 
 export default Empty;
-export type EmptyStateInfo = _EmptyStateInfo;

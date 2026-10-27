@@ -32,34 +32,7 @@ import {
 
 import cfg from 'teleport/config';
 
-export default function Empty(props: Props) {
-  const { canCreate, clusterId, emptyStateInfo } = props;
-
-  const { readOnly, title } = emptyStateInfo;
-
-  // always show the welcome for enterprise users who have access to create an app
-  if (!canCreate) {
-    return (
-      <Box
-        p={8}
-        mx="auto"
-        maxWidth="664px"
-        textAlign="center"
-        color="text.main"
-        borderRadius="12px"
-      >
-        <H1 mb="3">{readOnly.title}</H1>
-        <Text>
-          Either there are no {readOnly.resource} in the "
-          <Text as="span" bold>
-            {clusterId}
-          </Text>
-          " cluster, or your roles don't grant you access.
-        </Text>
-      </Box>
-    );
-  }
-
+export default function Empty() {
   const showCloud = cfg.isCloud;
 
   return (
@@ -72,7 +45,7 @@ export default function Empty(props: Props) {
       >
         <Box mb={showCloud ? 4 : 2} textAlign="center">
           <ResourceIcon name="server" mx="auto" mb={4} height="150px" />
-          <H1>{title}</H1>
+          <H1>Add Your First Resource</H1>
         </Box>
         <Flex>
           {showCloud && (
@@ -141,17 +114,3 @@ function Divider() {
     </Flex>
   );
 }
-
-export type EmptyStateInfo = {
-  readOnly: {
-    title: string;
-    resource: string;
-  };
-  title: string;
-};
-
-export type Props = {
-  canCreate: boolean;
-  clusterId: string;
-  emptyStateInfo: EmptyStateInfo;
-};

@@ -44,7 +44,7 @@ import { useStore } from 'shared/libs/stores';
 import { useTeleport } from 'teleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
-import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
+import Empty from 'teleport/components/Empty';
 import { useUrlFiltering } from 'teleport/components/hooks';
 import {
   FeatureBox,
@@ -87,6 +87,8 @@ export function UnifiedResources() {
 }
 
 export const ResizingResourceWrapper = styled(Box)`
+  display: flex;
+  flex: 1;
   width: 100%;
   padding-right: ${props => props.theme.space[3]}px;
 `;
@@ -336,13 +338,9 @@ export function ClusterResources({
             />
           )
         }
-        NoResources={
-          <Empty
-            clusterId={clusterId}
-            canCreate={canCreate && !isLeafCluster}
-            emptyStateInfo={emptyStateInfo}
-          />
-        }
+        emptyState={{
+          noResources: canCreate && !isLeafCluster ? <Empty /> : undefined,
+        }}
         resources={resources.map(resource => ({
           resource,
           ui: {
@@ -381,11 +379,3 @@ export function ClusterResources({
     </>
   );
 }
-
-const emptyStateInfo: EmptyStateInfo = {
-  title: 'Add Your First Resource',
-  readOnly: {
-    title: 'No Resources Found',
-    resource: 'resources',
-  },
-};

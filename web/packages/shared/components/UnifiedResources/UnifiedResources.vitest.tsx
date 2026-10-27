@@ -37,7 +37,6 @@ const defaultProps: UnifiedResourcesProps = {
   resourcesFetchAttempt: { status: 'success' },
   fetchResources: vi.fn().mockResolvedValue(undefined),
   resources: [],
-  NoResources: <div>No resources are available.</div>,
   pinning: { kind: 'hidden' },
   availableKinds: [],
   setParams: vi.fn(),
@@ -101,7 +100,7 @@ test('shows error when initial resource loading fails', async () => {
     },
   });
 
-  expect(screen.getByText('Could not fetch resources')).toBeInTheDocument();
+  expect(screen.getByText('Resources could not be loaded')).toBeInTheDocument();
   expect(screen.getByText('connection refused')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
 });
@@ -156,7 +155,7 @@ test('hides pinned-resources and view-preferences loading warnings when initial 
     },
   });
 
-  expect(screen.getByText('Could not fetch resources')).toBeInTheDocument();
+  expect(screen.getByText('Resources could not be loaded')).toBeInTheDocument();
   expect(screen.getByText('connection refused')).toBeInTheDocument();
 
   expect(
@@ -230,4 +229,239 @@ test('does not render a retry button for view preferences without a retry callba
   expect(
     screen.queryByRole('button', { name: 'Retry' })
   ).not.toBeInTheDocument();
+});
+
+test('shows the default empty state when there are no resources', async () => {
+  await renderUnifiedResources();
+
+  expect(screen.getByText('No resources')).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Either there are no resources in the cluster, or your roles don't grant you access."
+    )
+  ).toBeInTheDocument();
+});
+
+test('does not show an empty state while resources are loading', async () => {
+  await renderUnifiedResources({
+    resourcesFetchAttempt: { status: 'processing' },
+  });
+
+  expect(screen.queryByText('No resources')).not.toBeInTheDocument();
+});
+
+test('does not show an empty state when there are resources', async () => {
+  await renderUnifiedResources({ resources: [resourceWithVisibleContent()] });
+
+  expect(screen.getByText('Loaded resource')).toBeInTheDocument();
+  expect(screen.queryByText('No resources')).not.toBeInTheDocument();
+});
+
+test.each([
+  { params: {}, state: 'all resources' },
+  { params: { pinnedOnly: true }, state: 'pinned resources' },
+  { params: { search: 'foo' }, state: 'search' },
+  { params: { query: 'name == "foo"' }, state: 'predicate query' },
+])(
+  'shows the failure empty state instead of $state empty content',
+  async ({ params }) => {
+    const noMatches = vi.fn().mockReturnValue(<div>Custom matches panel</div>);
+    await renderUnifiedResources({
+      params,
+      resourcesFetchAttempt: { status: 'failed', statusText: 'boom' },
+      emptyState: {
+        noResources: <div>Custom empty panel</div>,
+        noPinned: <div>Custom pinned panel</div>,
+        noMatches,
+      },
+    });
+
+    expect(
+      screen.getByRole('heading', { name: 'Resources could not be loaded' })
+    ).toBeVisible();
+    expect(screen.getByText('boom')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible();
+    expect(
+      screen.queryByText('Could not fetch resources')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('No resources')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pinned resources')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No resources match/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Custom .* panel/)).not.toBeInTheDocument();
+    expect(noMatches).not.toHaveBeenCalled();
+  }
+);
+
+test.each([400, 403])(
+  'does not offer retry when resource loading fails with HTTP %i',
+  async statusCode => {
+    await renderUnifiedResources({
+      resourcesFetchAttempt: {
+        status: 'failed',
+        statusCode,
+        statusText: 'request rejected',
+      },
+    });
+
+    expect(
+      screen.getByRole('heading', { name: 'Resources could not be loaded' })
+    ).toBeVisible();
+    expect(screen.getByText('request rejected')).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Retry' })
+    ).not.toBeInTheDocument();
+  }
+);
+
+test('shows a no-matches empty state for a search', async () => {
+  await renderUnifiedResources({ params: { search: 'foo' } });
+
+  expect(await screen.findByText('No resources match "foo"')).toBeVisible();
+  expect(
+    screen.getByText('Check the query or try a new search.')
+  ).toBeInTheDocument();
+});
+
+test('shows a no-matches empty state for a predicate query', async () => {
+  await renderUnifiedResources({ params: { query: 'name == "foo"' } });
+
+  expect(
+    await screen.findByText('No resources match "name == "foo""')
+  ).toBeVisible();
+});
+
+test('mentions that only pinned resources are searched on the pinned tab', async () => {
+  await renderUnifiedResources({
+    params: { search: 'foo', pinnedOnly: true },
+  });
+
+  expect(await screen.findByText('No resources match "foo"')).toBeVisible();
+  expect(
+    screen.getByText(
+      'Only pinned resources are searched. Check the query or try a new search.'
+    )
+  ).toBeInTheDocument();
+});
+
+test('shows a dedicated empty state on the pinned tab without a search', async () => {
+  await renderUnifiedResources({ params: { pinnedOnly: true } });
+
+  expect(
+    screen.getByRole('heading', { name: 'Pinned resources' })
+  ).toBeVisible();
+  expect(
+    screen.getByText('Your pinned resources will appear here.')
+  ).toBeInTheDocument();
+});
+
+test('allows overriding the no-resources empty state content', async () => {
+  await renderUnifiedResources({
+    emptyState: {
+      noResources: {
+        title: 'Nothing here',
+        description: 'Add your first resource.',
+      },
+    },
+  });
+
+  expect(screen.getByText('Nothing here')).toBeInTheDocument();
+  expect(screen.getByText('Add your first resource.')).toBeInTheDocument();
+  expect(screen.queryByText('No resources')).not.toBeInTheDocument();
+});
+
+test('allows replacing the no-resources empty state with a custom element', async () => {
+  await renderUnifiedResources({
+    emptyState: { noResources: <div>Custom empty panel</div> },
+  });
+
+  expect(screen.getByText('Custom empty panel')).toBeInTheDocument();
+  expect(screen.queryByText('No resources')).not.toBeInTheDocument();
+});
+
+test.each([
+  { params: { pinnedOnly: true }, title: 'Pinned resources' },
+  { params: { search: 'foo' }, title: 'No resources match "foo"' },
+  {
+    params: { query: 'name == "foo"' },
+    title: 'No resources match "name == "foo""',
+  },
+])(
+  'does not apply the no-resources override when showing $title',
+  async ({ params, title }) => {
+    await renderUnifiedResources({
+      params,
+      emptyState: { noResources: <div>Custom empty panel</div> },
+    });
+
+    expect(screen.queryByText('Custom empty panel')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: title })).toBeVisible();
+  }
+);
+
+test('allows overriding the no-matches empty state content', async () => {
+  const noMatches = vi.fn().mockReturnValue({
+    title: 'No labels matched',
+    description: 'Try changing the labels.',
+  });
+  await renderUnifiedResources({
+    params: { search: 'foo', pinnedOnly: true },
+    emptyState: { noMatches },
+  });
+
+  expect(await screen.findByText('No labels matched')).toBeVisible();
+  expect(screen.getByText('Try changing the labels.')).toBeInTheDocument();
+  expect(noMatches).toHaveBeenCalledWith({ scope: 'pinned', search: 'foo' });
+});
+
+test('allows overriding the pinned empty state content', async () => {
+  await renderUnifiedResources({
+    params: { pinnedOnly: true },
+    emptyState: {
+      noPinned: {
+        title: 'Nothing pinned',
+        description: 'Pin a resource to see it here.',
+      },
+    },
+  });
+
+  expect(screen.getByText('Nothing pinned')).toBeInTheDocument();
+  expect(
+    screen.getByText('Pin a resource to see it here.')
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText('Your pinned resources will appear here.')
+  ).not.toBeInTheDocument();
+});
+
+test('allows overriding the pinned empty state with a custom element', async () => {
+  await renderUnifiedResources({
+    params: { pinnedOnly: true },
+    emptyState: { noPinned: <div>Custom pinned panel</div> },
+  });
+
+  expect(screen.getByText('Custom pinned panel')).toBeInTheDocument();
+});
+
+test('allows overriding the no-matches empty state with static content', async () => {
+  await renderUnifiedResources({
+    params: { search: 'foo' },
+    emptyState: {
+      noMatches: () => ({
+        title: 'Static no matches',
+        description: 'Static description.',
+      }),
+    },
+  });
+
+  expect(await screen.findByText('Static no matches')).toBeVisible();
+  expect(screen.getByText('Static description.')).toBeInTheDocument();
+});
+
+test('allows overriding the no-matches empty state with a custom element', async () => {
+  await renderUnifiedResources({
+    params: { search: 'foo' },
+    emptyState: { noMatches: () => <div>Custom matches panel</div> },
+  });
+
+  expect(await screen.findByText('Custom matches panel')).toBeVisible();
 });

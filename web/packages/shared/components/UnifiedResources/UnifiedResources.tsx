@@ -16,21 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  ButtonSecondary,
+  ComposedEmptyState,
+  HardDrivesFillIcon,
+  IconProps,
+  MagnifyingGlassFillIcon,
+  PushPinFillIcon,
+  WarningCircleFillIcon,
+} from '@gravitational/design-system';
 import React, {
   Children,
+  ComponentType,
+  type JSX,
   PropsWithChildren,
+  ReactElement,
+  ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
-  type JSX,
 } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
+import { ButtonBorder, Flex, Text } from 'design';
 import { Danger, Warning } from 'design/Alert';
-import { Icon, Magnifier, PushPin } from 'design/Icon';
+import { Icon, PushPin } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import {
   AvailableResourceMode,
@@ -175,24 +187,37 @@ export type ResourceAvailabilityFilter =
       mode: Exclude<IncludedResourceMode, 'all'>;
     };
 
+export type EmptyStateContent = {
+  icon?: ComponentType<IconProps>;
+  title?: string;
+  description?: ReactNode;
+  actions?: ReactNode;
+};
+
+/**
+ * Allows overriding each empty state.
+ * A component can be provided for a rich custom panel.
+ */
+interface EmptyStateOverrides {
+  /** Empty list, All tab, no search. */
+  noResources?: EmptyStateContent | ReactElement;
+  /** Empty list, Pinned tab, no search. */
+  noPinned?: EmptyStateContent | ReactElement;
+  /** Empty list for a search. */
+  noMatches?: (context: {
+    scope: 'all' | 'pinned';
+    search: string;
+  }) => EmptyStateContent | ReactElement;
+}
+
 export interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
   fetchResources(options?: { force?: boolean; clear?: boolean }): Promise<void>;
   resources: SharedUnifiedResource[];
   Header?: React.ReactElement;
-  /**
-   * Typically used to inform the user that there are no matching resources when
-   * they want to list resources without filtering the list with a search query.
-   * Rendered only when the resource list is empty and there's no search query.
-   * */
-  NoResources: React.ReactElement;
-  /**
-   * If true, it will render the "NoResources" component
-   * regardless of internal "no result" checks.
-   */
-  forceNoResources?: boolean;
-  noResultCustomText?: string;
+  /** Overrides empty state content. */
+  emptyState?: EmptyStateOverrides;
   /**
    * If pinning is supported, the functions to get and update pinned resources
    * can be passed here.
@@ -296,8 +321,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     onLabelClick,
     resourceLabelConfig,
     className,
-    forceNoResources,
-    noResultCustomText,
+    emptyState,
     showResourceSelectedIcon,
     FilterPanelLeftContent,
   } = props;
@@ -393,7 +417,9 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   };
 
   const noResults =
-    resourcesFetchAttempt.status === 'success' && resources.length === 0;
+    (resourcesFetchAttempt.status === 'success' ||
+      resourcesFetchAttempt.status === 'failed') &&
+    resources.length === 0;
 
   const [isSearchEmpty, setIsSearchEmpty] = useState(true);
 
@@ -555,26 +581,6 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       : ListView;
 
   let footerElement: JSX.Element;
-  if (forceNoResources) {
-    footerElement = props.NoResources;
-  } else if (noResults) {
-    if (isSearchEmpty && !params.pinnedOnly) {
-      footerElement = props.NoResources;
-    }
-    if (params.pinnedOnly && isSearchEmpty) {
-      footerElement = <NoPinned />;
-    }
-    if (!isSearchEmpty) {
-      footerElement = (
-        <NoResults
-          isPinnedTab={params.pinnedOnly}
-          query={params?.query || params?.search}
-          customText={noResultCustomText}
-        />
-      );
-    }
-  }
-
   if (resourcesFetchAttempt.status === 'failed' && resources.length > 0) {
     footerElement = (
       <ButtonSecondary onClick={() => fetchResources({ force: true })}>
@@ -585,18 +591,20 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
 
   const showSecondaryErrors =
     resourcesFetchAttempt.status === 'success' || resources.length > 0;
+  const canRetryAll =
+    // We don't want users to try another request with BAD REQUEST, it will just fail again.
+    resourcesFetchAttempt.statusCode !== 400 &&
+    resourcesFetchAttempt.statusCode !== 403;
 
   return (
     <Container className={`ContainerContext ${className}`} ref={containerRef}>
       <ErrorsContainer>
-        {resourcesFetchAttempt.status === 'failed' && (
+        {!noResults && resourcesFetchAttempt.status === 'failed' && (
           <Danger
             mb={0}
             bg="levels.sunken"
             primaryAction={
-              // We don't want them to try another request with BAD REQUEST, it will just fail again.
-              resourcesFetchAttempt.statusCode !== 400 &&
-              resourcesFetchAttempt.statusCode !== 403 && {
+              canRetryAll && {
                 content: 'Retry',
                 onClick: retryAll,
               }
@@ -783,6 +791,18 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         visibleInputFields={visibleResourceItemFields}
       />
       <div ref={setTrigger} />
+      {noResults && (
+        <ListEmptyState>
+          <EmptyState
+            fetchAttempt={resourcesFetchAttempt}
+            retry={canRetryAll && retryAll}
+            hasSearch={!isSearchEmpty}
+            overrides={emptyState}
+            isPinnedTab={!!params.pinnedOnly}
+            search={params?.query || params?.search}
+          />
+        </ListEmptyState>
+      )}
       <ListFooter>{footerElement}</ListFooter>
     </Container>
   );
@@ -849,61 +869,94 @@ export function generateUnifiedResourceKey(
   return `${resource.name}/${resource.kind}`.toLowerCase();
 }
 
-function NoPinned() {
-  return (
-    <Box p={8} mt={3} mx="auto" textAlign="center">
-      <Text typography="h1">You have not pinned any resources</Text>
-    </Box>
-  );
-}
-
-function NoResults({
-  query,
+/**
+ * Renders the empty state shown in place of the list, if there is one.
+ */
+function EmptyState({
+  fetchAttempt,
+  retry,
+  hasSearch,
+  overrides,
   isPinnedTab,
-  customText,
+  search,
 }: {
-  query: string;
+  fetchAttempt: Attempt;
+  retry?(): void;
+  hasSearch: boolean;
+  search: string;
   isPinnedTab: boolean;
-  customText?: string;
+  overrides?: EmptyStateOverrides;
 }) {
-  if (query) {
+  if (fetchAttempt.status === 'failed') {
     return (
-      <Text
-        typography="h1"
-        mt={9}
-        mx="auto"
-        justifyContent="center"
-        alignItems="center"
-        css={`
-          white-space: nowrap;
-        `}
-        as={Flex}
+      <ComposedEmptyState
+        icon={WarningCircleFillIcon}
+        title="Resources could not be loaded"
+        description={fetchAttempt.statusText}
       >
-        <Magnifier mr={2} />
-        {customText ? (
-          <>{customText}</>
-        ) : (
-          <>
-            No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
-            <Text
-              as="span"
-              bold
-              css={`
-                max-width: 270px;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-              `}
-            >
-              {query}
-            </Text>
-          </>
-        )}
-      </Text>
+        {retry && <ButtonSecondary onClick={retry}>Retry</ButtonSecondary>}
+      </ComposedEmptyState>
+    );
+  }
+  if (hasSearch) {
+    const noMatches = overrides?.noMatches;
+    return renderEmptyState(
+      noMatches?.({ scope: isPinnedTab ? 'pinned' : 'all', search }),
+      {
+        icon: MagnifyingGlassFillIcon,
+        title: `No resources match "${search}"`,
+        description: isPinnedTab
+          ? 'Only pinned resources are searched. Check the query or try a new search.'
+          : 'Check the query or try a new search.',
+      }
     );
   }
 
-  return null;
+  if (isPinnedTab) {
+    return renderEmptyState(overrides?.noPinned, {
+      icon: PushPinFillIcon,
+      title: 'Pinned resources',
+      description: 'Your pinned resources will appear here.',
+    });
+  }
+
+  return renderEmptyState(overrides?.noResources, {
+    icon: HardDrivesFillIcon,
+    title: 'No resources',
+    description:
+      "Either there are no resources in the cluster, or your roles don't grant you access.",
+  });
+}
+
+/**
+ * Renders the override if there is one, otherwise the default content.
+ * Overrides given as `{ title, description }` are shown with the default icon,
+ * any other React node replaces the whole empty state.
+ */
+function renderEmptyState(
+  override: EmptyStateContent | ReactElement | undefined,
+  defaults: {
+    icon: ComponentType<IconProps>;
+    title: string;
+    description: ReactNode;
+  }
+) {
+  if (!override) {
+    return <ComposedEmptyState {...defaults} />;
+  }
+  if (!React.isValidElement(override)) {
+    const merged = { ...defaults, ...(override as EmptyStateContent) };
+    return (
+      <ComposedEmptyState
+        icon={merged.icon}
+        title={merged.title}
+        description={merged.description}
+      >
+        {merged.actions}
+      </ComposedEmptyState>
+    );
+  }
+  return override;
 }
 
 function ErrorsContainer(props: PropsWithChildren<unknown>) {
@@ -922,6 +975,14 @@ const ErrorBox = styled(Flex)`
   padding-top: ${props => props.theme.space[1]}px;
   padding-bottom: ${props => props.theme.space[3]}px;
   z-index: 1;
+`;
+
+const ListEmptyState = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 `;
 
 const INDICATOR_SIZE = '48px';
@@ -974,6 +1035,9 @@ export function getResourceAvailabilityFilter(
 }
 
 const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   width: 100%;
   max-width: 1800px;
   margin: 0 auto;

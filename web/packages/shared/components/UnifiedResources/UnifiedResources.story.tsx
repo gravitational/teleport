@@ -17,6 +17,7 @@
  */
 
 import { useState } from 'react';
+import styled from 'styled-components';
 
 import { ButtonBorder } from 'design';
 import {
@@ -116,50 +117,51 @@ const story = ({
     });
     return (
       <InfoGuidePanelProvider>
-        <UnifiedResources
-          availableKinds={[
-            {
-              kind: 'app',
-              disabled: false,
-            },
-            {
-              kind: 'db',
-              disabled: false,
-            },
-            {
-              kind: 'node',
-              disabled: false,
-            },
-            {
-              kind: 'kube_cluster',
-              disabled: false,
-            },
-            {
-              kind: 'windows_desktop',
-              disabled: false,
-            },
-            {
-              kind: 'mcp',
-              disabled: false,
-            },
-          ]}
-          onShowStatusInfo={() => null}
-          params={mergedParams}
-          setParams={() => undefined}
-          pinning={pinning}
-          unifiedResourcePreferences={userPrefs}
-          updateUnifiedResourcesPreferences={setUserPrefs}
-          NoResources={undefined}
-          fetchResources={fetch}
-          resourcesFetchAttempt={attempt}
-          resources={resources.map(resource => ({
-            resource,
-            ui: {
-              ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
-            },
-          }))}
-          {...props}
-        />
+        <FullHeight>
+          <UnifiedResources
+            availableKinds={[
+              {
+                kind: 'app',
+                disabled: false,
+              },
+              {
+                kind: 'db',
+                disabled: false,
+              },
+              {
+                kind: 'node',
+                disabled: false,
+              },
+              {
+                kind: 'kube_cluster',
+                disabled: false,
+              },
+              {
+                kind: 'windows_desktop',
+                disabled: false,
+              },
+              {
+                kind: 'mcp',
+                disabled: false,
+              },
+            ]}
+            onShowStatusInfo={() => null}
+            params={mergedParams}
+            setParams={() => undefined}
+            pinning={pinning}
+            unifiedResourcePreferences={userPrefs}
+            updateUnifiedResourcesPreferences={setUserPrefs}
+            fetchResources={fetch}
+            resourcesFetchAttempt={attempt}
+            resources={resources.map(resource => ({
+              resource,
+              ui: {
+                ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
+              },
+            }))}
+            {...props}
+          />
+        </FullHeight>
       </InfoGuidePanelProvider>
     );
   };
@@ -257,3 +259,13 @@ export const PinningHidden = story({
   },
   pinning: { kind: 'hidden' },
 });
+
+const FullHeight = styled.div`
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+`;

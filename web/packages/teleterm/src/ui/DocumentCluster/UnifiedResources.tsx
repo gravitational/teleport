@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { memo, useCallback, useEffect, useMemo, type JSX } from 'react';
+import { type JSX, memo, useCallback, useEffect, useMemo } from 'react';
 
-import { Box, ButtonPrimary, Flex, H1, Link, ResourceIcon, Text } from 'design';
+import { ButtonPrimary, Flex, Link } from 'design';
 import * as icons from 'design/Icon';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import {
@@ -35,6 +35,7 @@ import {
   resourceStatusPanelWidth,
 } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import {
+  EmptyStateContent,
   getResourceAvailabilityFilter,
   makeTargetHealth,
   ResourceAvailabilityFilter,
@@ -431,7 +432,8 @@ const Resources = memo(
     }
 
     return (
-      <Box
+      <Flex
+        flex="1"
         css={marginTransitionCss({
           sidePanelOpened: infoGuideSidePanelOpened,
           panelWidth,
@@ -507,17 +509,19 @@ const Resources = memo(
               disabled: false,
             },
           ]}
-          NoResources={
-            <NoResources
-              canCreate={props.canAddResources}
-              discoverUrl={props.discoverUrl}
-              canUseConnectMyComputer={props.canUseConnectMyComputer}
-              onConnectMyComputerCtaClick={props.openConnectMyComputerDocument}
-            />
-          }
+          emptyState={{
+            noResources: props.canAddResources
+              ? getNoResourcesContent({
+                  discoverUrl: props.discoverUrl,
+                  canUseConnectMyComputer: props.canUseConnectMyComputer,
+                  onConnectMyComputerCtaClick:
+                    props.openConnectMyComputerDocument,
+                })
+              : undefined,
+          }}
         />
         <InfoGuideSidePanel />
-      </Box>
+      </Flex>
     );
   }
 );
@@ -626,75 +630,41 @@ const mapToSharedResource = (
   }
 };
 
-function NoResources(props: {
-  canCreate: boolean;
+function getNoResourcesContent(props: {
   discoverUrl: string | undefined;
   canUseConnectMyComputer: boolean;
   onConnectMyComputerCtaClick(): void;
-}) {
-  let $content: React.ReactElement;
-  if (!props.canCreate) {
-    $content = (
-      <>
-        <H1 mb="2">No Resources Found</H1>
-        <Text>
-          Either there are no resources in the cluster, or your roles don't
-          grant you access.
-        </Text>
-      </>
-    );
-  } else {
-    const $discoverLink = (
-      <Link href={props.discoverUrl} target="_blank">
-        the&nbsp;Teleport Web UI
-      </Link>
-    );
-    $content = (
-      <>
-        <ResourceIcon name="server" mx="auto" mb={4} height="100px" />
-        <H1 mb={2}>Add your first resource to Teleport</H1>
-        <Text color="text.slightlyMuted">
-          {props.canUseConnectMyComputer ? (
-            <>
-              You can add it in {$discoverLink} or by connecting your computer
-              to the cluster.
-            </>
-          ) : (
-            <>
-              Connect SSH servers, Kubernetes clusters, Databases and more from{' '}
-              {$discoverLink}.
-            </>
-          )}
-        </Text>
-        {props.canUseConnectMyComputer && (
-          <ButtonPrimary
-            type="button"
-            mt={3}
-            gap={2}
-            onClick={props.onConnectMyComputerCtaClick}
-          >
-            <icons.Laptop size={'medium'} />
-            Connect My Computer
-          </ButtonPrimary>
-        )}
-      </>
-    );
-  }
-
-  return (
-    <Flex
-      maxWidth={600}
-      p={8}
-      pt={5}
-      width="100%"
-      mx="auto"
-      flexDirection="column"
-      alignItems="center"
-      justifyContent="center"
-    >
-      {$content}
-    </Flex>
+}): EmptyStateContent {
+  const $discoverLink = (
+    <Link href={props.discoverUrl} target="_blank">
+      the&nbsp;Teleport Web UI
+    </Link>
   );
+
+  return {
+    title: 'Add your first resource to Teleport',
+    description: props.canUseConnectMyComputer ? (
+      <>
+        You can add it in {$discoverLink} or by connecting your computer to the
+        cluster.
+      </>
+    ) : (
+      <>
+        Connect SSH servers, Kubernetes clusters, Databases and more from{' '}
+        {$discoverLink}.
+      </>
+    ),
+    actions: props.canUseConnectMyComputer ? (
+      <ButtonPrimary
+        type="button"
+        gap={2}
+        onClick={props.onConnectMyComputerCtaClick}
+      >
+        <icons.Laptop size={'medium'} />
+        Connect My Computer
+      </ButtonPrimary>
+    ) : undefined,
+  };
 }
 
 /**
