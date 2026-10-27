@@ -21,13 +21,26 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
+	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
+
+// concurrency bounds how many hosts run a step at once.
+const concurrency = 32
+
+// planHostTimeout bounds one host's checks while planning. The first preflight
+// on a host downloads teleport, so it allows for a slow link.
+const planHostTimeout = 5 * time.Minute
 
 // Options tune a Migrator.
 type Options struct {
@@ -51,13 +64,23 @@ type Migrator struct {
 	stateFile  *stateFile
 	source     clusterAPI
 	target     clusterAPI
-	closers    []io.Closer
+	// sourceHosts runs commands on the source cluster's hosts.
+	sourceHosts hostRunner
+	closers     []io.Closer
+	// binary is how hosts get this build of teleport.
+	binary oneoff.OneOffScriptParams
 }
 
-// NewMigrator validates opts, opens the state file and dials the source and
-// target clusters. Close releases them. cfg must come from LoadConfig.
+// NewMigrator validates opts, opens the state file and dials the source
+// cluster's API and hosts, then the target cluster's API. Close releases them.
+// cfg must come from LoadConfig. Hosts download teleport from
+// TELEPORT_CDN_BASE_URL, or from Teleport's CDN when it is unset.
 func NewMigrator(ctx context.Context, cfg *Config, opts Options) (*Migrator, error) {
 	if err := opts.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	binary, err := newHostBinary(cmp.Or(os.Getenv(autoupdate.BaseURLEnvVar), teleportassets.CDNBaseURL()))
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	stateFile, err := openStateFile(cfg)
@@ -68,6 +91,7 @@ func NewMigrator(ctx context.Context, cfg *Config, opts Options) (*Migrator, err
 		config:    cfg,
 		progress:  opts.Progress,
 		stateFile: stateFile,
+		binary:    binary,
 		closers:   []io.Closer{utils.CloseFunc(stateFile.close)},
 	}
 	if err := m.dial(ctx); err != nil {
@@ -85,6 +109,12 @@ func (m *Migrator) dial(ctx context.Context) error {
 	}
 	m.source = source
 	m.closers = append(m.closers, source)
+
+	sourceHosts, err := dialHosts(ctx, m.config.Source)
+	if err != nil {
+		return trace.Wrap(err, "connecting to the source cluster's hosts")
+	}
+	m.sourceHosts, m.closers = sourceHosts, append(m.closers, sourceHosts)
 
 	target, err := dialCluster(ctx, m.config.Target)
 	if err != nil {
@@ -121,4 +151,44 @@ func (m *Migrator) progressf(format string, args ...any) {
 	m.progressMu.Lock()
 	defer m.progressMu.Unlock()
 	fmt.Fprintf(m.progress, format+"\n", args...)
+}
+
+// hostResult is the outcome of fn for one host.
+type hostResult[T any] struct {
+	host  *host
+	value T
+	err   error
+}
+
+// forEachHost runs fn on every host, at most concurrency at a time, each
+// under its own timeout. Every host that starts sends its result exactly once,
+// and the channel is closed when all are done; the caller must drain it. A
+// canceled ctx stops new hosts from starting, except one already waiting for
+// a slot, which starts with the canceled ctx; the hosts already running still
+// report.
+func forEachHost[T any](ctx context.Context, hosts []*host, timeout time.Duration, fn func(context.Context, *host) (T, error)) <-chan hostResult[T] {
+	results := make(chan hostResult[T])
+	go dispatchHosts(ctx, hosts, timeout, fn, results)
+	return results
+}
+
+// dispatchHosts runs fn on each host under timeout, at most concurrency at a
+// time, and closes results after the last one reports.
+func dispatchHosts[T any](ctx context.Context, hosts []*host, timeout time.Duration, fn func(context.Context, *host) (T, error), results chan<- hostResult[T]) {
+	defer close(results)
+	var group errgroup.Group
+	group.SetLimit(concurrency)
+	defer group.Wait()
+	for _, h := range hosts {
+		if ctx.Err() != nil {
+			return
+		}
+		group.Go(func() error {
+			hostCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			value, err := fn(hostCtx, h)
+			results <- hostResult[T]{host: h, value: value, err: err}
+			return nil
+		})
+	}
 }

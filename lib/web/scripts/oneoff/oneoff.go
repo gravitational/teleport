@@ -21,6 +21,7 @@ package oneoff
 import (
 	"bytes"
 	_ "embed"
+	"path"
 	"slices"
 	"strings"
 
@@ -97,6 +98,19 @@ type OneOffScriptParams struct {
 
 	// SuccessMessage is a message shown to the user after the one off is completed.
 	SuccessMessage string
+
+	// CacheDir, when set, is an absolute directory whose TeleportVersion
+	// subdirectory keeps the binaries for later runs, which then download
+	// nothing. The script refuses to run a cached binary unless it and every
+	// directory above it belong to root or the user running the script, are
+	// not writable by group or others (sticky directories aside) and are not
+	// symlinks. The entrypoint replaces the script, so SuccessMessage is not
+	// shown.
+	CacheDir string
+	// LogToStderr writes the script's own lines (progress, the command it
+	// runs and SuccessMessage) to stderr, so stdout holds only the
+	// entrypoint's output, and drops curl's progress meter.
+	LogToStderr bool
 }
 
 // CheckAndSetDefaults checks if the required params ara present.
@@ -153,6 +167,10 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 		return trace.BadParameter("invalid command prefix %q, only %v are supported", p.TeleportCommandPrefix, allowedCommandPrefix)
 	}
 
+	// The script quotes the cache dir in single quotes.
+	if p.CacheDir != "" && (!path.IsAbs(p.CacheDir) || strings.Contains(p.CacheDir, "'")) {
+		return trace.BadParameter("cache dir %q must be an absolute path without a single quote", p.CacheDir)
+	}
 	return nil
 }
 

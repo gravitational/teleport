@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -39,7 +40,8 @@ type preflightRequest struct{}
 
 // PreflightResponse is what the preflight step read on the host.
 type PreflightResponse struct {
-	// Facts are the source agent's facts.
+	// Facts are the source agent's facts. The step leaves At, Error and
+	// Unreachable empty.
 	Facts PreflightResult `json:"facts"`
 	// Reason is why the host cannot take a scoped install, or "".
 	Reason string `json:"reason,omitempty"`
@@ -202,8 +204,18 @@ func (h hostEnv) installReason(ctx context.Context, argv []string) string {
 	return ""
 }
 
-// PreflightResult is what preflight read from a source host.
+// PreflightResult is what preflight read from a source host over SSH, and why
+// the host failed it, if it did.
 type PreflightResult struct {
+	// At is when the preflight ran.
+	At time.Time `json:"at"`
+	// Error is why the host failed preflight, or why preflight could not
+	// finish; the facts are what this run read before it stopped, or what an
+	// earlier run learned when this one could not reach the host.
+	Error string `json:"error,omitempty"`
+	// Unreachable is set when Error is a connection failure rather than
+	// something the host reported.
+	Unreachable bool `json:"unreachable,omitempty"`
 	// ConfigPath is the source agent's config file.
 	ConfigPath string `json:"config_path"`
 	// DataDir is the source agent's data directory.
@@ -218,6 +230,8 @@ type PreflightResult struct {
 	// Services are the services the source agent's config runs.
 	Services []string `json:"services"`
 	// SuffixHostUUID is the host_uuid of a scoped install already on the
-	// host, if any.
+	// host, if any. Plan pairs the host with the target agent of that ID when
+	// no agent carries the host's correlation labels, as after a migration by
+	// hand.
 	SuffixHostUUID string `json:"suffix_host_uuid,omitempty"`
 }

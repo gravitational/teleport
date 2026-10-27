@@ -25,6 +25,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -195,16 +196,22 @@ func renderUnmatchedCSV(w io.Writer, targets []targetAgent) error {
 
 func renderCSV(w io.Writer, hosts []*host) error {
 	writer := csv.NewWriter(w)
-	header := []string{"id", "hostname", "labels", "target_scope", "state", "reason", "matched_by", "target_id"}
+	header := []string{"id", "hostname", "labels", "target_scope", "state", "reason", "matched_by", "target_id", "join_method", "services", "preflight_at"}
 	if err := writer.Write(header); err != nil {
 		return trace.Wrap(err)
 	}
 	for _, h := range hosts {
+		var joinMethod, services, preflightAt string
+		if preflight := h.Preflight; preflight != nil {
+			joinMethod = preflight.JoinMethod
+			services = strings.Join(preflight.Services, " ")
+			preflightAt = preflight.At.Format(time.RFC3339)
+		}
 		labels := make([]string, 0, len(h.Labels))
 		for _, k := range slices.Sorted(maps.Keys(h.Labels)) {
 			labels = append(labels, k+"="+h.Labels[k])
 		}
-		row := []string{h.ID, h.Hostname, strings.Join(labels, " "), h.TargetScope, h.State, h.Reason, h.MatchedBy, h.TargetID}
+		row := []string{h.ID, h.Hostname, strings.Join(labels, " "), h.TargetScope, h.State, h.Reason, h.MatchedBy, h.TargetID, joinMethod, services, preflightAt}
 		for i := range row {
 			row[i] = csvSafe(row[i])
 		}

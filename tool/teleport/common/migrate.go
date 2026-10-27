@@ -33,6 +33,7 @@ import (
 // (clusters, state directory, mappings) is described only by --config.
 type migrateFlags struct {
 	configPath, format, subset, hostStep string
+	check                                bool
 }
 
 // onMigratePlan runs `teleport migrate plan`. A host that cannot migrate is
@@ -57,7 +58,7 @@ func onMigratePlan(ctx context.Context, f *migrateFlags) error {
 			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 		}
 	}()
-	summary, err := m.Plan(ctx)
+	summary, err := m.Plan(ctx, migrate.PlanOptions{Check: f.check})
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/migrate/hoststep"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,6 +72,8 @@ type host struct {
 	TargetID string `json:"target_id,omitempty"`
 	// MatchedBy names the evidence that pairs the host with TargetID.
 	MatchedBy string `json:"matched_by,omitempty"`
+	// Preflight is what the last preflight read off the host, nil until one ran.
+	Preflight *hoststep.PreflightResult `json:"preflight,omitempty"`
 	// UpdatedAt is when State, Reason or the pairing last changed.
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -79,6 +82,9 @@ type host struct {
 const (
 	// matchedByLabel pairs a host by the migration labels on the target agent.
 	matchedByLabel = "label"
+	// matchedByCheck pairs a host by the host_uuid of the scoped install that
+	// preflight read on it.
+	matchedByCheck = "check"
 )
 
 // Correlation labels: the labels a migrated scoped agent carries, so plan can

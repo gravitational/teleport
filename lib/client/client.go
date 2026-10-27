@@ -553,6 +553,7 @@ func (lw *lineLabeledWriter) Close() error {
 type RunCommandOptions struct {
 	labelLines    bool
 	maxLineLength int
+	stdin         io.Reader
 	stdout        io.Writer
 	stderr        io.Writer
 }
@@ -578,6 +579,14 @@ func WithOutput(stdout, stderr io.Writer) RunCommandOption {
 	}
 }
 
+// WithInput supplies the command's stdin from the given reader instead of the
+// node client's.
+func WithInput(stdin io.Reader) RunCommandOption {
+	return func(opts *RunCommandOptions) {
+		opts.stdin = stdin
+	}
+}
+
 // RunCommand executes a given bash command on the node.
 func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...RunCommandOption) error {
 	ctx, span := c.Tracer.Start(
@@ -588,6 +597,7 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 	defer span.End()
 
 	options := RunCommandOptions{
+		stdin:  c.TC.Stdin,
 		stdout: c.TC.Stdout,
 		stderr: c.TC.Stderr,
 	}
@@ -647,7 +657,7 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 		DisplayParticipantRequirements: c.TC.Config.DisplayParticipantRequirements,
 	}
 
-	nodeSession, err := newSession(ctx, c, sessionParams, c.TC.Stdin, stdout, stderr, !c.TC.DisableEscapeSequences)
+	nodeSession, err := newSession(ctx, c, sessionParams, options.stdin, stdout, stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}

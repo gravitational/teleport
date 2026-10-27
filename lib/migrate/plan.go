@@ -18,6 +18,7 @@ package migrate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/migrate/hoststep"
 )
 
 // progressEvery is how many nodes a reader reads between progress lines.
@@ -224,8 +226,10 @@ func (h *host) setOutcome(o outcome, now time.Time) {
 
 // pairHost decides h's state from the target without changing h: migrated when
 // its scoped agent is already there, blocked when something stops the tool from
-// migrating it, and unstarted when it is ready. A target agent carrying h's
-// migration label is h's scoped agent.
+// migrating it, and otherwise ready to migrate. The evidence for the scoped
+// agent is, strongest first: the migration label on a target agent, then the
+// host_uuid of a scoped install that preflight read on the host, unless that
+// agent carries another host's label.
 func pairHost(h *host, target targetInventory) outcome {
 	labeled := target.nodesBySourceLabel[h.ID]
 	// More than one agent claims the host: a person has to pick.
@@ -242,6 +246,14 @@ func pairHost(h *host, target targetInventory) outcome {
 	if len(labeled) == 1 {
 		return classifyLabeledNode(h, labeled[0], matchedByLabel)
 	}
+	// No labeled agent, but preflight found a scoped install on the host.
+	if h.Preflight != nil && h.Preflight.SuffixHostUUID != "" {
+		// An agent labeled for another host belongs to that host, whichever
+		// host ID sorts first.
+		if n, ok := target.nodesByID[h.Preflight.SuffixHostUUID]; ok && !isLabeledForAnotherHost(n, h.ID) {
+			return classifyLabeledNode(h, n, matchedByCheck)
+		}
+	}
 	// No scoped agent yet: blocked if the tool cannot migrate the host.
 	if reason := findBlockReason(h); reason != "" {
 		return outcome{state: stateBlocked, reason: reason}
@@ -255,6 +267,17 @@ func pairHost(h *host, target targetInventory) outcome {
 	}
 	// A blocked host whose block is gone is ready again.
 	return outcome{state: stateUnstarted}
+}
+
+// isLabeledForAnotherHost reports whether n carries a migration label that
+// names a host other than id.
+func isLabeledForAnotherHost(n node, id string) bool {
+	for _, label := range []string{sourceHostLabel, types.ReconfigureSourceUUIDLabel} {
+		if other := n.Labels[label]; other != "" && other != id {
+			return true
+		}
+	}
+	return false
 }
 
 // classifyLabeledNode returns h's outcome when n carries h's migration label:
@@ -271,6 +294,8 @@ func classifyLabeledNode(h *host, n node, matchedBy string) outcome {
 }
 
 // findBlockReason returns why the tool cannot migrate an unpaired host, or "".
+// The first match wins: discovery labels, then the last preflight's error and
+// a service a scope cannot run.
 func findBlockReason(h *host) string {
 	for _, group := range [][]string{
 		{types.AWSAccountIDLabel, types.AWSInstanceIDLabel},
@@ -280,6 +305,18 @@ func findBlockReason(h *host) string {
 		// A complete group marks a host the source cluster's discovery installed.
 		if hasAllLabels(h.Labels, group) {
 			return "managed by the source cluster's discovery service; migrate by hand or wait for scoped discovery"
+		}
+	}
+	preflight := h.Preflight
+	if preflight == nil {
+		return ""
+	}
+	if preflight.Error != "" {
+		return preflight.Error
+	}
+	for _, service := range preflight.Services {
+		if !isScopable(service) {
+			return fmt.Sprintf("%s cannot run in a scope yet", service)
 		}
 	}
 	return ""
@@ -295,14 +332,27 @@ func hasAllLabels(labels map[string]string, keys []string) bool {
 	return true
 }
 
+// isScopable reports whether a scoped agent can run service today.
+func isScopable(service string) bool {
+	switch service {
+	case "ssh_service", "app_service", "kubernetes_service":
+		return true
+	}
+	return false
+}
+
 // pairHosts pairs every tracked host with its scoped agent and finds the target
 // agents in a migration scope that no host claims, which plan reports as agents
 // the migration did not put there. It returns each host's outcome keyed by host
-// UUID and the unclaimed agents sorted by ID, and does not change hosts.
+// UUID and the unclaimed agents sorted by ID. Hosts are visited in ID order, so
+// a target two hosts point at goes to the lower ID and blocks the other. It does
+// not change hosts.
 func (m *Migrator) pairHosts(hosts map[string]*host, target targetInventory) (outcomes map[string]outcome, unmatched []targetAgent) {
 	outcomes = make(map[string]outcome, len(hosts))
-	claimed := make(map[string]bool)
-	for id, h := range hosts {
+	// claimedBy maps a target agent ID to the host paired with it.
+	claimedBy := make(map[string]string)
+	for _, id := range slices.Sorted(maps.Keys(hosts)) {
+		h := hosts[id]
 		result := pairHost(h, target)
 		// A pairing does not settle which scope the host belongs in. It is
 		// kept, so the pairing stays visible, but the host is blocked until
@@ -312,13 +362,20 @@ func (m *Migrator) pairHosts(hosts map[string]*host, target targetInventory) (ou
 			result.reason = conflict
 		}
 		if result.targetID != "" {
-			claimed[result.targetID] = true
+			if other, taken := claimedBy[result.targetID]; taken {
+				result = outcome{
+					state:  stateBlocked,
+					reason: fmt.Sprintf("conflict: target agent %q is also claimed by %q", result.targetID, other),
+				}
+			} else {
+				claimedBy[result.targetID] = id
+			}
 		}
 		outcomes[id] = result
 	}
 	for _, id := range slices.Sorted(maps.Keys(target.nodesByID)) {
 		n := target.nodesByID[id]
-		if !claimed[id] && m.isMigrationScope(n.Scope) {
+		if _, claimed := claimedBy[id]; !claimed && m.isMigrationScope(n.Scope) {
 			unmatched = append(unmatched, targetAgent{
 				ID:       id,
 				Hostname: n.Hostname,
@@ -352,18 +409,34 @@ type Summary struct {
 	UnmatchedTargets int `json:"unmatched_targets"`
 }
 
+// PlanOptions select the hosts a plan preflights.
+type PlanOptions struct {
+	// Check preflights every host again, not only the hosts with no preflight
+	// yet.
+	Check bool
+}
+
 // Plan works out where every host the migration covers stands. It reads both
-// clusters, selects the source hosts the mappings choose, pairs each with the
-// scoped agent already in the target, if any, and saves each host's state, and
-// the reason when it is blocked, to the state file.
-func (m *Migrator) Plan(ctx context.Context) (*Summary, error) {
+// clusters, selects the source hosts the mappings choose, preflights the ones
+// that need it, pairs each with the scoped agent already in the target, if any,
+// and saves each host's state, and the reason when it is blocked, to the state
+// file. A host that fails preflight is recorded as blocked, not returned as an
+// error; a canceled ctx discards the preflights still running.
+func (m *Migrator) Plan(ctx context.Context, opts PlanOptions) (*Summary, error) {
 	source, target, err := m.readInventories(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	now := time.Now().UTC()
 	current := m.stateFile.state
-	current.Hosts = m.selectHosts(current.Hosts, source, now)
+	current.Hosts = m.selectHosts(current.Hosts, source, time.Now().UTC())
+	// Save before preflight so the selection survives a failure below.
+	if err := m.stateFile.save(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := m.preflightHosts(ctx, opts); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	now := time.Now().UTC()
 	outcomes, unmatched := m.pairHosts(current.Hosts, target)
 	for id, o := range outcomes {
 		current.Hosts[id].setOutcome(o, now)
@@ -388,4 +461,113 @@ func (m *Migrator) summarize() *Summary {
 		summary.ByState[h.State]++
 	}
 	return summary
+}
+
+// needsPreflight reports whether plan preflights h: when it has no preflight
+// yet, or when check is set.
+func needsPreflight(h *host, check bool) bool {
+	return h.Preflight == nil || check
+}
+
+// preflightProgressEvery is how many preflights finish between progress lines.
+const preflightProgressEvery = 100
+
+// preflightHosts preflights the hosts that need it in ID order and records
+// each result on its host. A failed preflight is recorded, not returned.
+// Results that arrive after ctx is canceled are discarded, and ctx's error is
+// returned after the save.
+func (m *Migrator) preflightHosts(ctx context.Context, opts PlanOptions) error {
+	current := m.stateFile.state
+	var hosts []*host
+	for _, id := range slices.Sorted(maps.Keys(current.Hosts)) {
+		if h := current.Hosts[id]; needsPreflight(h, opts.Check) {
+			hosts = append(hosts, h)
+		}
+	}
+	if len(hosts) == 0 {
+		return nil
+	}
+	m.progressf("preflighting %d hosts", len(hosts))
+	finished := 0
+	for result := range forEachHost(ctx, hosts, planHostTimeout, m.runPreflight) {
+		// A preflight the cancel cut short can only fail, and recording that
+		// would leave the host with a preflight, which the next plan skips.
+		if ctx.Err() != nil {
+			continue
+		}
+		result.host.Preflight = newPreflightResult(result.host.Preflight, result.value, result.err, time.Now().UTC())
+		if finished++; finished%preflightProgressEvery == 0 {
+			m.progressf("preflighted %d of %d hosts", finished, len(hosts))
+		}
+	}
+	if err := m.stateFile.save(); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(ctx.Err())
+}
+
+// retryHint ends a preflight failure's reason, because plan preflights a host
+// that already has a preflight only under --check.
+const retryHint = "; run plan --check to preflight it again"
+
+// newPreflightResult returns the preflight to record from one run's facts and
+// error. A run that read no facts keeps previous's facts, or starts from none.
+// The error is the host's reason when the host refused, and otherwise says
+// whether the login was refused, the run timed out or the host could not be
+// reached. It is kept on one line.
+func newPreflightResult(previous, facts *hoststep.PreflightResult, err error, now time.Time) *hoststep.PreflightResult {
+	var result hoststep.PreflightResult
+	switch {
+	case facts != nil:
+		result = *facts
+	case previous != nil:
+		result = *previous
+	}
+	result.At = now
+	result.Error = ""
+	result.Unreachable = false
+	switch {
+	case err == nil:
+	case facts != nil:
+		result.Error = joinLines(err.Error()) + retryHint
+	case trace.IsAccessDenied(err):
+		result.Error = joinLines("ssh access denied: "+err.Error()) + retryHint
+	// Before the deadline check: a dial that timed out on its own is a
+	// connection problem that wraps context.DeadlineExceeded.
+	case trace.IsConnectionProblem(err):
+		result.Error = joinLines("unreachable: "+err.Error()) + retryHint
+		result.Unreachable = true
+	case errors.Is(err, context.DeadlineExceeded):
+		result.Error = fmt.Sprintf("preflight did not finish within %v (the first run downloads teleport); run plan --check again", planHostTimeout)
+	default:
+		result.Error = joinLines(err.Error()) + retryHint
+	}
+	return &result
+}
+
+// joinLines joins message's trimmed, non-empty lines with a space. A wrapped
+// trace error and a host's stderr span several lines, and a reason is printed
+// as one table cell.
+func joinLines(message string) string {
+	var lines []string
+	for line := range strings.Lines(message) {
+		if line = strings.TrimSpace(line); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return strings.Join(lines, " ")
+}
+
+// runPreflight runs the preflight step on h. A host that refuses returns its
+// reason as the error, together with the facts read before it; any other
+// error comes with no facts.
+func (m *Migrator) runPreflight(ctx context.Context, h *host) (*hoststep.PreflightResult, error) {
+	var response hoststep.PreflightResponse
+	if err := m.runHostStep(ctx, m.sourceHosts, h.ID, hoststep.Preflight, struct{}{}, &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if response.Reason != "" {
+		return &response.Facts, errors.New(response.Reason)
+	}
+	return &response.Facts, nil
 }
