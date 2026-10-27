@@ -84,7 +84,7 @@ func (s *WindowsService) newSessionAuditor(
 		startTime:          s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		clusterName:        s.clusterName,
 		desktopServiceUUID: s.cfg.Heartbeat.HostUUID,
-		compactor:          newAuditCompactor(3*time.Second, 10*time.Second, s.emit),
+		compactor:          newAuditCompactor(3*time.Second, 10*time.Second, defaultMaxEventsPerBucket, s.emit),
 		auditCache:         newSharedDirectoryAuditCache(),
 	}
 }
