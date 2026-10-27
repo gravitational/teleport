@@ -32,13 +32,19 @@ import (
 // migrateFlags holds every `teleport migrate` flag. The migration itself
 // (clusters, state directory, mappings) is described only by --config.
 type migrateFlags struct {
-	configPath, format, subset, hostStep string
-	check                                bool
+	configPath, format, subset, hostStep, resource string
+	check                                          bool
 }
 
 // onMigratePlan runs `teleport migrate plan`. A host that cannot migrate is
 // reported in the output, not through the exit code.
 func onMigratePlan(ctx context.Context, f *migrateFlags) error {
+	// Before dialing either cluster, so a typo fails the same way every time.
+	if f.resource != "" {
+		if err := migrate.CheckResource(f.resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	if f.configPath == "" {
 		return trace.BadParameter("--config is required")
 	}
@@ -58,7 +64,7 @@ func onMigratePlan(ctx context.Context, f *migrateFlags) error {
 			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 		}
 	}()
-	summary, err := m.Plan(ctx, migrate.PlanOptions{Check: f.check})
+	summary, err := m.Plan(ctx, migrate.PlanOptions{Check: f.check, Resource: f.resource})
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/migrate/hoststep"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -140,6 +142,45 @@ func newState(cfg *Config) *migrationState {
 		Migrations: sortedMappings(cfg.Migrations),
 		Hosts:      make(map[string]*host),
 	}
+}
+
+// parseNodeRef returns the UUID or hostname that ref, node/<uuid> or
+// node/<hostname>, names.
+func parseNodeRef(ref string) (string, error) {
+	parsed, err := services.ParseRef(ref)
+	if err != nil || parsed.Kind != types.KindNode || parsed.SubKind != "" || parsed.Name == "" {
+		return "", trace.BadParameter("--resource takes node/<uuid> or node/<hostname>, got %q", ref)
+	}
+	return parsed.Name, nil
+}
+
+// CheckResource refuses a --resource that is not node/<uuid> or
+// node/<hostname>.
+func CheckResource(ref string) error {
+	_, err := parseNodeRef(ref)
+	return trace.Wrap(err)
+}
+
+// findHost returns the host that name, a UUID or hostname from parseNodeRef,
+// names. An ID match wins; hostnames, which are not unique, match ignoring
+// case, and several matches are refused with the IDs to choose from.
+func (s *migrationState) findHost(name string) (*host, error) {
+	if h, ok := s.Hosts[name]; ok {
+		return h, nil
+	}
+	var matches []string
+	for _, id := range slices.Sorted(maps.Keys(s.Hosts)) {
+		if strings.EqualFold(s.Hosts[id].Hostname, name) {
+			matches = append(matches, id)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return nil, trace.NotFound("no host matches %q; the source cluster has no node by that ID or hostname under a mapped label set", "node/"+name)
+	case 1:
+		return s.Hosts[matches[0]], nil
+	}
+	return nil, trace.BadParameter("%q matches more than one host; use one of: node/%s", "node/"+name, strings.Join(matches, ", node/"))
 }
 
 var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)

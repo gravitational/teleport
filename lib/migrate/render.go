@@ -117,7 +117,11 @@ func renderSummary(w io.Writer, summary *Summary) error {
 	var parts []string
 	for _, s := range states() {
 		if n := summary.ByState[s]; n > 0 {
-			parts = append(parts, fmt.Sprintf("%d %s", n, s))
+			part := fmt.Sprintf("%d %s", n, s)
+			if s == stateBlocked {
+				part += unreachableNote(summary)
+			}
+			parts = append(parts, part)
 		}
 	}
 	if _, err := fmt.Fprintf(w, "state file: %s\n%d hosts: %s\n", summary.StateFile, summary.Hosts, cmp.Or(strings.Join(parts, ", "), "none")); err != nil {
@@ -143,7 +147,7 @@ func renderVerdict(w io.Writer, summary *Summary) error {
 		parts = append(parts, fmt.Sprintf("%d ready to migrate", n))
 	}
 	if n := summary.ByState[stateBlocked]; n > 0 {
-		parts = append(parts, fmt.Sprintf("%d need an operator", n))
+		parts = append(parts, fmt.Sprintf("%d need an operator", n)+unreachableNote(summary))
 	}
 	if len(parts) > 0 {
 		_, err := fmt.Fprintf(w, "verdict: %s\n", strings.Join(parts, ", "))
@@ -151,6 +155,15 @@ func renderVerdict(w io.Writer, summary *Summary) error {
 	}
 	_, err := fmt.Fprintf(w, "verdict: all %d hosts migrated\n", total)
 	return trace.Wrap(err)
+}
+
+// unreachableNote is " (N unreachable)" when preflight could not reach N
+// blocked hosts, or "".
+func unreachableNote(summary *Summary) string {
+	if summary.Unreachable == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (%d unreachable)", summary.Unreachable)
 }
 
 // renderTable writes hosts as a table. Names, targets and reasons originate on

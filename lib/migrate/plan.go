@@ -293,9 +293,13 @@ func classifyLabeledNode(h *host, n node, matchedBy string) outcome {
 	}
 }
 
+// notPreflightedReason blocks a host no plan has preflighted yet.
+const notPreflightedReason = "not preflighted yet; run plan"
+
 // findBlockReason returns why the tool cannot migrate an unpaired host, or "".
-// The first match wins: discovery labels, then the last preflight's error and
-// a service a scope cannot run.
+// The first match wins: discovery labels, then a missing preflight (plan
+// --resource preflights one host), the last preflight's error and a service a
+// scope cannot run.
 func findBlockReason(h *host) string {
 	for _, group := range [][]string{
 		{types.AWSAccountIDLabel, types.AWSInstanceIDLabel},
@@ -309,7 +313,7 @@ func findBlockReason(h *host) string {
 	}
 	preflight := h.Preflight
 	if preflight == nil {
-		return ""
+		return notPreflightedReason
 	}
 	if preflight.Error != "" {
 		return preflight.Error
@@ -407,6 +411,9 @@ type Summary struct {
 	// UnmatchedTargets counts target agents in a migration scope that no host
 	// claims.
 	UnmatchedTargets int `json:"unmatched_targets"`
+	// Unreachable counts the hosts blocked because preflight could not connect
+	// to them.
+	Unreachable int `json:"unreachable"`
 }
 
 // PlanOptions select the hosts a plan preflights.
@@ -414,6 +421,17 @@ type PlanOptions struct {
 	// Check preflights every host again, not only the hosts with no preflight
 	// yet.
 	Check bool
+	// Resource, node/<uuid> or node/<hostname>, preflights only that host,
+	// even when it has a preflight or is migrated.
+	Resource string
+}
+
+// check refuses a malformed Resource.
+func (o *PlanOptions) check() error {
+	if o.Resource == "" {
+		return nil
+	}
+	return trace.Wrap(CheckResource(o.Resource))
 }
 
 // Plan works out where every host the migration covers stands. It reads both
@@ -423,6 +441,9 @@ type PlanOptions struct {
 // file. A host that fails preflight is recorded as blocked, not returned as an
 // error; a canceled ctx discards the preflights still running.
 func (m *Migrator) Plan(ctx context.Context, opts PlanOptions) (*Summary, error) {
+	if err := opts.check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	source, target, err := m.readInventories(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -459,6 +480,9 @@ func (m *Migrator) summarize() *Summary {
 	}
 	for _, h := range current.Hosts {
 		summary.ByState[h.State]++
+		if h.State == stateBlocked && h.Preflight != nil && h.Preflight.Unreachable && h.Reason == h.Preflight.Error {
+			summary.Unreachable++
+		}
 	}
 	return summary
 }
@@ -472,16 +496,28 @@ func needsPreflight(h *host, check bool) bool {
 // preflightProgressEvery is how many preflights finish between progress lines.
 const preflightProgressEvery = 100
 
-// preflightHosts preflights the hosts that need it in ID order and records
-// each result on its host. A failed preflight is recorded, not returned.
-// Results that arrive after ctx is canceled are discarded, and ctx's error is
-// returned after the save.
+// preflightHosts preflights the hosts that need it in ID order, or only the
+// one opts.Resource names, and records each result on its host. A failed
+// preflight is recorded, not returned. Results that arrive after ctx is
+// canceled are discarded, and ctx's error is returned after the save.
 func (m *Migrator) preflightHosts(ctx context.Context, opts PlanOptions) error {
 	current := m.stateFile.state
 	var hosts []*host
-	for _, id := range slices.Sorted(maps.Keys(current.Hosts)) {
-		if h := current.Hosts[id]; needsPreflight(h, opts.Check) {
-			hosts = append(hosts, h)
+	if opts.Resource != "" {
+		name, err := parseNodeRef(opts.Resource)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		h, err := current.findHost(name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		hosts = []*host{h}
+	} else {
+		for _, id := range slices.Sorted(maps.Keys(current.Hosts)) {
+			if h := current.Hosts[id]; needsPreflight(h, opts.Check) {
+				hosts = append(hosts, h)
+			}
 		}
 	}
 	if len(hosts) == 0 {

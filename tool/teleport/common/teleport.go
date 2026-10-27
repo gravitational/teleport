@@ -487,6 +487,7 @@ Examples:
 	migratePlanCmd.Flag("show", "List the hosts in one state, or the unmatched target agents.").EnumVar(&migrateFlags.subset, migrate.ShowValues()...)
 	migratePlanCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&migrateFlags.format, teleport.Text, teleport.JSON, teleport.CSV)
 	migratePlanCmd.Flag("check", "Preflight every host again, not only the hosts with no preflight yet.").BoolVar(&migrateFlags.check)
+	migratePlanCmd.Flag("resource", "Preflight only this host: node/<uuid> or node/<hostname>.").StringVar(&migrateFlags.resource)
 	migrateHostCmd := migrateCmd.Command("host", "Run one migration step on this host, reading the request on stdin.").Hidden()
 	migrateHostCmd.Arg("step", "The step to run.").Required().StringVar(&migrateFlags.hostStep)
 
