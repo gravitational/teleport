@@ -58,18 +58,22 @@ func NewClient(socketPath string, creds credentials.TransportCredentials) (hardw
 	return hardwarekeyagentv1.NewHardwareKeyAgentServiceClient(cc), nil
 }
 
-// NewServer returns a new hardware key agent server.
-func NewServer(s hardwarekey.Service, creds credentials.TransportCredentials, knownKeyFn KnownHardwareKeyFn) (*grpc.Server, error) {
+// NewGRPCServer creates a new gRPC server with the given hardware key service.
+func NewGRPCServer(s hardwarekey.Service, creds credentials.TransportCredentials, knownKeyFn KnownHardwareKeyFn) (*grpc.Server, error) {
 	if knownKeyFn == nil {
 		return nil, trace.BadParameter("knownKeyFn must be provided")
 	}
-
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
-	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, &agentService{s: s, knownKeyFn: knownKeyFn})
+	RegisterServer(grpcServer, s, knownKeyFn)
 	return grpcServer, nil
+}
+
+// RegisterServer registers the given hardware key service to the gRPC server.
+func RegisterServer(grpcServer grpc.ServiceRegistrar, s hardwarekey.Service, knownKeyFn KnownHardwareKeyFn) {
+	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, &agentService{s: s, knownKeyFn: knownKeyFn})
 }
 
 // KnownHardwareKeyFn is a function to determine if the hardware private key, described by the given

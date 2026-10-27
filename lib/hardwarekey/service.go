@@ -32,7 +32,7 @@ import (
 func NewService(ctx context.Context, prompt hardwarekey.Prompt) hardwarekey.Service {
 	hwks := piv.NewYubiKeyService(prompt)
 
-	agentClient, err := NewAgentClient(ctx, AgentDirFromEnv(DefaultAgentDir()))
+	agentClient, err := NewAgentClient(AgentDirFromEnv(DefaultAgentDir()))
 	if err == nil {
 		return hardwarekeyagent.NewService(agentClient, hwks)
 	}
