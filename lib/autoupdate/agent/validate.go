@@ -33,8 +33,6 @@ import (
 const (
 	// fileHeaderSniffBytes is the max size to read to determine a file's MIME type
 	fileHeaderSniffBytes = 512 // MIME standard size
-	// execModeMask is the minimum required set of bits to consider a file executable.
-	execModeMask = 0111
 )
 
 // Validator validates filesystem paths.
@@ -92,7 +90,7 @@ func (v *Validator) IsExecutable(ctx context.Context, path string) (bool, error)
 		v.Log.WarnContext(ctx, "Found unexpected irregular file", "name", name)
 		return false, nil
 	}
-	if fi.Mode()&execModeMask != execModeMask {
+	if !isExecutableFile(path, fi) {
 		v.Log.WarnContext(ctx, "Found unexpected non-executable file", "name", name)
 		return false, nil
 	}
