@@ -33,6 +33,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
@@ -58,12 +59,12 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 			// TODO(espadolini): try getting keys in a read-only deferrable
 			// transaction and deleting them later to reduce potential
 			// serialization issues
-			deleted, err := pgcommon.RetryIdempotent(ctx, b.log, func() (int64, error) {
+			deleted, err := retryIdempotentOperation(b, ctx, opDeleteExpired, func(ctx context.Context, conn *pgxpool.Conn) (int64, error) {
 				// LIMIT without ORDER BY might get executed poorly because the
 				// planner doesn't have any idea of how many rows will be chosen
 				// or skipped, and it's not necessary but it's a nice touch that
 				// we'll be deleting expired items in expiration order
-				tag, err := b.pool.Exec(ctx,
+				tag, err := conn.Exec(ctx,
 					"DELETE FROM kv WHERE kv.key IN (SELECT kv_inner.key FROM kv AS kv_inner"+
 						" WHERE kv_inner.expires IS NOT NULL AND kv_inner.expires <= now()"+
 						" ORDER BY kv_inner.expires LIMIT $1 FOR UPDATE)",

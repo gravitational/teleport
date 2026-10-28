@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
-	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 )
 
 func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.ConditionalAction) (revision string, err error) {
@@ -103,7 +102,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	}
 
 	var attempts int
-	err = pgcommon.RetryTx(ctx, b.log, b.pool, pgx.TxOptions{}, false, func(tx pgx.Tx) error {
+	err = retryTxOperation(b, ctx, opAtomicWrite, pgx.TxOptions{}, func(ctx context.Context, tx pgx.Tx) error {
 		attempts++
 
 		var condBatch, actBatch pgx.Batch
