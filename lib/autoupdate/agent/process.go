@@ -20,6 +20,7 @@ package agent
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"io"
@@ -55,6 +56,31 @@ const (
 const (
 	unitKey = "unit"
 )
+
+// processMonitor detects crashes and readiness of a process after it has been restarted.
+// The process-manager-specific PID source is supplied by the caller, so the same
+// crash-detection state machine is shared by all Process implementations
+// (e.g., systemd reads a PID file, while SCM queries the service status).
+type processMonitor struct {
+	// name of the monitored process, used for logging.
+	name string
+	// ready is a readiness checker. If nil, readiness is not checked.
+	ready ReadyChecker
+	// log contains a logger.
+	log *slog.Logger
+	// timeout for the entire monitoring operation.
+	// Defaults to monitorTimeout if zero.
+	timeout time.Duration
+	// interval between PID and readiness polls.
+	// Defaults to monitorInterval if zero.
+	interval time.Duration
+	// tickPID must send the current PID of the process on pidC for each tick received on tickC,
+	// or 0 if the process is not running. tickPID must return when ctx is canceled.
+	tickPID func(ctx context.Context, pidC chan<- int, tickC <-chan time.Time) error
+	// verifyPID must return os.ErrProcessDone (or syscall.ESRCH) if the process
+	// identified by pid is not running, and nil if it is running.
+	verifyPID func(pid int) error
+}
 
 // SystemdService manages a systemd service (e.g., teleport or teleport-update).
 type SystemdService struct {
@@ -149,69 +175,87 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	return nil
 }
 
-// monitor for a started, healthy process.
-// monitor logs all errors that should be displayed to the user.
+// monitor for a started, healthy process by polling PIDFile and the readiness socket.
 func (s SystemdService) monitor(ctx context.Context, initPID int) error {
-	ctx, cancel := context.WithTimeout(ctx, monitorTimeout)
-	defer cancel()
-	ticker := time.NewTicker(monitorInterval)
-	defer ticker.Stop()
-
-	newPID := 0
-	if initPID != 0 {
-		s.Log.InfoContext(ctx, "Monitoring PID file to detect crashes.", unitKey, s.ServiceName)
-		var err error
-		newPID, err = s.monitorPID(ctx, initPID, ticker.C)
-		if errors.Is(err, context.DeadlineExceeded) {
-			s.Log.ErrorContext(ctx, "Timed out monitoring for crashing PID.", unitKey, s.ServiceName)
-			return trace.Wrap(err)
-		}
-		if err != nil {
-			s.Log.ErrorContext(ctx, "Error monitoring for crashing PID.", errorKey, err, unitKey, s.ServiceName)
-			return trace.Wrap(err)
-		}
-	}
-
-	s.Log.InfoContext(ctx, "Monitoring diagnostic socket to detect readiness.", unitKey, s.ServiceName)
-	ticker = time.NewTicker(monitorInterval)
-	defer ticker.Stop()
-	err := s.waitForReady(ctx, newPID, ticker.C)
-	if errors.Is(err, context.DeadlineExceeded) {
-		s.Log.ErrorContext(ctx, "Timed out monitoring for process readiness.", unitKey, s.ServiceName)
-		return trace.Wrap(err)
-	}
-	if err != nil {
-		s.Log.ErrorContext(ctx, "Error monitoring for process readiness.", errorKey, err, unitKey, s.ServiceName)
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// monitorPID for the started process to ensure it's running by polling PIDFile.
-// This function detects several types of crashes while minimizing its own runtime during updates.
-// For example, the process may crash by failing to fork (non-running PID), or looping (repeatedly changing PID),
-// or getting stuck on quit (no change in PID).
-// initPID is the PID before the restart operation has been issued.
-// The final PID is returned.
-func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-chan time.Time) (int, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	pidC := make(chan int)
-	var g errgroup.Group
-	g.Go(func() error {
-		return tickFile(ctx, s.PIDFile, pidC, tickC)
-	})
-	stablePID, err := s.waitForStablePID(ctx, minRunningIntervalsBeforeStable, maxCrashesBeforeFailure,
-		initPID, pidC, func(pid int) error {
+	m := processMonitor{
+		name:     s.ServiceName,
+		ready:    s.Ready,
+		log:      s.Log,
+		timeout:  monitorTimeout,
+		interval: monitorInterval,
+		tickPID: func(ctx context.Context, pidC chan<- int, tickC <-chan time.Time) error {
+			return tickFile(ctx, s.PIDFile, pidC, tickC)
+		},
+		verifyPID: func(pid int) error {
 			p, err := os.FindProcess(pid)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(p.Signal(syscall.Signal(0)))
-		})
+		},
+	}
+	return m.monitor(ctx, initPID)
+}
+
+// monitor for a started, healthy process.
+// monitor logs all errors that should be displayed to the user.
+// initPID is the PID before the restart operation was issued, or 0 if unknown.
+func (m processMonitor) monitor(ctx context.Context, initPID int) error {
+	ctx, cancel := context.WithTimeout(ctx, cmp.Or(m.timeout, monitorTimeout))
+	defer cancel()
+	interval := cmp.Or(m.interval, monitorInterval)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	newPID := 0
+	if initPID != 0 {
+		m.log.InfoContext(ctx, "Monitoring process ID to detect crashes.", unitKey, m.name)
+		var err error
+		newPID, err = m.monitorPID(ctx, initPID, ticker.C)
+		if errors.Is(err, context.DeadlineExceeded) {
+			m.log.ErrorContext(ctx, "Timed out monitoring for crashing PID.", unitKey, m.name)
+			return trace.Wrap(err)
+		}
+		if err != nil {
+			m.log.ErrorContext(ctx, "Error monitoring for crashing PID.", errorKey, err, unitKey, m.name)
+			return trace.Wrap(err)
+		}
+	}
+
+	m.log.InfoContext(ctx, "Monitoring diagnostic socket to detect readiness.", unitKey, m.name)
+	ticker = time.NewTicker(interval)
+	defer ticker.Stop()
+	err := m.waitForReady(ctx, newPID, ticker.C)
+	if errors.Is(err, context.DeadlineExceeded) {
+		m.log.ErrorContext(ctx, "Timed out monitoring for process readiness.", unitKey, m.name)
+		return trace.Wrap(err)
+	}
+	if err != nil {
+		m.log.ErrorContext(ctx, "Error monitoring for process readiness.", errorKey, err, unitKey, m.name)
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// monitorPID for the started process to ensure it's running by polling tickPID.
+// This function detects several types of crashes while minimizing its own runtime during updates.
+// For example, the process may crash by failing to fork (non-running PID), or looping (repeatedly changing PID),
+// or getting stuck on quit (no change in PID).
+// initPID is the PID before the restart operation has been issued.
+// The final PID is returned.
+func (m processMonitor) monitorPID(ctx context.Context, initPID int, tickC <-chan time.Time) (int, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	pidC := make(chan int)
+	var g errgroup.Group
+	g.Go(func() error {
+		return m.tickPID(ctx, pidC, tickC)
+	})
+	stablePID, err := m.waitForStablePID(ctx, minRunningIntervalsBeforeStable, maxCrashesBeforeFailure,
+		initPID, pidC, m.verifyPID)
 	cancel()
 	if err := g.Wait(); err != nil {
-		s.Log.ErrorContext(ctx, "Error monitoring for crashing process.", errorKey, err, unitKey, s.ServiceName)
+		m.log.ErrorContext(ctx, "Error monitoring for crashing process.", errorKey, err, unitKey, m.name)
 	}
 	return stablePID, trace.Wrap(err)
 }
@@ -223,7 +267,7 @@ func (s SystemdService) monitorPID(ctx context.Context, initPID int, tickC <-cha
 // minStable is the number of times pidC must return the same running PID before waitForStablePID returns nil.
 // minCrashes is the number of times pidC conveys a process crash or bad state before waitForStablePID returns an error.
 // The last reported PID is returned.
-func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCrashes, baselinePID int, pidC <-chan int, verifyPID func(pid int) error) (int, error) {
+func (m processMonitor) waitForStablePID(ctx context.Context, minStable, maxCrashes, baselinePID int, pidC <-chan int, verifyPID func(pid int) error) (int, error) {
 	pid := baselinePID
 	var last, stale int
 	var crashes int
@@ -255,15 +299,15 @@ func (s SystemdService) waitForStablePID(ctx context.Context, minStable, maxCras
 			continue
 		}
 		err := verifyPID(pid)
-		// A stale PID most likely indicates that the process forked and crashed without systemd noticing.
-		// There is a small chance that we read the PID file before systemd removed it.
+		// A stale PID most likely indicates that the process forked and crashed without the process manager noticing.
+		// There is a small chance that we read the PID before the process manager cleared it.
 		// Note: we only perform this check on PIDs that survive one iteration.
 		if errors.Is(err, os.ErrProcessDone) ||
 			errors.Is(err, syscall.ESRCH) {
 			if pid != stale &&
 				pid != baselinePID {
 				stale = pid
-				s.Log.WarnContext(ctx, "Detected stale PID.", unitKey, s.ServiceName, "pid", stale)
+				m.log.WarnContext(ctx, "Detected stale PID.", unitKey, m.name, "pid", stale)
 			}
 			stable = -1
 			continue
@@ -313,16 +357,16 @@ func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time
 	}
 }
 
-// waitForReady polls the SocketPath unix domain socket with HTTP requests.
-// If one request returns 200 before the timeout, the service is considered ready.
-func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan time.Time) error {
-	if s.Ready == nil {
+// waitForReady polls the readiness checker.
+// If one request returns ready before the timeout, the service is considered ready.
+func (m processMonitor) waitForReady(ctx context.Context, pid int, tickC <-chan time.Time) error {
+	if m.ready == nil {
 		return nil
 	}
 	var lastErr error
 	var readiness debug.Readiness
 	for {
-		resp, err := s.Ready.GetReadiness(ctx)
+		resp, err := m.ready.GetReadiness(ctx)
 		if err == nil &&
 			resp.Ready &&
 			equalOrZero(resp.PID, pid) {
@@ -341,21 +385,21 @@ func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan 
 				errors.Is(lastErr, syscall.EINVAL) ||
 				errors.Is(lastErr, os.ErrInvalid) ||
 				errors.As(lastErr, new(net.Error)) {
-				s.Log.WarnContext(ctx, "Socket appears to be disabled. Proceeding without check.", unitKey, s.ServiceName)
-				s.Log.DebugContext(ctx, "Found error after timeout polling socket.", unitKey, s.ServiceName, errorKey, lastErr)
+				m.log.WarnContext(ctx, "Socket appears to be disabled. Proceeding without check.", unitKey, m.name)
+				m.log.DebugContext(ctx, "Found error after timeout polling socket.", unitKey, m.name, errorKey, lastErr)
 				return nil
 			}
 			if lastErr != nil {
-				s.Log.WarnContext(ctx, "Unexpected error after timeout polling socket. Proceeding without check.", unitKey, s.ServiceName, errorKey, lastErr)
+				m.log.WarnContext(ctx, "Unexpected error after timeout polling socket. Proceeding without check.", unitKey, m.name, errorKey, lastErr)
 				return nil
 			}
 			if readiness.Status != "" {
-				s.Log.ErrorContext(ctx, "Process not ready by deadline.", unitKey, s.ServiceName, "status", readiness.Status)
+				m.log.ErrorContext(ctx, "Process not ready by deadline.", unitKey, m.name, "status", readiness.Status)
 			}
 			if !equalOrZero(readiness.PID, pid) {
-				s.Log.ErrorContext(ctx, "Readiness PID response does not match PID file.", unitKey, s.ServiceName, "file_pid", pid, "ready_pid", readiness.PID)
+				m.log.ErrorContext(ctx, "Readiness PID response does not match monitored PID.", unitKey, m.name, "monitored_pid", pid, "ready_pid", readiness.PID)
 			} else {
-				s.Log.DebugContext(ctx, "PIDs are not mismatched.", unitKey, s.ServiceName, "file_pid", pid, "ready_pid", readiness.PID)
+				m.log.DebugContext(ctx, "PIDs are not mismatched.", unitKey, m.name, "monitored_pid", pid, "ready_pid", readiness.PID)
 			}
 			return ctx.Err()
 		case <-tickC:
