@@ -9,6 +9,24 @@ DRY_RUN_PREFIX=''
 # TARBALL_CACHE is used by find_or_fetch_tarball.
 readonly TARBALL_CACHE=/tmp/teleport-tarballs
 
+# Match darwin-signing.mk: retry notarization in CI. The retry settings can be
+# overridden by the caller.
+retry_command() {
+  local enabled="${RETRY_TOOL_ENABLED-${CI:-}}"
+
+  if [[ -n "$DRY_RUN_PREFIX" ]]; then
+    # Arguments can contain the app-specific Apple password.
+    echo "+ $1 (dry run; arguments omitted)" >&2
+  elif [[ "$enabled" == "true" || "$enabled" == "yes" || "$enabled" == "1" ]]; then
+    go run github.com/gravitational/shared-workflows/tools/retry@v0.0.2 \
+      --retries "${RETRY_TOOL_RETRIES:-3}" \
+      --initial "${RETRY_TOOL_INITIAL:-30s}" \
+      -- "$@"
+  else
+    "$@"
+  fi
+}
+
 # log writes arguments to stderr.
 log() {
   echo "$*" >&2
@@ -72,12 +90,12 @@ notarize() {
 
   # XCode 13+.
   if xcrun notarytool --version 1>/dev/null 2>&1; then
-    $DRY_RUN_PREFIX xcrun notarytool submit "$target" \
+    retry_command xcrun notarytool submit "$target" \
       --team-id="$teamid" \
       --apple-id="$APPLE_USERNAME" \
       --password="$APPLE_PASSWORD" \
       --wait
-    $DRY_RUN_PREFIX xcrun stapler staple "$target"
+    retry_command xcrun stapler staple "$target"
     return 0
   fi
 

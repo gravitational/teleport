@@ -170,7 +170,7 @@ or name of the key to sign packages"
   fi
 
   # Sign app.
-  $DRY_RUN_PREFIX codesign -f \
+  retry_command codesign -f \
     -o kill,hard,runtime \
     -s "$DEVELOPER_ID_APPLICATION" \
     -i "$BUNDLEID" \
@@ -199,7 +199,7 @@ or name of the key to sign packages"
     --scripts "$pkg_scripts" \
     "$target.unsigned"
 
-  $DRY_RUN_PREFIX productsign \
+  retry_command productsign \
     --sign "$DEVELOPER_ID_INSTALLER" \
     --timestamp \
     "$target.unsigned" \

@@ -97,7 +97,7 @@ notary_dir = $(BUILDDIR)/notarize
 notary_file = $(BUILDDIR)/notarize.zip
 
 define notarize_binaries_cmd
-	codesign \
+	$(RETRY_TOOL) codesign \
 		--sign '$(DEVELOPER_ID_APPLICATION)' \
 		--force \
 		--verbose \
@@ -140,7 +140,7 @@ define notarize_app_bundle
 	$(eval $@_BUNDLE = $(1))
 	$(eval $@_BUNDLE_ID = $(2))
 	$(eval $@_ENTITLEMENTS = $(3))
-	codesign \
+	$(RETRY_TOOL) codesign \
 		--sign '$(DEVELOPER_ID_APPLICATION)' \
 		--identifier "$($@_BUNDLE_ID)" \
 		--force \
@@ -162,7 +162,7 @@ endef
 define notarize_pkg
 	$(eval $@_IN_PKG = $(1))
 	$(eval $@_OUT_PKG = $(2))
-	productsign \
+	$(RETRY_TOOL) productsign \
 		--sign '$(DEVELOPER_ID_INSTALLER)' \
 		--timestamp \
 		$($@_IN_PKG) \
@@ -172,7 +172,7 @@ define notarize_pkg
 		--apple-id="$(APPLE_USERNAME)" \
 		--password="$(APPLE_PASSWORD)" \
 		--wait
-	xcrun stapler staple $($@_OUT_PKG)
+	$(RETRY_TOOL) xcrun stapler staple $($@_OUT_PKG)
 endef
 
 echo_var = @echo $(1)=\''$($(1))'\'

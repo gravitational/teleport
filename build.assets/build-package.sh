@@ -323,7 +323,7 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     if [[ "${SIGN_PKG}" == "true" ]]; then
         # run codesign to sign binaries
         for FILE in ${FILE_LIST}; do
-            $DRY_RUN_PREFIX codesign -s "${DEVELOPER_ID_APPLICATION}" \
+            retry_command codesign -s "${DEVELOPER_ID_APPLICATION}" \
                 -f \
                 -v \
                 --timestamp \
@@ -345,7 +345,7 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         mv ${PKG_FILENAME} ${PKG_FILENAME}.unsigned
 
         # run productsign to sign package
-        $DRY_RUN_PREFIX productsign \
+        retry_command productsign \
             --sign "${DEVELOPER_ID_INSTALLER}" \
             --timestamp \
             ${PKG_FILENAME}.unsigned \
