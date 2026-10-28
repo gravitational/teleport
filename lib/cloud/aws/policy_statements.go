@@ -524,8 +524,6 @@ func StatementAccessGraphAWSSyncEKSAuditLogs() *Statement {
 
 // StatementForAWSIdentityCenterAccess returns AWS IAM policy statement that grants
 // permissions required for Teleport identity center client.
-// TODO(sshah): make the roles more granular by restricting resources scoped to
-// particular AWS identity center region+arn.
 func StatementForAWSIdentityCenterAccess() *Statement {
 	return &Statement{
 		StatementID: "TeleportIdentityCenterClient",
