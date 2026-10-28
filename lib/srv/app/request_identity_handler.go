@@ -76,17 +76,24 @@ func (h *requestIdentityHandler) handleConnection(ctx context.Context, conn net.
 	return trace.Wrap(h.c.handleHTTPApp(ctx, h.httpServer, conn))
 }
 
+// forwardedIdleTimeout is how long the server keeps a forwarding Proxy's idle
+// connection. The Proxy controls the regular timeout. This is a backstop to
+// prevent connections leaking due to a buggy proxy.
+const forwardedIdleTimeout = 10 * time.Minute
+
 // newHTTPServer creates the server for connections from a forwarding Proxy.
 // authz.Middleware puts the forwarded identity in place of the Proxy's. The
 // limiter runs after admission, so it only counts admitted requests, keyed by
 // the forwarded client. Tests pass their own serve to inspect what the
 // chain admits.
 func (h *requestIdentityHandler) newHTTPServer(serve http.Handler) *http.Server {
-	return h.c.newAppHTTPServer(&authz.Middleware{
+	server := h.c.newAppHTTPServer(&authz.Middleware{
 		ClusterName:                 h.c.clusterName,
 		EnableCredentialsForwarding: true,
 		Handler:                     h.admit(h.limit(serve)),
 	})
+	server.IdleTimeout = forwardedIdleTimeout
+	return server
 }
 
 // admit passes a request to next only if check admits it, and without the

@@ -438,7 +438,12 @@ func dialAppServer(ctx context.Context, clusterClient reversetunnelclient.Cluste
 	if clientSrcAddr != nil {
 		from = clientSrcAddr
 	}
+	return dialAppServerFrom(clusterClient, server, from, originalDst)
+}
 
+// dialAppServerFrom is dialAppServer with the source addresses given, for a
+// connection that carries more than one client's requests.
+func dialAppServerFrom(clusterClient reversetunnelclient.Cluster, server readonly.AppServer, from, originalDst net.Addr) (net.Conn, error) {
 	conn, err := clusterClient.Dial(reversetunnelclient.DialParams{
 		From:                  from,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
