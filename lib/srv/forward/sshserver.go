@@ -700,7 +700,9 @@ func (s *Server) Serve() {
 				return
 			}
 
-			token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
+			token, err := s.authClient.GenerateAWSOIDCToken(ctx, integrationpb.GenerateAWSOIDCTokenRequest_builder{
+				Integration: awsInfo.Integration,
+			}.Build())
 			if err != nil {
 				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
 				return

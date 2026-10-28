@@ -646,7 +646,9 @@ func (s *localCluster) getConn(params reversetunnelclient.DialParams) (conn net.
 			return nil, false, trace.BadParameter("missing aws cloud metadata")
 		}
 
-		token, err := s.client.GenerateAWSOIDCToken(s.srv.ctx, awsInfo.Integration)
+		token, err := s.client.GenerateAWSOIDCToken(s.srv.ctx, integrationpb.GenerateAWSOIDCTokenRequest_builder{
+			Integration: awsInfo.Integration,
+		}.Build())
 		if err != nil {
 			return nil, false, trace.BadParameter("failed to generate aws token: %v", err)
 		}

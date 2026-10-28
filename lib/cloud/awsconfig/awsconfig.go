@@ -67,8 +67,8 @@ type IntegrationGetter interface {
 type OIDCIntegrationClient interface {
 	IntegrationGetter
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC
-	// Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, integrationName string) (string, error)
+	// Integration action with the scoped or unscoped integration named in the request.
+	GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error)
 }
 
 // RolesAnywhereIntegrationClient is an interface that indicates which APIs are
@@ -114,6 +114,9 @@ type options struct {
 	credentialsSource credentialsSource
 	// integration is the name of the integration to be used to fetch the credentials.
 	integration string
+	// scope is the scope of the integration to be used to fetch the credentials.
+	// Empty for unscoped integrations.
+	scope string
 	// integrationGetter provides APIs to get the AWS integration.
 	// Required if integration credentials are requested.
 	integrationGetter IntegrationGetter
@@ -262,6 +265,9 @@ type IntegrationMetadata struct {
 	// Will be empty when using ambient credentials.
 	Name string
 
+	// Scope of the integration. Empty for unscoped integrations.
+	Scope string
+
 	// RolesAnywhereMetadata contains the metadata about the Roles Anywhere.
 	// Only set when the Integration is of AWS IAM Roles Anywhere subkind.
 	RolesAnywhereMetadata RolesAnywhereMetadata
@@ -298,6 +304,7 @@ func WithCredentialsMaybeIntegration(integrationMetadata IntegrationMetadata) Op
 	return func(options *options) {
 		options.credentialsSource = credentialsSourceIntegration
 		options.integration = integrationMetadata.Name
+		options.scope = integrationMetadata.Scope
 		options.rolesAnywhereIntegrationMetadata = integrationMetadata.RolesAnywhereMetadata
 	}
 }
@@ -429,10 +436,12 @@ func getBaseConfig(ctx context.Context, region string, opts *options) (aws.Confi
 		slog.DebugContext(ctx, "Initializing AWS config with integration credentials",
 			"region", region,
 			"integration", opts.integration,
+			"integration_scope", opts.scope,
 		)
 		provider := &integrationCredentialsProvider{
 			stsClt:                         opts.stsClientProvider(cfg),
 			integrationName:                opts.integration,
+			scope:                          opts.scope,
 			integrationGetter:              opts.integrationGetter,
 			oidcIntegrationClient:          opts.oidcIntegrationClient,
 			rolesAnywhereIntegrationClient: opts.rolesAnywhereIntegrationClient,
@@ -495,6 +504,7 @@ func (t staticIdentityToken) GetIdentityToken() ([]byte, error) {
 type integrationCredentialsProvider struct {
 	stsClt          STSClient
 	integrationName string
+	scope           string
 
 	integrationGetter IntegrationGetter
 
@@ -506,7 +516,10 @@ type integrationCredentialsProvider struct {
 
 // Retrieve provides [aws.Credentials] for an AWS integration.
 func (p *integrationCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
-	integration, err := p.integrationGetter.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: p.integrationName}.Build())
+	integration, err := p.integrationGetter.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name:  p.integrationName,
+		Scope: p.scope,
+	}.Build())
 	if err != nil {
 		return aws.Credentials{}, trace.Wrap(err)
 	}
@@ -521,7 +534,10 @@ func (p *integrationCredentialsProvider) Retrieve(ctx context.Context) (aws.Cred
 		if spec == nil {
 			return aws.Credentials{}, trace.BadParameter("invalid integration subkind, expected awsoidc, got %s", integration.GetSubKind())
 		}
-		token, err := p.oidcIntegrationClient.GenerateAWSOIDCToken(ctx, p.integrationName)
+		token, err := p.oidcIntegrationClient.GenerateAWSOIDCToken(ctx, integrationpb.GenerateAWSOIDCTokenRequest_builder{
+			Integration: p.integrationName,
+			Scope:       p.scope,
+		}.Build())
 		if err != nil {
 			return aws.Credentials{}, trace.Wrap(err)
 		}
@@ -539,6 +555,7 @@ func (p *integrationCredentialsProvider) Retrieve(ctx context.Context) (aws.Cred
 
 		resp, err := p.rolesAnywhereIntegrationClient.GenerateAWSRACredentials(ctx, integrationpb.GenerateAWSRACredentialsRequest_builder{
 			Integration:                   p.integrationName,
+			Scope:                         p.scope,
 			ProfileArn:                    p.rolesAnywhereProfileMetadata.ProfileARN,
 			ProfileAcceptsRoleSessionName: p.rolesAnywhereProfileMetadata.ProfileAcceptsRoleSessionName,
 			RoleArn:                       p.rolesAnywhereProfileMetadata.RoleARN,

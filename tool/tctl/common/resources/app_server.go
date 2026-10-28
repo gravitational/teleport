@@ -29,6 +29,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -58,7 +59,7 @@ func (a *appServerCollection) WriteText(w io.Writer, verbose bool) error {
 		app := server.GetApp()
 		labels := common.FormatLabels(app.GetAllLabels(), verbose)
 		rows = append(rows, []string{
-			server.GetHostname(), app.GetName(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion(),
+			server.GetHostname(), appServerSQN(server), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion(),
 		})
 	}
 	var t asciitable.Table
@@ -94,12 +95,16 @@ func listAppServersWithFilter(ctx context.Context, client *authclient.Client, pr
 }
 
 func getAppServer(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	appServers, err := listAppServersWithFilter(ctx, client, makeNamePredicate(ref.Name))
+	if ref.Name == "" {
+		appServers, err := listAppServersWithFilter(ctx, client, "")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &appServerCollection{servers: appServers}, nil
+	}
+	appServers, err := listAppServersBySQN(ctx, client, scopes.QualifiedName{Name: ref.Name})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if ref.Name != "" && len(appServers) == 0 {
-		return nil, trace.NotFound("app server %q not found", ref.Name)
 	}
 	return &appServerCollection{servers: appServers}, nil
 }
@@ -115,8 +120,15 @@ func createAppServer(ctx context.Context, client *authclient.Client, raw service
 	if _, err := client.UpsertApplicationServer(ctx, appServer); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("application server %q has been upserted\n", appServer.GetName())
+	fmt.Printf("application server %q has been upserted\n", appServerSQN(appServer))
 	return nil
+}
+
+func appServerSQN(server types.AppServer) string {
+	return scopes.QualifiedName{
+		Scope: server.GetScope(),
+		Name:  server.GetName(),
+	}.String()
 }
 
 func updateAppServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
@@ -128,34 +140,65 @@ func updateAppServer(ctx context.Context, client *authclient.Client, raw service
 		return trace.BadParameter("only applications that use an integration can be updated")
 	}
 
-	// Check if app server with same name and host ID exists.
+	// Check if an app server with the same scope, name and host ID exists.
 	appServersWithSameName, err := listAppServersWithFilter(ctx, client, makeNamePredicate(appServer.GetName()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if !slices.ContainsFunc(appServersWithSameName, func(e types.AppServer) bool {
-		return e.GetHostID() == appServer.GetHostID()
+		return e.GetHostID() == appServer.GetHostID() && e.GetScope() == appServer.GetScope()
 	}) {
-		return trace.NotFound("application server %q with host ID %q not found", appServer.GetName(), appServer.GetHostID())
+		return trace.NotFound("application server %q with host ID %q not found", appServerSQN(appServer), appServer.GetHostID())
 	}
 
 	if _, err := client.UpsertApplicationServer(ctx, appServer); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("application server %q has been updated\n", appServer.GetName())
+	fmt.Printf("application server %q has been updated\n", appServerSQN(appServer))
 	return nil
 }
 
 func deleteAppServer(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	appServers, err := listAppServersWithFilter(ctx, client, makeNamePredicate(ref.Name))
+	return trace.Wrap(deleteScopedAppServer(ctx, client, ref.SubKind, scopes.QualifiedName{Name: ref.Name}))
+}
+
+func scopedAppServerHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:    getScopedAppServer,
+		createHandler: createAppServer,
+		updateHandler: updateAppServer,
+		deleteHandler: deleteScopedAppServer,
+		description:   "Represents a proxied application in the cluster.",
+	}
+}
+
+func getScopedAppServer(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, _ GetOpts) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindAppServer, subKind)
+	}
+	if sqn == nil {
+		servers, err := listAppServersWithFilter(ctx, client, "")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return NewAppServerCollection(servers), nil
+	}
+	servers, err := listAppServersBySQN(ctx, client, *sqn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewAppServerCollection(servers), nil
+}
+
+func deleteScopedAppServer(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindAppServer, subKind)
+	}
+	servers, err := listAppServersBySQN(ctx, client, sqn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(appServers) == 0 {
-		return trace.NotFound("application server %q not found", ref.Name)
-	}
-
-	for _, server := range appServers {
+	for _, server := range servers {
 		if err := client.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
 			HostId: server.GetHostID(),
 			Name:   server.GetName(),
@@ -164,6 +207,20 @@ func deleteAppServer(ctx context.Context, client *authclient.Client, ref service
 			return trace.Wrap(err)
 		}
 	}
-	fmt.Printf("application server %q has been deleted\n", ref.Name)
+	fmt.Printf("application server %q has been deleted\n", sqn.String())
 	return nil
+}
+
+// listAppServersBySQN returns every app server (one per host) matching the scope-qualified name, or
+// NotFound when there is none.
+func listAppServersBySQN(ctx context.Context, client *authclient.Client, sqn scopes.QualifiedName) ([]types.AppServer, error) {
+	servers, err := listAppServersWithFilter(ctx, client, makeNamePredicate(sqn.Name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers = FilterBySQNOrDiscoveredName(servers, sqn)
+	if len(servers) == 0 {
+		return nil, trace.NotFound("application server %q not found", sqn.String())
+	}
+	return servers, nil
 }

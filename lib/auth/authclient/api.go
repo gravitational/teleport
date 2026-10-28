@@ -955,8 +955,9 @@ type DiscoveryAccessPoint interface {
 	// SubmitUsageEvent submits an external usage event.
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 
-	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action
+	// with the scoped or unscoped integration named in the request.
+	GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error)
 
 	// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
 	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
@@ -1859,9 +1860,10 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 	return w.NoCache.SubmitUsageEvent(ctx, req)
 }
 
-// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
-	return w.NoCache.GenerateAWSOIDCToken(ctx, integration)
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action
+// with the scoped or unscoped integration named in the request.
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx, req)
 }
 
 // GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.

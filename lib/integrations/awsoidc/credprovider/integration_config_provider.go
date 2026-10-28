@@ -96,9 +96,9 @@ type integrationGetter interface {
 }
 
 type tokenGenerator interface {
-	// GenerateAWSOIDCToken generates an OIDC token for the given integration.
+	// GenerateAWSOIDCToken generates an OIDC token for the integration named in the request.
 	// The token is used to authenticate to AWS via OIDC.
-	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error)
 }
 
 func (c *Config) checkAndSetDefaults() error {

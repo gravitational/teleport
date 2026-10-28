@@ -111,8 +111,9 @@ type AWSOIDCDeployServiceUpdaterCache interface {
 
 // AWSOIDCDeployServiceUpdaterClient provides methods to interact with other cluster services.
 type AWSOIDCDeployServiceUpdaterClient interface {
-	// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
+	// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action
+	// with the scoped or unscoped integration named in the request.
+	GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error)
 	// AcquireSemaphore acquires lease with requested resources from semaphore.
 	AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
@@ -309,7 +310,10 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 		return trace.BadParameter("teleport version is required")
 	}
 
-	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, integration.GetName())
+	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, integrationpb.GenerateAWSOIDCTokenRequest_builder{
+		Integration: integration.GetName(),
+		Scope:       integration.GetScope(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

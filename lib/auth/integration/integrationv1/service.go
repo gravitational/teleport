@@ -683,15 +683,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 	}
 
 	if req.GetDeleteAssociatedResources() {
-		// TODO(williamo/scopes): Delete this guard when we allow to support other scoped integrations.
-		if ig.GetScope() != "" {
-			return nil, trace.BadParameter("delete_associated_resources is not supported for scoped integrations")
-		}
-		unscopedCtx, ok := authContext.UnscopedContext()
-		if !ok {
-			return nil, trace.AccessDenied("deleting associated resources requires an unscoped identity")
-		}
-		if err := s.deleteAssociatedResources(ctx, unscopedCtx, ig); err != nil {
+		if err := s.deleteAssociatedResources(ctx, authContext, ig); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -909,12 +901,17 @@ func (s *Service) deleteOAuthProxyAppServer(ctx context.Context, ig types.Integr
 	return nil
 }
 
-func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
+func (s *Service) deleteAssociatedResources(ctx context.Context, authContext *authz.ScopedContext, ig types.Integration) error {
 	switch ig.GetSubKind() {
 	case types.IntegrationSubKindAWSOIDC:
-		return trace.Wrap(s.deleteAWSOIDCAssociatedResources(ctx, authCtx, ig))
+		return trace.Wrap(s.deleteAWSOIDCAssociatedResources(ctx, ig))
 	case types.IntegrationSubKindGitHub:
-		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, authCtx, ig))
+		// GitHub integrations are currently not scoped.
+		unscopedCtx, ok := authContext.UnscopedContext()
+		if !ok {
+			return trace.AccessDenied("deleting the resources associated with a GitHub integration requires an unscoped identity")
+		}
+		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, unscopedCtx, ig))
 	default:
 		return trace.NotImplemented("DeleteAssociatedResources not supported for integration kind %q", ig.GetKind())
 	}

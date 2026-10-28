@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"fmt"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
@@ -67,9 +69,12 @@ type KeyStoreManager interface {
 // GenerateAWSOIDCTokenRequest contains the required elements to generate an AWS OIDC Token (JWT).
 type GenerateAWSOIDCTokenRequest struct {
 	// Integration is the AWS OIDC Integration name.
-	// This field is only used to obtain custom Issuers (those stored at S3 buckets).
+	// This field is only used to obtain custom Issuers (those stored at S3 buckets, or the
+	// scope specific issuer of a scoped integration).
 	// If empty, the default issuer for the cluster (its public endpoint URL) will be used.
 	Integration string
+	// Scope is the scope of the AWS OIDC Integration. Empty for unscoped integrations.
+	Scope string
 	// Username is the JWT Username (on behalf of claim)
 	Username string
 	// Subject is the JWT Subject (subject claim)
@@ -93,16 +98,34 @@ func (g *GenerateAWSOIDCTokenRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// IssuerForIntegration returns the issuer for a given integration.
-// Returns the default Issuer (oidc.IssuerForCluster) if integrationName is empty.
-// All calls should be replaced with oidc.IssuerForCluster when IssuerS3URI is removed (it is currently deprecated).
-func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationName string) (string, error) {
-	if integrationName == "" {
+const ScopedIssuerPrefix = "/scope"
+
+// ScopedIssuerPath returns the issuer path of a scoped AWS OIDC integration.
+// As per RFD 0309, an integration under /staging/west::my-integration
+// gets the issuer path that looks like: /scope/staging/west/my-integration.
+func ScopedIssuerPath(scope, name string) (string, error) {
+	if err := apiscopes.StrongValidate(scope); err != nil {
+		return "", trace.Wrap(err)
+	}
+	if err := apiscopes.StrongValidateResourceName(name); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return path.Join(ScopedIssuerPrefix, scope, name), nil
+}
+
+// issuerForIntegration returns the issuer for a given integration.
+// Returns the default Issuer (oidc.IssuerForCluster) if the integration name is empty.
+// All unscoped calls should be replaced with oidc.IssuerForCluster when IssuerS3URI is removed (it is currently deprecated).
+func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationRef apiscopes.QualifiedName) (string, error) {
+	if integrationRef.Name == "" {
 		issuer, err := oidc.IssuerForCluster(ctx, cacheClt)
 		return issuer, trace.Wrap(err)
 	}
 
-	integration, err := cacheClt.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: integrationName}.Build())
+	integration, err := cacheClt.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name:  integrationRef.Name,
+		Scope: integrationRef.Scope,
+	}.Build())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -111,11 +134,21 @@ func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationName s
 		return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	if integration.GetAWSOIDCIntegrationSpec() == nil {
+	spec := integration.GetAWSOIDCIntegrationSpec()
+	if spec == nil {
 		return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
-	issuerS3URI := integration.GetAWSOIDCIntegrationSpec().IssuerS3URI
+	if integration.GetScope() != "" {
+		issuerPath, err := ScopedIssuerPath(integration.GetScope(), integration.GetName())
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		issuer, err := oidc.IssuerForCluster(ctx, cacheClt, issuerPath)
+		return issuer, trace.Wrap(err)
+	}
+
+	issuerS3URI := spec.IssuerS3URI
 	if issuerS3URI == "" {
 		issuer, err := oidc.IssuerForCluster(ctx, cacheClt)
 		return issuer, trace.Wrap(err)
@@ -135,7 +168,7 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 		return "", trace.Wrap(err)
 	}
 
-	issuer, err := issuerForIntegration(ctx, cacheClt, req.Integration)
+	issuer, err := issuerForIntegration(ctx, cacheClt, apiscopes.QualifiedName{Scope: req.Scope, Name: req.Integration})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

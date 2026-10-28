@@ -686,6 +686,11 @@ func (c *Client) DeleteIntegration(ctx context.Context, req *integrationv1.Delet
 	return c.APIClient.DeleteIntegrationV2(ctx, req)
 }
 
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+func (c *Client) GenerateAWSOIDCToken(ctx context.Context, req *integrationv1.GenerateAWSOIDCTokenRequest) (string, error) {
+	return c.APIClient.GenerateAWSOIDCTokenV2(ctx, req)
+}
+
 // UserTasksClient returns a client for managing User Task resources.
 func (c *Client) UserTasksClient() services.UserTasks {
 	return c.APIClient.UserTasksServiceClient()
@@ -2240,8 +2245,9 @@ type ClientI interface {
 	// Implements ReadAccessPoint.
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 
-	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action
+	// with the scoped or unscoped integration named in the request.
+	GenerateAWSOIDCToken(ctx context.Context, req *integrationv1.GenerateAWSOIDCTokenRequest) (string, error)
 
 	// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
 	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)

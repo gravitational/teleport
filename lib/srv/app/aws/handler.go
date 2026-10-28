@@ -32,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -170,13 +171,22 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 		return trace.Wrap(err)
 	}
 
+	// A scoped aws app references its integration by scope-qualified name.
+	integration, err := apiscopes.ParseOptionallyQualifiedName(sessCtx.App.GetIntegration())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	awsCfg, err := s.AWSConfigProvider.GetConfig(s.closeContext, re.SigningRegion,
 		awsconfig.WithDetailedAssumeRole(awsconfig.AssumeRole{
 			RoleARN:     sessCtx.Identity.RouteToApp.AWSRoleARN,
 			ExternalID:  sessCtx.App.GetAWSExternalID(),
 			SessionName: sessCtx.Identity.Username,
 		}),
-		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: sessCtx.App.GetIntegration()}),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{
+			Name:  integration.Name,
+			Scope: integration.Scope,
+		}),
 	)
 	if err != nil {
 		return trace.Wrap(err)

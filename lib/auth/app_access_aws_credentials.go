@@ -27,6 +27,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -57,7 +58,7 @@ func generateAWSClientSideCredentials(
 		return "", errAppWithoutAWSClientSideCredentials
 	}
 
-	appInfo, err := getAppServerByName(ctx, a, req.AppName)
+	appInfo, err := getAppServerByName(ctx, a, apiscopes.QualifiedName{Scope: req.TargetScope, Name: req.AppName})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -68,7 +69,16 @@ func generateAWSClientSideCredentials(
 		return "", errAppWithoutAWSClientSideCredentials
 	}
 
-	integration, err := a.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: integrationName}.Build())
+	// A scoped app refers to its integration by scope-qualified name.
+	integrationSQN, err := apiscopes.ParseOptionallyQualifiedName(integrationName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	integration, err := a.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Scope: integrationSQN.Scope,
+		Name:  integrationSQN.Name,
+	}.Build())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -114,18 +124,18 @@ func authorizeAWSRolesAnywhereCredentials(
 	))
 }
 
-func getAppServerByName(ctx context.Context, a *Server, appServerName string) (types.Application, error) {
+func getAppServerByName(ctx context.Context, a *Server, app apiscopes.QualifiedName) (types.Application, error) {
 	appServers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for _, s := range appServers {
-		if s.GetName() == appServerName {
+		if s.GetName() == app.Name && s.GetScope() == app.Scope {
 			return s.GetApp(), nil
 		}
 	}
-	return nil, trace.NotFound("application %q not found", appServerName)
+	return nil, trace.NotFound("application %q not found", app.String())
 }
 
 func generateAWSRolesAnywhereCredentials(

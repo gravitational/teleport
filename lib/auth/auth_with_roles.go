@@ -7138,12 +7138,21 @@ func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
 }
 
 // UpsertApplicationServer registers an application server.
-func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
-	if err := a.actionNamespace(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
+func (a *ScopedServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if _, err := a.scopedContext.CheckerContext.Decision(ctx, server.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, scopedaccess.Create, scopedaccess.Update)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if server.GetScope() != "" {
-		return nil, trace.BadParameter("scoped app server must register a control stream")
+		// Scoped app servers normally come from agents and must register through a control
+		// stream so their scope is bound to the agent's join identity. The AWS console app
+		// served through a scoped AWS integration does not follow this path. Allow only
+		// scoped apps to be upserted through this endpoint when they are backed with an aws integration.
+		if app := server.GetApp(); app == nil || app.GetIntegration() == "" || !app.IsAWSConsole() {
+			return nil, trace.BadParameter("scoped app server must register a control stream")
+		}
 	}
 	return a.authServer.UpsertApplicationServer(ctx, server)
 }

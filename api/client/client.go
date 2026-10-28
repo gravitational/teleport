@@ -6133,11 +6133,18 @@ func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action
+// with an unscoped integration.
 func (c *Client) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
-	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+	return c.GenerateAWSOIDCTokenV2(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
 		Integration: integration,
 	})
+}
+
+// GenerateAWSOIDCTokenV2 generates a token to be used when executing an AWS OIDC Integration action
+// with the scoped or unscoped integration named in the request.
+func (c *Client) GenerateAWSOIDCTokenV2(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error) {
+	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
