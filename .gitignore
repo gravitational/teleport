@@ -20,6 +20,8 @@ default.etcd
 # ignore all tarballs except the alpine one
 !fixtures/alpine/alpine-minirootfs-*.tar.gz
 *.zip
+# ignore zips except test data
+!lib/autoupdate/agent/testdata/*.zip
 
 # editors
 .vscode

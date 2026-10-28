@@ -19,6 +19,7 @@
 package agent
 
 import (
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -242,6 +243,31 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 		return trace.BadParameter("downloaded checksum does not match artifact digest")
 	}
 
+	// If there's an error after we start extracting, delete the version dir.
+	defer func() {
+		if err != nil {
+			if err := os.RemoveAll(versionDir); err != nil {
+				li.Log.WarnContext(ctx, "Failed to cleanup broken version extraction.", "error", err, "dir", versionDir)
+			}
+		}
+	}()
+
+	if strings.HasSuffix(uri, ".zip") {
+		if err := li.extractZip(f, versionDir); err != nil {
+			return err
+		}
+	} else if err := li.extractTgz(ctx, rev, f, versionDir); err != nil {
+		return err
+	}
+
+	// Write the checksum last. This marks the version directory as valid.
+	if err := os.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), configFileMode); err != nil {
+		return trace.Wrap(err, "failed to write checksum")
+	}
+	return nil
+}
+
+func (li *LocalInstaller) extractTgz(ctx context.Context, rev Revision, f *os.File, versionDir string) error {
 	// Get uncompressed size of the tgz
 	n, err := uncompressedSize(f)
 	if err != nil {
@@ -252,22 +278,9 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 		return trace.Wrap(err, "failed seek to start")
 	}
 
-	// If there's an error after we start extracting, delete the version dir.
-	defer func() {
-		if err != nil {
-			if err := os.RemoveAll(versionDir); err != nil {
-				li.Log.WarnContext(ctx, "Failed to cleanup broken version extraction.", "error", err, "dir", versionDir)
-			}
-		}
-	}()
-
 	// Extract tgz into version directory.
 	if err := li.extract(ctx, versionDir, f, n, rev.Flags); err != nil {
 		return trace.Wrap(err, "failed to extract teleport")
-	}
-	// Write the checksum last. This marks the version directory as valid.
-	if err := os.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), configFileMode); err != nil {
-		return trace.Wrap(err, "failed to write checksum")
 	}
 	return nil
 }
@@ -1128,4 +1141,64 @@ func (li *LocalInstaller) IsLinked(ctx context.Context, rev Revision, pathDir st
 		}
 	}
 	return false, nil
+}
+
+func (li *LocalInstaller) extractZip(f *os.File, dir string) error {
+	dir = filepath.Join(dir, "bin")
+	if err := os.MkdirAll(dir, systemDirMode); err != nil {
+		return trace.Wrap(err)
+	}
+	stat, err := f.Stat()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	reader, err := zip.NewReader(f, stat.Size())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	max := int64(0)
+	for _, f := range reader.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		max += f.FileInfo().Size()
+		if max < 0 {
+			return trace.BadParameter("zip max size limit exceeded")
+		}
+	}
+	free, err := utils.FreeDiskWithReserve(dir, li.ReservedFreeInstallDisk)
+	if err != nil {
+		return trace.Wrap(err, "failed to calculate free disk in %s", dir)
+	}
+	// Bail if there's not enough free disk space at the target
+	if d := int64(free) - max; d < 0 {
+		return trace.Errorf("%s needs %d additional bytes of disk space for decompression", dir, -d)
+	}
+	for _, f := range reader.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		if err := extractFile(dir, f); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func extractFile(dir string, f *zip.File) error {
+	src, err := f.Open()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer src.Close()
+	// Rejects paths that are not within the destination directory.
+	if !filepath.IsLocal(f.Name) || strings.Contains(f.Name, "\\") {
+		return trace.BadParameter("%s: illegal file path", f.Name)
+	}
+	dst, err := utils.CreateExclusiveFile(filepath.Join(dir, f.Name), f.Mode())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = io.Copy(dst, src)
+	return trace.NewAggregate(err, dst.Close())
 }
