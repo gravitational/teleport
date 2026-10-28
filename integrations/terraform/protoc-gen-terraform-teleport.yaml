@@ -564,6 +564,8 @@ plan_modifiers:
     # Scope is part of the scoped resource identity and must not be updated in-place.
     AppV3.scope:
       - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.RequiresReplaceIfConfigured()"
+    IntegrationV1.scope:
+      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.RequiresReplaceIfConfigured()"
     KubernetesClusterV3.scope:
       - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.RequiresReplaceIfConfigured()"
     ServerV2.scope:

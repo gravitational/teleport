@@ -51,7 +51,6 @@ func dataSourceTypes() []DataSourceType {
 		dataSourceTeleportSAMLIdPServiceProviderType{},
 		dataSourceTeleportAutoUpdateConfigType{},
 		dataSourceTeleportVnetConfigType{},
-		dataSourceTeleportIntegrationType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting
@@ -94,7 +93,6 @@ func resourceTypes() []ResourceType {
 		resourceTeleportBotType{},
 		resourceTeleportAutoUpdateConfigType{},
 		resourceTeleportVnetConfigType{},
-		resourceTeleportIntegrationType{},
 		resourceTeleportInferenceModelType{},
 		resourceTeleportInferenceSecretType{},
 		resourceTeleportInferencePolicyType{},
