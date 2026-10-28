@@ -307,7 +307,7 @@ func allCaptureNames(node ast.Expr) []string {
 }
 
 // childArgs returns the continuation children of a matcher constructor
-// call. It returns nil for the terminals greedy and slash.
+// call. It returns nil for the terminals greedy, slash, and greedy_except.
 func childArgs(call *ast.CallExpr) []ast.Expr {
 	id, ok := call.Fun.(*ast.Ident)
 	if !ok {
@@ -362,6 +362,8 @@ func validateMatcherConstructors(parsed ast.Expr) error {
 			}
 		case isIdentCall(call, "glob_without") && len(call.Args) > 0:
 			err = checkExcludes(call.Args[0])
+		case isIdentCall(call, "greedy_except"):
+			err = checkGreedyExcept(call.Args)
 		case isIdentCall(call, "allow_unsafe_encoded") && len(call.Args) > 1:
 			err = checkEncodedOption(call.Args[0], call.Args[1])
 		case isIdentCall(call, "optional") && len(call.Args) == 0:
@@ -376,6 +378,39 @@ func validateMatcherConstructors(parsed ast.Expr) error {
 		return err == nil
 	})
 	return trace.Wrap(err)
+}
+
+// checkGreedyExcept checks that greedy_except has one or more exclusions and
+// that no exclusion contains a capture, an optional, or greedy_except.
+func checkGreedyExcept(args []ast.Expr) error {
+	if len(args) == 0 {
+		return trace.BadParameter("greedy_except requires at least one exclusion")
+	}
+	for _, arg := range args {
+		if containsCall(arg, "capture") {
+			return trace.BadParameter("an exclusion cannot contain a capture")
+		}
+		if containsCall(arg, "optional") {
+			return trace.BadParameter("an exclusion cannot contain optional")
+		}
+		if containsCall(arg, "greedy_except") {
+			return trace.BadParameter("an exclusion cannot contain greedy_except")
+		}
+	}
+	return nil
+}
+
+// containsCall returns true when expr contains a call of the named function.
+func containsCall(expr ast.Expr, name string) bool {
+	found := false
+	ast.Inspect(expr, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if ok && isIdentCall(call, name) {
+			found = true
+		}
+		return !found
+	})
+	return found
 }
 
 // checkExcludes checks that the excludes argument of glob_without is a

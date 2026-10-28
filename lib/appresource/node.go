@@ -204,6 +204,77 @@ func Greedy() Node {
 	return &greedyNode{}
 }
 
+// greedyExceptNode is the node [GreedyExcept] creates.
+// The exclusions are not children, because the node is terminal.
+type greedyExceptNode struct {
+	exclusions []Node
+}
+
+func (*greedyExceptNode) children() []Node { return nil }
+func (*greedyExceptNode) String() string   { return "greedy_except()" }
+
+// GreedyExcept creates a greedy glob that does not match when one of the
+// exclusion trees matches all remaining tokens. Literal("api",
+// GreedyExcept(Literal("internal"))) does not match "/api/internal" but
+// matches "/api/internal/". With Literal("internal", Greedy()) as the
+// exclusion, it matches neither. Any token containing the encoded slash (%2F)
+// fails the match.
+//
+// If no exclusion is given, or an exclusion is nil or contains a capture, an
+// optional, or GreedyExcept, GreedyExcept returns an error node that Compile
+// rejects.
+func GreedyExcept(exclusions ...Node) Node {
+	const call = "greedy_except()"
+	if len(exclusions) == 0 {
+		return &errNode{failedCall: call, err: trace.BadParameter("greedy_except requires at least one exclusion")}
+	}
+	for _, e := range exclusions {
+		switch {
+		case e == nil:
+			return &errNode{failedCall: call, err: trace.BadParameter("an exclusion cannot be nil")}
+		case containsNode(e, isCapture):
+			return &errNode{failedCall: call, err: trace.BadParameter("an exclusion cannot contain a capture")}
+		case containsNode(e, isOptional):
+			// A top-level optional matches the empty tail, so it would
+			// exclude the bare prefix "/api".
+			return &errNode{failedCall: call, err: trace.BadParameter("an exclusion cannot contain optional")}
+		case containsNode(e, isGreedyExcept):
+			return &errNode{failedCall: call, err: trace.BadParameter("an exclusion cannot contain greedy_except")}
+		}
+	}
+	return &greedyExceptNode{exclusions: slices.Clone(exclusions)}
+}
+
+// containsNode returns true when match returns true for a node in the tree.
+// It skips nil nodes, which Compile rejects.
+func containsNode(node Node, match func(Node) bool) bool {
+	if node == nil {
+		return false
+	}
+	if match(node) {
+		return true
+	}
+	return slices.ContainsFunc(node.children(), func(child Node) bool { return containsNode(child, match) })
+}
+
+// isCapture returns true when node is a capture node.
+func isCapture(node Node) bool {
+	_, ok := node.(*captureNode)
+	return ok
+}
+
+// isGreedyExcept returns true when node is a greedy_except node.
+func isGreedyExcept(node Node) bool {
+	_, ok := node.(*greedyExceptNode)
+	return ok
+}
+
+// isOptional returns true when node is an optional node.
+func isOptional(node Node) bool {
+	_, ok := node.(*optionalNode)
+	return ok
+}
+
 // slashNode is the node [Slash] creates.
 type slashNode struct{}
 

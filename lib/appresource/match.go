@@ -122,10 +122,7 @@ func Match(pattern *Pattern, tokens []Token) (bool, map[string]string) {
 	if pattern == nil || len(tokens) == 0 {
 		return false, nil
 	}
-	m := matcher{
-		captures: map[string]string{},
-		encoded:  pattern.encoded,
-	}
+	m := newMatcher(tokens, pattern.encoded)
 	if m.matchNode(pattern.root, tokens) {
 		return true, m.captures
 	}
@@ -135,6 +132,7 @@ func Match(pattern *Pattern, tokens []Token) (bool, map[string]string) {
 // compileNode checks node and its subtree. In case of an error each ancestor
 // prefixes its own string representation on return.
 func compileNode(node Node, seen map[Node]struct{}, bound map[string]struct{}) error {
+	childNodes := node.children()
 	switch n := node.(type) {
 	case *errNode:
 		return trace.BadParameter("%s: %v", n, n.err)
@@ -144,8 +142,9 @@ func compileNode(node Node, seen map[Node]struct{}, bound map[string]struct{}) e
 		}
 		bound[n.name] = struct{}{}
 		defer delete(bound, n.name) // Unbind on return, so a sibling branch may bind the name again.
+	case *greedyExceptNode:
+		childNodes = n.exclusions // Compile checks the exclusions like children.
 	}
-	childNodes := node.children()
 	if len(childNodes) > 0 {
 		// Track only nodes with children; zero-size leaves, such as every
 		// Greedy, may share one address in Go.
@@ -172,6 +171,35 @@ func compileNode(node Node, seen map[Node]struct{}, bound map[string]struct{}) e
 type matcher struct {
 	captures map[string]string   // bound on descent, undone on a failed branch
 	encoded  map[string]struct{} // Pattern.encoded
+	tokens   []Token             // the whole path
+	// plainSuffixLen is the number of trailing tokens without an encoded
+	// slash, or -1 before suffixHasEncodedSlash first counts them.
+	plainSuffixLen int
+}
+
+// newMatcher returns a matcher for tokens.
+func newMatcher(tokens []Token, encoded map[string]struct{}) matcher {
+	return matcher{
+		captures:       map[string]string{},
+		encoded:        encoded,
+		tokens:         tokens,
+		plainSuffixLen: -1,
+	}
+}
+
+// suffixHasEncodedSlash returns true when a token in tokens has an encoded
+// slash (%2F). tokens must be a suffix of the path.
+func (m *matcher) suffixHasEncodedSlash(tokens []Token) bool {
+	if m.plainSuffixLen < 0 {
+		// Scan once per Match, and only when a greedy node is reached, so a
+		// literal that fails early does not cost a scan of the whole path.
+		n := 0
+		for n < len(m.tokens) && !m.tokens[len(m.tokens)-1-n].hasEncodedSlash() {
+			n++
+		}
+		m.plainSuffixLen = n
+	}
+	return len(tokens) > m.plainSuffixLen
 }
 
 // matchNode reports whether the node's tree matches tokens recursively,
@@ -181,7 +209,9 @@ func (m *matcher) matchNode(node Node, tokens []Token) bool {
 	case *rootNode:
 		return m.matchNodes(n.childNodes, tokens)
 	case *greedyNode:
-		return !slices.ContainsFunc(tokens, Token.hasEncodedSlash)
+		return !m.suffixHasEncodedSlash(tokens)
+	case *greedyExceptNode:
+		return !m.suffixHasEncodedSlash(tokens) && !m.matchNodes(n.exclusions, tokens)
 	case *slashNode:
 		return len(tokens) == 1 && tokens[0].Raw == ""
 	case *optionalNode:

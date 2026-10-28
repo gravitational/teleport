@@ -127,6 +127,9 @@ func expressionSpec() typical.ParserSpec[Env] {
 	spec.Functions["greedy"] = typical.NullaryFunction[Env, Node](func() (Node, error) {
 		return Greedy(), nil
 	})
+	spec.Functions["greedy_except"] = typical.UnaryVariadicFunction[Env](func(exclusions ...Node) (Node, error) {
+		return GreedyExcept(exclusions...), nil
+	})
 	spec.Functions["slash"] = typical.NullaryFunction[Env, Node](func() (Node, error) {
 		return Slash(), nil
 	})
