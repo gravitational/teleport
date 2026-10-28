@@ -28,9 +28,17 @@ import (
 )
 
 const (
-	autoUpdateReportTTL = time.Hour
-	maxGroups           = 50
-	maxVersions         = 20
+	autoUpdateReportTTL    = time.Hour
+	maxGroups              = 50
+	maxVersions            = 20
+	maxBotInstanceVersions = 40
+)
+
+const (
+	// MaxBotInstanceVersionLength is the longest version a bot instance report records as-is.
+	MaxBotInstanceVersionLength = 64
+	// BotInstanceVersionInvalidTooLong replaces versions longer than MaxBotInstanceVersionLength.
+	BotInstanceVersionInvalidTooLong = "invalid-too-long"
 )
 
 // NewAutoUpdateAgentReport creates a new auto update agent report resource.
@@ -117,8 +125,8 @@ func ValidateAutoUpdateBotInstanceReport(v *autoupdate.AutoUpdateBotInstanceRepo
 	}
 
 	for groupName, group := range v.GetSpec().GetGroups() {
-		if numVersions := len(group.GetVersions()); numVersions > maxVersions {
-			return trace.BadParameter("group %q has too many versions (%d while the max is %d)", groupName, numVersions, maxVersions)
+		if numVersions := len(group.GetVersions()); numVersions > maxBotInstanceVersions {
+			return trace.BadParameter("group %q has too many versions (%d while the max is %d)", groupName, numVersions, maxBotInstanceVersions)
 		}
 	}
 

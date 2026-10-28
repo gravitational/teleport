@@ -279,10 +279,17 @@ func (r *AutoUpdateVersionReporter) generateReport(ctx context.Context) error {
 				groups[groupName] = group
 			}
 
-			version, ok := group.Versions[latest.GetVersion()]
+			// Defend against unreasonably long version names bloating the overall
+			// report size by reporting as `invalid-too-long`.
+			versionName := latest.GetVersion()
+			if len(versionName) > update.MaxBotInstanceVersionLength {
+				versionName = update.BotInstanceVersionInvalidTooLong
+			}
+
+			version, ok := group.Versions[versionName]
 			if !ok {
 				version = &autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{}
-				group.Versions[latest.GetVersion()] = version
+				group.Versions[versionName] = version
 			}
 			version.Count++
 		}
