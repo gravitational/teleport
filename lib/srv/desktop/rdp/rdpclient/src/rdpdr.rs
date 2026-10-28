@@ -80,8 +80,9 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ScardCall,
-    ) -> PduResult<()> {
-        self.scard.handle(req, call)
+    ) -> PduResult<Vec<SvcMessage>> {
+        self.scard.handle(req, call)?;
+        Ok(vec![])
     }
 
     fn handle_drive_io_request(&mut self, req: ServerDriveIoRequest) -> PduResult<Vec<SvcMessage>> {

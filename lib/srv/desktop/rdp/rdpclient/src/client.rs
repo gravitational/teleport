@@ -29,18 +29,17 @@ use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
 use ironrdp_connector::connection_activation::{
     ConnectionActivationFactory, ConnectionActivationState,
 };
-use ironrdp_connector::credssp::KerberosConfig;
+use ironrdp_connector::credssp::{KdcResolution, KerberosConfig};
 use ironrdp_connector::{
     Config, ConnectorError, ConnectorErrorKind, Credentials, DesktopSize, SmartCardIdentity,
 };
-use ironrdp_core::{encode_vec, EncodeError};
+use ironrdp_core::{encode_vec, EncodeError, MonotonicInstant};
 use ironrdp_core::{function, WriteBuf};
 use ironrdp_displaycontrol::client::DisplayControlClient;
 use ironrdp_displaycontrol::pdu::{
     DisplayControlMonitorLayout, DisplayControlPdu, MonitorLayoutEntry,
 };
-use ironrdp_dvc::{DrdynvcClient, DvcMessage};
-use ironrdp_dvc::{DvcProcessor, DynamicVirtualChannel};
+use ironrdp_dvc::{DrdynvcClient, DvcClientProcessor, DvcMessage, DynamicChannelRef};
 use ironrdp_pdu::input::fast_path::{
     FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
 };
@@ -239,7 +238,7 @@ impl Client {
             .transpose()
             .map_err(ClientError::UrlError)?
             .map(|kdc_url| KerberosConfig {
-                kdc_proxy_url: Some(kdc_url),
+                kdc_resolution: KdcResolution::KdcUrl(Some(kdc_url)),
                 hostname: params
                     .computer_name
                     .as_deref()
@@ -255,7 +254,8 @@ impl Client {
             server_public_key,
             kerberos_config,
         )
-        .await?;
+        .await?
+        .into_connected()?;
 
         // Register the RDP channels with the browser client.
         Self::send_connection_activated(
@@ -379,7 +379,13 @@ impl Client {
                 ironrdp_pdu::Action::X224 => {
                     // X224 PDU, process it and send any immediate response frames to the write loop
                     // for writing to the RDP server.
-                    for output in Client::x224_process(x224_processor.clone(), frame).await? {
+                    for output in Client::x224_process(
+                        x224_processor.clone(),
+                        frame,
+                        read_stream.last_read_at(),
+                    )
+                    .await?
+                    {
                         match output {
                             ProcessorOutput::ResponseFrame(frame) => {
                                 // Send response frames to write loop for writing to RDP server.
@@ -432,7 +438,7 @@ impl Client {
                             ProcessorOutput::AutoDetect(req) => {
                                 // These are allegedly handled automatically internally,
                                 // so we'll just log them in case they're useful for debugging.
-                                debug!("received autodetect request: {:?}", req);
+                                debug!("Received autodetect request: {:?}", req);
                             }
                             ProcessorOutput::MultitransportRequest(_) => {
                                 error!("Received unsupported multi-transport request")
@@ -442,6 +448,36 @@ impl Client {
                             }
                             ProcessorOutput::GraphicsUpdate(_) => {
                                 error!("Received unsupported slow-path graphics update")
+                            }
+                            ProcessorOutput::SaveSessionInfo { logon_complete } => {
+                                if logon_complete {
+                                    debug!("RDP login complete");
+                                } else {
+                                    debug!("Received session info notification");
+                                }
+                            }
+                            ProcessorOutput::SessionId(id) => {
+                                debug!("Received remote session ID: {id}");
+                            }
+                            ProcessorOutput::AutoReconnectCookie(_) => {
+                                error!("Received unsupported auto-reconnect cookie")
+                            }
+                            ProcessorOutput::LogonErrors(errors) => {
+                                debug!("Received logon errors from server: {errors:?}");
+                            }
+                            ProcessorOutput::AutoReconnectFailed => {
+                                return Err(ClientError::InternalError(
+                                    "Received unsupported auto-reconnect failed notification"
+                                        .to_string(),
+                                ));
+                            }
+                            ProcessorOutput::MonitorLayout(_) => {
+                                error!("Received unsupported monitor layout update")
+                            }
+                            ProcessorOutput::ServerRedirection(_) => {
+                                return Err(ClientError::InternalError(
+                                    "Received unsupported server redirection request".to_string(),
+                                ));
                             }
                         }
                     }
@@ -786,11 +822,11 @@ impl Client {
         // Our DisplayControlClient is lazily initialized and added as a svc_processor
         // once the dynamic channel for display control is opened and server capabilities are
         // received. Failure to acquire the DVC is normal until this point in the connection setup.
-        // Ensure that the DVC is both accessible and open.
+        // Ensure that the DVC is both accessible and ready.
         let dvc_is_ready = {
             Self::x224_lock(&x224_processor)?
                 .get_dvc::<DisplayControlClient>()
-                .is_some_and(|dvc| dvc.is_open())
+                .is_some_and(|dvc| dvc.processor().ready())
         };
 
         if dvc_is_ready {
@@ -821,14 +857,8 @@ impl Client {
         let messages = task::spawn_blocking(move || {
             let x224_processor = Self::x224_lock(&cloned)?;
             let dvc = Self::get_dvc::<DisplayControlClient>(&x224_processor)?;
-            let channel_id = dvc.channel_id().ok_or(ClientError::InternalError(
-                "DisplayControlClient channel_id not found".to_string(),
-            ))?;
-            let disp_ctl_cli = dvc
-                .channel_processor_downcast_ref::<DisplayControlClient>()
-                .ok_or(ClientError::InternalError(
-                    "DisplayControlClient not found".to_string(),
-                ))?;
+            let channel_id = dvc.channel_id();
+            let disp_ctl_cli = dvc.processor();
 
             Ok::<_, ClientError>(disp_ctl_cli.encode_single_primary_monitor(
                 channel_id,
@@ -1051,13 +1081,20 @@ impl Client {
     /// while waiting for the `x224_processor` lock, or while processing the frame.
     /// This function ensures `x224_processor` is locked only for the necessary duration
     /// of the function call.
+    ///
+    /// `received_at` is the time at which the frame was received.
+    /// Use one monotonic clock for every frame, and keep the read time
+    /// for buffered frames so bandwidth measurements reflect network arrival.
     async fn x224_process(
         x224_processor: Arc<Mutex<x224::Processor>>,
         frame: BytesMut,
+        received_at: Option<MonotonicInstant>,
     ) -> SessionResult<Vec<ProcessorOutput>> {
-        task::spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame))
-            .await
-            .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
+        task::spawn_blocking(move || {
+            Self::x224_lock(&x224_processor)?.process(&frame, &mut None, received_at)
+        })
+        .await
+        .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
     }
 
     /// Processes some [`SvcProcessorMessages`] on a blocking thread.
@@ -1118,9 +1155,9 @@ impl Client {
 
     fn get_dvc<'a, S>(
         x224_processor: &'a MutexGuard<'_, x224::Processor>,
-    ) -> Result<&'a DynamicVirtualChannel, ClientError>
+    ) -> Result<DynamicChannelRef<'a, S>, ClientError>
     where
-        S: DvcProcessor + 'static,
+        S: DvcClientProcessor + 'static,
     {
         x224_processor
             .get_dvc::<S>()
@@ -1500,9 +1537,17 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
             width: params.screen_width,
             height: params.screen_height,
         },
+        desktop_physical_size: None,
+        desktop_orientation: None,
+        device_scale_factor: None,
+        monitor_layout: None,
+        monitor_extended_layout: None,
+        relative_mouse_input: false,
         enable_tls: true,
         enable_credssp: params.ad && params.nla,
+        enable_standard_rdp_security: false,
         enable_audio_playback: false,
+        enable_audio_capture: false,
         timezone_info: TimezoneInfo::default(),
         credentials: Credentials::SmartCard {
             config: params.ad.then(|| SmartCardIdentity {
@@ -1520,10 +1565,11 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/568e22ee-c9ee-4e87-80c5-54795f667062.
         client_build: 18363,
         client_name: "Teleport".to_string(),
-        keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
+        keyboard_type: ironrdp_pdu::gcc::KeyboardType::IBM_ENHANCED,
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,
         keyboard_layout: params.keyboard_layout,
+        connection_type: ironrdp_pdu::gcc::ConnectionType::Lan,
         ime_file_name: "".to_string(),
         bitmap: Some(ironrdp_connector::BitmapConfig {
             lossy_compression: true,
@@ -1566,6 +1612,9 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         work_dir: "".to_string(),
         compression_type: None,
         multitransport_flags: None,
+        remote_application_mode: false,
+        rail_support_level: ironrdp_pdu::rdp::capability_sets::RailSupportLevel::empty(),
+        support_dyn_vc_gfx_protocol: false,
     }
 }
 

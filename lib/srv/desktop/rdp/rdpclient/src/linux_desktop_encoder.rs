@@ -244,7 +244,6 @@ mod tests {
             share_id: 0,
             enable_server_pointer: false,
             pointer_software_rendering: false,
-            bulk_decompressor: None,
         }
         .build();
         let mut image = DecodedImage::new(
@@ -254,7 +253,9 @@ mod tests {
         );
         let mut buf = WriteBuf::new();
         for frame in encoded {
-            processor.process(&mut image, &frame, &mut buf).unwrap();
+            processor
+                .process(&mut image, &frame, &mut buf, &mut None)
+                .unwrap();
         }
         let res = vec
             .iter()
