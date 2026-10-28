@@ -29,6 +29,7 @@ import (
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -63,13 +64,84 @@ func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
 		case types.IntegrationSubKindGitHub:
 			specProps = append(specProps, fmt.Sprintf("Organization=%s", ig.GetGitHubIntegrationSpec().Organization))
 		}
+		// Scoped integrations render as "<scope>::<name>"; unscoped ones as the bare name.
+		qualifiedName := scopes.QualifiedName{
+			Scope: ig.GetScope(),
+			Name:  ig.GetName(),
+		}
 		rows = append(rows, []string{
-			ig.GetName(), ig.GetSubKind(), strings.Join(specProps, ","),
+			qualifiedName.String(), ig.GetSubKind(), strings.Join(specProps, ","),
 		})
 	}
 	t := asciitable.MakeTable([]string{"Name", "Type", "Spec"}, rows...)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+// scopedIntegrationHandler supports scope aware tctl commands
+func scopedIntegrationHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:    getScopedIntegration,
+		createHandler: createIntegration,
+		updateHandler: updateIntegration,
+		deleteHandler: deleteScopedIntegration,
+		description:   "An integration with an external service such as AWS, GitHub, or Azure.",
+		mfaRequired:   true,
+	}
+}
+
+func getScopedIntegration(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, opts GetOpts) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindIntegration, subKind)
+	}
+
+	if sqn != nil {
+		ig, err := client.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+			Scope: sqn.Scope,
+			Name:  sqn.Name,
+		}.Build())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if ig.GetScope() != sqn.Scope {
+			return nil, scopeMismatchNotFound(types.KindIntegration, *sqn, ig.GetScope())
+		}
+		return NewIntegrationCollection([]types.Integration{ig}), nil
+	}
+
+	resources, err := stream.Collect(client.RangeIntegrations(ctx, integrationpb.ListIntegrationsRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewIntegrationCollection(resources), nil
+}
+
+func deleteScopedIntegration(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindIntegration, subKind)
+	}
+
+	ig, err := client.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ig.GetScope() != sqn.Scope {
+		return scopeMismatchNotFound(types.KindIntegration, sqn, ig.GetScope())
+	}
+
+	if err := client.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build()); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Integration %q removed\n", sqn.String())
+	return nil
 }
 
 func integrationHandler() Handler {

@@ -50,6 +50,10 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 
 	for _, allowedRole := range []types.SystemRole{types.RoleDiscovery, types.RoleAuth, types.RoleProxy} {
 		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
+			if req.GetScope() != "" {
+				// temporarily disallow aws oidc support for scoped integrations
+				return nil, trace.NotImplemented("AWS OIDC token generation is not supported for scoped integrations yet")
+			}
 			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.GetIntegration())
 		}
 	}

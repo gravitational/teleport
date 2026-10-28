@@ -391,5 +391,11 @@ func validateIntegration(ig types.Integration) error {
 		return trace.BadParameter("scoped integrations do not support the %q subkind", ig.GetSubKind())
 	}
 
+	// Credentials are not yet scoped, and AWS OIDC and Roles Anywhere should never define
+	// credentials.
+	if ig.GetCredentials() != nil {
+		return trace.BadParameter("scoped integrations do not support credentials")
+	}
+
 	return nil
 }

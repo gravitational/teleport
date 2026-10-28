@@ -43,6 +43,10 @@ func (s *Service) GenerateAWSRACredentials(ctx context.Context, req *integration
 
 	for _, allowedRole := range []types.SystemRole{types.RoleAuth, types.RoleProxy} {
 		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
+			if req.GetScope() != "" {
+				// temporarily disallow aws ra support for scoped integrations
+				return nil, trace.NotImplemented("AWS Roles Anywhere credential generation is not supported for scoped integrations yet")
+			}
 			return s.generateAWSRACredentialsWithoutAuthZ(ctx, req, "" /* trustAnchor */)
 		}
 	}

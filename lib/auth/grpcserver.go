@@ -6718,6 +6718,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
 		Authorizer:                    cfg.Authorizer,
+		ScopedAuthorizer:              cfg.ScopedAuthorizer,
+		ScopesFeatures:                cfg.AuthServer.scopesFeatures,
 		Backend:                       cfg.AuthServer.Services,
 		Cache:                         cfg.AuthServer.Cache,
 		KeyStoreManager:               cfg.AuthServer.GetKeyStore(),
