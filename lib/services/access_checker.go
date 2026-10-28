@@ -291,7 +291,9 @@ type AccessChecker interface {
 	// Supports the following resource types:
 	//
 	// - types.Server with GetKind() == types.KindNode
+	//
 	// - types.KindWindowsDesktop
+	//
 	// - types.KindApp with IsAWSConsole() == true
 	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
 

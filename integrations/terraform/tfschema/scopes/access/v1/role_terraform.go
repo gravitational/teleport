@@ -105,6 +105,15 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"app": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"aws": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"role_arns": {
+								Description: "RoleArns specifies the AWS role ARNs to allow for this scoped app.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							}}),
+							Description: "AWS contains the AWS configuration for the scoped role.",
+							Optional:    true,
+						},
 						"client_idle_timeout": {
 							Description: "Overrides the defaults block idle timeout specifically for app sessions. Must be a valid Go duration string (e.g. \"30m\", \"1h\"). If empty, the defaults block value (or global default) applies.",
 							Optional:    true,
@@ -2103,6 +2112,51 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 																	t = string(v.Value)
 																}
 																obj.Mode = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["aws"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.app.aws"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.aws", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Aws = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.Aws = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleApp_AWS{}
+													obj := obj.Aws
+													{
+														a, ok := tf.Attrs["role_arns"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedRole.spec.app.aws.role_arns"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.aws.role_arns", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.RoleArns = make([]string, len(v.Elems))
+																if !v.Null && !v.Unknown {
+																	for k, a := range v.Elems {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.aws.role_arns", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.RoleArns[k] = t
+																		}
+																	}
+																}
 															}
 														}
 													}
@@ -4819,6 +4873,91 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												}
 												v.Unknown = false
 												tf.Attrs["lock"] = v
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["aws"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.app.aws"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.aws", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["aws"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.Aws == nil {
+													v.Null = true
+												} else {
+													obj := obj.Aws
+													tf := &v
+													{
+														a, ok := tf.AttrTypes["role_arns"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedRole.spec.app.aws.role_arns"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.aws.role_arns", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																c, ok := tf.Attrs["role_arns"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																if !ok {
+																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																		ElemType: o.ElemType,
+																		Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RoleArns)),
+																		Null:     true,
+																	}
+																} else {
+																	if c.Elems == nil {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RoleArns))
+																	}
+																}
+																if obj.RoleArns != nil {
+																	t := o.ElemType
+																	if len(obj.RoleArns) != len(c.Elems) {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RoleArns))
+																	}
+																	for k, a := range obj.RoleArns {
+																		v, ok := tf.Attrs["role_arns"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																			if err != nil {
+																				diags.Append(attrWriteGeneralError{"ScopedRole.spec.app.aws.role_arns", err})
+																			}
+																			v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.aws.role_arns", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			}
+																			v.Null = string(a) == ""
+																		}
+																		v.Value = string(a)
+																		v.Unknown = false
+																		c.Elems[k] = v
+																	}
+																	if len(obj.RoleArns) > 0 {
+																		c.Null = false
+																	}
+																}
+																c.Unknown = false
+																tf.Attrs["role_arns"] = c
+															}
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["aws"] = v
 											}
 										}
 									}

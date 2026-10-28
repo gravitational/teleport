@@ -56,6 +56,15 @@ func (c *AppAccessChecker) CanAccessApp(target types.Application) error {
 	return c.checker.scopedCompatChecker.CheckAccess(target, AccessState{MFAVerified: true})
 }
 
+// GetAWSRoleARNs returns the AWS IAM role ARNs the identity may assume when accessing
+// the given app.
+func (c *AppAccessChecker) GetAWSRoleARNs(target types.Application) ([]string, error) {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.GetAllowedLoginsForResource(target)
+	}
+	return c.checker.scopedCompatChecker.GetAllowedLoginsForResource(target)
+}
+
 // AdjustClientIdleTimeout determines the app client idle timeout to apply. The supplied argument must be
 // the globally defined most-permissive value. For scoped identities, the most restrictive non-zero value
 // across all roles is selected (app.client_idle_timeout takes precedence over defaults.client_idle_timeout).

@@ -40,11 +40,18 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|aws|[object](#specappaws)|AWS contains the AWS configuration for the scoped role.|
 |client_idle_timeout|string|Overrides the defaults block idle timeout specifically for app sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
 |disconnect_expired_cert|boolean|DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.|
 |label_expression|string|LabelExpression is an optional predicate expression evaluated against an application's labels.|
 |labels|[][object](#specapplabels-items)|The set of application labels used for RBAC.|
 |lock|[object](#specapplock)|Lock configures the role's locking behavior for app sessions. If empty, the defaults block value (or global default) applies.|
+
+### spec.app.aws
+
+|Field|Type|Description|
+|---|---|---|
+|role_arns|[]string|RoleArns specifies the AWS role ARNs to allow for this scoped app.|
 
 ### spec.app.labels items
 

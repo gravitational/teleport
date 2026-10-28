@@ -1947,8 +1947,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 }
 
 // ListUnifiedResources is the scoped equivalent of [ServerWithRoles.ListUnifiedResources].
-// For scoped callers only node kind is currently supported. Advanced features such as search-as-roles,
-// preview-as-roles, requestable resources, and login inclusion are not yet available for scoped identities.
+// Advanced features such as search-as-roles, preview-as-roles, and requestable resources are not
+// yet available for scoped identities. Login inclusion is supported for nodes (SSH logins) and app
+// servers (AWS IAM role ARNs).
 func (a *ScopedServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
 		return unscoped.ListUnifiedResources(ctx, req)
@@ -2037,17 +2038,26 @@ func (a *ScopedServerWithRoles) ListUnifiedResources(ctx context.Context, req *p
 
 	if req.IncludeLogins {
 		for _, r := range paginatedResources {
-			if n := r.GetNode(); n != nil {
-				logins, err := resourceLister.getAllowedLogins(n)
-				if err != nil {
-					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for node",
-						"error", err,
-						"resource", n.GetName(),
-					)
-					continue
-				}
-				r.Logins = logins
+			var res services.AccessCheckable
+			switch {
+			case r.GetNode() != nil:
+				res = r.GetNode()
+			case r.GetAppServer() != nil:
+				// For apps the logins are the AWS IAM role ARNs the caller may assume.
+				res = r.GetAppServer().GetApp()
+			default:
+				continue
 			}
+			logins, err := resourceLister.getAllowedLogins(res)
+			if err != nil {
+				a.authServer.logger.WarnContext(ctx, "Unable to determine logins for resource",
+					"error", err,
+					"kind", res.GetKind(),
+					"resource", res.GetName(),
+				)
+				continue
+			}
+			r.Logins = logins
 		}
 	}
 
@@ -2362,8 +2372,7 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 		return nil, trace.AccessDenied("preview_as_roles is not supported for scoped identities")
 	case req.IncludeLogins && req.ResourceType != types.KindAppServer:
 		// include_logins is only used for AWS console apps and is otherwise unsupported for
-		// scoped identities. It will be left empty for now so that we can still list normal apps.
-		// Reject it for every other resource kind.
+		// scoped identities.
 		return nil, trace.AccessDenied("include_logins is not supported for scoped identities for resource %q", req.ResourceType)
 	}
 
@@ -2449,6 +2458,9 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 		case err != nil:
 			return trace.Wrap(err)
 		case match:
+			if req.IncludeLogins {
+				resource = a.enrichAppServerWithLogins(ctx, resource)
+			}
 			resp.Resources = append(resp.Resources, resource)
 			return nil
 		}
@@ -2751,30 +2763,71 @@ func (c *scopedResourceChecker) CanAccess(resource types.ResourceWithLabels) err
 func (c *scopedResourceChecker) GetAllowedLoginsForResource(
 	resource services.AccessCheckable,
 ) ([]string, error) {
-	server, ok := resource.(*types.ServerV2)
-	if !ok {
-		logger.WarnContext(c.ctx, "Unable to cast unified resource to server",
+	switch res := resource.(type) {
+	case *types.ServerV2:
+		serverScope := cmp.Or(res.Scope, apiscopes.Root)
+
+		var logins []string
+		for checker, err := range c.scopedContext.CheckerContext.CheckersForResourceScope(c.ctx, serverScope) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			serverLogins, err := checker.SSH().GetAllowedLoginsForServer(res)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			logins = append(logins, serverLogins...)
+		}
+
+		return logins, nil
+
+	case types.Application:
+		// The allowed logins for apps are the AWS IAM role ARNs the identity may assume.
+		appScope := cmp.Or(res.GetScope(), apiscopes.Root)
+
+		var roleARNs []string
+		for checker, err := range c.scopedContext.CheckerContext.CheckersForResourceScope(c.ctx, appScope) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			arns, err := checker.App().GetAWSRoleARNs(res)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			roleARNs = append(roleARNs, arns...)
+		}
+
+		return roleARNs, nil
+
+	default:
+		logger.WarnContext(c.ctx, "Logins for scoped resource not yet supported.",
 			"resource_name", resource.GetName(),
 			"resource_kind", resource.GetKind(),
 		)
-		return nil, trace.AccessDenied("scoped resource checker only supports servers")
+		return nil, trace.AccessDenied("scoped resource checker only supports servers and applications")
+	}
+}
+
+func (a *ScopedServerWithRoles) enrichAppServerWithLogins(ctx context.Context, resource types.ResourceWithLabels) types.ResourceWithLabels {
+	appServer, ok := resource.(types.AppServer)
+	if !ok {
+		return resource
 	}
 
-	serverScope := cmp.Or(server.Scope, apiscopes.Root)
-
-	var logins []string
-	for checker, err := range c.scopedContext.CheckerContext.CheckersForResourceScope(c.ctx, serverScope) {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		serverLogins, err := checker.SSH().GetAllowedLoginsForServer(server)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		logins = append(logins, serverLogins...)
+	checker := &scopedResourceChecker{ctx: ctx, scopedContext: *a.scopedContext}
+	logins, err := checker.GetAllowedLoginsForResource(appServer.GetApp())
+	if err != nil {
+		a.authServer.logger.WarnContext(ctx, "Unable to determine logins for resource",
+			"error", err,
+			"resource", appServer.GetName(),
+			"scope", appServer.GetScope(),
+		)
 	}
 
-	return logins, nil
+	return &types.EnrichedResource{
+		ResourceWithLabels: resource,
+		Logins:             logins,
+	}
 }
 
 // createOktaRequestableResourceChecker creates [oktaRequestableResoruceChecker].
@@ -3063,6 +3116,11 @@ func (a *ScopedServerWithRoles) listResourcesWithSort(ctx context.Context, req p
 		Labels:         req.Labels,
 		SearchKeywords: req.SearchKeywords,
 		StartKey:       req.StartKey,
+	}
+	if req.IncludeLogins {
+		params.EnrichResourceFn = func(r types.ResourceWithLabels) (types.ResourceWithLabels, error) {
+			return a.enrichAppServerWithLogins(ctx, r), nil
+		}
 	}
 	if req.PredicateExpression != "" {
 		expression, err := services.NewResourceExpression(req.PredicateExpression)
@@ -4489,10 +4547,10 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for unsupported usage %q", req.Usage)
 		}
 
-		// Scoped identities cannot access cloud apps (AWS console / AWS Roles Anywhere, Azure, GCP).
-		// TODO(williamo/scopes): add support for this.
+		// Scoped identities cannot access cloud apps (AWS Roles Anywhere, Azure, GCP).
+		// TODO(williamo/scopes): add support for these.
 		if req.RequesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS ||
-			req.RouteToApp.AWSRoleARN != "" || req.RouteToApp.AzureIdentity != "" || req.RouteToApp.GCPServiceAccount != "" {
+			req.RouteToApp.AzureIdentity != "" || req.RouteToApp.GCPServiceAccount != "" {
 			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for cloud app access")
 		}
 	}

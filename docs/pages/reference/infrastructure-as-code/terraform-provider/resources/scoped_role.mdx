@@ -91,11 +91,19 @@ Optional:
 
 Optional:
 
+- `aws` (Attributes) AWS contains the AWS configuration for the scoped role. (see [below for nested schema](#nested-schema-for-specappaws))
 - `client_idle_timeout` (String) Overrides the defaults block idle timeout specifically for app sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.
 - `disconnect_expired_cert` (Boolean) DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.
 - `label_expression` (String) LabelExpression is an optional predicate expression evaluated against an application's labels.
 - `labels` (Attributes List) The set of application labels used for RBAC. (see [below for nested schema](#nested-schema-for-specapplabels))
 - `lock` (Attributes) Lock configures the role's locking behavior for app sessions. If empty, the defaults block value (or global default) applies. (see [below for nested schema](#nested-schema-for-specapplock))
+
+### Nested Schema for `spec.app.aws`
+
+Optional:
+
+- `role_arns` (List of String) RoleArns specifies the AWS role ARNs to allow for this scoped app.
+
 
 ### Nested Schema for `spec.app.labels`
 

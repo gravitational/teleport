@@ -56,6 +56,19 @@ spec:
                 description: The App Access specific configuration for a scoped role.
                 nullable: true
                 properties:
+                  aws:
+                    description: AWS contains the AWS configuration for the scoped
+                      role.
+                    nullable: true
+                    properties:
+                      role_arns:
+                        description: RoleArns specifies the AWS role ARNs to allow
+                          for this scoped app.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   client_idle_timeout:
                     description: Overrides the defaults block idle timeout specifically
                       for app sessions. Must be a valid Go duration string (e.g. "30m",

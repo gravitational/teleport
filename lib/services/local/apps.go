@@ -202,16 +202,8 @@ func validateApp(app types.Application) error {
 		return trace.Wrap(err)
 	}
 
-	if app.GetCloud() != "" {
-		return trace.BadParameter("scoped applications do not support cloud apps")
-	}
-
-	appV3, ok := app.(*types.AppV3)
-	if !ok {
-		return trace.BadParameter("unsupported application type %T", app)
-	}
-	if appV3.Spec.AWS != nil {
-		return trace.BadParameter("scoped applications do not support AWS configuration")
+	if app.IsAzureCloud() || app.IsGCP() {
+		return trace.BadParameter("scoped applications do not support Azure or GCP cloud apps")
 	}
 
 	if len(app.GetRequiredAppNames()) > 0 {
