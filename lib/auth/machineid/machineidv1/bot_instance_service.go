@@ -145,7 +145,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	}
 
 	ruleCtx.Resource153 = instance
-	if err := authCtx.CheckerContext.Decision(
+	if _, err := authCtx.CheckerContext.Decision(
 		ctx,
 		instance.Scope,
 		func(checker *services.ScopedAccessChecker) error {
@@ -196,7 +196,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 	}
 
 	ruleCtx.Resource153 = res
-	if err := authCtx.CheckerContext.Decision(
+	if _, err := authCtx.CheckerContext.Decision(
 		ctx,
 		res.Scope,
 		func(checker *services.ScopedAccessChecker) error {
@@ -303,7 +303,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 			FilterFn: func(botInstance *pb.BotInstance) bool {
 				ruleCtx := authCtx.RuleContext()
 				ruleCtx.Resource153 = botInstance
-				err := authCtx.CheckerContext.Decision(
+				_, err := authCtx.CheckerContext.Decision(
 					ctx,
 					botInstance.Scope,
 					func(checker *services.ScopedAccessChecker) error {

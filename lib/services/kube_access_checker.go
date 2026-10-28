@@ -19,10 +19,16 @@
 package services
 
 import (
+	"cmp"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/itertools"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // KubeAccessChecker provides kube-specific access checking, abstracting over scoped and unscoped identities.
@@ -51,12 +57,20 @@ func (c *KubeAccessChecker) CanAccessCluster(target types.KubeCluster) error {
 }
 
 // GetGroupsAndUsers returns the kube groups and users that are permitted for impersonation.
+//
+// NOTE: This method is somewhat of an outlier in terms of its scoped behavior. Most scoped controls
+// don't rely on RoleMatcher selection because scoped RBAC structurally enforces role-matching at decision
+// time (i.e. controls are derived from a checker that *only* consists of matching roles already). Kube
+// access's current structure sometimes results in the primary decision being made in a context where
+// the target resources are not known, and subsequent sub-decisions further narrowing down matching roles
+// by resource rules. As a result, we currently defer to the unscoped implementation for this control, which
+// may result in kube resource based narrowing.
 func (c *KubeAccessChecker) GetGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
 	}
 
-	return c.checker.scopedCompatChecker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
+	return c.checker.aggregateRoleSet().CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
 }
 
 // GetResources returns the kube resources that are permitted for access.
@@ -65,39 +79,91 @@ func (c *KubeAccessChecker) GetResources(target types.KubeCluster) (allowed []ty
 		return c.checker.unscopedChecker.GetKubeResources(target)
 	}
 
-	return c.checker.scopedCompatChecker.GetKubeResources(target)
+	return c.checker.aggregateRoleSet().GetKubeResources(target, c.checker.AccessInfo().Username, c.checker.Traits())
 }
 
 // AdjustClientIdleTimeout determines the kube client idle timeout to apply. The supplied argument must be
-// the globally defined most-permissive value. For scoped identities, the value is read directly from the
-// scoped role proto (kube.client_idle_timeout takes precedence over defaults.client_idle_timeout). If the
-// role specifies a more restrictive value it is returned; otherwise the global value is returned unchanged.
-// An error is returned if the role contains a non-empty duration string that cannot be parsed.
+// the globally defined most-permissive value. For scoped identities, the most restrictive non-zero value
+// across all roles is selected (kube.client_idle_timeout takes precedence over defaults.client_idle_timeout).
+// If the selected value is more restrictive than the global value it is returned; otherwise the global value
+// is returned unchanged. An error is returned if any role contains a non-empty duration string that cannot
+// be parsed.
 func (c *KubeAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) (time.Duration, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.AdjustClientIdleTimeout(timeout), nil
 	}
-	return c.checker.adjustScopedClientIdleTimeout(c.checker.role.GetSpec().GetKube().GetClientIdleTimeout(), timeout)
+
+	// aggregate stream of all non-empty client_idle_timeout strings
+	idleStrs := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (string, bool) {
+		// kube.client_idle_timeout takes precedence over defaults.client_idle_timeout
+		s := cmp.Or(role.GetSpec().GetKube().GetClientIdleTimeout(), role.GetSpec().GetDefaults().GetClientIdleTimeout())
+		return s, s != ""
+	})
+
+	// convert to fallible stream of parsed durations
+	decoded := stream.TryMap(stream.FromSeq(idleStrs), func(s string) (time.Duration, error) {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return 0, trace.Wrap(err, "failed to parse client_idle_timeout %q", s)
+		}
+		return d, nil
+	})
+
+	// add the global timeout to the stream. since we always select the lowest non-zero value, the global
+	// needs no special handling.
+	durations := stream.Chain(decoded, stream.Once(timeout))
+
+	// select the lowest non-zero duration
+	return minNonZeroStream(durations)
 }
 
-// AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry.
+// AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry. For scoped identities, an explicit
+// true in any role takes precedence over an explicit false in any role. The supplied default is only used if no role
+// specifies a value (kube.disconnect_expired_cert takes precedence over defaults.disconnect_expired_cert).
 func (c *KubeAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.AdjustDisconnectExpiredCert(disconnect)
 	}
-	kube := c.checker.role.GetSpec().GetKube()
-	var disconnectExpiredCert *bool
-	if kube != nil {
-		disconnectExpiredCert = kube.DisconnectExpiredCert
+
+	// aggregate all explicitly set disconnect_expired_cert values
+	disconnects := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (bool, bool) {
+		if kube := role.GetSpec().GetKube(); kube.HasDisconnectExpiredCert() {
+			return kube.GetDisconnectExpiredCert(), true
+		}
+		return role.GetSpec().GetDefaults().GetDisconnectExpiredCert(), role.GetSpec().GetDefaults().HasDisconnectExpiredCert()
+	})
+
+	// an explicit true takes precedence over an explicit false.
+	if d, ok := highestPrecedence(disconnects, true, false); ok {
+		return d
 	}
-	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
+
+	// the cluster default is only applied if no role specifies a value.
+	return disconnect
 }
 
-// LockingMode returns the SSH lock enforcement mode to apply.
+// LockingMode returns the kube lock enforcement mode to apply. For scoped identities, strict in any role takes
+// precedence over best_effort in any role. The supplied default is only used if no role specifies a mode
+// (kube.lock takes precedence over defaults.lock).
 func (c *KubeAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.LockingMode(defaultMode)
 	}
 
-	return c.checker.scopedLockingMode(c.checker.role.GetSpec().GetKube().GetLock(), defaultMode)
+	// aggregate all explicitly set lock modes
+	modes := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (constants.LockingMode, bool) {
+		lock := role.GetSpec().GetKube().GetLock()
+		if lock == nil {
+			lock = role.GetSpec().GetDefaults().GetLock()
+		}
+		return constants.LockingMode(lock.GetMode()), lock.GetMode() != ""
+	})
+
+	// strict takes precedence over best effort
+	if mode, ok := highestPrecedence(modes, constants.LockingModeStrict, constants.LockingModeBestEffort); ok {
+		return mode
+	}
+
+	// the cluster default is only applied if no role specifies a recognized mode.
+	return defaultMode
 }

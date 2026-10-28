@@ -120,10 +120,11 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	}
 
 	checkAccess := func(ruleCtx services.RuleContext) error {
-		if req.IncludeKey {
-			return authCtx.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+		if req.GetIncludeKey() {
+			_, err := authCtx.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
 				return checker.CheckAccessToRules(ruleCtx, types.KindCertAuthority, scopedaccess.Secrets)
 			})
+			return trace.Wrap(err)
 		}
 		// For read without secrets we use RiskyAuthorizeUnpinnedRead, this is to
 		// allow scoped identities (regardless of their pinned scope) to be
@@ -257,7 +258,7 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 		//
 		// All cert authorities can be considered as being "root" resources from
 		// the perspective of scoped RBAC, so we just hard-code root as the resource scope for the decision.
-		if err := authCtx.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+		if _, err := authCtx.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
 			// note that Secrets implies Read; there is no need to require both.
 			return checker.CheckAccessToRules(&ruleCtx, types.KindCertAuthority, scopedaccess.List, scopedaccess.Secrets)
 		}); err != nil {

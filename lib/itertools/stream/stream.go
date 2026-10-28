@@ -146,6 +146,19 @@ func TryMap[A, B any](stream Stream[A], fn func(A) (B, error)) Stream[B] {
 	}
 }
 
+// FromSeq constructs a stream from an iter.Seq. Prefer using combinators from the
+// itertools pkg unless fallibility is actually required (e.g. due to needing to use
+// [TryMap] or something in that vein).
+func FromSeq[T any](seq iter.Seq[T]) Stream[T] {
+	return func(yield func(T, error) bool) {
+		for item := range seq {
+			if !yield(item, nil) {
+				return
+			}
+		}
+	}
+}
+
 // Chain joins multiple streams in order, fully consuming one before moving to the next.
 func Chain[T any](streams ...Stream[T]) Stream[T] {
 	return func(yield func(T, error) bool) {

@@ -200,8 +200,8 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 	}
 
 	ruleCtx.Resource153 = bot
-	if err := authCtx.CheckerContext.Decision(
-		ctx, bot.Scope, func(checker *services.ScopedAccessChecker) error {
+	if _, err := authCtx.CheckerContext.Decision(
+		ctx, bot.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, scopedaccess.Read)
 		},
 	); err != nil {
@@ -335,7 +335,7 @@ func (bs *BotService) ListBots(
 		// Check if user can access this specific Bot.
 		ruleCtx := authCtx.RuleContext()
 		ruleCtx.Resource153 = bot
-		if err := authCtx.CheckerContext.Decision(ctx, bot.Scope, func(checker *services.ScopedAccessChecker) error {
+		if _, err := authCtx.CheckerContext.Decision(ctx, bot.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, scopedaccess.List)
 		}); err != nil {
 			// Ignore resources the user cannot access.
@@ -375,8 +375,8 @@ func (bs *BotService) CreateBot(
 	// well-formed.
 
 	ruleCtx := authCtx.RuleContext()
-	ruleCtx.Resource153 = req.Bot
-	if err := authCtx.CheckerContext.Decision(ctx, req.Bot.Scope, func(checker *services.ScopedAccessChecker) error {
+	ruleCtx.Resource153 = req.GetBot()
+	if _, err := authCtx.CheckerContext.Decision(ctx, req.GetBot().GetScope(), func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, scopedaccess.Create)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -609,8 +609,8 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	// is well-formed.
 
 	ruleCtx := authCtx.RuleContext()
-	ruleCtx.Resource153 = req.Bot
-	if err := authCtx.CheckerContext.Decision(
+	ruleCtx.Resource153 = req.GetBot()
+	if _, err := authCtx.CheckerContext.Decision(
 		ctx,
 		req.Bot.Scope,
 		func(checker *services.ScopedAccessChecker) error {
@@ -904,7 +904,7 @@ func (bs *BotService) DeleteBot(
 	scope := user.GetMetadata().Labels[types.BotScopeLabel]
 
 	ruleCtx.Resource153 = dummyBotWithName(req.BotName)
-	if err := authCtx.CheckerContext.Decision(ctx, scope, func(checker *services.ScopedAccessChecker) error {
+	if _, err := authCtx.CheckerContext.Decision(ctx, scope, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, scopedaccess.Delete)
 	}); err != nil {
 		return nil, trace.Wrap(err)

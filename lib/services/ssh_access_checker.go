@@ -19,13 +19,18 @@
 package services
 
 import (
+	"cmp"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/iterutils"
+	"github.com/gravitational/teleport/lib/itertools"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // SSHAccessChecker provides SSH-specific access checking, abstracting over scoped and unscoped identities.
@@ -63,165 +68,313 @@ func (c *SSHAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) (time.
 		return c.checker.unscopedChecker.AdjustClientIdleTimeout(timeout), nil
 	}
 
-	return c.checker.adjustScopedClientIdleTimeout(c.checker.role.GetSpec().GetSsh().GetClientIdleTimeout(), timeout)
+	// aggregate stream of all non-empty client_idle_timeout strings
+	idleStrs := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (string, bool) {
+		// ssh.client_idle_timeout takes precedence over defaults.client_idle_timeout
+		s := cmp.Or(role.GetSpec().GetSsh().GetClientIdleTimeout(), role.GetSpec().GetDefaults().GetClientIdleTimeout())
+		return s, s != ""
+	})
+
+	// convert to fallible stream of parsed durations
+	decoded := stream.TryMap(stream.FromSeq(idleStrs), func(s string) (time.Duration, error) {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return 0, trace.Wrap(err, "failed to parse client_idle_timeout %q", s)
+		}
+		return d, nil
+	})
+
+	// add the global timeout to the stream. since we always select the lowest non-zero value, the global
+	// needs no special handling.
+	durations := stream.Chain(decoded, stream.Once(timeout))
+
+	// select the lowest non-zero duration
+	return minNonZeroStream(durations)
 }
 
-// AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry.
+// AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry. For scoped identities, an explicit
+// true in any role takes precedence over an explicit false in any role. The supplied default is only used if no role
+// specifies a value (ssh.disconnect_expired_cert takes precedence over defaults.disconnect_expired_cert).
 func (c *SSHAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.AdjustDisconnectExpiredCert(disconnect)
 	}
-	ssh := c.checker.role.GetSpec().GetSsh()
-	var disconnectExpiredCert *bool
-	if ssh != nil {
-		disconnectExpiredCert = ssh.DisconnectExpiredCert
+
+	// aggregate all explicitly set disconnect_expired_cert values
+	disconnects := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (bool, bool) {
+		if ssh := role.GetSpec().GetSsh(); ssh.HasDisconnectExpiredCert() {
+			return ssh.GetDisconnectExpiredCert(), true
+		}
+		return role.GetSpec().GetDefaults().GetDisconnectExpiredCert(), role.GetSpec().GetDefaults().HasDisconnectExpiredCert()
+	})
+
+	// an explicit true takes precedence over an explicit false.
+	if d, ok := highestPrecedence(disconnects, true, false); ok {
+		return d
 	}
-	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
+
+	// the cluster default is only applied if no role specifies a value.
+	return disconnect
 }
 
-// LockingMode returns the SSH lock enforcement mode to apply.
+// LockingMode returns the SSH lock enforcement mode to apply. For scoped identities, strict in any role takes
+// precedence over best_effort in any role. The supplied default is only used if no role specifies a mode
+// (ssh.lock takes precedence over defaults.lock).
 func (c *SSHAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.LockingMode(defaultMode)
 	}
 
-	return c.checker.scopedLockingMode(c.checker.role.GetSpec().GetSsh().GetLock(), defaultMode)
+	// aggregate all explicitly set lock modes
+	modes := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (constants.LockingMode, bool) {
+		lock := role.GetSpec().GetSsh().GetLock()
+		if lock == nil {
+			lock = role.GetSpec().GetDefaults().GetLock()
+		}
+		return constants.LockingMode(lock.GetMode()), lock.GetMode() != ""
+	})
+
+	// strict takes precedence over best effort
+	if mode, ok := highestPrecedence(modes, constants.LockingModeStrict, constants.LockingModeBestEffort); ok {
+		return mode
+	}
+
+	// the cluster default is only applied if no role specifies a recognized mode.
+	return defaultMode
 }
 
-// SessionRecordingMode returns the session recording mode for SSH sessions.
-// SSH recording mode takes precedence over the defaults
+// SessionRecordingMode returns the session recording mode for SSH sessions. For scoped identities, strict in
+// any role takes precedence, otherwise best_effort is used. Each role's ssh.session_recording takes precedence
+// over its defaults.session_recording.
 func (c *SSHAccessChecker) SessionRecordingMode() constants.SessionRecordingMode {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
 	}
-	sr := c.checker.role.GetSpec().GetSsh().GetSessionRecording()
-	if sr == nil {
-		sr = c.checker.role.GetSpec().GetDefaults().GetSessionRecording()
-	}
-	if sr.GetMode() != "" {
-		return constants.SessionRecordingMode(sr.GetMode())
+
+	// aggregate all explicitly set session recording modes
+	modes := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (constants.SessionRecordingMode, bool) {
+		sr := role.GetSpec().GetSsh().GetSessionRecording()
+		if sr == nil {
+			sr = role.GetSpec().GetDefaults().GetSessionRecording()
+		}
+		return constants.SessionRecordingMode(sr.GetMode()), sr.GetMode() != ""
+	})
+
+	// strict takes precedence over best effort
+	if mode, ok := highestPrecedence(modes, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort); ok {
+		return mode
 	}
 	return constants.SessionRecordingModeBestEffort
 }
 
-// CanPortForward returns true if port forwarding is permitted.
-func (c *SSHAccessChecker) CanPortForward() bool {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.CanPortForward()
-	}
-	return c.checker.scopedCompatChecker.CanPortForward()
-}
-
-// CanForwardAgents returns true if SSH agent forwarding is permitted.
-func (c *SSHAccessChecker) CanForwardAgents() bool {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.CanForwardAgents()
-	}
-	return c.checker.scopedCompatChecker.CanForwardAgents()
-}
-
-// PermitX11Forwarding returns true if X11 forwarding is permitted.
+// PermitX11Forwarding returns true if X11 forwarding is permitted. For scoped identities, X11 forwarding is
+// permitted iff at least one role explicitly permits it and no role explicitly forbids it.
 func (c *SSHAccessChecker) PermitX11Forwarding() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.PermitX11Forwarding()
 	}
-	return c.checker.role.GetSpec().GetSsh().GetPermitX11Forwarding()
+
+	// aggregate all explicitly set permit_x11_forwarding values
+	permits := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (bool, bool) {
+		ssh := role.GetSpec().GetSsh()
+		return ssh.GetPermitX11Forwarding(), ssh.HasPermitX11Forwarding()
+	})
+
+	// an explicit false takes precedence over an explicit true
+	if permitted, ok := highestPrecedence(permits, false, true); ok {
+		return permitted
+	}
+
+	// X11 forwarding is not permitted if no role specifies a value.
+	return false
 }
 
-// SSHPortForwardMode returns the SSH port forwarding mode.
+// SSHPortForwardMode returns the SSH port forwarding mode. For scoped identities, local and remote port forwarding
+// are evaluated independently. Each is permitted iff at least one role explicitly enables it and no role explicitly
+// disables it.
 func (c *SSHAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.SSHPortForwardMode()
 	}
 
-	remote := c.checker.role.GetSpec().GetSsh().GetPortForwarding().GetRemote()
-	local := c.checker.role.GetSpec().GetSsh().GetPortForwarding().GetLocal()
+	// aggregate all explicitly set local/remote port forwarding values
+	locals := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (bool, bool) {
+		l := role.GetSpec().GetSsh().GetPortForwarding().GetLocal()
+		return l.GetEnabled(), l.HasEnabled()
+	})
+	remotes := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (bool, bool) {
+		r := role.GetSpec().GetSsh().GetPortForwarding().GetRemote()
+		return r.GetEnabled(), r.HasEnabled()
+	})
 
-	var denyRemote, denyLocal bool
-	if remote != nil && remote.Enabled != nil && !*remote.Enabled {
-		denyRemote = true
-	}
-	if local != nil && local.Enabled != nil && !*local.Enabled {
-		denyLocal = true
+	// an explicit false takes precedence over an explicit true.
+	local, ok := highestPrecedence(locals, false, true)
+	if !ok {
+		// defaults to false if no role specifies a value.
+		local = false
 	}
 
-	// enforcing implicit allow and preferring allow over explicit deny
+	// an explicit false takes precedence over an explicit true.
+	remote, ok := highestPrecedence(remotes, false, true)
+	if !ok {
+		// defaults to false if no role specifies a value.
+		remote = false
+	}
+
 	switch {
-	case denyRemote && denyLocal:
-		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF
-	case denyRemote:
+	case local && remote:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
+	case local:
 		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL
-	case denyLocal:
+	case remote:
 		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE
 	default:
-		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF
 	}
 }
 
-// HostSudoers returns the sudoers rules for the host.
+// HostSudoers returns the sudoers rules for the host. For scoped identities, the sudoers entries of all roles
+// are unioned (deduplicated, preserving first occurrence).
 func (c *SSHAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.HostSudoers(srv)
 	}
-	return ApplyValueTraitsSlice(
-			c.checker.role.GetSpec().GetSsh().GetHostSudoers(),
-			RoleTemplateContext{
-				Username: c.checker.AccessInfo().Username,
-				Traits:   c.checker.Traits(),
-				Scoped:   true,
-			},
-			"host_sudoers",
-		),
-		nil
+
+	templateCtx := RoleTemplateContext{
+		Username: c.checker.AccessInfo().Username,
+		Traits:   c.checker.Traits(),
+		Scoped:   true,
+	}
+
+	// TODO(fspmarshall/scopes): sudoers ordering is significant (when multiple entries match, the last one wins), so
+	// the ordering of entries summed across roles may affect the resulting permissions. Entries are currently emitted
+	// in role iteration order (winning role first), meaning that entries from lower precedence roles may override
+	// those of higher precedence roles. The correct ordering behavior is subject to further discussion.
+	var sudoers []string
+	seen := make(map[string]struct{})
+	for role := range c.checker.roles() {
+		// traits are interpolated per-role prior to deduplication so that distinct templates which expand
+		// to the same value are deduplicated correctly.
+		for _, sudoer := range ApplyValueTraitsSlice(role.GetSpec().GetSsh().GetHostSudoers(), templateCtx, "host_sudoers") {
+			if _, ok := seen[sudoer]; ok {
+				continue
+			}
+			seen[sudoer] = struct{}{}
+			sudoers = append(sudoers, sudoer)
+		}
+	}
+	return sudoers, nil
 }
 
-// EnhancedRecordingSet returns the set of enhanced session recording events to capture.
+// EnhancedRecordingSet returns the set of enhanced session recording events to capture. For scoped identities,
+// the events enabled by all roles are unioned.
 func (c *SSHAccessChecker) EnhancedRecordingSet() map[string]bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.EnhancedRecordingSet()
 	}
-	events := c.checker.role.GetSpec().GetSsh().GetEnhancedRecording()
 	m := make(map[string]bool)
-	if events.GetCommand() {
-		m[constants.EnhancedRecordingCommand] = true
-	}
-	if events.GetDisk() {
-		m[constants.EnhancedRecordingDisk] = true
-	}
-	if events.GetNetwork() {
-		m[constants.EnhancedRecordingNetwork] = true
+	for role := range c.checker.roles() {
+		events := role.GetSpec().GetSsh().GetEnhancedRecording()
+		if events.GetCommand() {
+			m[constants.EnhancedRecordingCommand] = true
+		}
+		if events.GetDisk() {
+			m[constants.EnhancedRecordingDisk] = true
+		}
+		if events.GetNetwork() {
+			m[constants.EnhancedRecordingNetwork] = true
+		}
 	}
 	return m
 }
 
-// HostUsers returns host user creation information for the server, or nil if host user creation is disabled.
+// HostUsers returns host user creation information for the server, or a decision with nil info if host user creation
+// is disabled. For scoped identities, host user creation is summed across roles as follows:
+//   - An explicit mode of "off" in any role disables host user creation.
+//   - Otherwise, "keep" in any role takes precedence over "insecure-drop".
+//   - Roles that do not specify a mode do not contribute to the decision. If no role specifies a mode, host user
+//     creation is disabled.
+//   - Groups are unioned across all roles that enable host user creation.
+//   - Shell is the first non-empty shell (in role iteration order) among roles that enable host user creation.
 func (c *SSHAccessChecker) HostUsers(srv types.Server) (*decisionpb.HostUsersInfo, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.HostUsers(srv)
 	}
 
-	createHostUser := c.checker.role.GetSpec().GetSsh().GetHostUserCreation()
+	var (
+		mode      types.CreateHostUserMode
+		shell     string
+		groups    []string
+		allowedBy []*decisionpb.Determinant
+		deniedBy  []*decisionpb.Determinant
+		unsetBy   []*decisionpb.Determinant
+	)
+	seenGroups := make(map[string]struct{})
 
-	var hostUserMode types.CreateHostUserMode
-	if err := hostUserMode.UnmarshalText([]byte(createHostUser.GetMode())); err != nil {
-		return nil, trace.Wrap(err)
+	templateCtx := RoleTemplateContext{
+		Username: c.checker.AccessInfo().Username,
+		Traits:   c.checker.Traits(),
+		Scoped:   true,
 	}
 
-	// If mode is OFF or UNSPECIFIED, host user creation is disabled.
-	if hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF ||
-		hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
-		return nil, trace.AccessDenied("role %q prevents creating host users", c.checker.role.GetMetadata().GetName())
+	for role := range c.checker.roles() {
+		createHostUser := role.GetSpec().GetSsh().GetHostUserCreation()
+
+		var roleMode types.CreateHostUserMode
+		if err := roleMode.UnmarshalText([]byte(createHostUser.GetMode())); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		determinant := decisionpb.Determinant_builder{
+			Kind:  role.GetKind(),
+			Name:  role.GetMetadata().GetName(),
+			Scope: role.GetScope(),
+		}.Build()
+
+		switch roleMode {
+		case types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED:
+			// roles that do not specify a mode do not contribute to the decision.
+			unsetBy = append(unsetBy, determinant)
+			continue
+		case types.CreateHostUserMode_HOST_USER_MODE_OFF:
+			deniedBy = append(deniedBy, determinant)
+			continue
+		case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
+			mode = types.CreateHostUserMode_HOST_USER_MODE_KEEP
+		case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
+			// keep takes precedence over insecure-drop.
+			if mode != types.CreateHostUserMode_HOST_USER_MODE_KEEP {
+				mode = types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP
+			}
+		default:
+			return nil, trace.BadParameter("unsupported host user creation mode %q in scoped role %q", createHostUser.GetMode(), role.GetMetadata().GetName())
+		}
+
+		allowedBy = append(allowedBy, determinant)
+
+		if shell == "" {
+			shell = createHostUser.GetShell()
+		}
+
+		// traits are interpolated per-role prior to deduplication so that distinct templates which expand
+		// to the same value are deduplicated correctly.
+		for _, group := range ApplyValueTraitsSlice(createHostUser.GetGroups(), templateCtx, "host_user_creation.groups") {
+			if _, ok := seenGroups[group]; ok {
+				continue
+			}
+			seenGroups[group] = struct{}{}
+			groups = append(groups, group)
+		}
 	}
 
-	// Convert to decision
-	var decisionMode decisionpb.HostUserMode
-	switch hostUserMode {
-	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
-		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_KEEP
-	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
-		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_DROP
-	default:
-		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_UNSPECIFIED
+	// an explicit "off" in any role disables host user creation.
+	if len(deniedBy) > 0 {
+		return nil, trace.AccessDenied("host user creation is disabled by scoped role(s)")
+	}
+
+	// no role enabled host user creation, meaning all roles left mode unset.
+	if len(allowedBy) == 0 {
+		return nil, trace.AccessDenied("no scoped role authorizes host user creation")
 	}
 
 	traits := c.checker.Traits()
@@ -233,38 +386,42 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*decisionpb.HostUsersInf
 		gid = gidL[0]
 	}
 
-	groups := ApplyValueTraitsSlice(
-		createHostUser.GetGroups(),
-		RoleTemplateContext{
-			Username: c.checker.AccessInfo().Username,
-			Traits:   c.checker.Traits(),
-			Scoped:   true,
-		},
-		"host_user_creation.groups",
-	)
-	return &decisionpb.HostUsersInfo{
+	return decisionpb.HostUsersInfo_builder{
 		Groups: groups,
-		Mode:   decisionMode,
+		Mode:   convertHostUserMode(mode),
 		Uid:    uid,
 		Gid:    gid,
-		Shell:  createHostUser.GetShell(),
-	}, nil
+		Shell:  shell,
+	}.Build(), nil
 }
 
-// CheckAgentForward checks whether SSH agent forwarding is permitted for the given login.
+// CheckAgentForward checks whether SSH agent forwarding is permitted for the given login. For scoped identities,
+// agent forwarding is permitted iff at least one role explicitly permits it and no role explicitly forbids it.
 func (c *SSHAccessChecker) CheckAgentForward(login string) error {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CheckAgentForward(login)
 	}
-	if !c.checker.role.GetSpec().GetSsh().GetForwardAgent() {
-		return trace.AccessDenied("agent forwarding is not permitted for scoped role %q",
-			c.checker.role.GetMetadata().GetName())
+
+	// aggregate all explicitly set forward_agent values
+	permits := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (bool, bool) {
+		ssh := role.GetSpec().GetSsh()
+		return ssh.GetForwardAgent(), ssh.HasForwardAgent()
+	})
+
+	// an explicit false takes precedence over an explicit true
+	if permitted, ok := highestPrecedence(permits, false, true); ok && permitted {
+		return nil
 	}
-	return nil
+
+	// agent forwarding is not permitted if no role specifies a value.
+	return trace.AccessDenied("agent forwarding is not permitted by scoped role(s)")
 }
 
 // MaxConnections returns the maximum number of concurrent SSH connections permitted.
 // A value of zero means unconstrained.
+//
+// NOTE: this method does not implement inclusive summing as we have not yet implemented a
+// proper scoped control for max connections.
 func (c *SSHAccessChecker) MaxConnections() int64 {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.MaxConnections()
@@ -273,14 +430,22 @@ func (c *SSHAccessChecker) MaxConnections() int64 {
 }
 
 // MaxSessions returns the maximum number of concurrent SSH sessions per connection permitted.
-// A value of zero means unconstrained.
+// A value of zero means unconstrained. For scoped identities, the most restrictive non-zero
+// value across all roles is used.
 func (c *SSHAccessChecker) MaxSessions() int64 {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.MaxSessions()
 	}
-	return c.checker.role.GetSpec().GetSsh().GetMaxSessions()
+	return minNonZero(iterutils.Map(func(role *scopedaccessv1.ScopedRole) int64 {
+		return role.GetSpec().GetSsh().GetMaxSessions()
+	}, c.checker.roles()))
 }
 
+// GetAllowedLoginsForServer returns the OS logins permitted for the given server in order to populate
+// certain user-facing hint values.
+//
+// NOTE: This method does not perform summing as it is only used for generating user-facing hints in
+// a context where aggregate checkers are never in play.
 func (c *SSHAccessChecker) GetAllowedLoginsForServer(server types.Server) ([]string, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.GetAllowedLoginsForResource(server)
@@ -291,6 +456,9 @@ func (c *SSHAccessChecker) GetAllowedLoginsForServer(server types.Server) ([]str
 // getScopedLogins returns the OS logins permitted by this scoped role. Returns nil for unscoped
 // identities, which aggregate logins differently via [CertificateParameterContext.GetSSHLoginsForTTL].
 // This method is intentionally unexported to prevent accidental use outside cert-param aggregation.
+//
+// NOTE: this method does not implement summing because it is used only in cert-param generation
+// which never produces aggregate access checkers.
 func (c *SSHAccessChecker) getScopedLogins() []string {
 	if !c.checker.isScoped() {
 		return nil
@@ -306,17 +474,24 @@ func (c *SSHAccessChecker) getScopedLogins() []string {
 	))
 }
 
-// CanCopyFiles returns true if remote file operations via SCP or SFTP are permitted.
-// If GetSshFileCopy is nil, then we default to true.
+// CanCopyFiles returns true if remote file operations via SCP or SFTP are permitted. For scoped identities,
+// file copy is permitted iff at least one role explicitly permits it and no role explicitly forbids it.
 func (c *SSHAccessChecker) CanCopyFiles() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CanCopyFiles()
 	}
 
-	ssh := c.checker.role.GetSpec().GetSsh()
-	if ssh == nil || ssh.FileCopy == nil {
-		return true
-	}
-	return ssh.GetFileCopy()
+	// aggregate all explicitly set file_copy values
+	permits := itertools.FilterMap(c.checker.roles(), func(role *scopedaccessv1.ScopedRole) (bool, bool) {
+		ssh := role.GetSpec().GetSsh()
+		return ssh.GetFileCopy(), ssh.HasFileCopy()
+	})
 
+	// an explicit false takes precedence over an explicit true
+	if permitted, ok := highestPrecedence(permits, false, true); ok {
+		return permitted
+	}
+
+	// file copy is not permitted if no role specifies a value.
+	return false
 }

@@ -955,7 +955,7 @@ func (a *ScopedServerWithRoles) GetInstances(ctx context.Context, filter types.I
 
 	return stream.FilterMap(a.authServer.GetInstances(ctx, filter),
 		func(i types.Instance) (types.Instance, bool) {
-			err := a.scopedContext.CheckerContext.Decision(ctx, i.GetScope(), func(sac *services.ScopedAccessChecker) error {
+			_, err := a.scopedContext.CheckerContext.Decision(ctx, i.GetScope(), func(sac *services.ScopedAccessChecker) error {
 				return sac.CheckAccessToRules(&ruleCtx, types.KindInstance, scopedaccess.Read, scopedaccess.List)
 
 			})
@@ -1122,7 +1122,7 @@ func (a *ScopedServerWithRoles) GetNodes(ctx context.Context, namespace string) 
 
 	var filtered []types.Server
 	for _, server := range servers {
-		err := a.scopedContext.CheckerContext.Decision(ctx, server.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		_, err := a.scopedContext.CheckerContext.Decision(ctx, server.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Read, scopedaccess.List); err != nil {
 				return trace.Wrap(err)
 			}
@@ -1142,7 +1142,7 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 	ruleCtx := a.scopedContext.RuleContext()
 	// Note: UpsertNode doesn't allow any namespaces but "default".
 	// The Decision API only checks on the default namespace.
-	if err := a.scopedContext.CheckerContext.Decision(ctx, s.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := a.scopedContext.CheckerContext.Decision(ctx, s.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := a.scopedContext.AgentOwnedResourceAction(s.GetScope(), s.GetName(), types.RoleNode); err == nil {
 			return nil
 		}
@@ -1563,7 +1563,7 @@ func (a *ScopedServerWithRoles) authorizeWatchKindCore(ctx context.Context, kind
 	}
 
 	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.Decision(ctx, decisionScope, func(checker *services.ScopedAccessChecker) error {
+	if _, err := a.scopedContext.CheckerContext.Decision(ctx, decisionScope, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, kind.Kind, verb)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -2416,11 +2416,11 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 		var err error
 		switch res := resource.(type) {
 		case types.KubeServer:
-			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			_, err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
 				return checker.Kube().CanAccessCluster(res.GetCluster())
 			})
 		case types.Server:
-			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			_, err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
 				return checker.SSH().CanAccessSSHServer(res)
 			})
 		case types.KubeCluster:
@@ -2434,7 +2434,7 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 				err = trace.AccessDenied("identity center account apps are not supported for scoped identities")
 				break
 			}
-			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			_, err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
 				return checker.App().CanAccessApp(res.GetApp())
 			})
 		}
@@ -2716,7 +2716,7 @@ type scopedResourceChecker struct {
 func (c *scopedResourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 	switch res := resource.(type) {
 	case types.AppServer:
-		err := c.scopedContext.CheckerContext.Decision(c.ctx, res.GetScope(),
+		_, err := c.scopedContext.CheckerContext.Decision(c.ctx, res.GetScope(),
 			func(checker *services.ScopedAccessChecker) error {
 				if res.GetSubKind() == types.KindIdentityCenterAccount {
 					return trace.AccessDenied("identity center account apps are not supported for scoped identities")
@@ -2730,14 +2730,14 @@ func (c *scopedResourceChecker) CanAccess(resource types.ResourceWithLabels) err
 		return trace.Wrap(err)
 
 	case types.KubeServer:
-		err := c.scopedContext.CheckerContext.Decision(c.ctx, res.GetScope(),
+		_, err := c.scopedContext.CheckerContext.Decision(c.ctx, res.GetScope(),
 			func(checker *services.ScopedAccessChecker) error {
 				return checker.Kube().CanAccessCluster(res.GetCluster())
 			})
 		return trace.Wrap(err)
 
 	case *types.ServerV2:
-		err := c.scopedContext.CheckerContext.Decision(c.ctx, res.GetScope(),
+		_, err := c.scopedContext.CheckerContext.Decision(c.ctx, res.GetScope(),
 			func(checker *services.ScopedAccessChecker) error {
 				return checker.SSH().CanAccessSSHServer(res)
 			})
@@ -7454,7 +7454,7 @@ func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessio
 // GenerateAppToken creates a JWT token with application access.
 func (a *ScopedServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
+	if _, err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, scopedaccess.Create)
 	}); err != nil {
 		return "", trace.Wrap(err)
@@ -7566,13 +7566,14 @@ func (a *ServerWithRoles) checkAccessToKubeCluster(cluster types.KubeCluster) er
 
 func (a *ScopedServerWithRoles) checkAccessToKubeClusterWithVerbs(ctx context.Context, cluster types.KubeCluster, verbs ...scopedaccess.Verb) error {
 	ruleCtx := a.scopedContext.RuleContext()
-	return a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(cluster.GetScope(), apiscopes.Root), func(checker *services.ScopedAccessChecker) error {
+	_, err := a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(cluster.GetScope(), apiscopes.Root), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, verbs...); err != nil {
 			return trace.Wrap(err)
 		}
 
 		return checker.Kube().CanAccessCluster(cluster)
 	})
+	return trace.Wrap(err)
 }
 
 // GetKubernetesServers returns all registered kubernetes servers.
@@ -7637,7 +7638,7 @@ func (a *ScopedServerWithRoles) GetApplicationServers(ctx context.Context, names
 			continue
 		}
 
-		err := a.scopedContext.CheckerContext.Decision(ctx, server.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		_, err := a.scopedContext.CheckerContext.Decision(ctx, server.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			if err := checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, scopedaccess.Read, scopedaccess.List); err != nil {
 				return trace.Wrap(err)
 			}
@@ -7688,7 +7689,7 @@ func (a *ScopedServerWithRoles) DeleteKubernetesServer(ctx context.Context, req 
 	}
 	if err := a.scopedContext.AgentOwnedResourceAction(existingServer.GetScope(), existingServer.GetHostID(), types.RoleKube); err != nil {
 		ruleCtx := a.scopedContext.RuleContext()
-		if err := a.scopedContext.CheckerContext.Decision(ctx, existingServer.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if _, err := a.scopedContext.CheckerContext.Decision(ctx, existingServer.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, scopedaccess.Delete)
 		}); err != nil {
 			return trace.Wrap(err)
@@ -8066,7 +8067,7 @@ func (a *ScopedServerWithRoles) CreateApp(ctx context.Context, app types.Applica
 		return trace.Wrap(err)
 	}
 
-	if err := a.scopedContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := a.scopedContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Create); err != nil {
 			return err
 		}
@@ -8112,7 +8113,7 @@ func (a *ScopedServerWithRoles) UpdateApp(ctx context.Context, app types.Applica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.scopedContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := a.scopedContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Update); err != nil {
 			return err
 		}
@@ -8262,7 +8263,7 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (a *ScopedServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Create); err != nil {
 			return err
 		}
@@ -8295,7 +8296,7 @@ func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, clu
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Update); err != nil {
 			return err
 		}
@@ -8347,7 +8348,7 @@ func (a *ScopedServerWithRoles) GetKubernetesCluster(ctx context.Context, name s
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.scopedContext.CheckerContext.Decision(ctx, kubeCluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := a.scopedContext.CheckerContext.Decision(ctx, kubeCluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Secrets); err != nil {
 			return err
 		}
@@ -8374,7 +8375,7 @@ func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (resu
 			}.Build()),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
-				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				if _, err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Secrets, scopedaccess.List); err != nil {
 						return err
 					}
@@ -8412,7 +8413,7 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 			}.Build()),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
-				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				if _, err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Secrets, scopedaccess.List); err != nil {
 						return err
 					}
@@ -8444,7 +8445,7 @@ func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, nam
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Delete); err != nil {
 			return err
 		}
@@ -8471,7 +8472,7 @@ func (a *ScopedServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context)
 
 	var deletedAtLeastOneCluster bool
 	for _, cluster := range clusters {
-		if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if _, err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Delete, scopedaccess.List); err != nil {
 				return err
 			}

@@ -150,7 +150,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Optional:    true,
 				},
 				"assignable_scopes": {
-					Description: "AssignableScopes is a list of scopes to which this role can be assigned.",
+					Description: "AssignableScopes is a list of scopes to which this role can be assigned. If empty, defaults to being assignable at resource scope and all descendants. Root scoped roles have no default and must specify assignable scopes explicitly.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
@@ -186,6 +186,15 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 						},
 					}),
 					Description: "Defaults specifies default values for controls common across multiple protocols. If the same control specified in defaults is also specified in a protocol block, the value in the protocol block takes precedence.",
+					Optional:    true,
+				},
+				"evaluation": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
+						Description: "Mode determines the evaluation mode of the role. Allowed values are 'inclusive' (default) and 'exclusive'. The default inclusive mode allows permissions from multiple matching roles to be combined. When a role is set to exclusive, the first matching role fully determines all permissions and controls for the access attempt.  Inclusive is easier to manage day to day, but exclusive offers tighter control.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					}}),
+					Description: "Evaluation groups role-level settings that govern how a role is evaluated.",
 					Optional:    true,
 				},
 				"kube": {
@@ -325,7 +334,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 						},
 						"file_copy": {
-							Description: "FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.",
+							Description: "FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. If not set, remote file operations are not permitted.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
@@ -409,7 +418,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"local": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": {
-										Description: "",
+										Description: "Enabled, when true, authorizes local port forwarding. If not set, local port forwarding is not permitted.",
 										Optional:    true,
 										Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 									}}),
@@ -418,7 +427,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 								},
 								"remote": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": {
-										Description: "",
+										Description: "Enabled, when true, authorizes remote port forwarding. If not set, remote port forwarding is not permitted.",
 										Optional:    true,
 										Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 									}}),
@@ -2098,6 +2107,41 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 														}
 													}
 												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["evaluation"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ScopedRole.spec.evaluation"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.evaluation", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Evaluation = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.Evaluation = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleEvaluation{}
+									obj := obj.Evaluation
+									{
+										a, ok := tf.Attrs["mode"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.evaluation.mode"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.evaluation.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Mode = t
 											}
 										}
 									}
@@ -4781,6 +4825,60 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 								}
 								v.Unknown = false
 								tf.Attrs["app"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["evaluation"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ScopedRole.spec.evaluation"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.evaluation", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["evaluation"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.Evaluation == nil {
+									v.Null = true
+								} else {
+									obj := obj.Evaluation
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["mode"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.evaluation.mode"})
+										} else {
+											v, ok := tf.Attrs["mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedRole.spec.evaluation.mode", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.evaluation.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Mode) == ""
+											}
+											v.Value = string(obj.Mode)
+											v.Unknown = false
+											tf.Attrs["mode"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["evaluation"] = v
 							}
 						}
 					}

@@ -377,7 +377,7 @@ func (s *Service) DeleteAppServer(
 	// (builtin RoleApp only grants read on app_server rules); anyone else
 	// needs an app_server delete rule granted in the target scope.
 	ruleCtx := authzCtx.RuleContext()
-	if err := authzCtx.CheckerContext.Decision(ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := authzCtx.CheckerContext.Decision(ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := authzCtx.AgentOwnedResourceAction(req.GetScope(), req.GetHostId(), types.RoleApp); err != nil {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, scopedaccess.Delete)
 		}
@@ -639,7 +639,7 @@ func (s *Service) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClu
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, verb); err != nil {
 			return err
 		}
@@ -689,7 +689,7 @@ func (s *Service) ListKubeClusters(ctx context.Context, req *presencepb.ListKube
 			s.backend.RangeKubeClusters(ctx, req),
 			func(cluster types.KubeCluster) (*types.KubernetesClusterV3, bool) {
 				// Filter out kube clusters user doesn't have access to.
-				if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				if _, err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, verb, scopedaccess.List); err != nil {
 						return err
 					}
@@ -734,7 +734,7 @@ func (s *Service) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteK
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Delete); err != nil {
 			return err
 		}
@@ -780,7 +780,7 @@ func (s *Service) DeleteKubeServer(
 	}
 
 	ruleCtx := authzCtx.RuleContext()
-	if err := authzCtx.CheckerContext.Decision(ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := authzCtx.CheckerContext.Decision(ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		// Kube agents can delete their own kube servers
 		// (builtin RoleKube only grants read on kube_server rules); anyone else
 		// needs an app_server delete rule granted in the target scope.
@@ -815,7 +815,7 @@ func (s *Service) GetSSHServer(ctx context.Context, req *presencepb.GetSSHServer
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Read); err != nil {
 			return err
 		}
@@ -863,7 +863,7 @@ func (s *Service) ListSSHServers(ctx context.Context, req *presencepb.ListSSHSer
 			s.backend.RangeSSHServers(ctx, req),
 			func(node types.Server) (*types.ServerV2, bool) {
 				// Filter out nodes the user doesn't have access to.
-				if err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				if _, err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
 					if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.List); err != nil {
 						return err
 					}
@@ -912,7 +912,7 @@ func (s *Service) DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSH
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Delete)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -941,7 +941,7 @@ func (s *Service) GetApplication(ctx context.Context, req *presencepb.GetApplica
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Read); err != nil {
 			return err
 		}
@@ -989,7 +989,7 @@ func (s *Service) ListApplications(ctx context.Context, req *presencepb.ListAppl
 			s.backend.RangeApplications(ctx, req),
 			func(app types.Application) (*types.AppV3, bool) {
 				// Filter out apps the user doesn't have access to.
-				if err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				if _, err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
 					if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.List, scopedaccess.Read); err != nil {
 						return err
 					}
@@ -1038,7 +1038,7 @@ func (s *Service) DeleteApplication(ctx context.Context, req *presencepb.DeleteA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	if _, err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindApp, scopedaccess.Delete); err != nil {
 			return err
 		}

@@ -859,18 +859,17 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		return nil, trace.Wrap(err)
 	}
 
-	var checker *services.ScopedAccessChecker
-	if err := checkerContext.Decision(ctx, agentScope, func(c *services.ScopedAccessChecker) error {
+	checker, err := checkerContext.Decision(ctx, agentScope, func(checker *services.ScopedAccessChecker) error {
 		// Clients are able to dial nodes as an SSH subsystem (ComponentProxy), and the target server is not known at this time.
 		// We do not support this mode for scopes right now.
 		if target != nil {
-			if err := c.SSH().CheckAccessToSSHServer(target, state, osUser); err != nil {
+			if err := checker.SSH().CheckAccessToSSHServer(target, state, osUser); err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		checker = c
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
 	}
@@ -1003,21 +1002,16 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		agentScope = serverV2.Scope
 	}
 
-	// perform the primary node access check and exfiltrate the checker if successful
-	// for use in calculating the remaining fields of the permit.
-	var checker *services.ScopedAccessChecker
-	if err := checkerContext.Decision(ctx, agentScope, func(c *services.ScopedAccessChecker) error {
-		if err := c.SSH().CheckAccessToSSHServer(
+	// perform the primary node access check. the returned checker is used to calculate the
+	// remaining fields of the permit.
+	checker, err := checkerContext.Decision(ctx, agentScope, func(checker *services.ScopedAccessChecker) error {
+		return trace.Wrap(checker.SSH().CheckAccessToSSHServer(
 			target,
 			state,
 			osUser,
-		); err != nil {
-			return trace.Wrap(err)
-		}
-
-		checker = c
-		return nil
-	}); err != nil {
+		))
+	})
+	if err != nil {
 		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
 	}

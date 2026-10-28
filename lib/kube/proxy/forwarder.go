@@ -1116,7 +1116,6 @@ func (f *Forwarder) getKubeAccessDetails(
 	matchersWithLabelMatcher := make([]services.RoleMatcher, len(matchers)+1)
 	copy(matchersWithLabelMatcher, matchers)
 
-	var checker *services.ScopedAccessChecker
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range actx.kubeServers {
 		c := s.GetCluster()
@@ -1127,13 +1126,10 @@ func (f *Forwarder) getKubeAccessDetails(
 		if errors.Is(implicitDenyOrNotFound, errNoMatchingCluster) {
 			implicitDenyOrNotFound = errImplicitDeny
 		}
-		if err := actx.CheckerContext.Decision(ctx, c.GetScope(), func(check *services.ScopedAccessChecker) error {
-			if err := check.Kube().CheckAccessToCluster(c, actx.accessState, matchers...); err != nil {
-				return err
-			}
-			checker = check
-			return nil
-		}); err != nil {
+		checker, err := actx.CheckerContext.Decision(ctx, c.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.Kube().CheckAccessToCluster(c, actx.accessState, matchers...)
+		})
+		if err != nil {
 			if services.IsAccessExplicitlyDenied(err) {
 				explicitDenies = append(explicitDenies, err)
 			}

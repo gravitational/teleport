@@ -346,36 +346,113 @@ func (c *ScopedAccessCheckerContext) CheckMaybeHasAccessToRules(ctx RuleContext,
 // conditions is met: (1) fn succeeds, (2) fn returns an explicitly denied error, or (3) all checkers
 // have been exhausted (implicit deny).
 //
+// If fn succeeds for a winning role with exclusive evaluation, the winning role's checker is returned. If the winning
+// role has inclusive evaluation, evaluation continues through the remaining checkers, and all subsequent inclusive
+// roles for which fn also succeeds are aggregated into the returned checker as additional roles. Errors encountered
+// after the winning role has been determined only exclude the associated role from aggregation, and a checker stream
+// error after that point halts aggregation without invalidating the decision. Note that this means
+// fn may be called against multiple checkers even when access is permitted, so fn must be free of side effects.
+// Roles with an unrecognized evaluation mode are skipped.
+//
 // Unscoped contexts resolve to exactly one checker, an error returned in this case is unmodified in order to
 // surface special unscoped requirements like trusted device or session MFA that only an unscoped checker can produce
 // right now.
-func (c *ScopedAccessCheckerContext) Decision(ctx context.Context, scope string, fn func(*ScopedAccessChecker) error) error {
-	return c.decision(c.CheckersForResourceScope(ctx, scope), fn)
+func (c *ScopedAccessCheckerContext) Decision(ctx context.Context, scope string, fn func(*ScopedAccessChecker) error) (*ScopedAccessChecker, error) {
+	return c.decision(ctx, c.CheckersForResourceScope(ctx, scope), fn)
 }
 
-func (c *ScopedAccessCheckerContext) decision(checkers stream.Stream[*ScopedAccessChecker], fn func(*ScopedAccessChecker) error) error {
+func (c *ScopedAccessCheckerContext) decision(ctx context.Context, checkers stream.Stream[*ScopedAccessChecker], fn func(*ScopedAccessChecker) error) (*ScopedAccessChecker, error) {
+	// inclusiveChecker is used for aggregation in the event we hit an inclusive allow decision, in which
+	// case we will continue to process checkers and aggregate them into this variable.
+	var inclusiveChecker *ScopedAccessChecker
 	for checker, err := range checkers {
 		if err != nil {
-			return trace.Wrap(err)
+			if inclusiveChecker != nil {
+				// we've already selected an inclusive winner. a stream error terminates aggregation, but
+				// must not invalidate the existing allow decision.
+				slog.WarnContext(ctx, "halting aggregation of scoped roles due to error, allow decision will proceed with subset of roles already aggregated",
+					"error", err,
+				)
+				break
+			}
+			return nil, trace.Wrap(err)
 		}
+
+		if !c.isScoped() {
+			// unscoped case is always a single-element stream and unscoped errors are always returned
+			// unmodified. remaining logic gets simpler if we short-circuit here.
+			if err := fn(checker); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return checker, nil
+		}
+
+		var inclusive bool
+		switch checker.role.GetSpec().GetEvaluation().GetMode() {
+		case "", scopedaccess.EvaluationModeInclusive:
+			inclusive = true
+		case scopedaccess.EvaluationModeExclusive:
+			inclusive = false
+		default:
+			// skip roles with unrecognized evaluation mode
+			slog.WarnContext(ctx, "skipping scoped role due to unrecognized evaluation mode",
+				"role_name", checker.role.GetMetadata().GetName(),
+				"scope_of_origin", checker.scopeOfOrigin,
+				"scope_of_effect", checker.scopeOfEffect,
+				"evaluation_mode", checker.role.GetSpec().GetEvaluation().GetMode(),
+			)
+			continue
+		}
+
+		// if we've selected an inclusive winner, we are in aggregation phase and no longer
+		// considering non-inclusive roles.
+		if inclusiveChecker != nil && !inclusive {
+			continue
+		}
+
 		err = fn(checker)
 		switch {
 		case err == nil:
-			return nil
-		case !c.isScoped():
-			// This surfaces requirements like trusted device and session MFA
-			// that only the unscoped checker can produce right now.
-			// Rather than masking them into an explicit deny,
-			// return errors here that unscoped checkers return.
-			return trace.Wrap(err)
+			switch {
+			case !inclusive:
+				// this is our first allow decision and an exclusive role. return it immediately as the winning checker.
+				return checker, nil
+			case inclusiveChecker != nil:
+				// we're already in the process of aggregating inclusive roles, add this checker to the list.
+				inclusiveChecker.additionalRoles = append(inclusiveChecker.additionalRoles, checker.scopedRoleAssignment)
+			default:
+				// this is our first allow decision and its an inclusive role. set this checker as
+				// the winning checker and proceed with aggregation of subsequent allowing inclusive roles.
+				// we must perform a shallow copy here as checkers are cached and reused across decision
+				// invocations.
+				// TODO(fspmarshall/scopes): refactor checker architecture into a base checker (cached) and an aggregate
+				// checker (always constructed fresh) to better differentiate decision/matching methods from controls/parameters
+				// and (as a bonus) eliminate the confusing shallow copy here.
+				inclusiveChecker = new(*checker)
+			}
 		case IsAccessExplicitlyDenied(err):
-			return trace.Wrap(err)
+			// we don't expect scoped RBAC to produce explicit denial errors and unscoped checkers short-circuit
+			// earlier in this function. Nevertheless, we reuse some unscoped logic and so choose to fail closed
+			// on explicit denial errors out of an abundance of caution. Hitting this condition may indicate a
+			// bug in the scoped RBAC compat layer implementation.
+			slog.WarnContext(ctx, "hit explicit access denied from scoped role (unexpected, failing closed)",
+				"role_name", checker.role.GetMetadata().GetName(),
+				"scope_of_origin", checker.scopeOfOrigin,
+				"scope_of_effect", checker.scopeOfEffect,
+				"error", err,
+			)
+			return nil, trace.Wrap(err)
 		default:
 			// implicit deny, continue to the next check
-			continue
 		}
 	}
-	return trace.AccessDenied("access denied (decision)")
+
+	// we've processed all checkers. if we aggregated a checker, this means we've hit an aggregate allow decision. otherwise
+	// we've exhausted all checkers and have hit an implicit deny.
+	if inclusiveChecker != nil {
+		return inclusiveChecker, nil
+	}
+	return nil, trace.AccessDenied("access denied (decision)")
 }
 
 // AccessStateFromSSHIdentity builds an AccessState from an SSH identity, abstracting over scoped and
@@ -471,12 +548,14 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedRead(
 		return trace.Wrap(err, "invalid unpinned read authorization")
 	}
 
-	return c.decision(
+	_, err := c.decision(
+		ctx,
 		c.riskyUnpinnedCheckersForResourceScope(ctx, authz.resourceScope),
 		func(checker *ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(ruleCtx, authz.kind, authz.verbs...)
 		},
 	)
+	return trace.Wrap(err)
 }
 
 // RiskyAuthorizeUnpinnedReadWithScope extends [RiskyAuthorizeUnpinnedRead].
@@ -511,12 +590,14 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedEmitEvent(
 		}
 	}
 
-	return c.decision(
+	_, err := c.decision(
+		ctx,
 		c.riskyUnpinnedCheckersForResourceScope(ctx, apiscopes.Root),
 		func(checker *ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, scopedaccess.Create)
 		},
 	)
+	return trace.Wrap(err)
 }
 
 // RiskyAuthorizeUnpinnedWriteEvent authorizes a write-only access check that bypasses
@@ -532,12 +613,14 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedWriteEvent(
 		}
 	}
 
-	return c.decision(
+	_, err := c.decision(
+		ctx,
 		c.riskyUnpinnedCheckersForResourceScope(ctx, apiscopes.Root),
 		func(checker *ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, scopedaccess.Create, scopedaccess.Update)
 		},
 	)
+	return trace.Wrap(err)
 }
 
 // UnpinnedReadAuthorization is a special authorization to complete an unscoped

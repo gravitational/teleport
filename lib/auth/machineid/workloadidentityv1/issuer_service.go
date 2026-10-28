@@ -1208,14 +1208,15 @@ func (s *IssuanceService) authorizeIssuance(
 	// run within a single Decision so that, for scoped identities, a single
 	// role must carry both grants - grants do not aggregate across scoped
 	// roles.
-	return trace.Wrap(authCtx.CheckerContext.Decision(
+	_, err := authCtx.CheckerContext.Decision(
 		ctx, wi.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			if err := checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, verbs...); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(checker.CheckAccessToWorkloadIdentity(wi))
 		},
-	))
+	)
+	return trace.Wrap(err)
 }
 
 // validateRenderedWorkloadIdentity re-validates that a scoped WorkloadIdentity's

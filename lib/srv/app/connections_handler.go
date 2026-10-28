@@ -649,14 +649,10 @@ func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *auth
 		return nil, trace.AccessDenied("identity center account apps are not supported for scoped identities")
 	}
 
-	var sessionControls srv.ScopedSessionControls
-	switch err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(check *services.ScopedAccessChecker) error {
-		if err := check.App().CheckAccessToApp(app, state, matchers...); err != nil {
-			return trace.Wrap(err)
-		}
-		sessionControls = check.App()
-		return nil
-	}); {
+	checker, err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return trace.Wrap(checker.App().CheckAccessToApp(app, state, matchers...))
+	})
+	switch {
 	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
 		// When access is denied due to trusted device or session MFA requirements, these specific errors
 		// are returned directly to provide clarity to the client about the additional authentication steps needed.
@@ -670,7 +666,7 @@ func (c *ConnectionsHandler) authorizeApp(ctx context.Context, authContext *auth
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 
-	return sessionControls, nil
+	return checker.App(), nil
 }
 
 func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {

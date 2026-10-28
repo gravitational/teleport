@@ -66,6 +66,16 @@ const (
 	// scoped role assignments materialized from access list membership.
 	CreatorKindAccessList = "access_list"
 
+	// EvaluationModeInclusive is a role evaluation mode. Inclusive mode means that allow decisions permitted by that role
+	// include permissions/controls derived from other matching roles (e.g. an inclusive role that grants agent forwarding
+	// and an inclusive role that grants X11 forwarding may "combine" to permit access to both agent and X11 forwarding).
+	EvaluationModeInclusive = "inclusive"
+
+	// EvaluationModeExclusive is a role evaluation mode. Exclusive mode means that allow decisions permitted by that role
+	// use permissions/controls derived only from that role and other roles cannot incur side effects. When multiple
+	// roles match a given access attempt, exclusive behavior resuls in a "first role wins" behavior.
+	EvaluationModeExclusive = "exclusive"
+
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
 	// to avoid excess resource size and to keep our options open for the future.
@@ -127,9 +137,20 @@ func RoleIsEnforceableAt(role *scopedaccessv1.ScopedRole, point scopes.Enforceme
 		RoleIsAssignableToScopeOfEffect(role, point.ScopeOfEffect)
 }
 
-// WeakValidatedAssignableScopes is a helper for iterating all well formed assignable scopes for a given role.
+// WeakValidatedAssignableScopes is a helper for iterating all well formed assignable scopes for a given role. This is
+// the single source of truth for the effective assignable scopes of a role, and is responsible for applying defaulting.
+// A non-root role with no assignable scopes is assignable to its own scope. Root roles have no default and must specify
+// their assignable scopes explicitly, since root cannot be used as a scope of effect.
 func WeakValidatedAssignableScopes(role *scopedaccessv1.ScopedRole) iter.Seq[string] {
 	return func(yield func(string) bool) {
+		if len(role.GetSpec().GetAssignableScopes()) == 0 {
+			if scopes.WeakValidate(role.GetScope()) != nil || scopes.Compare(role.GetScope(), scopes.Root) == scopes.Equivalent {
+				return
+			}
+			yield(role.GetScope())
+			return
+		}
+
 		for _, assignableScope := range role.GetSpec().GetAssignableScopes() {
 			if err := scopes.WeakValidateGlob(assignableScope); err != nil {
 				// ignore invalid assignable scopes
@@ -184,8 +205,8 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		return trace.BadParameter("scoped role %q has invalid scope: %v", role.GetMetadata().GetName(), err)
 	}
 
-	if len(role.GetSpec().GetAssignableScopes()) == 0 {
-		return trace.BadParameter("scoped role %q does not have any assignable scopes", role.GetMetadata().GetName())
+	if len(role.GetSpec().GetAssignableScopes()) == 0 && scopes.Compare(role.GetScope(), scopes.Root) == scopes.Equivalent {
+		return trace.BadParameter("scoped role %q is a root scoped role and must explicitly specify assignable scopes (use '/**' to allow assignment to all non-root scopes)", role.GetMetadata().GetName())
 	}
 
 	if len(role.GetSpec().GetAssignableScopes()) > maxAssignableScopes {
@@ -257,6 +278,10 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 
 	if err := validateRoleTemplates(role.GetSpec()); err != nil {
 		return trace.BadParameter("scoped role %q has an invalid trait template: %s", role.GetMetadata().GetName(), err)
+	}
+
+	if err := validateEvaluationBlock(role.GetSpec().GetEvaluation()); err != nil {
+		return trace.BadParameter("scoped role %q's behavior %s", role.GetMetadata().GetName(), err)
 	}
 
 	// verify that scoped role converts to a valid unscoped role
@@ -903,6 +928,16 @@ func validateSSHBlock(ssh *scopedaccessv1.ScopedRoleSSH) error {
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+// validateEvaluationBlock verifies that behavior settings are recognized values.
+func validateEvaluationBlock(evaluation *scopedaccessv1.ScopedRoleEvaluation) error {
+	switch mode := evaluation.GetMode(); mode {
+	case "", EvaluationModeInclusive, EvaluationModeExclusive:
+	default:
+		return trace.BadParameter("has invalid evaluation mode %q: must be %q or %q", mode, EvaluationModeInclusive, EvaluationModeExclusive)
+	}
 	return nil
 }
 
