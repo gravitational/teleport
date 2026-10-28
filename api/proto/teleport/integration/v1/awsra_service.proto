@@ -46,6 +46,9 @@ message AWSRolesAnywherePingRequest {
     // This is useful when the integration is not configured.
     AWSRolesAnywherePingRequestWithoutIntegration custom = 2;
   }
+  // Scope is the scope of the integration named in `integration`.
+  // Empty for unscoped integrations. Ignored when `custom` is set.
+  string scope = 3;
 }
 
 // Identifies the Trust Anchor, Profile and Role to use for the Ping operation.
@@ -95,6 +98,8 @@ message ListRolesAnywhereProfilesRequest {
   //	^profile.*$
   //	^.*name.*$
   repeated string profile_name_filters = 4;
+  // Scope is the scope of the AWS Roles Anywhere Integration.
+  string scope = 5;
 }
 
 // ListRolesAnywhereProfilesResponse contains the response for the ListRolesAnywhereProfiles operation.

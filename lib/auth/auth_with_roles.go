@@ -4547,10 +4547,9 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for unsupported usage %q", req.Usage)
 		}
 
-		// Scoped identities cannot access cloud apps (AWS Roles Anywhere, Azure, GCP).
-		// TODO(williamo/scopes): add support for these.
-		if req.RequesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS ||
-			req.RouteToApp.AzureIdentity != "" || req.RouteToApp.GCPServiceAccount != "" {
+		// Scoped identities cannot access Azure or GCP cloud apps yet.
+		// TODO(williamo/scopes): add support for Azure and GCP.
+		if req.RouteToApp.AzureIdentity != "" || req.RouteToApp.GCPServiceAccount != "" {
 			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for cloud app access")
 		}
 	}

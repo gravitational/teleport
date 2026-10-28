@@ -387,7 +387,6 @@ func validateIntegration(ig types.Integration) error {
 			return trace.BadParameter("scoped AWS OIDC integrations do not support issuer_s3_uri")
 		}
 	case types.IntegrationSubKindAWSRolesAnywhere:
-		return trace.BadParameter("scoped AWS Roles Anywhere integrations are not supported yet")
 	default:
 		return trace.BadParameter("scoped integrations do not support the %q subkind", ig.GetSubKind())
 	}

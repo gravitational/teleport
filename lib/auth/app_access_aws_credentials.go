@@ -105,23 +105,15 @@ func authorizeAWSRolesAnywhereCredentials(
 	appInfo types.Application,
 	identity *tlsca.Identity,
 ) error {
-	unscoped := req.CheckerContext.CertParams().UnscopedCertParams()
-	if unscoped == nil {
-		// AWS Roles Anywhere credential issuance requires an unscoped access
-		// checker; scoped identities cannot mint these credentials.
-		return trace.AccessDenied("AWS Roles Anywhere credentials require an unscoped identity")
-	}
-
 	state, err := req.CheckerContext.AccessStateFromTLSIdentity(ctx, identity, a)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(unscoped.CheckAccess(
-		appInfo,
-		state,
-		&services.AWSRoleARNMatcher{RoleARN: req.AWSRoleARN},
-	))
+	_, err = req.CheckerContext.Decision(ctx, appInfo.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.App().CheckAccessToApp(appInfo, state, &services.AWSRoleARNMatcher{RoleARN: req.AWSRoleARN})
+	})
+	return trace.Wrap(err)
 }
 
 func getAppServerByName(ctx context.Context, a *Server, app apiscopes.QualifiedName) (types.Application, error) {
@@ -178,7 +170,8 @@ func generateAWSRolesAnywhereCredentials(
 
 	// Unlike normal app access, AWS Roles Anywhere credential generation returns externally usable AWS credentials
 	// directly from Auth without flowing through the app service first, so Auth must enforce both app access and the
-	// requested AWS role ARN before calling AWS.
+	// requested AWS role ARN before calling AWS. A scoped integration's credentials are additionally bound to its
+	// scope by the leaf certificate's URI SAN (see awsra.GenerateCredentials).
 	if err = authorizeAWSRolesAnywhereCredentials(ctx, a, req, appInfo, identity); err != nil {
 		// MFA and trusted device requirements are checks the client satisfies and then retries, so they are not audited
 		// to avoid false failure events for legitimate logins. App and AWS role RBAC denials are audited with the
@@ -212,6 +205,7 @@ func generateAWSRolesAnywhereCredentials(
 		ProfileARN:            awsProfileARN,
 		RoleARN:               req.AWSRoleARN,
 		SubjectCommonName:     req.User.GetName(),
+		Integration:           apiscopes.QualifiedName{Scope: integration.GetScope(), Name: integration.GetName()},
 		KeyStoreManager:       a.keyStore,
 		AcceptRoleSessionName: acceptRoleSessionName,
 		DurationSeconds:       &durationSeconds,

@@ -26,6 +26,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"log/slog"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -63,6 +65,10 @@ type GenerateCredentialsRequest struct {
 	RoleARN string
 	// SubjectCommonName is the common name to use in the certificate.
 	SubjectCommonName string
+	// Integration is the scope-qualified name of the AWS IAM Roles Anywhere integration.
+	// This is used to generate the URI SAN set on the cert passed to AWS (see [IntegrationURISAN]).
+	// Leave it empty when the credentials are not minted for an integration.
+	Integration apiscopes.QualifiedName
 	// DurationSeconds is the duration of the session.
 	// If nil, the default duration of the Profile will be used.
 	DurationSeconds *int
@@ -107,8 +113,8 @@ func (r *GenerateCredentialsRequest) checkAndSetDefaults() error {
 	if r.SubjectCommonName == "" {
 		return trace.BadParameter("subject common name is required")
 	}
-	if r.KeyStoreManager == nil {
-		return trace.BadParameter("certificate generator is required")
+	if r.Integration.Scope != "" && r.Integration.Name == "" {
+		return trace.BadParameter("integration name is required for a scoped integration")
 	}
 	if r.KeyStoreManager == nil {
 		return trace.BadParameter("certificate generator is required")
@@ -160,10 +166,50 @@ func (c *Credentials) EncodeCredentialProcessFormat() (string, error) {
 	return string(bs), nil
 }
 
+// integrationURNPrefix prefixes the URI SAN that names the Roles Anywhere integration.
+const integrationURNPrefix = "urn:teleport:awsra:"
+
+// IntegrationURISAN returns the URI SAN that binds a Roles Anywhere leaf certificate to its
+// integration.
+// Scoped:   urn:teleport:awsra:<scope>:<integration name>.
+// Unscoped: urn:teleport:awsra:<integration name>.
+// AWS exposes the first URI SAN of the certificate as the aws:PrincipalTag/x509SAN/URI session tag,
+// which a role trust policy or a profile session policy can require.
+// Enforcement of the URI is up to the administrator of AWS.
+func IntegrationURISAN(integration apiscopes.QualifiedName) (*url.URL, error) {
+	if err := apiscopes.StrongValidateResourceName(integration.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if integration.Scope != "" {
+		if err := apiscopes.StrongValidate(integration.Scope); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	var uri *url.URL
+	var err error
+	if integration.Scope != "" {
+		uri, err = url.Parse(integrationURNPrefix + integration.Scope + ":" + integration.Name)
+	} else {
+		uri, err = url.Parse(integrationURNPrefix + integration.Name)
+	}
+	return uri, trace.Wrap(err)
+}
+
 // GenerateCredentials generates AWS IAM Roles Anywhere credentials for the Application (IAM Roles Anywhere Profile) and Role ARN.
 func GenerateCredentials(ctx context.Context, req GenerateCredentialsRequest) (*Credentials, error) {
 	if err := req.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Credentials minted for an integration carry its URI SAN; credentials minted from an ad hoc
+	// trust anchor (the enroll flow's custom ping) name no integration and carry none.
+	var uris []*url.URL
+	if req.Integration.Name != "" {
+		integrationURI, err := IntegrationURISAN(req.Integration)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		uris = []*url.URL{integrationURI}
 	}
 
 	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -205,6 +251,7 @@ func GenerateCredentials(ctx context.Context, req GenerateCredentialsRequest) (*
 		Subject: pkix.Name{
 			CommonName: req.SubjectCommonName,
 		},
+		URISANs: uris,
 		// The certificate only needs to be valid for a very short time: the time it takes to exchange it for AWS credentials.
 		// Setting it to 1 minutes is enough to account for clock drift and network latency.
 		NotAfter: req.Clock.Now().Add(1 * time.Minute),
