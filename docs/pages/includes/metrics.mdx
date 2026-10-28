@@ -59,6 +59,13 @@
 | `teleport_audit_parquetlog_last_processed_timestamp`     | gauge     | Teleport Audit Log  | Number of last processing time in Parquet-format audit log.                                        |
 | `teleport_audit_parquetlog_age_oldest_processed_message` | gauge     | Teleport Audit Log  | Number of age of oldest event in Parquet-format audit log.                                         |
 | `teleport_audit_parquetlog_errors_from_collect_count`    | counter   | Teleport Audit Log  | Number of collect failures in Parquet-format audit log.                                            |
+| `teleport_backend_batch_read_connection_hold_seconds`    | histogram | Backend         | Duration a pool connection was held by batch read operations, per attempt, labeled with the `result` (`success` or `failure`). PostgreSQL backend only.|
+| `teleport_backend_batch_write_connection_hold_seconds`   | histogram | Backend         | Duration a pool connection was held by batch write operations, per attempt, labeled with the `result` (`success` or `failure`). PostgreSQL backend only.|
+| `teleport_backend_connection_acquire_seconds`            | histogram | Backend         | Duration of acquiring a connection from the pool, per attempt, labeled with the `result` (`success` or `failure`). PostgreSQL backend only.|
+| `teleport_backend_connection_connect_seconds`            | histogram | Backend         | Duration establishing a new database connection, labeled with the `result` (`success` or `failure`). PostgreSQL backend only.|
+| `teleport_backend_connections_acquired`                  | gauge     | Backend         | Number of pool connections currently in use. PostgreSQL backend only.|
+| `teleport_backend_read_connection_hold_seconds`          | histogram | Backend         | Duration a pool connection was held by read operations, per attempt, labeled with the `result` (`success` or `failure`). PostgreSQL backend only.|
+| `teleport_backend_write_connection_hold_seconds`         | histogram | Backend         | Duration a pool connection was held by write operations, per attempt, labeled with the `result` (`success` or `failure`). PostgreSQL backend only.|
 | `teleport_ca_override_apply_seconds`                     | histogram | Teleport Auth       | Duration of applying certificate overrides to CA certificates.                                     |
 | `teleport_ca_override_read_seconds`                      | histogram | Teleport Auth       | Duration of reading and parsing CA overrides.                                                      |
 | `teleport_connected_resources`                           | gauge     | Teleport Auth       | Number and type of resources connected via keepalives.                                             |

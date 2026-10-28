@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/multitracer"
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jonboulle/clockwork"
@@ -187,6 +188,12 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	log.InfoContext(ctx, "Setting up backend.")
 
 	pgcommon.TryEnsureDatabase(ctx, poolConfig, log)
+	tracer := newPoolTracer(Name, log)
+	if existing := poolConfig.ConnConfig.Tracer; existing != nil {
+		poolConfig.ConnConfig.Tracer = multitracer.New(existing, tracer)
+	} else {
+		poolConfig.ConnConfig.Tracer = tracer
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
@@ -207,6 +214,8 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		pool:   pool,
 		buf:    backend.NewCircularBuffer(),
 		cancel: cancel,
+
+		connMetrics: newConnMetrics(Name),
 	}
 
 	if !cfg.DisableExpiry {
@@ -237,6 +246,8 @@ type Backend struct {
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+
+	connMetrics connMetrics
 }
 
 func (b *Backend) Close() error {
@@ -273,8 +284,8 @@ func (*Backend) GetName() string {
 func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	revision := newRevision()
 	i.Expires = i.Expires.UTC()
-	created, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
+	created, err := retryOperation(b, ctx, opCreate, func(ctx context.Context, conn *pgxpool.Conn) (bool, error) {
+		tag, err := conn.Exec(ctx,
 			"INSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)"+
 				" ON CONFLICT (key) DO UPDATE SET"+
 				" value = excluded.value, expires = excluded.expires, revision = excluded.revision"+
@@ -301,8 +312,8 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	revision := newRevision()
 	i.Expires = i.Expires.UTC()
-	if _, err := pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
-		_, err := b.pool.Exec(ctx,
+	if _, err := retryOperation(b, ctx, opPut, func(ctx context.Context, conn *pgxpool.Conn) (struct{}, error) {
+		_, err := conn.Exec(ctx,
 			"INSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)"+
 				" ON CONFLICT (key) DO UPDATE SET"+
 				" value = excluded.value, expires = excluded.expires, revision = excluded.revision",
@@ -324,8 +335,8 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected, replaceWith back
 
 	revision := newRevision()
 	replaceWith.Expires = replaceWith.Expires.UTC()
-	swapped, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
+	swapped, err := retryOperation(b, ctx, opCompareAndSwap, func(ctx context.Context, conn *pgxpool.Conn) (bool, error) {
+		tag, err := conn.Exec(ctx,
 			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
 				" WHERE kv.key = $4 AND kv.value = $5 AND (kv.expires IS NULL OR kv.expires > now())",
 			nonNil(replaceWith.Value), zeronull.Timestamptz(replaceWith.Expires), revision,
@@ -351,8 +362,8 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected, replaceWith back
 func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	revision := newRevision()
 	i.Expires = i.Expires.UTC()
-	updated, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
+	updated, err := retryOperation(b, ctx, opUpdate, func(ctx context.Context, conn *pgxpool.Conn) (bool, error) {
+		tag, err := conn.Exec(ctx,
 			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
 				" WHERE kv.key = $4 AND (kv.expires IS NULL OR kv.expires > now())",
 			nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision, nonNilKey(i.Key))
@@ -381,8 +392,8 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 
 	newRevision := newRevision()
 	i.Expires = i.Expires.UTC()
-	updated, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
+	updated, err := retryOperation(b, ctx, opConditionalUpdate, func(ctx context.Context, conn *pgxpool.Conn) (bool, error) {
+		tag, err := conn.Exec(ctx,
 			"UPDATE kv SET value = $1, expires = $2, revision = $3 "+
 				"WHERE kv.key = $4 AND kv.revision = $5 AND "+
 				"(kv.expires IS NULL OR kv.expires > now())",
@@ -407,7 +418,7 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 
 // Get implements [backend.Backend].
 func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
-	item, err := pgcommon.RetryIdempotent(ctx, b.log, func() (*backend.Item, error) {
+	item, err := retryIdempotentOperation(b, ctx, opGet, func(ctx context.Context, conn *pgxpool.Conn) (*backend.Item, error) {
 		batch := new(pgx.Batch)
 		// batches run in an implicit transaction
 		batch.Queue("SET transaction_read_only TO on")
@@ -435,7 +446,7 @@ func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, erro
 			return nil
 		})
 
-		if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
+		if err := conn.SendBatch(ctx, batch).Close(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -488,7 +499,7 @@ func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Se
 		for {
 			pageLimit := min(limit-totalCount, defaultPageSize)
 
-			items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
+			items, err := retryIdempotentOperation(b, ctx, opItems, func(ctx context.Context, conn *pgxpool.Conn) ([]backend.Item, error) {
 				batch := new(pgx.Batch)
 				// batches run in an implicit transaction
 				batch.Queue("SET transaction_read_only TO on")
@@ -514,7 +525,7 @@ func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Se
 					return trace.Wrap(err)
 				})
 
-				if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
+				if err := conn.SendBatch(ctx, batch).Close(); err != nil {
 					return nil, trace.Wrap(err)
 				}
 
@@ -563,8 +574,8 @@ func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 
 // Delete implements [backend.Backend].
 func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
-	deleted, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
+	deleted, err := retryOperation(b, ctx, opDelete, func(ctx context.Context, conn *pgxpool.Conn) (bool, error) {
+		tag, err := conn.Exec(ctx,
 			"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNilKey(key))
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -587,8 +598,8 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev st
 		return trace.Wrap(backend.ErrIncorrectRevision)
 	}
 
-	deleted, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
+	deleted, err := retryOperation(b, ctx, opConditionalDelete, func(ctx context.Context, conn *pgxpool.Conn) (bool, error) {
+		tag, err := conn.Exec(ctx,
 			"DELETE FROM kv WHERE kv.key = $1 AND kv.revision = $2 AND "+
 				"(kv.expires IS NULL OR kv.expires > now())",
 			nonNilKey(key), expectedRevision)
@@ -614,8 +625,8 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 	// ever deletes more than dozens of items at once, and logical decoding
 	// starts having performance issues when a transaction affects _thousands_
 	// of rows at once, so we're good here (but see [Backend.backgroundExpiry])
-	if _, err := pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
-		_, err := b.pool.Exec(ctx,
+	if _, err := retryOperation(b, ctx, opDeleteRange, func(ctx context.Context, conn *pgxpool.Conn) (struct{}, error) {
+		_, err := conn.Exec(ctx,
 			"DELETE FROM kv WHERE kv.key BETWEEN $1 AND $2",
 			nonNilKey(startKey), nonNilKey(endKey),
 		)
@@ -630,8 +641,8 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 // KeepAlive implements [backend.Backend].
 func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
 	revision := newRevision()
-	updated, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		tag, err := b.pool.Exec(ctx,
+	updated, err := retryOperation(b, ctx, opKeepAlive, func(ctx context.Context, conn *pgxpool.Conn) (bool, error) {
+		tag, err := conn.Exec(ctx,
 			"UPDATE kv SET expires = $1, revision = $2"+
 				" WHERE kv.key = $3 AND (kv.expires IS NULL OR kv.expires > now())",
 			zeronull.Timestamptz(expires.UTC()), revision, nonNilKey(lease.Key))
@@ -665,4 +676,60 @@ func (b *Backend) Clock() clockwork.Clock {
 	// it's much cleaner to just rely on the server transaction time (which is
 	// shared between all auth servers) for that
 	return clockwork.NewRealClock()
+}
+
+func retryIdempotentOperation[T any](b *Backend, ctx context.Context, op operation,
+	f func(context.Context, *pgxpool.Conn) (T, error),
+) (T, error) {
+	return instrumentedRetry(b, ctx, op, pgcommon.RetryIdempotent[T], f)
+}
+
+func retryOperation[T any](b *Backend, ctx context.Context, op operation,
+	f func(context.Context, *pgxpool.Conn) (T, error),
+) (T, error) {
+	return instrumentedRetry(b, ctx, op, pgcommon.Retry[T], f)
+}
+
+func retryTxOperation(b *Backend, ctx context.Context, op operation, txOptions pgx.TxOptions,
+	f func(ctx context.Context, tx pgx.Tx) error,
+) error {
+	_, err := retryOperation(b, ctx, op, func(ctx context.Context, conn *pgxpool.Conn) (struct{}, error) {
+		return struct{}{}, trace.Wrap(pgx.BeginTxFunc(ctx, conn, txOptions, func(tx pgx.Tx) error {
+			return f(ctx, tx)
+		}))
+	})
+	return trace.Wrap(err)
+}
+
+func instrumentedRetry[T any](b *Backend, ctx context.Context, op operation,
+	retryFn func(context.Context, *slog.Logger, func() (T, error)) (T, error),
+	f func(context.Context, *pgxpool.Conn) (T, error),
+) (T, error) {
+	return retryFn(ctx, b.log, func() (T, error) {
+		t0 := time.Now()
+		conn, err := b.pool.Acquire(ctx)
+		t1 := time.Now()
+		elapsed := t1.Sub(t0)
+		if err != nil {
+			b.connMetrics.acquireFailure.Observe(elapsed.Seconds())
+			stat := b.pool.Stat()
+			b.log.DebugContext(ctx, "Failed to acquire connection from pool",
+				"operation", op.name,
+				"error", err,
+				"waited", elapsed,
+				"acquired_conns", stat.AcquiredConns(),
+				"total_conns", stat.TotalConns(),
+				"max_conns", stat.MaxConns(),
+			)
+			return *new(T), trace.Wrap(err, "acquiring connection for %s", op.name)
+		}
+		defer conn.Release()
+		b.connMetrics.acquireSuccess.Observe(elapsed.Seconds())
+		b.connMetrics.inUse.Inc()
+		defer b.connMetrics.inUse.Dec()
+
+		v, err := f(ctx, conn)
+		b.connMetrics.holdObserver(op.kind, err).Observe(time.Since(t1).Seconds())
+		return v, trace.Wrap(err)
+	})
 }

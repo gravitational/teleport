@@ -237,6 +237,80 @@ var (
 		},
 		[]string{teleport.ComponentLabel},
 	)
+	ConnAcquireDurations = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendConnAcquireHistogram,
+			Help:      "Time taken to acquire a connection from the backend connection pool, recorded per attempt and including failed attempts",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+		[]string{teleport.ComponentLabel, teleport.TagResult},
+	)
+	ConnectDurations = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendConnectHistogram,
+			Help:      "Time taken to establish a new connection for the backend connection pool, including failed attempts",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+		[]string{teleport.ComponentLabel, teleport.TagResult},
+	)
+	ConnsAcquired = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendConnsAcquired,
+			Help:      "Number of connections currently acquired from the backend connection pool",
+		},
+		[]string{teleport.ComponentLabel},
+	)
+	ReadConnHoldDurations = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendReadConnHoldHistogram,
+			Help:      "Duration a connection was held by backend read operations, recorded per attempt",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+		[]string{teleport.ComponentLabel, teleport.TagResult},
+	)
+	WriteConnHoldDurations = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendWriteConnHoldHistogram,
+			Help:      "Duration a connection was held by backend write operations, recorded per attempt",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+		[]string{teleport.ComponentLabel, teleport.TagResult},
+	)
+	BatchReadConnHoldDurations = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendBatchReadConnHoldHistogram,
+			Help:      "Duration a connection was held by backend batch read operations, recorded per attempt",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+		[]string{teleport.ComponentLabel, teleport.TagResult},
+	)
+	BatchWriteConnHoldDurations = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendBatchWriteConnHoldHistogram,
+			Help:      "Duration a connection was held by backend batch write operations, recorded per attempt",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+		[]string{teleport.ComponentLabel, teleport.TagResult},
+	)
 )
 
 // RegisterCollectors ensures all backend metrics are registered
@@ -251,5 +325,7 @@ func RegisterCollectors(reg prometheus.Registerer) error {
 		AtomicWriteContention, AtomicWriteSize, Reads, Writes,
 		BatchWriteLatencies, BatchReadLatencies, ReadLatencies,
 		StreamingRequests, StreamingRequestsFailed,
+		ConnAcquireDurations, ConnectDurations, ConnsAcquired,
+		ReadConnHoldDurations, WriteConnHoldDurations, BatchReadConnHoldDurations, BatchWriteConnHoldDurations,
 	))
 }

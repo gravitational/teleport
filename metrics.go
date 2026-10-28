@@ -233,6 +233,27 @@ const (
 	// MetricBackendBatchFailedReadRequests measures failed backend batch read requests count
 	MetricBackendBatchFailedReadRequests = "backend_batch_read_requests_failed_total"
 
+	// MetricBackendConnAcquireHistogram measures histogram of backend connection acquire latencies
+	MetricBackendConnAcquireHistogram = "backend_connection_acquire_seconds"
+
+	// MetricBackendConnectHistogram measures histogram of backend connection establishment latencies
+	MetricBackendConnectHistogram = "backend_connection_connect_seconds"
+
+	// MetricBackendConnsAcquired measures backend connections currently acquired from the pool
+	MetricBackendConnsAcquired = "backend_connections_acquired"
+
+	// MetricBackendReadConnHoldHistogram measures histogram of backend connection hold duration for read operations.
+	MetricBackendReadConnHoldHistogram = "backend_read_connection_hold_seconds"
+
+	// MetricBackendWriteConnHoldHistogram measures histogram of backend connection hold duration for write operations.
+	MetricBackendWriteConnHoldHistogram = "backend_write_connection_hold_seconds"
+
+	// MetricBackendBatchReadConnHoldHistogram measures histogram of backend connection hold duration for batch read operations.
+	MetricBackendBatchReadConnHoldHistogram = "backend_batch_read_connection_hold_seconds"
+
+	// MetricBackendBatchWriteConnHoldHistogram measures histogram of backend connection hold duration for batch write operations.
+	MetricBackendBatchWriteConnHoldHistogram = "backend_batch_write_connection_hold_seconds"
+
 	// MetricLostCommandEvents measures the number of command events that were lost
 	MetricLostCommandEvents = "bpf_lost_command_events"
 
@@ -306,6 +327,15 @@ const (
 
 	// TagReq is a tag specifying backend request type
 	TagReq = "req"
+
+	// TagResult is a tag specifying the outcome of an operation
+	TagResult = "result"
+
+	// TagSuccess is a tag value to mark successful operations
+	TagSuccess = "success"
+
+	// TagFailure is a tag value to mark unsuccessful operations
+	TagFailure = "failure"
 
 	// TagTrue is a tag value to mark true values
 	TagTrue = "true"

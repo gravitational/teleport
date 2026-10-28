@@ -32,6 +32,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ConnectPostgres will open a single connection to the "postgres" database in
@@ -116,6 +117,14 @@ func RetryIdempotent[T any](ctx context.Context, log *slog.Logger, f func() (T, 
 	return v, trace.Wrap(err)
 }
 
+func logLastFailure(ctx context.Context, log *slog.Logger, attempt int, lastErr error) {
+	log.LogAttrs(ctx, logutils.TraceLevel,
+		"Operation failed and the request ended before it could be retried.",
+		slog.Int("attempt", attempt),
+		slog.Any("error", lastErr),
+	)
+}
+
 func retry[T any](ctx context.Context, log *slog.Logger, isIdempotent bool, f func() (T, error)) (T, error) {
 	var v T
 	var err error
@@ -125,8 +134,8 @@ func retry[T any](ctx context.Context, log *slog.Logger, isIdempotent bool, f fu
 	}
 
 	if ctx.Err() != nil {
-		var zeroT T
-		return zeroT, trace.Wrap(ctx.Err())
+		logLastFailure(ctx, log, 1, err)
+		return *new(T), trace.Wrap(ctx.Err())
 	}
 
 	retry, retryErr := retryutils.NewLinear(retryutils.LinearConfig{
@@ -136,8 +145,7 @@ func retry[T any](ctx context.Context, log *slog.Logger, isIdempotent bool, f fu
 		Jitter: retryutils.HalfJitter,
 	})
 	if retryErr != nil {
-		var zeroT T
-		return zeroT, trace.Wrap(retryErr)
+		return *new(T), trace.Wrap(retryErr)
 	}
 
 	for i := 1; i < 10; i++ {
@@ -172,15 +180,14 @@ func retry[T any](ctx context.Context, log *slog.Logger, isIdempotent bool, f fu
 			// we either know we shouldn't retry (on a database error), or we
 			// are not in idempotent mode and we don't know if we should retry
 			// (ambiguous error after sending some data)
-			var zeroT T
-			return zeroT, trace.Wrap(err)
+			return *new(T), trace.Wrap(err)
 		}
 
 		select {
 		case <-retry.After():
 		case <-ctx.Done():
-			var zeroT T
-			return zeroT, trace.Wrap(ctx.Err())
+			logLastFailure(ctx, log, i, err)
+			return *new(T), trace.Wrap(ctx.Err())
 		}
 
 		v, err = f()
@@ -189,13 +196,12 @@ func retry[T any](ctx context.Context, log *slog.Logger, isIdempotent bool, f fu
 		}
 
 		if ctx.Err() != nil {
-			var zeroT T
-			return zeroT, trace.Wrap(ctx.Err())
+			logLastFailure(ctx, log, i+1, err)
+			return *new(T), trace.Wrap(ctx.Err())
 		}
 	}
 
-	var zeroT T
-	return zeroT, trace.LimitExceeded("too many retries, last error: %v", err)
+	return *new(T), trace.LimitExceeded("too many retries, last error: %v", err)
 }
 
 // isSerializationErrorCode returns true if the error code is for a
