@@ -6,6 +6,8 @@ tags:
  - identity-security
 enterprise: Identity Security
 page_type: conceptual
+skills:
+  - teleport-detection-triage
 ---
 
 Teleport Identity Security provides pre-built security detections that automatically create alerts for suspicious identity-related activities across your infrastructure. These detections monitor events from Teleport and integrated services like AWS, GitHub, and Okta to identify potential security risks.
@@ -25,13 +27,7 @@ All detections are pre-configured and currently cannot be modified. The severity
 ![Alerts](../../../img/access-graph/alerts.png)
 
 To view active alerts, navigate to **Identity Security** > **Alerts** in the Teleport Web UI.
-
-<Admonition type="tip">
-
-Teleport Identity Security Alerts and the Investigate view are currently only available in self-hosted AWS Teleport Enterprise deployments.  They will be coming to Teleport Enterprise Cloud in Q2 2026.
-
-</Admonition>
-
+<SkillsBanner />
 ## Detection categories
 
 Each category below represents an integrated service where Teleport monitors for security events and suspicious activities pulled from various integration audit logs. The detections within each category are further organized by severity level to help you prioritize your security response efforts.
@@ -122,17 +118,14 @@ Set up Teleport detections: [Teleport Settings](../integrations/teleport.mdx)
 
 ## Frequently asked questions
 
-### Are these detections available in Teleport Cloud?
-No, Identity Activity Center detections are only available in self-hosted Teleport Enterprise deployments. They will be coming to Teleport Enterprise Cloud in Q4 2025.
-
 ### Can I write my own detections?
 No, detections are currently pre-configured per integration and cannot be customized.
 
 ### Can I resolve an alert?
-Not currently, but we plan to add workflows to resolve, acknowledge, and mute alert types in future updates.
+Yes, you can update an alert's status. We provide options to triage, close, or resolve alerts based on your investigation and response actions.
 
 ### What determines the severity level?
-Severity levels are defined by the Identity Security Team based on the potential security impact. Feedback on severity assignments is welcome.
+Severity levels are defined by the Teleport Identity Security Team based on the potential security impact. Feedback on severity assignments is welcome.
 
 ### Can I forward these events to another service?
 This feature is planned for future release.
@@ -141,7 +134,7 @@ This feature is planned for future release.
 For new detection requests based on customer needs, [reach out to the Identity Security Team](https://goteleport.com/contact-us/). Customer feedback is welcomed and helps prioritize new detection development.
 
 ## How do I deploy Identity Security Alerts?
-Teleport Identity Security is a separately licensed product available to Teleport Enterprise customers. Alerts and Investigate view are only available in AWS self-hosted deployments. To deploy Identity Security, follow the instructions in [Self-Host Teleport Security - Identity Activity Center](../access-graph/identity-activity-center.mdx).
+Teleport Identity Security is a separately licensed product available to Teleport Enterprise customers. To deploy Identity Security, follow the instructions in [Self-Host Teleport Security - Identity Activity Center](../access-graph/identity-activity-center.mdx).
 
 
 ## Next steps
