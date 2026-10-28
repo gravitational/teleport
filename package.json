@@ -46,7 +46,7 @@
     "@types/react-router-dom": "^5.1.1",
     "@types/react-transition-group": "^4.4.12",
     "@types/wicg-file-system-access": "^2023.10.7",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^10.10.0",
     "eslint-plugin-jest-dom": "^5.10.1",
     "eslint-plugin-storybook": "^10.6.0",
@@ -63,8 +63,8 @@
     "storybook": "^10.6.0",
     "svgo": "^4.1.0",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2",
-    "vitest": "^4.1.11"
+    "vite": "^8.3.4",
+    "vitest": "^4.1.12"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
