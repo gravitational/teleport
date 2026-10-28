@@ -9,7 +9,7 @@ if test -f $VITE_HTTPS_CERT; then
   # See https://mswjs.io/docs/best-practices/managing-the-worker#committing-the-worker-script
   msw init web/.storybook/public --save
 
-  storybook dev -p 9002 -c web/.storybook --https --ssl-cert=$VITE_HTTPS_CERT --ssl-key=$VITE_HTTPS_KEY "$@"
+  storybook dev -p 9002 --host localhost -c web/.storybook --https --ssl-cert=$VITE_HTTPS_CERT --ssl-key=$VITE_HTTPS_KEY "$@"
 else
   echo \"Could not find SSL certificates. Please follow web/README.md to generate certificates.\" && false
 fi
