@@ -39,7 +39,7 @@ uuid = { version = ">=1.16, <1.29", features = ["v4"] } # Pinned below 1.21: uui
 url = "2.5.8"
 picky = { version = "7.0.0-rc.23", default-features = false }
 qoi = "0.4.1"
-zstd = "0.13.3"
+zstd = "0.14.0"
 
 [dev-dependencies]
 ironrdp-graphics.workspace = true
