@@ -20,6 +20,7 @@ package hoststep
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -44,8 +45,25 @@ import (
 // checks the host can take a scoped install.
 const Preflight = "preflight"
 
+// Install is the host step that installs the scoped agent beside the
+// source agent.
+const Install = "install"
+
+// scopedInstallSuffix is the install suffix of the scoped agent.
+const scopedInstallSuffix = "migrated"
+
 // scopedDataDir is the scoped agent's data directory.
-const scopedDataDir = "/var/lib/teleport_migrated"
+const scopedDataDir = "/var/lib/teleport_" + scopedInstallSuffix
+
+// scopedConfigPath is the scoped agent's config file.
+const scopedConfigPath = "/etc/teleport_" + scopedInstallSuffix + ".yaml"
+
+// scopedPIDFileName is the name of the scoped agent's PID file, in the
+// directory of the source agent's.
+const scopedPIDFileName = "teleport_" + scopedInstallSuffix + ".pid"
+
+// scopedUnit is the scoped agent's systemd unit.
+const scopedUnit = "teleport_" + scopedInstallSuffix + ".service"
 
 // RunHostStep runs one migration step on this host, as `teleport migrate host
 // <step>`, reading the step's JSON request from in and writing its JSON result
@@ -55,6 +73,8 @@ func RunHostStep(ctx context.Context, step string, in io.Reader, out io.Writer) 
 	switch step {
 	case Preflight:
 		return runStep(ctx, in, out, h.preflight)
+	case Install:
+		return runStep(ctx, in, out, h.install)
 	}
 	return trace.BadParameter("unknown host step %q", step)
 }
@@ -242,3 +262,46 @@ func (h hostEnv) readAgentConfig(configPath string) (*config.FileConfig, error) 
 func IsMintedJoinMethod(method string) bool {
 	return method == string(types.JoinMethodToken) || method == string(types.JoinMethodBoundKeypair)
 }
+
+// checkScopedConfigOwner refuses unless the scoped config on the host targets
+// req's proxy and labels the scoped agent with req's source host.
+func (h hostEnv) checkScopedConfigOwner(req InstallRequest) error {
+	existing, err := h.readAgentConfig(scopedConfigPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Reconfigure writes a v1 or v2 config's target to auth_servers.
+	var proxy string
+	switch {
+	case existing.Version == defaults.TeleportConfigVersionV3:
+		proxy = existing.ProxyServer
+	case slices.Contains(existing.AuthServers, req.Proxy):
+		proxy = req.Proxy
+	default:
+		proxy = cmp.Or(existing.AuthServer, strings.Join(existing.AuthServers, ","))
+	}
+	sourceHost := existing.SSH.Labels[SourceHostLabel]
+	if proxy != req.Proxy || sourceHost != req.SourceHostUUID {
+		return trace.CompareFailed("the scoped config at %q belongs to another migration (proxy %q, source host %q); roll that host back or remove the config by hand", scopedConfigPath, proxy, sourceHost)
+	}
+	return nil
+}
+
+// runCommand runs name with args and returns an error holding the command line
+// and its combined output when it fails.
+func runCommand(ctx context.Context, name string, args ...string) error {
+	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
+	if err != nil {
+		return trace.Wrap(err, "%s %s: %s", name, strings.Join(args, " "), strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// Correlation labels: the labels a migrated scoped agent carries, so plan can
+// pair a target node with its source host.
+const (
+	// SourceClusterLabel names the source cluster the agent migrated from.
+	SourceClusterLabel = types.TeleportInternalLabelPrefix + "migrate-source-cluster"
+	// SourceHostLabel holds the UUID of the source host the agent migrated from.
+	SourceHostLabel = types.TeleportInternalLabelPrefix + "migrate-source-host-uuid"
+)

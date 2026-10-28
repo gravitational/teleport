@@ -112,7 +112,7 @@ func (m *Migrator) readTarget(ctx context.Context) (targetInventory, error) {
 			return targetInventory{}, trace.Wrap(err)
 		}
 		inventory.nodesByID[n.ID] = n
-		if id := n.Labels[sourceHostLabel]; id != "" && n.Labels[sourceClusterLabel] == sourceCluster {
+		if id := n.Labels[hoststep.SourceHostLabel]; id != "" && n.Labels[hoststep.SourceClusterLabel] == sourceCluster {
 			inventory.nodesBySourceLabel[id] = append(inventory.nodesBySourceLabel[id], n)
 		} else if id := n.Labels[types.ReconfigureSourceUUIDLabel]; id != "" {
 			inventory.nodesBySourceLabel[id] = append(inventory.nodesBySourceLabel[id], n)
@@ -292,7 +292,7 @@ func pairHost(h *host, target targetInventory) outcome {
 // isLabeledForAnotherHost reports whether n carries a migration label that
 // names a host other than id.
 func isLabeledForAnotherHost(n node, id string) bool {
-	for _, label := range []string{sourceHostLabel, types.ReconfigureSourceUUIDLabel} {
+	for _, label := range []string{hoststep.SourceHostLabel, types.ReconfigureSourceUUIDLabel} {
 		if other := n.Labels[label]; other != "" && other != id {
 			return true
 		}

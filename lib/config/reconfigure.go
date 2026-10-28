@@ -383,3 +383,17 @@ func collisionError(fc *FileConfig, req ReconfigureRequest) error {
 func listenAddrCollides(s Service) bool {
 	return s.ListenAddress != "" && s.Enabled()
 }
+
+// RenderValidated renders fc to YAML and parses the result with ReadConfig,
+// the reader the agent uses at start. It returns an error, and no YAML, when
+// the agent would reject the config.
+func RenderValidated(fc *FileConfig) (string, error) {
+	out, err := fc.YAMLString()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if _, err := ReadConfig(strings.NewReader(out)); err != nil {
+		return "", trace.Wrap(err, "the generated config does not pass validation")
+	}
+	return out, nil
+}
