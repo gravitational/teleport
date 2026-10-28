@@ -48,10 +48,12 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services/label"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/traits"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -702,6 +704,8 @@ func MatchValidAzureIdentity(identity string) bool {
 type RoleTemplateContext struct {
 	Username string
 	Traits   map[string][]string
+	// Scoped determines whether or not scoped validation rules should be applied.
+	Scoped bool
 }
 
 // ApplyTraits applies the passed in traits to any variables within the role
@@ -718,61 +722,61 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 	for _, condition := range []types.RoleConditionType{types.Allow, types.Deny} {
 
 		inLogins := r.GetLogins(condition)
-		outLogins := applyValueTraitsSlice(inLogins, ctx, "login")
+		outLogins := ApplyValueTraitsSlice(inLogins, ctx, "login")
 		outLogins = filterInvalidUnixLogins(outLogins)
 		r.SetLogins(condition, apiutils.Deduplicate(outLogins))
 
 		inWindowsLogins := r.GetWindowsLogins(condition)
-		outWindowsLogins := applyValueTraitsSlice(inWindowsLogins, ctx, "windows_login")
+		outWindowsLogins := ApplyValueTraitsSlice(inWindowsLogins, ctx, "windows_login")
 		outWindowsLogins = filterInvalidWindowsLogins(outWindowsLogins)
 		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
 		inLinuxDesktopLogins := r.GetLinuxDesktopLogins(condition)
-		outLinuxDesktopLogins := applyValueTraitsSlice(inLinuxDesktopLogins, ctx, "linux_desktop_login")
+		outLinuxDesktopLogins := ApplyValueTraitsSlice(inLinuxDesktopLogins, ctx, "linux_desktop_login")
 		outLinuxDesktopLogins = filterInvalidUnixLogins(outLinuxDesktopLogins)
 		r.SetLinuxDesktopLogins(condition, apiutils.Deduplicate(outLinuxDesktopLogins))
 
 		inRoleARNs := r.GetAWSRoleARNs(condition)
-		outRoleARNs := applyValueTraitsSlice(inRoleARNs, ctx, "AWS role ARN")
+		outRoleARNs := ApplyValueTraitsSlice(inRoleARNs, ctx, "AWS role ARN")
 		r.SetAWSRoleARNs(condition, apiutils.Deduplicate(outRoleARNs))
 
 		inAzureIdentities := r.GetAzureIdentities(condition)
-		outAzureIdentities := applyValueTraitsSlice(inAzureIdentities, ctx, "Azure identity")
+		outAzureIdentities := ApplyValueTraitsSlice(inAzureIdentities, ctx, "Azure identity")
 		warnInvalidAzureIdentities(outAzureIdentities)
 		r.SetAzureIdentities(condition, apiutils.Deduplicate(outAzureIdentities))
 
 		inGCPAccounts := r.GetGCPServiceAccounts(condition)
-		outGCPAccounts := applyValueTraitsSlice(inGCPAccounts, ctx, "GCP service account")
+		outGCPAccounts := ApplyValueTraitsSlice(inGCPAccounts, ctx, "GCP service account")
 		r.SetGCPServiceAccounts(condition, apiutils.Deduplicate(outGCPAccounts))
 
 		// apply templates to kubernetes groups
 		inKubeGroups := r.GetKubeGroups(condition)
-		outKubeGroups := applyValueTraitsSlice(inKubeGroups, ctx, "kube group")
+		outKubeGroups := ApplyValueTraitsSlice(inKubeGroups, ctx, "kube group")
 		r.SetKubeGroups(condition, apiutils.Deduplicate(outKubeGroups))
 
 		// apply templates to kubernetes users
 		inKubeUsers := r.GetKubeUsers(condition)
-		outKubeUsers := applyValueTraitsSlice(inKubeUsers, ctx, "kube user")
+		outKubeUsers := ApplyValueTraitsSlice(inKubeUsers, ctx, "kube user")
 		r.SetKubeUsers(condition, apiutils.Deduplicate(outKubeUsers))
 
 		// apply templates to database names
 		inDbNames := r.GetDatabaseNames(condition)
-		outDbNames := applyValueTraitsSlice(inDbNames, ctx, "database name")
+		outDbNames := ApplyValueTraitsSlice(inDbNames, ctx, "database name")
 		r.SetDatabaseNames(condition, apiutils.Deduplicate(outDbNames))
 
 		// apply templates to database users
 		inDbUsers := r.GetDatabaseUsers(condition)
-		outDbUsers := applyValueTraitsSlice(inDbUsers, ctx, "database user")
+		outDbUsers := ApplyValueTraitsSlice(inDbUsers, ctx, "database user")
 		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
 
 		// apply templates to database roles
 		inDbRoles := r.GetDatabaseRoles(condition)
-		outDbRoles := applyValueTraitsSlice(inDbRoles, ctx, "database role")
+		outDbRoles := ApplyValueTraitsSlice(inDbRoles, ctx, "database role")
 		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
 
 		githubPermissions := r.GetGitHubPermissions(condition)
 		for i, perm := range githubPermissions {
-			githubPermissions[i].Organizations = applyValueTraitsSlice(perm.Organizations, ctx, "github organizations")
+			githubPermissions[i].Organizations = ApplyValueTraitsSlice(perm.Organizations, ctx, "github organizations")
 		}
 		r.SetGitHubPermissions(condition, githubPermissions)
 
@@ -781,15 +785,15 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 		// to avoid receiving the compatibility resources added in GetKubernetesResources
 		// for roles <v7
 		for _, rec := range r.GetRoleConditions(condition).KubernetesResources {
-			namespaces := applyValueTraitsSlice([]string{rec.Namespace}, ctx, "kubernetes resource namespace")
+			namespaces := ApplyValueTraitsSlice([]string{rec.Namespace}, ctx, "kubernetes resource namespace")
 			if rec.Namespace == "" {
 				namespaces = []string{""}
 			}
-			names := applyValueTraitsSlice([]string{rec.Name}, ctx, "kubernetes resource name")
+			names := ApplyValueTraitsSlice([]string{rec.Name}, ctx, "kubernetes resource name")
 			if rec.Name == "" {
 				names = []string{""}
 			}
-			verbs := applyValueTraitsSlice(rec.Verbs, ctx, "kubernetes resource verb")
+			verbs := ApplyValueTraitsSlice(rec.Verbs, ctx, "kubernetes resource verb")
 			// A trait can reintroduce a wildcard alongside other verbs after
 			// validation has run, so collapse to just the wildcard.
 			if slices.Contains(verbs, types.Wildcard) {
@@ -841,13 +845,13 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 		}
 
 		r.SetHostGroups(condition,
-			applyValueTraitsSlice(r.GetHostGroups(condition), ctx, "host_groups"))
+			ApplyValueTraitsSlice(r.GetHostGroups(condition), ctx, "host_groups"))
 
 		r.SetHostSudoers(condition,
-			applyValueTraitsSlice(r.GetHostSudoers(condition), ctx, "host_sudoers"))
+			ApplyValueTraitsSlice(r.GetHostSudoers(condition), ctx, "host_sudoers"))
 
 		r.SetDesktopGroups(condition,
-			applyValueTraitsSlice(r.GetDesktopGroups(condition), ctx, "desktop_groups"))
+			ApplyValueTraitsSlice(r.GetDesktopGroups(condition), ctx, "desktop_groups"))
 
 		options := r.GetOptions()
 		for i, ext := range options.CertExtensions {
@@ -864,15 +868,15 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 		// apply templates to impersonation conditions
 		inCond := r.GetImpersonateConditions(condition)
 		var outCond types.ImpersonateConditions
-		outCond.Users = applyValueTraitsSlice(inCond.Users, ctx, "impersonate user")
-		outCond.Roles = applyValueTraitsSlice(inCond.Roles, ctx, "impersonate role")
+		outCond.Users = ApplyValueTraitsSlice(inCond.Users, ctx, "impersonate user")
+		outCond.Roles = ApplyValueTraitsSlice(inCond.Roles, ctx, "impersonate role")
 		outCond.Users = apiutils.Deduplicate(outCond.Users)
 		outCond.Roles = apiutils.Deduplicate(outCond.Roles)
 		outCond.Where = inCond.Where
 		r.SetImpersonateConditions(condition, outCond)
 
 		if mcp := r.GetMCPPermissions(condition); mcp != nil {
-			mcp.Tools = applyValueTraitsSlice(mcp.Tools, ctx, "mcp.tools")
+			mcp.Tools = ApplyValueTraitsSlice(mcp.Tools, ctx, "mcp.tools")
 			r.SetMCPPermissions(condition, mcp)
 		}
 	}
@@ -880,9 +884,9 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 	return r, nil
 }
 
-// applyValueTraitsSlice iterates over a slice of input strings, calling
+// ApplyValueTraitsSlice iterates over a slice of input strings, calling
 // ApplyValueTraitsWithContext on each.
-func applyValueTraitsSlice(inputs []string, ctx RoleTemplateContext, fieldName string) []string {
+func ApplyValueTraitsSlice(inputs []string, ctx RoleTemplateContext, fieldName string) []string {
 	var output []string
 	for _, value := range inputs {
 		outputs, err := ApplyValueTraitsWithContext(value, ctx)
@@ -949,6 +953,11 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 // ApplyValueTraitsWithContext applies the passed in role template context to
 // the variable.
 func ApplyValueTraitsWithContext(val string, ctx RoleTemplateContext) ([]string, error) {
+	if ctx.Scoped {
+		if err := scopedaccess.ScopedValidateTemplate(val); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	// Extract the variable from the role variable.
 	expr, err := parse.NewTraitsTemplateExpression(val)
 	if err != nil {
@@ -958,16 +967,8 @@ func ApplyValueTraitsWithContext(val string, ctx RoleTemplateContext) ([]string,
 	varValidation := func(namespace string, name string) error {
 		// verify that internal traits match the supported variables
 		if namespace == teleport.TraitInternalPrefix {
-			switch name {
-			case constants.TraitLogins, constants.TraitWindowsLogins, constants.TraitLinuxDesktopLogins,
-				constants.TraitKubeGroups, constants.TraitKubeUsers,
-				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
-				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-				constants.TraitGCPServiceAccounts, constants.TraitJWT,
-				constants.TraitGitHubOrgs, constants.TraitMCPTools,
-				constants.TraitDefaultRelayAddr, constants.TraitIDToken:
-			default:
-				return trace.BadParameter("unsupported variable %q", name)
+			if err := traits.ValidateInternalTraitKey(name); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 		// The "external" trait namespace is explicitly allowed to reference

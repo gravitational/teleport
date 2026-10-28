@@ -348,7 +348,7 @@ func deleteResources[T kubeObjectInterface](
 			services.NewKubernetesClusterLabelMatcher(
 				params.authCtx.kubeClusterLabels,
 				checker.AccessInfo().Username,
-				params.authCtx.CheckerContext.Traits(),
+				checker.Traits(),
 			),
 			services.NewKubernetesResourceMatcher(
 				getKubeResource(kind, group, types.KubeVerbDeleteCollection, item),

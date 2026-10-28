@@ -1148,7 +1148,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		labelMatcher := services.NewKubernetesClusterLabelMatcher(
 			types.CombineLabels(nil, c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels())),
 			checker.AccessInfo().Username,
-			actx.CheckerContext.Traits(),
+			checker.Traits(),
 		)
 		matchersWithLabelMatcher[len(matchersWithLabelMatcher)-1] = labelMatcher
 

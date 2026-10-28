@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/trait"
@@ -976,6 +977,8 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 	collectedRoles := make(map[string]struct{})
 	collectedScopedRoles := make(map[accesslist.ScopedRoleGrant]struct{})
 	collectedTraits := make(map[string]map[string]struct{})
+	collectedScopedTraits := make(map[scopes.QualifiedName]map[string]struct{})
+	scopedTraitGrantIndices := make(map[string]int)
 
 	addGrants := func(grantsToAdd accesslist.Grants) {
 		for _, role := range grantsToAdd.Roles {
@@ -1001,6 +1004,34 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 				}
 			}
 		}
+
+		for _, scopedTraitGrant := range grantsToAdd.ScopedTraits {
+			idx, exists := scopedTraitGrantIndices[scopedTraitGrant.Scope]
+			if !exists {
+				idx = len(grants.ScopedTraits)
+				scopedTraitGrantIndices[scopedTraitGrant.Scope] = idx
+				grants.ScopedTraits = append(grants.ScopedTraits, accesslist.ScopedTraitGrant{
+					Scope:  scopedTraitGrant.Scope,
+					Traits: make(trait.Traits),
+				})
+			}
+
+			traitGrant := &grants.ScopedTraits[idx]
+			for traitKey, traitValues := range scopedTraitGrant.Traits {
+				key := scopes.QualifiedName{Scope: scopedTraitGrant.Scope, Name: traitKey}
+				if _, exists := collectedScopedTraits[key]; !exists {
+					collectedScopedTraits[key] = make(map[string]struct{})
+				}
+				for _, traitValue := range traitValues {
+					if _, exists := collectedScopedTraits[key][traitValue]; exists {
+						continue
+					}
+					collectedScopedTraits[key][traitValue] = struct{}{}
+					traitGrant.Traits[traitKey] = append(traitGrant.Traits[traitKey], traitValue)
+				}
+			}
+		}
+
 	}
 
 	// Get ancestors via member relationship
@@ -1033,6 +1064,15 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 	for _, values := range grants.Traits {
 		slices.Sort(values)
 	}
+
+	for i := range grants.ScopedTraits {
+		for _, values := range grants.ScopedTraits[i].Traits {
+			slices.Sort(values)
+		}
+	}
+	slices.SortFunc(grants.ScopedTraits, func(a, b accesslist.ScopedTraitGrant) int {
+		return cmp.Compare(a.Scope, b.Scope)
+	})
 
 	return &grants, nil
 }

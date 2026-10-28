@@ -176,6 +176,9 @@ message AccessListGrants {
 
   // scoped_roles are scoped roles to be granted to users.
   repeated ScopedRoleGrant scoped_roles = 3;
+
+  // scoped_traits are the scoped traits to be granted to users.
+  repeated ScopedTraitGrant scoped_traits = 4;
 }
 
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
@@ -185,6 +188,14 @@ message ScopedRoleGrant {
   // scope is the scope the role will be granted at. It must be an assignable
   // scope of the role.
   string scope = 2;
+}
+
+// ScopedTraitGrant describes scoped traits granted at a specific scope.
+message ScopedTraitGrant {
+  // The scope the traits will be granted at.
+  string scope = 1;
+  // The list of traits to be granted.
+  repeated teleport.trait.v1.Trait traits = 2;
 }
 
 // Member describes a member of an Access List.

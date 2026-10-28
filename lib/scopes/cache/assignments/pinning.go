@@ -53,7 +53,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 	}
 
 	// Track whether we've added any assignments to detect the empty case
-	assignmentCount := 0
+	roleAssignmentCount := 0
 
 	// track the last error encountered when writing assignments. we generally want to just skip malformed assignments, but
 	// if all assignments seem malformed then we want to bubble up the error.
@@ -112,12 +112,25 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 					continue
 				}
 
-				assignmentCount++
+				roleAssignmentCount++
+			}
+
+			// Write the trait assignments to the pin's assignment tree. The write function will automatically handle
+			// deduplication and enforcing tree structure
+			for traitsAssignment := range scopedaccess.WeakValidatedTraitAssignments(assignment) {
+				scopeOfEffect := traitsAssignment.GetScope()
+				if err := pinning.WriteTraitsAssignment(pin, pinning.TraitsAssignment{
+					ScopeOfOrigin: scopeOfOrigin,
+					ScopeOfEffect: scopeOfEffect,
+					Traits:        traitsAssignment.GetTraits(),
+				}); err != nil {
+					slog.WarnContext(ctx, "failed to write traits assignment to scope pin", "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "user", user, "error", err)
+				}
 			}
 		}
 	}
 
-	if assignmentCount == 0 {
+	if roleAssignmentCount == 0 {
 		// if the assignment count is zero due to error(s) encountered during writing, return the most recent error.
 		if lastErr != nil {
 			return trace.Errorf("failed to populate any scoped role assignments for user %q applicable to pinned scope %q: last error: %w", user, pin.GetScope(), lastErr)
@@ -161,8 +174,8 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 // This deviates from the user implementation in the following way:
 // 1) Filters out assignments for users - i.e that don't specify bot_name and bot_scope.
 // 2) Ensures that the bot_scope within the SRA matches the specified bot_scope, else ignores.
-// 3) Ensures that sub-assignments are to a scope that is equiv or descendent to the Bot scope.
-// 4) Ensures that the pin scope is also equiv or descendent to the bot scope.
+// 3) Ensures that role and trait assignments are to a scope that is equivalent or descendant to the Bot scope.
+// 4) Ensures that the pin scope is also equivalent or descendant to the bot scope.
 // 3&4 will be relaxed with the introduction of cross-scope privilege for MWI.
 func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 	ctx context.Context, botName string, botScope string, pin *scopesv1.Pin,
@@ -199,8 +212,9 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 		)
 	}
 
-	// Track whether we've added any assignments to detect the empty case
-	assignmentCount := 0
+	// Track whether we've added any role assignments to detect the empty case.
+	// Traits alone do not grant access and therefore do not make a useful pin.
+	roleAssignmentCount := 0
 
 	// track the last error encountered when writing assignments. we generally want to just skip malformed assignments, but
 	// if all assignments seem malformed then we want to bubble up the error.
@@ -273,12 +287,40 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 					continue
 				}
 
-				assignmentCount++
+				roleAssignmentCount++
+			}
+
+			// Trait assignments follow the same scope-isolation rules as bot role
+			// assignments. In particular, they must apply at or below the bot's
+			// declared scope and must be relevant to the requested pin scope.
+			for traitsAssignment := range scopedaccess.WeakValidatedTraitAssignments(assignment) {
+				scopeOfEffect := traitsAssignment.GetScope()
+				if scopes.Compare(scopeOfEffect, pin.GetScope()) == scopes.Orthogonal {
+					continue
+				}
+				if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(scopeOfEffect) {
+					continue
+				}
+
+				if err := pinning.WriteTraitsAssignment(pin, pinning.TraitsAssignment{
+					ScopeOfOrigin: scopeOfOrigin,
+					ScopeOfEffect: scopeOfEffect,
+					Traits:        traitsAssignment.GetTraits(),
+				}); err != nil {
+					slog.WarnContext(
+						ctx,
+						"failed to write traits assignment to scope pin",
+						"scope_of_origin", scopeOfOrigin,
+						"scope_of_effect", scopeOfEffect,
+						"bot", botName,
+						"error", err,
+					)
+				}
 			}
 		}
 	}
 
-	if assignmentCount == 0 {
+	if roleAssignmentCount == 0 {
 		// if the assignment count is zero due to error(s) encountered during writing, return the most recent error.
 		if lastErr != nil {
 			return trace.Errorf("failed to populate any scoped role assignments for bot %q applicable to pinned scope %q: last error: %w", botName, pin.GetScope(), lastErr)

@@ -19,12 +19,16 @@
 package accesslists
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/gravitational/trace"
 
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -109,12 +113,13 @@ func validateAccessList(a *accesslist.AccessList) error {
 		}
 	}
 
-	// Any access lists that assign scoped roles cannot contain
+	// Any access lists that assign scoped roles or traits cannot contain
 	// membership_requires or ownership_requires.
 	hasRequirements := !a.Spec.MembershipRequires.IsEmpty() || !a.Spec.OwnershipRequires.IsEmpty()
 	hasScopedRoleGrants := len(a.Spec.Grants.ScopedRoles) > 0 || len(a.Spec.OwnerGrants.ScopedRoles) > 0
-	if hasScopedRoleGrants && hasRequirements {
-		return trace.BadParameter("access lists cannot contain both scoped_role grants and non-empty membership_requires or ownership_requires blocks")
+	hasScopedTraitGrants := len(a.Spec.Grants.ScopedTraits) > 0 || len(a.Spec.OwnerGrants.ScopedTraits) > 0
+	if (hasScopedRoleGrants || hasScopedTraitGrants) && hasRequirements {
+		return trace.BadParameter("access lists cannot contain scoped_role or scoped_trait grants together with non-empty membership_requires or ownership_requires blocks")
 	}
 
 	if a.Scope != "" {
@@ -137,6 +142,10 @@ func validateAccessList(a *accesslist.AccessList) error {
 	}
 
 	if err := validateScopedRoleGrants(a); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateScopedTraitGrants(a); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -207,6 +216,47 @@ func validateScopedRoleGrants(a *accesslist.AccessList) error {
 	// to a single scoped roles assignment.
 	if len(uniqueScopedRoleGrants) > scopedaccess.MaxRolesPerAssignment {
 		return trace.BadParameter("access list contains too many unique scoped role grants (max %d)", scopedaccess.MaxRolesPerAssignment)
+	}
+
+	return nil
+}
+
+func validateScopedTraitGrants(a *accesslist.AccessList) error {
+	convertGrantToAssignment := func(grant accesslist.ScopedTraitGrant) *scopedaccessv1.TraitsAssignment {
+		return scopedaccessv1.TraitsAssignment_builder{
+			Scope:  grant.Scope,
+			Traits: traitv1.ToProto(grant.Traits),
+		}.Build()
+	}
+
+	validateScopedTraitGrants := func(grants []accesslist.ScopedTraitGrant, fieldName string) error {
+		for i, grant := range grants {
+			switch {
+			case len(grant.Traits) == 0:
+				return trace.BadParameter("validating %s[%d]: traits are empty", fieldName, i)
+			case grant.Scope == "":
+				return trace.BadParameter("validating %s[%d]: scope is empty", fieldName, i)
+			}
+			if err := scopes.StrongValidate(grant.Scope); err != nil {
+				return trace.Wrap(err, "validating %s[%d]: granted scope", fieldName, i)
+			}
+			// Unscoped access lists materialize assignments at the root scope and
+			// may grant traits at root or any descendant, similar to scoped role
+			// behavior.
+			origin := cmp.Or(a.Scope, scopes.Root)
+			if !scopes.ScopeOfOrigin(origin).IsAssignableToScopeOfEffect(grant.Scope) {
+				return trace.BadParameter("validating %s[%d]: scope %q is not a sub-scope of the access list's scope %q", fieldName, i, grant.Scope, origin)
+			}
+		}
+		traitAssignments := stream.Map(stream.Slice(grants), convertGrantToAssignment)
+		return trace.Wrap(scopedaccess.ValidateTraitAssignments(traitAssignments, fieldName), "validating")
+	}
+
+	if err := validateScopedTraitGrants(a.Spec.Grants.ScopedTraits, "grants.scoped_traits"); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateScopedTraitGrants(a.Spec.OwnerGrants.ScopedTraits, "owner_grants.scoped_traits"); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

@@ -145,9 +145,10 @@ func ConvertGrantsFromProto(protoGrants *accesslistv1.AccessListGrants) accessli
 		return accesslist.Grants{}
 	}
 	return accesslist.Grants{
-		Roles:       protoGrants.GetRoles(),
-		Traits:      traitv1.FromProto(protoGrants.GetTraits()),
-		ScopedRoles: convertScopedRoleGrantsFromProto(protoGrants.GetScopedRoles()),
+		Roles:        protoGrants.GetRoles(),
+		Traits:       traitv1.FromProto(protoGrants.GetTraits()),
+		ScopedRoles:  convertScopedRoleGrantsFromProto(protoGrants.GetScopedRoles()),
+		ScopedTraits: convertScopedTraitGrantsFromProto(protoGrants.GetScopedTraits()),
 	}
 }
 
@@ -166,6 +167,24 @@ func convertScopedRoleGrantFromProto(scopedRoleGrant *accesslistv1.ScopedRoleGra
 	return accesslist.ScopedRoleGrant{
 		Role:  scopedRoleGrant.GetRole(),
 		Scope: scopedRoleGrant.GetScope(),
+	}
+}
+
+func convertScopedTraitGrantsFromProto(scopedTraitGrants []*accesslistv1.ScopedTraitGrant) []accesslist.ScopedTraitGrant {
+	if len(scopedTraitGrants) == 0 {
+		return nil
+	}
+	out := make([]accesslist.ScopedTraitGrant, len(scopedTraitGrants))
+	for i, scopedTraitGrant := range scopedTraitGrants {
+		out[i] = convertScopedTraitGrantFromProto(scopedTraitGrant)
+	}
+	return out
+}
+
+func convertScopedTraitGrantFromProto(scopedTraitGrant *accesslistv1.ScopedTraitGrant) accesslist.ScopedTraitGrant {
+	return accesslist.ScopedTraitGrant{
+		Scope:  scopedTraitGrant.GetScope(),
+		Traits: traitv1.FromProto(scopedTraitGrant.GetTraits()),
 	}
 }
 
@@ -320,9 +339,10 @@ func convertOwnersToProto(owners []accesslist.Owner) []*accesslistv1.AccessListO
 
 func ConvertGrantsToProto(grants accesslist.Grants) *accesslistv1.AccessListGrants {
 	return &accesslistv1.AccessListGrants{
-		Roles:       grants.Roles,
-		Traits:      traitv1.ToProto(grants.Traits),
-		ScopedRoles: convertScopedRolesToProto(grants.ScopedRoles),
+		Roles:        grants.Roles,
+		Traits:       traitv1.ToProto(grants.Traits),
+		ScopedRoles:  convertScopedRolesToProto(grants.ScopedRoles),
+		ScopedTraits: convertScopedTraitsToProto(grants.ScopedTraits),
 	}
 }
 
@@ -337,10 +357,28 @@ func convertScopedRolesToProto(scopedRoleGrants []accesslist.ScopedRoleGrant) []
 	return out
 }
 
+func convertScopedTraitsToProto(scopedTraitGrants []accesslist.ScopedTraitGrant) []*accesslistv1.ScopedTraitGrant {
+	if scopedTraitGrants == nil {
+		return nil
+	}
+	out := make([]*accesslistv1.ScopedTraitGrant, len(scopedTraitGrants))
+	for i, scopedTraitGrant := range scopedTraitGrants {
+		out[i] = toScopedTraitGrantProto(scopedTraitGrant)
+	}
+	return out
+}
+
 func toScopedRoleGrantProto(scopedRoleGrant accesslist.ScopedRoleGrant) *accesslistv1.ScopedRoleGrant {
 	return &accesslistv1.ScopedRoleGrant{
 		Role:  scopedRoleGrant.Role,
 		Scope: scopedRoleGrant.Scope,
+	}
+}
+
+func toScopedTraitGrantProto(scopedTraitGrant accesslist.ScopedTraitGrant) *accesslistv1.ScopedTraitGrant {
+	return &accesslistv1.ScopedTraitGrant{
+		Scope:  scopedTraitGrant.Scope,
+		Traits: traitv1.ToProto(scopedTraitGrant.Traits),
 	}
 }
 

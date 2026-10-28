@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/constants"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -154,7 +155,16 @@ func applyRules(src []*scopedaccessv1.ScopedRule, dst *types.RoleConditions) {
 // step of evaluation. This function also accepts the assigned scope as a parameter because we conventionally
 // format converted role names as "<role-name>@<assigned-scope>" to help ensure reasonable error messages from
 // role evaluation logic.
-func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (types.Role, error) {
+func ScopedRoleToRole(scopedRole *scopedaccessv1.ScopedRole, assignedScope string) (types.Role, error) {
+	// we modify the role's spec in place with the results of filterInvalidTemplateFromRole, so we copy first to prevent
+	// those modifications from escaping
+	sr := proto.CloneOf(scopedRole)
+	spec, err := filterInvalidTemplatesFromRole(sr.GetSpec(), false)
+	if err != nil && spec == nil {
+		return nil, trace.Wrap(err, "scoped role %q encountered unsafe trait validation errors")
+	}
+	sr.SetSpec(spec)
+
 	// role conversion applies unwanted wildcards for kube resources when left unassigned, so we
 	// explicitly validate the kube block as a sanity check
 	if err := validateKubeBlock(sr.GetSpec().GetKube()); err != nil {

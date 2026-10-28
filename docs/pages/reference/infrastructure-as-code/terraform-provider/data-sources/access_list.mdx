@@ -107,6 +107,7 @@ Optional:
 
 - `roles` (List of String) roles are the names of roles to be granted to users.
 - `scoped_roles` (Attributes List) scoped_roles are scoped roles to be granted to users. (see [below for nested schema](#nested-schema-for-specgrantsscoped_roles))
+- `scoped_traits` (Attributes List) scoped_traits are the scoped traits to be granted to users. (see [below for nested schema](#nested-schema-for-specgrantsscoped_traits))
 - `traits` (Attributes List) traits are the traits to be granted to users. (see [below for nested schema](#nested-schema-for-specgrantstraits))
 
 ### Nested Schema for `spec.grants.scoped_roles`
@@ -115,6 +116,22 @@ Optional:
 
 - `role` (String) role is the scope-qualified name of the scoped role to be granted.
 - `scope` (String) scope is the scope the role will be granted at. It must be an assignable scope of the role.
+
+
+### Nested Schema for `spec.grants.scoped_traits`
+
+Optional:
+
+- `scope` (String) The scope the traits will be granted at.
+- `traits` (Attributes List) The list of traits to be granted. (see [below for nested schema](#nested-schema-for-specgrantsscoped_traitstraits))
+
+### Nested Schema for `spec.grants.scoped_traits.traits`
+
+Optional:
+
+- `key` (String) key is the name of the trait.
+- `values` (List of String) values is the list of trait values.
+
 
 
 ### Nested Schema for `spec.grants.traits`
@@ -148,6 +165,7 @@ Optional:
 
 - `roles` (List of String) roles are the names of roles to be granted to users.
 - `scoped_roles` (Attributes List) scoped_roles are scoped roles to be granted to users. (see [below for nested schema](#nested-schema-for-specowner_grantsscoped_roles))
+- `scoped_traits` (Attributes List) scoped_traits are the scoped traits to be granted to users. (see [below for nested schema](#nested-schema-for-specowner_grantsscoped_traits))
 - `traits` (Attributes List) traits are the traits to be granted to users. (see [below for nested schema](#nested-schema-for-specowner_grantstraits))
 
 ### Nested Schema for `spec.owner_grants.scoped_roles`
@@ -156,6 +174,22 @@ Optional:
 
 - `role` (String) role is the scope-qualified name of the scoped role to be granted.
 - `scope` (String) scope is the scope the role will be granted at. It must be an assignable scope of the role.
+
+
+### Nested Schema for `spec.owner_grants.scoped_traits`
+
+Optional:
+
+- `scope` (String) The scope the traits will be granted at.
+- `traits` (Attributes List) The list of traits to be granted. (see [below for nested schema](#nested-schema-for-specowner_grantsscoped_traitstraits))
+
+### Nested Schema for `spec.owner_grants.scoped_traits.traits`
+
+Optional:
+
+- `key` (String) key is the name of the trait.
+- `values` (List of String) values is the list of trait values.
+
 
 
 ### Nested Schema for `spec.owner_grants.traits`

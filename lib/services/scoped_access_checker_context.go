@@ -441,6 +441,8 @@ func (c *ScopedAccessCheckerContext) AccessStateFromTLSIdentity(ctx context.Cont
 }
 
 // Traits returns the user traits for this context. Agent pin identities have no traits.
+// TODO (eriktate): we may want to consider removing or renaming this helper now that scoped access checkers expose
+// their enforcement-point specific traits. This can only expose global/unscoped traits as it stands
 func (c *ScopedAccessCheckerContext) Traits() wrappers.Traits {
 	if !c.isScoped() {
 		return c.unscopedChecker.Traits()

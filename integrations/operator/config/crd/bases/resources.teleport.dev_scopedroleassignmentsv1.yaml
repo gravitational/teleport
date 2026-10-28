@@ -54,7 +54,7 @@ spec:
             description: ScopedRoleAssignment resource definition v1 from Teleport
             properties:
               assignments:
-                description: Assignments is a list of individual role @ scope assignments.
+                description: Assignments is a list of individual role @ scope assignments
                 items:
                   properties:
                     role:
@@ -75,6 +75,35 @@ spec:
                   Mutually exclusive with `user`.  When specified, assignment scopes
                   must be equal or descendent of the scope indicated by this field.
                 type: string
+              traits:
+                description: A list of individual traits @ scope assignments
+                items:
+                  properties:
+                    scope:
+                      description: The scope to which the traits are assigned. This
+                        must be a member/child of the scope of the [ScopedRoleAssignment]
+                        in which this assignment is contained.
+                      type: string
+                    traits:
+                      description: A list of traits that should be applied at this
+                        scope.
+                      items:
+                        properties:
+                          key:
+                            description: key is the name of the trait.
+                            type: string
+                          values:
+                            description: values is the list of trait values.
+                            items:
+                              type: string
+                            nullable: true
+                            type: array
+                        type: object
+                      nullable: true
+                      type: array
+                  type: object
+                nullable: true
+                type: array
               user:
                 description: User is the user to whom all contained assignments apply.
                   Mutually exclusive with `bot`.

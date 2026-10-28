@@ -23,6 +23,7 @@
 package scopesv1
 
 import (
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -390,7 +391,7 @@ type AssignmentNode_builder struct {
 
 	// children are the child assignment nodes, keyed by scope segment.
 	Children map[string]*AssignmentNode
-	// role_tree is the subtree of roles assigned from this scope of origin, organized by *Scope of Effect*.
+	// role_tree is the subtree of roles and traits assigned from this scope of origin, organized by *Scope of Effect*.
 	RoleTree *RoleNode
 }
 
@@ -411,6 +412,7 @@ type RoleNode struct {
 	state                   protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Children     map[string]*RoleNode   `protobuf:"bytes,1,rep,name=children,proto3" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	xxx_hidden_RolesByScope *[]*RolesByScope       `protobuf:"bytes,3,rep,name=roles_by_scope,json=rolesByScope,proto3"`
+	xxx_hidden_Traits       *[]*v1.Trait           `protobuf:"bytes,4,rep,name=traits,proto3"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -456,12 +458,25 @@ func (x *RoleNode) GetRolesByScope() []*RolesByScope {
 	return nil
 }
 
+func (x *RoleNode) GetTraits() []*v1.Trait {
+	if x != nil {
+		if x.xxx_hidden_Traits != nil {
+			return *x.xxx_hidden_Traits
+		}
+	}
+	return nil
+}
+
 func (x *RoleNode) SetChildren(v map[string]*RoleNode) {
 	x.xxx_hidden_Children = v
 }
 
 func (x *RoleNode) SetRolesByScope(v []*RolesByScope) {
 	x.xxx_hidden_RolesByScope = &v
+}
+
+func (x *RoleNode) SetTraits(v []*v1.Trait) {
+	x.xxx_hidden_Traits = &v
 }
 
 type RoleNode_builder struct {
@@ -471,6 +486,8 @@ type RoleNode_builder struct {
 	Children map[string]*RoleNode
 	// roles_by_scope encodes the roles assigned at this Scope of Effect. The roles are grouped by their resource scope.
 	RolesByScope []*RolesByScope
+	// The traits assigned at this Scope of Effect.
+	Traits []*v1.Trait
 }
 
 func (b0 RoleNode_builder) Build() *RoleNode {
@@ -479,6 +496,7 @@ func (b0 RoleNode_builder) Build() *RoleNode {
 	_, _ = b, x
 	x.xxx_hidden_Children = b.Children
 	x.xxx_hidden_RolesByScope = &b.RolesByScope
+	x.xxx_hidden_Traits = &b.Traits
 	return m0
 }
 
@@ -779,7 +797,7 @@ var File_teleport_scopes_v1_scopes_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\n" +
-	"\x1fteleport/scopes/v1/scopes.proto\x12\x12teleport.scopes.v1\"\xf0\x01\n" +
+	"\x1fteleport/scopes/v1/scopes.proto\x12\x12teleport.scopes.v1\x1a\x1dteleport/trait/v1/trait.proto\"\xf0\x01\n" +
 	"\x03Pin\x12\x14\n" +
 	"\x05scope\x18\x01 \x01(\tR\x05scope\x12/\n" +
 	"\x04kind\x18\x04 \x01(\x0e2\x1b.teleport.scopes.v1.PinKindR\x04kind\x12K\n" +
@@ -790,10 +808,11 @@ const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\trole_tree\x18\x02 \x01(\v2\x1c.teleport.scopes.v1.RoleNodeR\broleTree\x1a_\n" +
 	"\rChildrenEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x128\n" +
-	"\x05value\x18\x02 \x01(\v2\".teleport.scopes.v1.AssignmentNodeR\x05value:\x028\x01\"\x82\x02\n" +
+	"\x05value\x18\x02 \x01(\v2\".teleport.scopes.v1.AssignmentNodeR\x05value:\x028\x01\"\xb4\x02\n" +
 	"\bRoleNode\x12F\n" +
 	"\bchildren\x18\x01 \x03(\v2*.teleport.scopes.v1.RoleNode.ChildrenEntryR\bchildren\x12F\n" +
-	"\x0eroles_by_scope\x18\x03 \x03(\v2 .teleport.scopes.v1.RolesByScopeR\frolesByScope\x1aY\n" +
+	"\x0eroles_by_scope\x18\x03 \x03(\v2 .teleport.scopes.v1.RolesByScopeR\frolesByScope\x120\n" +
+	"\x06traits\x18\x04 \x03(\v2\x18.teleport.trait.v1.TraitR\x06traits\x1aY\n" +
 	"\rChildrenEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x122\n" +
 	"\x05value\x18\x02 \x01(\v2\x1c.teleport.scopes.v1.RoleNodeR\x05value:\x028\x01J\x04\b\x02\x10\x03R\x05roles\":\n" +
@@ -839,6 +858,7 @@ var file_teleport_scopes_v1_scopes_proto_goTypes = []any{
 	(*Filter)(nil),            // 8: teleport.scopes.v1.Filter
 	nil,                       // 9: teleport.scopes.v1.AssignmentNode.ChildrenEntry
 	nil,                       // 10: teleport.scopes.v1.RoleNode.ChildrenEntry
+	(*v1.Trait)(nil),          // 11: teleport.trait.v1.Trait
 }
 var file_teleport_scopes_v1_scopes_proto_depIdxs = []int32{
 	0,  // 0: teleport.scopes.v1.Pin.kind:type_name -> teleport.scopes.v1.PinKind
@@ -848,14 +868,15 @@ var file_teleport_scopes_v1_scopes_proto_depIdxs = []int32{
 	4,  // 4: teleport.scopes.v1.AssignmentNode.role_tree:type_name -> teleport.scopes.v1.RoleNode
 	10, // 5: teleport.scopes.v1.RoleNode.children:type_name -> teleport.scopes.v1.RoleNode.ChildrenEntry
 	5,  // 6: teleport.scopes.v1.RoleNode.roles_by_scope:type_name -> teleport.scopes.v1.RolesByScope
-	1,  // 7: teleport.scopes.v1.Filter.mode:type_name -> teleport.scopes.v1.Mode
-	3,  // 8: teleport.scopes.v1.AssignmentNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.AssignmentNode
-	4,  // 9: teleport.scopes.v1.RoleNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.RoleNode
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	11, // 7: teleport.scopes.v1.RoleNode.traits:type_name -> teleport.trait.v1.Trait
+	1,  // 8: teleport.scopes.v1.Filter.mode:type_name -> teleport.scopes.v1.Mode
+	3,  // 9: teleport.scopes.v1.AssignmentNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.AssignmentNode
+	4,  // 10: teleport.scopes.v1.RoleNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.RoleNode
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_v1_scopes_proto_init() }

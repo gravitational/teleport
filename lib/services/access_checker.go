@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -334,6 +335,40 @@ type AccessInfo struct {
 	DelegationSessionID string
 	// Username is the Teleport username.
 	Username string
+}
+
+// Clones the given [*AccessInfo].
+func (a *AccessInfo) Clone() *AccessInfo {
+	var allowedResourceAccessIDs []types.ResourceAccessID
+	if len(a.AllowedResourceAccessIDs) > 0 {
+		allowedResourceAccessIDs = make([]types.ResourceAccessID, len(a.AllowedResourceAccessIDs))
+		for i, id := range a.AllowedResourceAccessIDs {
+			allowedResourceAccessIDs[i] = *apiutils.CloneProtoMsg(&id)
+		}
+	}
+	return &AccessInfo{
+		ScopePin:                 proto.CloneOf(a.ScopePin),
+		Roles:                    slices.Clone(a.Roles),
+		Traits:                   a.Traits.Clone(),
+		AllowedResourceAccessIDs: allowedResourceAccessIDs,
+		DelegationSessionID:      a.DelegationSessionID,
+		Username:                 a.Username,
+	}
+}
+
+// WithTraits returns a clone of the given [*AccessInfo] with the given traits appended.
+func (a *AccessInfo) WithTraits(traits wrappers.Traits) *AccessInfo {
+	if len(traits) == 0 {
+		return a
+	}
+	clone := a.Clone()
+	if clone.Traits == nil {
+		clone.Traits = make(wrappers.Traits)
+	}
+	for key, values := range traits {
+		clone.Traits[key] = append(clone.Traits[key], values...)
+	}
+	return clone
 }
 
 // accessChecker implements the AccessChecker interface.

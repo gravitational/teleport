@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.scopes.v1;
 
+import "teleport/trait/v1/trait.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1";
 
 // Pin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant
@@ -62,7 +64,7 @@ message AssignmentNode {
   // children are the child assignment nodes, keyed by scope segment.
   map<string, AssignmentNode> children = 1;
 
-  // role_tree is the subtree of roles assigned from this scope of origin, organized by *Scope of Effect*.
+  // role_tree is the subtree of roles and traits assigned from this scope of origin, organized by *Scope of Effect*.
   RoleNode role_tree = 2;
 }
 
@@ -79,6 +81,9 @@ message RoleNode {
 
   // roles_by_scope encodes the roles assigned at this Scope of Effect. The roles are grouped by their resource scope.
   repeated RolesByScope roles_by_scope = 3;
+
+  // The traits assigned at this Scope of Effect.
+  repeated teleport.trait.v1.Trait traits = 4;
 }
 
 // RolesByScope groups a set of roles that share the same resource scope. Because pins are subject to size constraints when encoded

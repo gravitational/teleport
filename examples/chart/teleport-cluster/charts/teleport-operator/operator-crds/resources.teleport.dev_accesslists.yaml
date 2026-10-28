@@ -119,6 +119,24 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  scoped_traits:
+                    description: scoped_traits are the scoped traits to be granted
+                      to users.
+                    items:
+                      properties:
+                        scope:
+                          description: The scope the traits will be granted at.
+                          type: string
+                        traits:
+                          additionalProperties:
+                            items:
+                              type: string
+                            type: array
+                          description: The list of traits to be granted.
+                          type: object
+                      type: object
+                    nullable: true
+                    type: array
                   traits:
                     additionalProperties:
                       items:
@@ -173,6 +191,24 @@ spec:
                           description: scope is the scope the role will be granted
                             at. It must be an assignable scope of the role.
                           type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  scoped_traits:
+                    description: scoped_traits are the scoped traits to be granted
+                      to users.
+                    items:
+                      properties:
+                        scope:
+                          description: The scope the traits will be granted at.
+                          type: string
+                        traits:
+                          additionalProperties:
+                            items:
+                              type: string
+                            type: array
+                          description: The list of traits to be granted.
+                          type: object
                       type: object
                     nullable: true
                     type: array

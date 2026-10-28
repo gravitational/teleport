@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/accesslists"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -943,6 +944,18 @@ func (m *Materializer) updateRelationshipAndMaterialize(
 	return m.materializeAssignment(ctx, list, relation, userName)
 }
 
+func appendScopedTraitGrantsToSRA(sra *scopedaccessv1.ScopedRoleAssignment, scopedTraitGrants []accesslist.ScopedTraitGrant) {
+	for _, grant := range scopedTraitGrants {
+		if len(grant.Traits) == 0 {
+			continue
+		}
+		sra.GetSpec().SetTraits(append(sra.GetSpec().GetTraits(), scopedaccessv1.TraitsAssignment_builder{
+			Scope:  grant.Scope,
+			Traits: traitv1.ToProto(grant.Traits),
+		}.Build()))
+	}
+}
+
 // materializeAssignment materializes a scoped role assignment for the given
 // (user, list) pair with the given relation between the user and list.
 //
@@ -989,6 +1002,7 @@ func (m *Materializer) materializeAssignment(
 				Scope: grant.Scope,
 			})
 		}
+		appendScopedTraitGrantsToSRA(assignment, list.Spec.Grants.ScopedTraits)
 	}
 	if relation.isOwner {
 		for _, grant := range list.Spec.OwnerGrants.ScopedRoles {
@@ -997,6 +1011,7 @@ func (m *Materializer) materializeAssignment(
 				Scope: grant.Scope,
 			})
 		}
+		appendScopedTraitGrantsToSRA(assignment, list.Spec.OwnerGrants.ScopedTraits)
 	}
 
 	m.logger.DebugContext(ctx, "Materializing scoped role assignment",
@@ -1862,11 +1877,11 @@ func (m *Materializer) repairMissedMembers(ctx context.Context) {
 }
 
 func hasMemberGrants(list *accesslist.AccessList) bool {
-	return len(list.Spec.Grants.ScopedRoles) > 0
+	return len(list.Spec.Grants.ScopedRoles) > 0 || len(list.Spec.Grants.ScopedTraits) > 0
 }
 
 func hasOwnerGrants(list *accesslist.AccessList) bool {
-	return len(list.Spec.OwnerGrants.ScopedRoles) > 0
+	return len(list.Spec.OwnerGrants.ScopedRoles) > 0 || len(list.Spec.OwnerGrants.ScopedTraits) > 0
 }
 
 func hasMembershipRequires(list *accesslist.AccessList) bool {

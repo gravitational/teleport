@@ -114,13 +114,21 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// TODO(fspmarshall/scopes): figure out how/when we want to support trait interpolation in scoped
-	// roles. When we do, that will likely need to be done here.
+	// Generate map of traits for the current role's enforcement point
+	traits := pinning.TraitMapForEnforcementPoint(b.info.ScopePin, scopes.EnforcementPoint{ScopeOfOrigin: key.ScopeOfOrigin, ScopeOfEffect: key.ScopeOfEffect})
+	info := b.info.WithTraits(traits)
+	role, err = ApplyTraitsWithContext(role, RoleTemplateContext{
+		Username: b.info.Username,
+		Traits:   info.Traits,
+		Scoped:   true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Create an access checker with this single role. Single-role evaluation is a core principle
 	// of the scoped access model - the first role that permits access determines all parameters.
-	checker := newAccessChecker(b.info, b.localCluster, newScopedRoleSet(role))
+	checker := newAccessChecker(info, b.localCluster, newScopedRoleSet(role))
 
 	return &ScopedAccessChecker{
 		scopeOfOrigin:       key.ScopeOfOrigin,

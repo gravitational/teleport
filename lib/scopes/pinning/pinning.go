@@ -29,8 +29,10 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/itertools"
 )
 
@@ -329,6 +331,14 @@ func validateRoleAssignmentWriteSafety(assignment RoleAssignment) error {
 // writeRoleAssignmentUnchecked is like WriteRoleAssignment, but does not perform any validation on the pin or assignment. This is useful
 // for tests.
 func writeRoleAssignmentUnchecked(pin *scopesv1.Pin, assignment RoleAssignment) {
+	roleNode := ensureRoleNodeAtEnforcementPoint(pin, assignment.ScopeOfOrigin, assignment.ScopeOfEffect)
+	// insert the role into this node's roles_by_scope grouping, keyed by the depth of the role's own resource scope.
+	insertRoleByScope(roleNode, uint32(scopes.Depth(assignment.RoleScope)), assignment.RoleName)
+}
+
+// ensureRoleNodeAtEnforcementPoint traverses the assignment tree to the given enforcement point and either returns
+// the [*scopesv1.RoleNode] found there or initializes a new one.
+func ensureRoleNodeAtEnforcementPoint(pin *scopesv1.Pin, scopeOfOrigin, scopeOfEffect string) *scopesv1.RoleNode {
 	// ensure the pin's assignment tree is initialized
 	if !pin.HasAssignmentTree() {
 		pin.SetAssignmentTree(&scopesv1.AssignmentNode{})
@@ -338,7 +348,7 @@ func writeRoleAssignmentUnchecked(pin *scopesv1.Pin, assignment RoleAssignment) 
 	assignmentNode := pin.GetAssignmentTree()
 
 	// descend to the correct assignment node for the scope of origin
-	for segment := range scopes.DescendingSegments(assignment.ScopeOfOrigin) {
+	for segment := range scopes.DescendingSegments(scopeOfOrigin) {
 		if assignmentNode.GetChildren() == nil {
 			assignmentNode.SetChildren(make(map[string]*scopesv1.AssignmentNode))
 		}
@@ -363,7 +373,7 @@ func writeRoleAssignmentUnchecked(pin *scopesv1.Pin, assignment RoleAssignment) 
 	// descend to the correct role node for the scope of effect. note that we skip the segments shared with	the scope
 	// of origin. the role tree is encoded *relative* to the scope of origin. the [validateRoleAssignmentWriteSafety]
 	// function ensures that the scope of origin is a prefix of the scope of effect.
-	for segment := range itertools.Skip(scopes.DescendingSegments(assignment.ScopeOfEffect), scopes.Depth(assignment.ScopeOfOrigin)) {
+	for segment := range itertools.Skip(scopes.DescendingSegments(scopeOfEffect), scopes.Depth(scopeOfOrigin)) {
 		if roleNode.GetChildren() == nil {
 			roleNode.SetChildren(make(map[string]*scopesv1.RoleNode))
 		}
@@ -377,8 +387,7 @@ func writeRoleAssignmentUnchecked(pin *scopesv1.Pin, assignment RoleAssignment) 
 		roleNode = child
 	}
 
-	// insert the role into this node's roles_by_scope grouping, keyed by the depth of the role's own resource scope.
-	insertRoleByScope(roleNode, uint32(scopes.Depth(assignment.RoleScope)), assignment.RoleName)
+	return roleNode
 }
 
 // insertRoleByScope inserts roleName into node's roles_by_scope grouping at the given role-scope depth, keeping the
@@ -580,7 +589,6 @@ func getUserRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementP
 	}
 
 	roleNode := assignmentNode.GetRoleTree()
-
 	// note that we skip the segments shared with the scope of origin. the role tree is encoded *relative* to the scope
 	// of origin. the [validateRoleAssignmentWriteSafety] function ensures that the scope of origin is a prefix of the
 	// scope of effect.
@@ -632,6 +640,83 @@ func getSystemRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.Enforcemen
 			RoleName:      string(sr),
 		}) {
 			return
+		}
+	}
+}
+
+// TraitMapForEnforcementPoint generates the map of traits applicable at a given enforcement point for a given pin.
+func TraitMapForEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint) wrappers.Traits {
+	traits := make(map[string][]string)
+	for roleNode := range enumerateRoleNodesForEnforcementPoint(pin, point) {
+		for _, trait := range roleNode.GetTraits() {
+			values := traits[trait.GetKey()]
+			traits[trait.GetKey()] = append(values, trait.GetValues()...)
+		}
+	}
+
+	return traits
+}
+
+// ascendRoleNodes traverses a tree of [*scopesv1.RoleNode] until segments are exhausted. The nodes are yielded in
+// reverse order with the deepest node resolving first and the given roleNode resolving last.
+func ascendRoleNodes(roleNode *scopesv1.RoleNode, segments []string, yield func(*scopesv1.RoleNode) bool) bool {
+	if len(segments) == 0 {
+		return yield(roleNode)
+	}
+	if child, ok := roleNode.GetChildren()[segments[0]]; ok {
+		if !ascendRoleNodes(child, segments[1:], yield) {
+			return false
+		}
+	}
+	return yield(roleNode)
+}
+
+// traverseRoleNodes returns an iterator traversing a [*scopesv1.RoleNode] tree either to a terminal node or until
+// all segments have been visited, whichever comes first. If called with ascending=true, role nodes will be yielded
+// in reverse order from deepest to most shallow.
+func traverseRoleNodes(roleNode *scopesv1.RoleNode, segments []string) iter.Seq[*scopesv1.RoleNode] {
+	return func(yield func(*scopesv1.RoleNode) bool) {
+		ascendRoleNodes(roleNode, segments, yield)
+	}
+}
+
+// enumerateRoleNodesForEnforcementPoint returns all [*scopesv1.RoleNode]s in evaluation order up to the
+// given [scopes.EnforcementPoint].
+func enumerateRoleNodesForEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint) iter.Seq[*scopesv1.RoleNode] {
+	return func(yield func(*scopesv1.RoleNode) bool) {
+		if !pin.HasAssignmentTree() {
+			return
+		}
+
+		if point.ScopeOfOrigin == "" || point.ScopeOfEffect == "" {
+			return
+		}
+
+		effectSegments := scopes.Split(point.ScopeOfEffect)
+		assignmentNode := pin.GetAssignmentTree()
+		for node := range traverseRoleNodes(assignmentNode.GetRoleTree(), effectSegments) {
+			if !yield(node) {
+				return
+			}
+		}
+
+		var depth int
+		for originSegment := range scopes.DescendingSegments(point.ScopeOfOrigin) {
+			var ok bool
+			assignmentNode, ok = assignmentNode.GetChildren()[originSegment]
+			if !ok {
+				return
+			}
+
+			depth++
+			if depth > len(effectSegments) {
+				return
+			}
+			for node := range traverseRoleNodes(assignmentNode.GetRoleTree(), effectSegments[depth:]) {
+				if !yield(node) {
+					return
+				}
+			}
 		}
 	}
 }
@@ -723,7 +808,7 @@ func enumerateRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegm
 // deepest Scope of Origin (i.e. those assignments theoretically authored/owned by the admins of least authority)
 // are preferentially pruned.
 //
-// It is important to understand that this is a rough approximation of the ideal pruning strategy. And admin in
+// It is important to understand that this is a rough approximation of the ideal pruning strategy. An admin in
 // `/staging/west` always outranks an admin in `/staging/west/testing`, however it isn't necessarily true that
 // an admin in `/staging/west` actually outranks an admin at `/prod/west/testing`. What we have selected is the
 // most *straightforward* pruning strategy that meaningfully respects scope hierarchy, but relative ranking of
@@ -790,6 +875,120 @@ func PruneAssignmentTree(ctx context.Context, pin *scopesv1.Pin, maxBytes int) (
 
 	// return total number of assignments pruned
 	return initialCount - countAssignments(pin.GetAssignmentTree())
+}
+
+// TraitsAssignment contains the details of a pinned traits assignment. This type is used when building traits
+// assignments within a scope pin.
+type TraitsAssignment struct {
+	ScopeOfOrigin string
+	ScopeOfEffect string
+	Traits        []*traitv1.Trait
+}
+
+// WriteTraitsAssignment encodes a trait assignment into the given scope pin's assignment tree. The pin must be compatible
+// with both the scope of origin and scope of effect of the assignment, and the scopes must be valid.
+func WriteTraitsAssignment(pin *scopesv1.Pin, assignment TraitsAssignment) error {
+	if pin.GetKind() != scopesv1.PinKind_PIN_KIND_USER {
+		return trace.BadParameter("cannot write traits assignment to scope pin of kind %v, expected %v", pin.GetKind(), scopesv1.PinKind_PIN_KIND_USER)
+	}
+	// verify that the assignment's scopes look like valid scopes.
+	if err := scopes.WeakValidate(assignment.ScopeOfOrigin); err != nil {
+		return trace.Errorf("cannot write traits assignment to scope pin, invalid scope of origin %q: %w", assignment.ScopeOfOrigin, err)
+	}
+	if err := scopes.WeakValidate(assignment.ScopeOfEffect); err != nil {
+		return trace.Errorf("cannot write traits assignment to scope pin, invalid scope of effect %q: %w", assignment.ScopeOfEffect, err)
+	}
+
+	// verify that the assignment's scope values are structurally representable within the pin's assignment tree
+	if !scopes.ScopeOfOrigin(assignment.ScopeOfOrigin).IsAssignableToScopeOfEffect(assignment.ScopeOfEffect) {
+		return trace.BadParameter("cannot write traits assignment to scope pin, scope of origin %q is incompatible with scope of effect %q",
+			assignment.ScopeOfOrigin, assignment.ScopeOfEffect)
+	}
+
+	// verify that the assignment's scopes actually apply to the pin's scope.
+	if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfOrigin) {
+		return trace.BadParameter("cannot write traits assignment with scope of origin %q to pin at %q: incompatible scopes", assignment.ScopeOfOrigin, pin.GetScope())
+	}
+	if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfEffect) {
+		return trace.BadParameter("cannot write traits assignment with scope of effect %q to pin at %q: incompatible scopes", assignment.ScopeOfEffect, pin.GetScope())
+	}
+
+	writeTraitsAssignmentUnchecked(pin, assignment)
+	return nil
+}
+
+// writeTraitsAssignmentUnchecked is like WriteTraitsAssignment, but does not perform any validation on the pin or
+// assignment.
+func writeTraitsAssignmentUnchecked(pin *scopesv1.Pin, assignment TraitsAssignment) {
+	roleNode := ensureRoleNodeAtEnforcementPoint(pin, assignment.ScopeOfOrigin, assignment.ScopeOfEffect)
+	roleNode.SetTraits(append(roleNode.GetTraits(), assignment.Traits...))
+}
+
+// EnumerateAllTraitsAssignments returns the sequence of [TraitsAssignment] assigned to the given pin.
+// Note that there are cases where the resulting sequence does not exactly match the original [TratisAssignment]s
+// written to the pin. This is because multiple assignments to the same enforcement point are coalesced into a single
+// assignment. Multiple assignments to the same key at the same enforcement point are similarly coalesced with their
+// values concatenated.
+func EnumerateAllTraitsAssignments(pin *scopesv1.Pin) iter.Seq[TraitsAssignment] {
+	return func(yield func(TraitsAssignment) bool) {
+		if pin == nil || !pin.HasAssignmentTree() {
+			return
+		}
+
+		enumerateAssignmentTraits(pin.GetAssignmentTree(), nil, yield)
+	}
+}
+
+// enumerateAssignmentTraits recursively walks an assignment tree node and all its descendants,
+// yielding all traits assignments found. The originSegments parameter tracks the scope of origin
+// path from root to the current node.
+func enumerateAssignmentTraits(node *scopesv1.AssignmentNode, originSegments []string, yield func(TraitsAssignment) bool) bool {
+	scopeOfOrigin := scopes.Join(originSegments...)
+
+	// Enumerate all traits in this node's role tree. The role tree is encoded relative to the scope of origin, so
+	// its root corresponds to the scope of effect being equal to the scope of origin. We therefore use the
+	// scope of origin segments as the initial value for the scope of effect segments.
+	if node.HasRoleTree() {
+		if !enumerateRoleNodeTraits(node.GetRoleTree(), scopeOfOrigin, originSegments, yield) {
+			return false
+		}
+	}
+
+	// Recursively enumerate all child assignment nodes
+	for segment, child := range node.GetChildren() {
+		childOriginSegments := append(originSegments, segment)
+		if !enumerateAssignmentTraits(child, childOriginSegments, yield) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// enumerateRoleNodeTraits recursively walks a role tree node and all its descendants, yielding all
+// traits assignments found. The effectSegments parameter tracks the scope of effect path from
+// root to the current node.
+func enumerateRoleNodeTraits(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegments []string, yield func(TraitsAssignment) bool) bool {
+	// Yield all traits at this node
+	if node.GetTraits() != nil {
+		if !yield(TraitsAssignment{
+			ScopeOfOrigin: scopeOfOrigin,
+			ScopeOfEffect: scopes.Join(effectSegments...),
+			Traits:        node.GetTraits(),
+		}) {
+			return false
+		}
+	}
+
+	// Recursively enumerate all child role nodes
+	for segment, child := range node.GetChildren() {
+		childEffectSegments := append(effectSegments, segment)
+		if !enumerateRoleNodeTraits(child, scopeOfOrigin, childEffectSegments, yield) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // maxAssignmentDepth returns the maximum Scope of Origin depth present in the assignment tree.

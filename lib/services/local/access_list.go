@@ -1417,8 +1417,8 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 }
 
 // checkScopesFeatures requires the scopes feature to be enabled if a new
-// scoped access list is being created or there are any *new* scoped role
-// grants in a list update.
+// scoped access list is being created or there are any new scoped role or
+// scoped trait grants in a list update.
 func (a *AccessListService) checkScopesFeatures(existingList, newList *accesslist.AccessList) error {
 	if a.scopesFeatures.Enabled {
 		return nil
@@ -1428,25 +1428,58 @@ func (a *AccessListService) checkScopesFeatures(existingList, newList *accesslis
 		return trace.Wrap(a.scopesFeatures.AssertEnabled())
 	}
 
-	if len(newList.Spec.Grants.ScopedRoles) == 0 && len(newList.Spec.OwnerGrants.ScopedRoles) == 0 {
-		// The new list does not grant any scoped roles, so no checks are needed.
+	hasRoleAssignments := len(newList.Spec.Grants.ScopedRoles)+len(newList.Spec.OwnerGrants.ScopedRoles) > 0
+	hasTraitAssignments := len(newList.Spec.Grants.ScopedTraits)+len(newList.Spec.OwnerGrants.ScopedTraits) > 0
+	if !hasRoleAssignments && !hasTraitAssignments {
+		// The new list does not grant any scoped roles or traits, so no checks are needed.
 		return nil
 	}
 
-	var existingListGrants utils.Set[accesslist.ScopedRoleGrant]
+	checkGrantsRequireScopes := func(newGrants, existingGrants accesslist.Grants) bool {
+		var existingRoleGrants utils.Set[accesslist.ScopedRoleGrant]
+		existingTraitValues := make(map[apiscopes.QualifiedName]utils.Set[string])
+
+		existingRoleGrants = utils.NewSet(existingGrants.ScopedRoles...)
+		for _, grant := range existingGrants.ScopedTraits {
+			for traitKey, values := range grant.Traits {
+				key := apiscopes.QualifiedName{Scope: grant.Scope, Name: traitKey}
+				if existingTraitValues[key] == nil {
+					existingTraitValues[key] = utils.NewSet[string]()
+				}
+				existingTraitValues[key].Add(values...)
+			}
+		}
+
+		newRoleGrants := utils.NewSet(newGrants.ScopedRoles...)
+		addedRoleGrants := newRoleGrants.Subtract(existingRoleGrants)
+
+		for _, grant := range newGrants.ScopedTraits {
+
+			for traitKey, values := range grant.Traits {
+				key := apiscopes.QualifiedName{Scope: grant.Scope, Name: traitKey}
+				for _, value := range values {
+					if !existingTraitValues[key].Contains(value) {
+						// new trait value added to grant
+						return true
+					}
+				}
+			}
+		}
+
+		if addedRoleGrants.Len() == 0 {
+			// The new grants do not grant any scoped roles at scopes not already granted by the existing list.
+			return false
+		}
+		return true
+	}
+
 	if existingList != nil {
-		existingListGrants = utils.NewSet(existingList.Spec.Grants.ScopedRoles...).Add(existingList.Spec.OwnerGrants.ScopedRoles...)
+		if !checkGrantsRequireScopes(newList.Spec.Grants, existingList.Spec.Grants) &&
+			!checkGrantsRequireScopes(newList.Spec.OwnerGrants, existingList.Spec.OwnerGrants) {
+			return nil
+		}
 	}
-	newListGrants := utils.NewSet(newList.Spec.Grants.ScopedRoles...).Add(newList.Spec.OwnerGrants.ScopedRoles...)
-	addedGrants := newListGrants.Subtract(existingListGrants)
-
-	if len(addedGrants) == 0 {
-		// The new list does not grant any scoped roles at scopes not already
-		// granted by the existing list.
-		return nil
-	}
-
-	// This list has new scoped role grants, the scopes feature must be enabled.
+	// This list has new scoped role or trait grants, so the scopes feature must be enabled.
 	return trace.Wrap(a.scopesFeatures.AssertEnabled())
 }
 

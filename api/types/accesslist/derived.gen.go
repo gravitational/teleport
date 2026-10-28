@@ -357,7 +357,8 @@ func deriveTeleportEqual_5(this, that *Grants) bool {
 		this != nil && that != nil &&
 			deriveTeleportEqual_7(this.Roles, that.Roles) &&
 			deriveTeleportEqual_8(this.Traits, that.Traits) &&
-			deriveTeleportEqual_9(this.ScopedRoles, that.ScopedRoles)
+			deriveTeleportEqual_9(this.ScopedRoles, that.ScopedRoles) &&
+			deriveTeleportEqual_10(this.ScopedTraits, that.ScopedTraits)
 }
 
 // deriveDeepCopy_4 recursively copies the contents of src into dst.
@@ -460,6 +461,24 @@ func deriveDeepCopy_7(dst, src *Grants) {
 			dst.ScopedRoles = make([]ScopedRoleGrant, len(src.ScopedRoles))
 		}
 		copy(dst.ScopedRoles, src.ScopedRoles)
+	}
+	if src.ScopedTraits == nil {
+		dst.ScopedTraits = nil
+	} else {
+		if dst.ScopedTraits != nil {
+			if len(src.ScopedTraits) > len(dst.ScopedTraits) {
+				if cap(dst.ScopedTraits) >= len(src.ScopedTraits) {
+					dst.ScopedTraits = (dst.ScopedTraits)[:len(src.ScopedTraits)]
+				} else {
+					dst.ScopedTraits = make([]ScopedTraitGrant, len(src.ScopedTraits))
+				}
+			} else if len(src.ScopedTraits) < len(dst.ScopedTraits) {
+				dst.ScopedTraits = (dst.ScopedTraits)[:len(src.ScopedTraits)]
+			}
+		} else {
+			dst.ScopedTraits = make([]ScopedTraitGrant, len(src.ScopedTraits))
+		}
+		deriveDeepCopy_12(dst.ScopedTraits, src.ScopedTraits)
 	}
 }
 
@@ -588,6 +607,22 @@ func deriveTeleportEqual_9(this, that []ScopedRoleGrant) bool {
 	return true
 }
 
+// deriveTeleportEqual_10 returns whether this and that are equal.
+func deriveTeleportEqual_10(this, that []ScopedTraitGrant) bool {
+	if this == nil || that == nil {
+		return this == nil && that == nil
+	}
+	if len(this) != len(that) {
+		return false
+	}
+	for i := 0; i < len(this); i++ {
+		if !(deriveTeleportEqual_11(&this[i], &that[i])) {
+			return false
+		}
+	}
+	return true
+}
+
 // deriveDeepCopy_10 recursively copies the contents of src into dst.
 func deriveDeepCopy_10(dst, src map[string]string) {
 	for src_key, src_value := range src {
@@ -619,5 +654,35 @@ func deriveDeepCopy_11(dst, src map[string][]string) {
 			}
 			copy(dst[src_key], src_value)
 		}
+	}
+}
+
+// deriveDeepCopy_12 recursively copies the contents of src into dst.
+func deriveDeepCopy_12(dst, src []ScopedTraitGrant) {
+	for src_i, src_value := range src {
+		func() {
+			field := new(ScopedTraitGrant)
+			deriveDeepCopy_13(field, &src_value)
+			dst[src_i] = *field
+		}()
+	}
+}
+
+// deriveTeleportEqual_11 returns whether this and that are equal.
+func deriveTeleportEqual_11(this, that *ScopedTraitGrant) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Scope == that.Scope &&
+			deriveTeleportEqual_8(this.Traits, that.Traits)
+}
+
+// deriveDeepCopy_13 recursively copies the contents of src into dst.
+func deriveDeepCopy_13(dst, src *ScopedTraitGrant) {
+	dst.Scope = src.Scope
+	if src.Traits != nil {
+		dst.Traits = make(map[string][]string, len(src.Traits))
+		deriveDeepCopy_11(dst.Traits, src.Traits)
+	} else {
+		dst.Traits = nil
 	}
 }

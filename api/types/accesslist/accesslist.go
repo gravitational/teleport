@@ -338,9 +338,33 @@ type Grants struct {
 	// Traits are the traits that are granted to users who are members of the access list.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 
-	// ScopedRoles are the scoped roels that are granted to users who are
+	// ScopedRoles are the scoped roles that are granted to users who are
 	// members of the access list.
 	ScopedRoles []ScopedRoleGrant `json:"scoped_roles" yaml:"scoped_roles"`
+
+	// ScopedTraits are the scoped traits that are granted to users who are
+	// members of the access list.
+	ScopedTraits []ScopedTraitGrant `json:"scoped_traits" yaml:"scoped_traits"`
+}
+
+// Clone returns a copy of the Grants.
+func (grants *Grants) Clone() Grants {
+	if grants == nil {
+		return Grants{}
+	}
+	var scopedTraitGrants []ScopedTraitGrant
+	if len(grants.ScopedTraits) > 0 {
+		scopedTraitGrants = make([]ScopedTraitGrant, len(grants.ScopedTraits))
+		for i, grant := range grants.ScopedTraits {
+			scopedTraitGrants[i] = grant.Clone()
+		}
+	}
+	return Grants{
+		Roles:        slices.Clone(grants.Roles),
+		Traits:       grants.Traits.Clone(),
+		ScopedRoles:  slices.Clone(grants.ScopedRoles),
+		ScopedTraits: scopedTraitGrants,
+	}
 }
 
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
@@ -350,6 +374,22 @@ type ScopedRoleGrant struct {
 	// Scope is the scope the role will be assigned at. It must be an assignable
 	// scope of the role.
 	Scope string `json:"scope" yaml:"scope"`
+}
+
+// ScopedTraitGrant describes scoped traits granted at a specific scope.
+type ScopedTraitGrant struct {
+	// Scope is the scope the traits will be assigned at.
+	Scope string `json:"scope" yaml:"scope"`
+	// Traits are the traits to be granted.
+	Traits trait.Traits `json:"traits" yaml:"traits"`
+}
+
+// Clone returns a deep copy of the scoped traits grant.
+func (g ScopedTraitGrant) Clone() ScopedTraitGrant {
+	return ScopedTraitGrant{
+		Scope:  g.Scope,
+		Traits: g.Traits.Clone(),
+	}
 }
 
 // Status contains dynamic fields calculated during retrieval.
@@ -746,9 +786,9 @@ func WithIgnoreEphemeralFields() EqualAccessListsOption {
 // comparison. This prevents false negatives in equality checks where slices
 // might have different orders or contain duplicates.
 //
-// The following fields are canonicalized: Grants (roles/traits/scopedRoles),
-// OwnerGrants (roles/traits/scopedRoles), MembershipRequires (roles/traits),
-// OwnershipRequires (roles/traits) and Owners.
+// The following fields are canonicalized: Grants (roles/traits/scopedRoles/scopedTraits),
+// OwnerGrants (roles/traits/scopedRoles/scopedTraits), MembershipRequires
+// (roles/traits), OwnershipRequires (roles/traits) and Owners.
 //
 // Note: This option reorders and de-duplicates the listed slice fields. As with
 // [WithIgnoreEphemeralFields], the input Access Lists are cloned (unless
@@ -878,6 +918,34 @@ func canonicalizeGrants(g *Grants) {
 	g.ScopedRoles = slices.Compact(g.ScopedRoles)
 	if len(g.ScopedRoles) == 0 {
 		g.ScopedRoles = nil
+	}
+
+	// Scoped trait grants at the same scope are equivalent to a single grant
+	// containing their merged traits. Canonicalize them to that representation,
+	// sorting and de-duplicating values to match unscoped trait behavior.
+	scopedTraitsByScope := make(map[string]trait.Traits)
+	for _, grant := range g.ScopedTraits {
+		traits := scopedTraitsByScope[grant.Scope]
+		if traits == nil {
+			traits = make(trait.Traits)
+			scopedTraitsByScope[grant.Scope] = traits
+		}
+		trait.Merge(traits, grant.Traits)
+	}
+
+	// reuse g.ScopedTraits storage instead of reallocating
+	g.ScopedTraits = g.ScopedTraits[:0]
+	for scope, traits := range scopedTraitsByScope {
+		g.ScopedTraits = append(g.ScopedTraits, ScopedTraitGrant{
+			Scope:  scope,
+			Traits: traits,
+		})
+	}
+	slices.SortFunc(g.ScopedTraits, func(a, b ScopedTraitGrant) int {
+		return strings.Compare(a.Scope, b.Scope)
+	})
+	if len(g.ScopedTraits) == 0 {
+		g.ScopedTraits = nil
 	}
 }
 

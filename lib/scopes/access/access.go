@@ -17,19 +17,27 @@
 package access
 
 import (
+	"errors"
 	"iter"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/label"
+	"github.com/gravitational/teleport/lib/traits"
+	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 const (
@@ -62,8 +70,14 @@ const (
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
 	// to avoid excess resource size and to keep our options open for the future.
 	maxAssignableScopes = 16
-	invalidChars        = "{}^$*"
-	invalidLabelChars   = "{}^$"
+
+	// invalidChars are the special characters that should not be allowed in certain keys or values.
+	invalidChars = "^$*"
+	// invalidLabelChars are the special characters that should not be allowed in label keys or values.
+	invalidLabelChars = "^$"
+
+	// maxTraitSize limits the size, in bytes, of traits assigned by a single assignment
+	maxTraitSize = 1024 // 1KiB
 )
 
 // RoleIsAssignableToScopeOfEffect checks if the given role is assignable to the given scope of effect. For example,
@@ -241,6 +255,10 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		return trace.BadParameter("scoped role %q's workload_identity %s", role.GetMetadata().GetName(), err)
 	}
 
+	if err := validateRoleTemplates(role.GetSpec()); err != nil {
+		return trace.BadParameter("scoped role %q has an invalid trait template: %s", role.GetMetadata().GetName(), err)
+	}
+
 	// verify that scoped role converts to a valid unscoped role
 	if _, err := ScopedRoleToRole(role, role.GetScope()); err != nil {
 		return trace.BadParameter("scoped role %q is malformed: %v", role.GetMetadata().GetName(), err)
@@ -396,6 +414,30 @@ func WeakValidatedSubAssignments(assignment *scopedaccessv1.ScopedRoleAssignment
 	}
 }
 
+// WeakValidatedTraitAssignments is a helper for iterating all well formed traits-assignments within a given assignment. Note that
+// the concept of a well-formed traits-assignment is distinct from whether or not an assignment is "broken/invalidated" in the sense
+// used when deciding whether or not an access-control check can be performed for a given scope. The only thing that is being filtered
+// out by this iterator is traits-assignments that are so obviously misconfigured that we can't reason about them at all.
+func WeakValidatedTraitAssignments(assignment *scopedaccessv1.ScopedRoleAssignment) iter.Seq[*scopedaccessv1.TraitsAssignment] {
+	return func(yield func(*scopedaccessv1.TraitsAssignment) bool) {
+		for _, traitsAssignment := range assignment.GetSpec().GetTraits() {
+			if err := scopes.WeakValidate(traitsAssignment.GetScope()); err != nil {
+				// ignore sub-assignments with invalid scopes
+				continue
+			}
+
+			if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(traitsAssignment.GetScope()) {
+				// ignore sub-assignments with scopes that do not conform to assignment subjugation rules
+				continue
+			}
+
+			if !yield(traitsAssignment) {
+				return
+			}
+		}
+	}
+}
+
 // WeakValidateAssignment validates an assignment to ensure it is free of obvious issues that would render it unusable and/or
 // induce serious unintended behavior. Prefer using this function for validating assignments loaded from "internal" sources
 // (e.g. backend/control-plane), and [StrongValidateAssignment] for validating assignments loaded from "external" sources (e.g. user input).
@@ -439,8 +481,8 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q has invalid scope: %v", assignment.GetMetadata().GetName(), err)
 	}
 
-	if len(assignment.GetSpec().GetAssignments()) == 0 {
-		return trace.BadParameter("scoped role assignment %q does not assign any roles", assignment.GetMetadata().GetName())
+	if len(assignment.GetSpec().GetAssignments()) == 0 && len(assignment.GetSpec().GetTraits()) == 0 {
+		return trace.BadParameter("scoped role assignment %q does not assign any roles or traits", assignment.GetMetadata().GetName())
 	}
 
 	if len(assignment.GetSpec().GetAssignments()) > MaxRolesPerAssignment {
@@ -509,6 +551,99 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 				)
 			}
 		}
+	}
+
+	// check trait assignments are valid
+	if err := ValidateTraitAssignments(stream.Slice(assignment.GetSpec().GetTraits()), "traits"); err != nil {
+		return trace.BadParameter("scoped role assignment %q: %v", assignment.GetMetadata().GetName(), err)
+	}
+
+	// check trait assignments are valid within their scoped role assignment
+	for i, traitAssn := range assignment.GetSpec().GetTraits() {
+		if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(traitAssn.GetScope()) {
+			return trace.BadParameter("scoped role assignment %q has trait assignment %d with scope %q that is not a sub-scope of the assignment's scope %q", assignment.GetMetadata().GetName(), i, traitAssn.GetScope(), assignment.GetScope())
+		}
+
+		// As per the MWI Scopes RFD, we enforce a special requirement for Bot
+		// assignments. Bot's can only be assigned privileges in scopes
+		// equivalent or descendent to their scope.
+		if botSet {
+			if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(traitAssn.GetScope()) {
+				return trace.BadParameter(
+					"scoped role assignment %q has trait assignment %d with scope %q that is not a sub-scope of the bot's declared scope %q",
+					assignment.GetMetadata().GetName(),
+					i,
+					traitAssn.GetScope(),
+					botScope,
+				)
+			}
+		}
+	}
+
+	return nil
+}
+
+// ValidateTraitAssignments validates a [stream.Stream] of [*scopedaccessv1.TraitsAssignment].
+func ValidateTraitAssignments(assignments stream.Stream[*scopedaccessv1.TraitsAssignment], fieldName string) error {
+	var keysSeen map[string]struct{}
+	var totalTraitSize int
+	var idx int
+	for assn := range assignments {
+		if err := scopes.StrongValidate(assn.GetScope()); err != nil {
+			return trace.BadParameter("%s[%d]: invalid scope: %v", fieldName, idx, err)
+		}
+		for _, trait := range assn.GetTraits() {
+			if err := ValidateAssignedTrait(trait); err != nil {
+				return trace.BadParameter("%s[%d]: %v", fieldName, idx, err)
+			}
+
+			if keysSeen == nil {
+				keysSeen = make(map[string]struct{})
+			}
+
+			if _, ok := keysSeen[trait.GetKey()]; ok {
+				return trace.BadParameter("%s[%d]: duplicate entries for %q", fieldName, idx, trait.GetKey())
+			}
+			keysSeen[trait.GetKey()] = struct{}{}
+		}
+
+		// exclude scope from size calculation so that trait size is consistent regardless of which scope is being
+		// assigned
+		totalTraitSize += proto.Size(assn) - len(assn.GetScope())
+
+		idx++
+		clear(keysSeen)
+	}
+
+	if totalTraitSize > maxTraitSize {
+		return trace.BadParameter("%s: byte size %d over the maximum %d", fieldName, totalTraitSize-maxTraitSize, maxTraitSize)
+	}
+
+	return nil
+}
+
+// ValidateAssignedTrait validates individual traits assigned within a [*scopedaccessv1.TraitAssignment]
+func ValidateAssignedTrait(trait *traitv1.Trait) error {
+	key := trait.GetKey()
+	if len(key) == 0 {
+		return trace.BadParameter("empty key")
+	}
+
+	values := trait.GetValues()
+	if len(values) == 0 {
+		return trace.BadParameter("empty values being assigned to key %q", key)
+	}
+
+	valuesSeen := make(map[string]struct{})
+	for _, value := range values {
+		if value == "" {
+			return trace.BadParameter("empty value assigned to key %q", key)
+		}
+
+		if _, ok := valuesSeen[value]; ok {
+			return trace.BadParameter("value %q duplicated for key %q", value, key)
+		}
+		valuesSeen[value] = struct{}{}
 	}
 
 	return nil
@@ -618,7 +753,7 @@ func validateKubeResource(resource *scopedaccessv1.KubeResource) error {
 	// renders correctly.
 	// (e.g. `scoped role "/my/scope::my-role"'s kube has invalid resource: resources[0].kind is required`)
 	for _, verb := range resource.GetVerbs() {
-		if !slices.Contains(types.KubernetesVerbs, verb) && verb != types.Wildcard {
+		if !slices.Contains(types.KubernetesVerbs, verb) && verb != types.Wildcard && !strings.Contains(verb, "{{") {
 			return trace.BadParameter("verbs contain invalid or unsupported %q; Supported: %v", verb, types.KubernetesVerbs)
 		}
 		if verb == types.Wildcard && len(resource.GetVerbs()) > 1 {
@@ -790,4 +925,248 @@ func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
 	}
 
 	return nil
+}
+
+// validateRoleTemplates validates all [scopedaccessv1.ScopedRoleSpec] fields that support templates.
+func validateRoleTemplates(spec *scopedaccessv1.ScopedRoleSpec) error {
+	_, err := filterInvalidTemplatesFromRole(spec, true)
+	return trace.Wrap(err)
+}
+
+// ScopedValidateTemplate validates a potentially templated value for use with scoped roles. If the value is not a
+// template, no error is returned.
+func ScopedValidateTemplate(value string) error {
+	if err := parse.ValidateTraitTemplateExpression(value, validateTemplateTrait); err != nil {
+		// we expect to get a typical.UnknownIdentifierError when the parser
+		// detects an unrecognized namespace, so we return a more explicit
+		// error instead
+		if identErr, ok := errors.AsType[typical.UnknownIdentifierError](err); ok {
+			return trace.BadParameter("trait expression %q is using an unrecognized namespace", identErr.Identifier())
+		}
+
+		// the context wrapping trace.BadParameterError here is user visible and
+		// typically noise, so we return it directly instead
+		if badParamErr, ok := errors.AsType[*trace.BadParameterError](err); ok {
+			return trace.Wrap(badParamErr)
+		}
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// validateTemplateTrait validates traits found in template expressions according to the rules required for scoped
+// roles. This is a stricter set of rules than applied at runtime to unscoped and compat roles and should be applied
+// whenever a scoped role is written to the backend.
+func validateTemplateTrait(namespace, key string) error {
+	if namespace != "" && key == "" {
+		return trace.BadParameter("trait expression is missing key, %s.<undefined>", namespace)
+	}
+
+	if namespace == "" && key != "" {
+		return trace.BadParameter("trait expression is missing namespace, <undefined>.%s", key)
+	}
+
+	switch namespace {
+	case teleport.TraitInternalPrefix:
+		if err := traits.ValidateInternalTraitKey(key); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.TraitExternalPrefix:
+		if err := traits.ValidateInternalTraitKey(key); err == nil {
+			return trace.BadParameter("trait key %q must be used with 'internal' namespace", key)
+		}
+	default:
+		// The expression parser should reject unknown namespaces before we get here,
+		// but this check prevents changes to the parser from inadvertently changing
+		// allowed namespaces for scoped roles.
+		return trace.BadParameter("unrecognized trait namespace %q", namespace)
+	}
+	return nil
+}
+
+// filterInvalidTemplatesFromRole filters invalid templates from all template-able fields in the
+// given [*scopedaccessv1.ScopedRoleSpec]. It returns a bool representing whether or not all invalid
+// fields were safely filtered along with any validation errors encountered as an aggregate error. If
+// failFast is enabled, then the first validation error encountered is returned before attempting to
+// validate the rest of the spec. If all fields were NOT safely filtered, the modified
+// [*scopedaccessv1.ScopedRoleSpec] is not safe for use.
+func filterInvalidTemplatesFromRole(spec *scopedaccessv1.ScopedRoleSpec, failFast bool) (*scopedaccessv1.ScopedRoleSpec, error) {
+	var outErrs []error
+	handleErrs := func(errs ...error) error {
+		if len(errs) > 0 && failFast {
+			return errs[0]
+		}
+		outErrs = append(outErrs, errs...)
+		return nil
+	}
+
+	// filter invalid ssh templates
+	if err := handleErrs(filterInvalidTemplates(spec.GetSsh().GetLogins, spec.GetSsh().SetLogins)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := handleErrs(filterInvalidTemplates(spec.GetSsh().GetHostSudoers, spec.GetSsh().SetHostSudoers)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := handleErrs(filterInvalidTemplates(spec.GetSsh().GetHostUserCreation().GetGroups, spec.GetSsh().GetHostUserCreation().SetGroups)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// filter invalid kube templates
+	if err := handleErrs(filterInvalidTemplates(spec.GetKube().GetGroups, spec.GetKube().SetGroups)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := handleErrs(filterInvalidTemplates(spec.GetKube().GetUsers, spec.GetKube().SetUsers)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var validResources []*scopedaccessv1.KubeResource
+	for _, res := range spec.GetKube().GetResources() {
+		// kind and api_group do not support templates, so we don't validate them here
+		//
+		// Rather than leave behind a malformed resource with invalid scalar
+		// configs, we skip it entirely if any of them fail validation
+		if err := ScopedValidateTemplate(res.GetNamespace()); err != nil {
+			if err := handleErrs(err); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+
+		if err := ScopedValidateTemplate(res.GetName()); err != nil {
+			if err := handleErrs(err); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+
+		// verbs get filtered rather than causing the entire resource to be dropped
+		if err := handleErrs(filterInvalidTemplates(res.GetVerbs, res.SetVerbs)...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		validResources = append(validResources, res)
+	}
+	if kube := spec.GetKube(); kube != nil {
+		if len(validResources) == 0 {
+			// No valid resources means the entire kube block is invalid and will not
+			// grant access. We explicitly set the entire block to nil so that invalid traits
+			// in the kube block do not prevent granting access for SSH, apps, etc.
+			spec.SetKube(nil)
+			outErrs = append(outErrs, trace.Errorf("scoped_role.spec.kube block without valid resources is dropped"))
+		} else {
+			kube.SetResources(validResources)
+		}
+	}
+
+	// filter invalid label templates
+	// NOTE: Dropping an invalid label key could result in increased access. An invalid
+	// label key, identified by filterInvalidTemplatesFromLabels returning 'false', instead
+	// drops the entire block the label lives in (e.g. spec.ssh, spec.kube, spec.app). Invalid
+	// values for a key are filtered.
+	if ok, errs := filterInvalidTemplatesFromLabels(spec.GetSsh().GetLabels()); len(errs) > 0 {
+		if err := handleErrs(errs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			spec.SetSsh(nil)
+		}
+	}
+
+	if ok, errs := filterInvalidTemplatesFromLabels(spec.GetKube().GetLabels()); len(errs) > 0 {
+		if err := handleErrs(errs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			spec.SetKube(nil)
+		}
+	}
+
+	if ok, errs := filterInvalidTemplatesFromLabels(spec.GetApp().GetLabels()); len(errs) > 0 {
+		if err := handleErrs(errs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			spec.SetApp(nil)
+		}
+	}
+
+	if ok, errs := filterInvalidTemplatesFromLabels(spec.GetWorkloadIdentity().GetLabels()); len(errs) > 0 {
+		if err := handleErrs(errs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			spec.SetWorkloadIdentity(nil)
+		}
+	}
+
+	// filter blocks with invalid label expressions
+	// NOTE: Dropping an invalid label expression, similar to label keys, could result in increased
+	// access. Instead of dropping the expression, we drop the entire block the expression lives in
+	// (e.g. spec.ssh, spec.kube, spec.app).
+	if err := ScopedValidateTemplate(spec.GetSsh().GetLabelExpression()); err != nil {
+		if err := handleErrs(err); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		spec.SetSsh(nil)
+	}
+
+	if err := ScopedValidateTemplate(spec.GetKube().GetLabelExpression()); err != nil {
+		if err := handleErrs(err); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		spec.SetKube(nil)
+	}
+
+	if err := ScopedValidateTemplate(spec.GetApp().GetLabelExpression()); err != nil {
+		if err := handleErrs(err); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		spec.SetApp(nil)
+	}
+
+	return spec, trace.NewAggregate(outErrs...)
+}
+
+func filterInvalidTemplatesFromLabels(labels []*labelv1.Label) (bool, []error) {
+	var outErrs []error
+	for _, label := range labels {
+		if err := ScopedValidateTemplate(label.GetName()); err != nil {
+			return false, []error{trace.Wrap(err)}
+		}
+
+		if errs := filterInvalidTemplates(label.GetValues, label.SetValues); len(errs) > 0 {
+			outErrs = append(errs, errs...)
+		}
+	}
+
+	return true, outErrs
+}
+
+// filterInvalidTemplates filters invalid templates from the list returned by "get()". The "set()"
+// callback is called with the filtered list before returning the list of errors encountered during
+// filtering.
+func filterInvalidTemplates(get func() []string, set func(values []string)) []error {
+	values := get()
+	if len(values) == 0 {
+		return nil
+	}
+
+	var (
+		out  []string
+		errs []error
+	)
+	for _, value := range values {
+		if err := ScopedValidateTemplate(value); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		out = append(out, value)
+	}
+
+	set(out)
+	return errs
 }

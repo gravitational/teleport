@@ -64,6 +64,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |roles|[]string|roles are the names of roles to be granted to users.|
 |scoped_roles|[][object](#specgrantsscoped_roles-items)|scoped_roles are scoped roles to be granted to users.|
+|scoped_traits|[][object](#specgrantsscoped_traits-items)|scoped_traits are the scoped traits to be granted to users.|
 |traits|[object](#specgrantstraits)|traits are the traits to be granted to users.|
 
 ### spec.grants.scoped_roles items
@@ -72,6 +73,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |role|string|role is the scope-qualified name of the scoped role to be granted.|
 |scope|string|scope is the scope the role will be granted at. It must be an assignable scope of the role.|
+
+### spec.grants.scoped_traits items
+
+|Field|Type|Description|
+|---|---|---|
+|scope|string|The scope the traits will be granted at.|
+|traits|[object](#specgrantsscoped_traits-itemstraits)|The list of traits to be granted.|
+
+### spec.grants.scoped_traits items.traits
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.grants.traits
 
@@ -100,6 +115,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |roles|[]string|roles are the names of roles to be granted to users.|
 |scoped_roles|[][object](#specowner_grantsscoped_roles-items)|scoped_roles are scoped roles to be granted to users.|
+|scoped_traits|[][object](#specowner_grantsscoped_traits-items)|scoped_traits are the scoped traits to be granted to users.|
 |traits|[object](#specowner_grantstraits)|traits are the traits to be granted to users.|
 
 ### spec.owner_grants.scoped_roles items
@@ -108,6 +124,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |role|string|role is the scope-qualified name of the scoped role to be granted.|
 |scope|string|scope is the scope the role will be granted at. It must be an assignable scope of the role.|
+
+### spec.owner_grants.scoped_traits items
+
+|Field|Type|Description|
+|---|---|---|
+|scope|string|The scope the traits will be granted at.|
+|traits|[object](#specowner_grantsscoped_traits-itemstraits)|The list of traits to be granted.|
+
+### spec.owner_grants.scoped_traits items.traits
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.owner_grants.traits
 
