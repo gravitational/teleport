@@ -2085,6 +2085,7 @@ func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateA
 		Expires:       req.Expires,
 		AuthorityType: types.CertAuthType(req.AuthorityType),
 		Scope:         req.Scope,
+		AppName:       req.AppName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

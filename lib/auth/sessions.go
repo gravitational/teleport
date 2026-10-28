@@ -49,6 +49,7 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -772,12 +773,25 @@ func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppToke
 		return "", trace.Wrap(err)
 	}
 
+	// As per RFD0309: the JWT CA is cluster-wide, so these claims are what let an app
+	// that validates them refuse a token minted for an app in another scope.
+	// Unscoped apps keep the cluster name and the app URI.
+	issuer := ca.GetClusterName()
+	audience := req.URI
+	if req.Scope != "" {
+		if req.AppName == "" {
+			return "", trace.BadParameter("scoped app token request is missing the app name")
+		}
+		issuer = scopedapp.JWTAppTokenIssuer(ca.GetClusterName(), req.Scope)
+		audience = scopedapp.JWTAppTokenAudience(req.Scope, req.AppName)
+	}
+
 	token, err := privateKey.Sign(jwt.SignParams{
-		Issuer:   ca.GetClusterName(),
+		Issuer:   issuer,
 		Username: req.Username,
 		Roles:    req.Roles,
 		Traits:   req.Traits,
-		Audience: req.URI,
+		Audience: audience,
 		Expires:  req.Expires,
 	})
 	if err != nil {

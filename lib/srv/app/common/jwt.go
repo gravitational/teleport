@@ -57,6 +57,7 @@ func GenerateJWTAndTraits(
 		URI:      app.GetURI(),
 		Expires:  expires,
 		Scope:    app.GetScope(),
+		AppName:  app.GetName(),
 	})
 	if err != nil {
 		return "", nil, trace.Wrap(err)

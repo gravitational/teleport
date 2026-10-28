@@ -1904,6 +1904,7 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		Expires:       req.Expires,
 		AuthorityType: string(req.AuthorityType),
 		Scope:         req.Scope,
+		AppName:       req.AppName,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
