@@ -49,7 +49,6 @@ required_fields:
   - "ScopedRoleAssignment.sub_kind"
   - "ScopedRoleAssignment.scope"
   - "ScopedRoleAssignment.spec"
-  - "ScopedRoleAssignment.spec.assignments"
 
 sensitive_fields:
 

@@ -44,12 +44,9 @@ Optional:
 
 ### Nested Schema for `spec`
 
-Required:
-
-- `assignments` (Attributes List) Assignments is a list of individual role @ scope assignments (see [below for nested schema](#nested-schema-for-specassignments))
-
 Optional:
 
+- `assignments` (Attributes List) Assignments is a list of individual role @ scope assignments (see [below for nested schema](#nested-schema-for-specassignments))
 - `bot` (String) The Bot to whom all contained assignments apply, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). Mutually exclusive with `user`.  When specified, assignment scopes must be equal or descendent of the scope indicated by this field.
 - `traits` (Attributes List) A list of individual traits @ scope assignments (see [below for nested schema](#nested-schema-for-spectraits))
 - `user` (String) User is the user to whom all contained assignments apply. Mutually exclusive with `bot`.

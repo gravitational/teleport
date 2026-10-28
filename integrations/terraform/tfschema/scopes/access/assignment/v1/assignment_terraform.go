@@ -98,6 +98,7 @@ func GenSchemaScopedRoleAssignmentResource(ctx context.Context) (github_com_hash
 		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
 				"assignments": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+					Computed:    true,
 					Description: "Assignments is a list of individual role @ scope assignments",
 					NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
 						"role": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
@@ -113,7 +114,8 @@ func GenSchemaScopedRoleAssignmentResource(ctx context.Context) (github_com_hash
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
 					}},
-					Required: true,
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseStateForUnknown()},
 				},
 				"bot": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
@@ -223,6 +225,7 @@ func GenSchemaScopedRoleAssignmentDataSource(ctx context.Context) (github_com_ha
 		"spec": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
 				"assignments": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+					Computed:    true,
 					Description: "Assignments is a list of individual role @ scope assignments",
 					NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
 						"role": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
@@ -236,7 +239,7 @@ func GenSchemaScopedRoleAssignmentDataSource(ctx context.Context) (github_com_ha
 							Optional:    true,
 						},
 					}},
-					Required: true,
+					Optional: true,
 				},
 				"bot": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,
