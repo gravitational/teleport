@@ -45,8 +45,11 @@ func NewFakeHostNetwork() (*FakeHostNetwork, error) {
 	}
 
 	hostTun, vnetTun := newSplitTUN()
+	// Intentional use of background context, users must call Close
 	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		if err := forwardBetweenTunAndNetstack(ctx, hostTun, nic); err != nil {
 			slog.ErrorContext(ctx, "Failed to forward packets between TUN and network stack")
 		}
@@ -56,13 +59,15 @@ func NewFakeHostNetwork() (*FakeHostNetwork, error) {
 		tun:   vnetTun,
 		stack: stack,
 		nic:   nic,
-		closeFn: func() {
+		closeFn: sync.OnceFunc(func() {
 			cancel()
-
+			nic.Close()
 			if err := hostTun.Close(); err != nil {
 				slog.ErrorContext(ctx, "failed to close host-side TUN")
 			}
-		},
+			<-done
+			stack.Destroy()
+		}),
 		readyCh: make(chan struct{}),
 	}, nil
 }
