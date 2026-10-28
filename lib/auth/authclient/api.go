@@ -1239,6 +1239,8 @@ type Cache interface {
 	// ListTunnelConnections returns a page of tunnel connections matching the given filter.
 	ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error)
 
+	services.AppGetter
+
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
@@ -1274,6 +1276,9 @@ type Cache interface {
 
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+
+	// ListRemoteClusters returns a page of remote clusters
+	ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)

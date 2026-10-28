@@ -32,6 +32,7 @@ import (
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -43,51 +44,43 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// Backend is the subset of the backend resources that the Service modifies.
-type Backend interface {
-	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
-	ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error)
-	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
-	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
-
-	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
-	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
-
-	DeleteRelayServer(ctx context.Context, name string) error
-
-	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
-	DeleteProxyServer(ctx context.Context, name string) error
-
-	DeleteAppServer(ctx context.Context, req *presencepb.DeleteAppServerRequest) error
-
-	GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (types.KubeCluster, error)
-	RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error]
-	DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error
-
-	DeleteKubeServer(ctx context.Context, req *presencepb.DeleteKubeServerRequest) error
-
-	GetSSHServer(ctx context.Context, req *presencepb.GetSSHServerRequest) (types.Server, error)
-	RangeSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) iter.Seq2[types.Server, error]
-	DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSHServerRequest) error
-
+type cache interface {
 	GetApplication(ctx context.Context, req *presencepb.GetApplicationRequest) (types.Application, error)
-	RangeApplications(ctx context.Context, req *presencepb.ListApplicationsRequest) iter.Seq2[types.Application, error]
-	DeleteApplication(ctx context.Context, req *presencepb.DeleteApplicationRequest) error
-}
-
-type Cache interface {
+	GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (types.KubeCluster, error)
+	GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error)
+	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
+	GetSSHServer(ctx context.Context, req *presencepb.GetSSHServerRequest) (types.Server, error)
 	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
-	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
-	GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error)
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error)
+	ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error)
+	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
+	RangeApplications(ctx context.Context, req *presencepb.ListApplicationsRequest) iter.Seq2[types.Application, error]
+	RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error]
+	RangeSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) iter.Seq2[types.Server, error]
 }
 
+// ensure that the auth cache implements the read-only methods we want; it's
+// still possible for auth.Server to override one of these, but in such a case
+// we should probably use the overridden method
+var _ cache = struct{ authclient.Cache }{}
+
 type AuthServer interface {
-	// DeleteRemoteCluster deletes the remote cluster and associated resources
-	// like certificate authorities.
-	// We need to invoke this directly on auth.Server.
+	cache
+
+	DeleteApplication(ctx context.Context, req *presencepb.DeleteApplicationRequest) error
+	DeleteAppServer(ctx context.Context, req *presencepb.DeleteAppServerRequest) error
+	DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error
+	DeleteKubeServer(ctx context.Context, req *presencepb.DeleteKubeServerRequest) error
+	DeleteProxyServer(ctx context.Context, name string) error
+	DeleteRelayServer(ctx context.Context, name string) error
 	DeleteRemoteCluster(ctx context.Context, clusterName string) error
+	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
+	DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSHServerRequest) error
+	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
+	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
+	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 }
 
 // ServiceConfig holds configuration options for
@@ -96,8 +89,6 @@ type ServiceConfig struct {
 	Authorizer       authz.Authorizer
 	ScopedAuthorizer authz.ScopedAuthorizer
 	AuthServer       AuthServer
-	Backend          Backend
-	Cache            Cache
 	Logger           *slog.Logger
 	Emitter          apievents.Emitter
 	Reporter         usagereporter.UsageReporter
@@ -111,8 +102,6 @@ type Service struct {
 	authorizer       authz.Authorizer
 	scopedAuthorizer authz.ScopedAuthorizer
 	authServer       AuthServer
-	backend          Backend
-	cache            Cache
 	logger           *slog.Logger
 	emitter          apievents.Emitter
 	reporter         usagereporter.UsageReporter
@@ -124,8 +113,6 @@ var _ presencepb.PresenceServiceServer = (*Service)(nil)
 // NewService returns a new presence gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
 	switch {
-	case cfg.Backend == nil:
-		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.ScopedAuthorizer == nil:
@@ -136,8 +123,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("reporter is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("auth server is required")
-	case cfg.Cache == nil:
-		return nil, trace.BadParameter("cache is required")
 	}
 
 	if cfg.Logger == nil {
@@ -152,8 +137,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authorizer:       cfg.Authorizer,
 		scopedAuthorizer: cfg.ScopedAuthorizer,
 		authServer:       cfg.AuthServer,
-		backend:          cfg.Backend,
-		cache:            cfg.Cache,
 
 		emitter:  cfg.Emitter,
 		reporter: cfg.Reporter,
@@ -177,7 +160,7 @@ func (s *Service) GetRemoteCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	rc, err := s.backend.GetRemoteCluster(ctx, req.GetName())
+	rc, err := s.authServer.GetRemoteCluster(ctx, req.GetName())
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
@@ -211,7 +194,7 @@ func (s *Service) ListRemoteClusters(
 		return nil, trace.Wrap(err)
 	}
 
-	page, nextToken, err := s.backend.ListRemoteClusters(
+	page, nextToken, err := s.authServer.ListRemoteClusters(
 		ctx, int(req.GetPageSize()), req.GetPageToken(),
 	)
 	if err != nil {
@@ -275,7 +258,7 @@ func (s *Service) UpdateRemoteCluster(
 
 	// If the update mask is empty, update the entire remote cluster.
 	if len(req.GetUpdateMask().GetPaths()) == 0 {
-		rc, err := s.backend.UpdateRemoteCluster(ctx, req.GetRemoteCluster())
+		rc, err := s.authServer.UpdateRemoteCluster(ctx, req.GetRemoteCluster())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -294,7 +277,7 @@ func (s *Service) UpdateRemoteCluster(
 	// Otherwise, we apply the update mask to the current remote cluster using
 	// a patch operation.
 	req.GetUpdateMask().Normalize()
-	rc, err := s.backend.PatchRemoteCluster(ctx, req.GetRemoteCluster().GetName(), func(rc types.RemoteCluster) (types.RemoteCluster, error) {
+	rc, err := s.authServer.PatchRemoteCluster(ctx, req.GetRemoteCluster().GetName(), func(rc types.RemoteCluster) (types.RemoteCluster, error) {
 		for _, path := range req.GetUpdateMask().GetPaths() {
 			switch path {
 			case "Metadata.Labels":
@@ -390,7 +373,7 @@ func (s *Service) DeleteAppServer(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteAppServer(ctx, req); err != nil {
+	if err := s.authServer.DeleteAppServer(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return presencepb.DeleteAppServerResponse_builder{}.Build(), nil
@@ -409,7 +392,7 @@ func (s *Service) ListAuthServers(
 		return nil, trace.Wrap(err)
 	}
 
-	servers, nextToken, err := s.cache.ListAuthServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	servers, nextToken, err := s.authServer.ListAuthServers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -447,7 +430,7 @@ func (s *Service) ListProxyServers(
 		return nil, trace.Wrap(err)
 	}
 
-	servers, nextToken, err := s.cache.ListProxyServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	servers, nextToken, err := s.authServer.ListProxyServers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -484,7 +467,7 @@ func (s *Service) ListReverseTunnels(
 		return nil, trace.Wrap(err)
 	}
 
-	page, nextToken, err := s.cache.ListReverseTunnels(
+	page, nextToken, err := s.authServer.ListReverseTunnels(
 		ctx, int(req.GetPageSize()), req.GetPageToken(),
 	)
 	if err != nil {
@@ -532,7 +515,7 @@ func (s *Service) UpsertReverseTunnel(
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.backend.UpsertReverseTunnel(ctx, req.GetReverseTunnel())
+	res, err := s.authServer.UpsertReverseTunnel(ctx, req.GetReverseTunnel())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -560,7 +543,7 @@ func (s *Service) DeleteReverseTunnel(
 		return nil, trace.BadParameter("name: must be specified")
 	}
 
-	return nil, trace.Wrap(s.backend.DeleteReverseTunnel(ctx, req.GetName()))
+	return nil, trace.Wrap(s.authServer.DeleteReverseTunnel(ctx, req.GetName()))
 }
 
 // GetRelayServer implements [presencepb.PresenceServiceServer].
@@ -573,7 +556,7 @@ func (s *Service) GetRelayServer(ctx context.Context, req *presencepb.GetRelaySe
 		return nil, trace.Wrap(err)
 	}
 
-	relayServer, err := s.cache.GetRelayServer(ctx, req.GetName())
+	relayServer, err := s.authServer.GetRelayServer(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -593,7 +576,7 @@ func (s *Service) ListRelayServers(ctx context.Context, req *presencepb.ListRela
 		return nil, trace.Wrap(err)
 	}
 
-	relayServers, nextPageToken, err := s.cache.ListRelayServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	relayServers, nextPageToken, err := s.authServer.ListRelayServers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -614,7 +597,7 @@ func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteR
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteRelayServer(ctx, req.GetName()); err != nil {
+	if err := s.authServer.DeleteRelayServer(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -654,7 +637,7 @@ func (s *Service) UpsertProxyServer(
 		srv.SetAddr(utils.ReplaceLocalhost(srv.GetAddr(), p.Addr.String()))
 	}
 
-	upserted, err := s.backend.UpsertProxyServer(ctx, srv)
+	upserted, err := s.authServer.UpsertProxyServer(ctx, srv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,7 +666,7 @@ func (s *Service) DeleteProxyServer(
 		return nil, trace.BadParameter("name: must be specified")
 	}
 
-	if err := s.backend.DeleteProxyServer(ctx, req.GetName()); err != nil {
+	if err := s.authServer.DeleteProxyServer(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &presencepb.DeleteProxyServerResponse{}, nil
@@ -706,7 +689,7 @@ func (s *Service) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClu
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err := s.backend.GetKubeCluster(ctx, req)
+	cluster, err := s.authServer.GetKubeCluster(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -758,7 +741,7 @@ func (s *Service) ListKubeClusters(ctx context.Context, req *presencepb.ListKube
 
 	clusters, nextToken, err := generic.CollectPageAndCursor(
 		stream.FilterMap(
-			s.backend.RangeKubeClusters(ctx, req),
+			s.authServer.RangeKubeClusters(ctx, req),
 			func(cluster types.KubeCluster) (*types.KubernetesClusterV3, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if _, err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -799,7 +782,7 @@ func (s *Service) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteK
 	}
 
 	// Make sure user has access to the kubernetes cluster before deleting.
-	cluster, err := s.backend.GetKubeCluster(ctx, presencepb.GetKubeClusterRequest_builder{
+	cluster, err := s.authServer.GetKubeCluster(ctx, presencepb.GetKubeClusterRequest_builder{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	}.Build())
@@ -815,7 +798,7 @@ func (s *Service) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteK
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteKubeCluster(ctx, req); err != nil {
+	if err := s.authServer.DeleteKubeCluster(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -864,7 +847,7 @@ func (s *Service) DeleteKubeServer(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteKubeServer(ctx, req); err != nil {
+	if err := s.authServer.DeleteKubeServer(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return presencepb.DeleteKubeServerResponse_builder{}.Build(), nil
@@ -882,7 +865,7 @@ func (s *Service) GetSSHServer(ctx context.Context, req *presencepb.GetSSHServer
 		return nil, trace.Wrap(err)
 	}
 
-	node, err := s.backend.GetSSHServer(ctx, req)
+	node, err := s.authServer.GetSSHServer(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -932,7 +915,7 @@ func (s *Service) ListSSHServers(ctx context.Context, req *presencepb.ListSSHSer
 
 	servers, nextToken, err := generic.CollectPageAndCursor(
 		stream.FilterMap(
-			s.backend.RangeSSHServers(ctx, req),
+			s.authServer.RangeSSHServers(ctx, req),
 			func(node types.Server) (*types.ServerV2, bool) {
 				// Filter out nodes the user doesn't have access to.
 				if _, err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -977,7 +960,7 @@ func (s *Service) DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSH
 	}
 
 	// Make sure the user has access to the node before deleting it.
-	node, err := s.backend.GetSSHServer(ctx, presencepb.GetSSHServerRequest_builder{
+	node, err := s.authServer.GetSSHServer(ctx, presencepb.GetSSHServerRequest_builder{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	}.Build())
@@ -990,7 +973,7 @@ func (s *Service) DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSH
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteSSHServer(ctx, req); err != nil {
+	if err := s.authServer.DeleteSSHServer(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return presencepb.DeleteSSHServerResponse_builder{}.Build(), nil
@@ -1008,7 +991,7 @@ func (s *Service) GetApplication(ctx context.Context, req *presencepb.GetApplica
 		return nil, trace.Wrap(err)
 	}
 
-	app, err := s.backend.GetApplication(ctx, req)
+	app, err := s.authServer.GetApplication(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1058,7 +1041,7 @@ func (s *Service) ListApplications(ctx context.Context, req *presencepb.ListAppl
 
 	apps, nextToken, err := generic.CollectPageAndCursor(
 		stream.FilterMap(
-			s.backend.RangeApplications(ctx, req),
+			s.authServer.RangeApplications(ctx, req),
 			func(app types.Application) (*types.AppV3, bool) {
 				// Filter out apps the user doesn't have access to.
 				if _, err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -1103,7 +1086,7 @@ func (s *Service) DeleteApplication(ctx context.Context, req *presencepb.DeleteA
 	}
 
 	// Make sure the user has access to the app before deleting it.
-	app, err := s.backend.GetApplication(ctx, presencepb.GetApplicationRequest_builder{
+	app, err := s.authServer.GetApplication(ctx, presencepb.GetApplicationRequest_builder{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
 	}.Build())
@@ -1119,7 +1102,7 @@ func (s *Service) DeleteApplication(ctx context.Context, req *presencepb.DeleteA
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteApplication(ctx, req); err != nil {
+	if err := s.authServer.DeleteApplication(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
