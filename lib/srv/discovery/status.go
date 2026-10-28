@@ -107,6 +107,9 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		// Merge Azure AKS clusters discovery status.
 		discoveryConfigStatus = s.azureAKSStatus.Load().mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
+		// Merge Azure Windows VMs discovery status.
+		discoveryConfigStatus = s.azureWindowsVMStatus.Load().mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+
 		// Ensure the error message is truncated to the maximum allowed size.
 		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
 		discoveryConfigStatus.ErrorMessage = truncateErrorMessage(discoveryConfigStatus)
@@ -1308,6 +1311,8 @@ func integrationDiscoveredSummaryUpdate(summary *discoveryconfig.IntegrationDisc
 		summary.AzureVms = resourcesSummary
 	case types.AzureMatcherKubernetes:
 		summary.AzureAks = resourcesSummary
+	case types.AzureMatcherWindowsVM:
+		summary.AzureWindowsVms = resourcesSummary
 	default:
 		slog.WarnContext(context.Background(), "Unknown integration discovered summary resource type (this is a bug)", "resource_type", resourceType)
 	}

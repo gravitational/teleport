@@ -116,10 +116,9 @@ func (vm *VirtualMachine) IsLinuxOrUnknown() bool {
 	return vm.operatingSystem == nil || *vm.operatingSystem == armcompute.OperatingSystemTypesLinux
 }
 
-// IsWindowsOrUnknown returns whether the VM is running Windows or if the
-// operating system is unknown.
-func (vm *VirtualMachine) IsWindowsOrUnknown() bool {
-	return vm.operatingSystem == nil || *vm.operatingSystem == armcompute.OperatingSystemTypesWindows
+// IsWindows returns whether the VM is running Windows.
+func (vm *VirtualMachine) IsWindows() bool {
+	return vm.operatingSystem != nil && *vm.operatingSystem == armcompute.OperatingSystemTypesWindows
 }
 
 // Identity represents an Azure virtual machine identity.

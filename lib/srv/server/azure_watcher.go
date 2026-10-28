@@ -38,7 +38,6 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/server/installstatus"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const azureEventPrefix = "azure/"
@@ -168,7 +167,7 @@ func (instances *AzureInstances) LogValue() slog.Value {
 
 // FilterExistingDesktops removes instances matching existing dynamic Windows
 // desktops in place and returns the removed instances.
-func (instances *AzureInstances) FilterExistingDesktops(existingDesktops []types.DynamicWindowsDesktop) []*azure.VirtualMachine {
+func (instances *AzureInstances) FilterExistingDesktops(existingDesktops []types.DynamicWindowsDesktop) []MatchedInstance[types.DynamicWindowsDesktop] {
 	return filterExistingInstances(instances, existingDesktops)
 }
 
@@ -177,25 +176,36 @@ func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Serve
 	filterExistingInstances(instances, existingNodes)
 }
 
+// MatchedInstance pairs a discovered Azure VM with the existing Teleport
+// resource that matches it.
+type MatchedInstance[T types.ResourceWithLabels] struct {
+	VM       *azure.VirtualMachine
+	Resource T
+}
+
 // filterExistingInstances removes instances matching existing resources in
-// place and returns the removed instances.
-func filterExistingInstances[T types.ResourceWithLabels](instances *AzureInstances, existingInstances []T) []*azure.VirtualMachine {
-	vmIDs := set.New[string]()
+// place and returns the removed instances matched with its existing resource.
+func filterExistingInstances[T types.ResourceWithLabels](instances *AzureInstances, existingInstances []T) []MatchedInstance[T] {
+	resourcesByVMID := make(map[string]T)
 	for _, instance := range existingInstances {
 		if subID := types.GetAzureSubscriptionID(instance); subID != instances.Metadata.SubscriptionID {
 			continue
 		}
 		if vmID := types.GetAzureVMID(instance); vmID != "" {
-			vmIDs.Add(vmID)
+			resourcesByVMID[vmID] = instance
 		}
 	}
 
 	// Reslice the Instances slice so we can filter it in place.
 	kept := instances.Instances[:0]
-	var removedVMs []*azure.VirtualMachine
+	var removedVMs []MatchedInstance[T]
 	for _, vm := range instances.Instances {
-		if vmIDs.Contains(vm.VMID) {
-			removedVMs = append(removedVMs, vm)
+		existing, found := resourcesByVMID[vm.VMID]
+		if found {
+			removedVMs = append(removedVMs, MatchedInstance[T]{
+				VM:       vm,
+				Resource: existing,
+			})
 		} else {
 			kept = append(kept, vm)
 		}
@@ -316,7 +326,7 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 	}
 	fetcher.osMatches = (*azure.VirtualMachine).IsLinuxOrUnknown
 	if cfg.MatcherType == types.AzureMatcherWindowsVM {
-		fetcher.osMatches = (*azure.VirtualMachine).IsWindowsOrUnknown
+		fetcher.osMatches = (*azure.VirtualMachine).IsWindows
 	}
 	return fetcher
 }
