@@ -38,11 +38,15 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, p httprou
 		return trace.Wrap(err)
 	}
 
-	// delete these cookies on logout.
-	expireCookie(w, CookieName)
-	expireCookie(w, SubjectCookieName)
+	clearAppSessionCookies(w)
 	http.Error(w, "Logged out.", http.StatusOK)
 	return nil
+}
+
+// clearSessionCookies clears Web UI session and SAML session cookie.
+func clearAppSessionCookies(w http.ResponseWriter) {
+	expireCookie(w, CookieName)
+	expireCookie(w, SubjectCookieName)
 }
 
 func expireCookie(w http.ResponseWriter, cookieName string) {

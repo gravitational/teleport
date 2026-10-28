@@ -4219,13 +4219,6 @@ const (
 	MFARequiredPerRole MFARequired = "per-role"
 )
 
-// UserSessionRoleNotFoundErrorMsg is added to "role not found" errors when they occur
-// during user session roles validation. This allows the Web UI to distinguish between
-// a user session role lookup error (which should prompt the user to re-login) vs. other role lookup
-// failures.
-// Keep in sync with teleport/src/services/api/api.ts(isUserSessionRoleNotFoundError)
-const UserSessionRoleNotFoundErrorMsg = "user session role not found"
-
 // knownAppResourceFields lists the JSON field names this version understands
 // on an app_resources rule, derived from the AppResource message so a new
 // proto field extends it automatically.

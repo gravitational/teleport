@@ -137,6 +137,9 @@ const (
 	// rules deny the request path or method. The client may still access other
 	// paths of the application.
 	AppErrorCodeResourceDenied AppErrorCode = "resource-denied"
+	// AppErrorCodeSessionInvalid means the app session is invalid, e.g. due to
+	// a backing role or user resource being deleted.
+	AppErrorCodeSessionInvalid AppErrorCode = "session-invalid"
 )
 
 // ReservedHeaders is a list of headers injected by Teleport.

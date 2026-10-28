@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -164,6 +165,11 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	resp, err := t.tr.RoundTrip(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if resp.Header.Get(common.TeleportAppErrorCodeHeader) == string(common.AppErrorCodeSessionInvalid) {
+		resp.Body.Close()
+		return nil, ErrInvalidAppSession
 	}
 
 	// When proxying app in leaf cluster, the app will have PublicAddr

@@ -23,6 +23,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -306,13 +307,26 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 	return nil
 }
 
-// handleForwardError answers a request that could not be forwarded, whether the forwarder failed or handleHttp could
-// not resolve the app servers. A connection problem means the app servers could not be resolved or reached right now.
-// The caller is then sent to the launcher, as when authentication fails, to keep the experience of launching an app
-// consistent. Clients that cannot follow the launcher redirect, such as those using a client certificate, get an
-// internal error instead. No response includes the error text, because resolution errors can carry internal details.
+// ErrInvalidAppSession indicate an invalid app session, e.g. due to a
+// user or role backing their cert being removed.
+var ErrInvalidAppSession = trace.AccessDenied("invalid session")
+
+// handleForwardError answers a request that could not be forwarded, whether
+// the forwarder failed or handleHttp could not resolve the app servers.
 func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, err error) {
-	if !trace.IsConnectionProblem(err) {
+	// Clear the cookies and redirect user to re-login.
+	invalidSession := errors.Is(err, ErrInvalidAppSession)
+	if invalidSession {
+		clearAppSessionCookies(w)
+	}
+
+	// In the case of a connection problem or an authentication failure, send the
+	// caller to the launcher to keep the UX of launching an app consistent.
+	// Clients that cannot follow the launcher redirect, such as those using a
+	// client certificate, get an internal error instead. No response includes
+	// the error text, because resolution errors can carry internal details.
+	shouldRedirectToLauncher := trace.IsConnectionProblem(err) || invalidSession
+	if !shouldRedirectToLauncher {
 		reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
 		return
 	}
@@ -329,13 +343,6 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		return nil, trace.AccessDenied("invalid session")
-	}
-
-	// The app session can outlive its user resource. On a cache miss, GetUser
-	// asks auth, so NotFound means that auth has no such user.
-	if _, err := h.c.AccessPoint.GetUser(ctx, ws.GetUser(), false); trace.IsNotFound(err) {
-		h.logger.DebugContext(ctx, "User of application session no longer exists", "user", ws.GetUser())
 		return nil, trace.AccessDenied("invalid session")
 	}
 

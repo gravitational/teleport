@@ -784,6 +784,9 @@ func (c *ConnectionsHandler) writeHTTPError(w http.ResponseWriter, r *http.Reque
 
 	code := trace.ErrorToCode(err)
 	switch {
+	case errors.Is(err, authz.ErrUserNotFound), errors.Is(err, authz.ErrUserSessionRoleNotFound):
+		w.Header().Set(common.TeleportAppErrorCodeHeader, string(common.AppErrorCodeSessionInvalid))
+		http.Error(w, http.StatusText(code), code)
 	case errors.Is(err, services.ErrTrustedDeviceRequired):
 		appauthz.WriteTrustedDeviceRequired(w, r, code)
 	case errors.Is(err, services.ErrSessionMFARequired):

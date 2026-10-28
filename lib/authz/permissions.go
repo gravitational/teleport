@@ -56,6 +56,14 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+// ErrUserSessionRoleNotFound indicates that a user's certificate contains a
+// role that no longer exists, invalidating the user's session.
+var ErrUserSessionRoleNotFound = &trace.AccessDeniedError{Message: "user session role not found"}
+
+// ErrUserNotFound indicates that the user no longer exists in the backend,
+// usually due to an expiry or direct removal, invalidating the user's session.
+var ErrUserNotFound = &trace.AccessDeniedError{Message: "user expired or removed"}
+
 // NewBuiltinRoleContext create auth context for the provided builtin role.
 func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 	authContext, err := ContextForBuiltinRole(BuiltinRole{Role: role, Username: fmt.Sprintf("%v", role)}, nil)
@@ -653,9 +661,8 @@ func (a *authorizer) convertAuthorizerError(err error) error {
 	// between connection failed and access denied
 	case trace.IsConnectionProblem(err):
 		return trace.ConnectionProblem(err, "failed to connect to the database")
-	case trace.IsNotFound(err):
-		// user not found, wrap error with access denied
-		return trace.Wrap(err, "access denied")
+	case errors.Is(err, ErrUserNotFound) || errors.Is(err, ErrUserSessionRoleNotFound):
+		return trace.Wrap(err)
 	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
 		a.logger.WarnContext(context.Background(), "ip pinning requirements not satisfied", "error", err)
 		return trace.Wrap(err)
@@ -754,7 +761,9 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		return nil, trace.Wrap(err)
 	}
 	checker, err := services.NewAccessChecker(accessInfo, a.clusterName, a.accessPoint)
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return nil, ErrUserSessionRoleNotFound
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1517,7 +1526,9 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 	}
 
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, accessPoint)
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return nil, ErrUserSessionRoleNotFound
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1534,8 +1545,7 @@ func resolveLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAc
 	// User has to be fetched to check if it's a blocked username
 	user, err := accessPoint.GetUser(ctx, u.Username, false)
 	if trace.IsNotFound(err) {
-		// Report a deleted user as access denied so that HTTP callers return 403.
-		return nil, nil, trace.AccessDenied("user %q no longer exists", u.Username)
+		return nil, nil, ErrUserNotFound
 	}
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

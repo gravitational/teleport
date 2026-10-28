@@ -230,6 +230,9 @@ func WriteForwardedError(w http.ResponseWriter, r *http.Request, err error) (com
 	case errors.Is(err, services.ErrSessionMFARequired):
 		code = common.AppErrorCodeMFARequired
 		message = "This application requires per-session MFA, which this access path can't complete."
+	case errors.Is(err, authz.ErrUserNotFound), errors.Is(err, authz.ErrUserSessionRoleNotFound):
+		code = common.AppErrorCodeSessionInvalid
+		message = http.StatusText(http.StatusForbidden)
 	// An unmet private key policy is a BadParameter whose message tells tsh to
 	// log in again with a hardware key, which a client of this path can't
 	// act on.
