@@ -64,7 +64,6 @@ impl RdpDecoder {
                 // to send responses back to the server. We can safely leave them
                 // at defaults when decoding session recordings.
                 pointer_software_rendering: false,
-                bulk_decompressor: None,
                 // share_id is important for live RDP sessions
                 // (see https://github.com/Devolutions/IronRDP/pull/1147)
                 // but doesn't need to be set for our decoder.
@@ -109,10 +108,12 @@ impl RdpDecoder {
         // to use to create responses to send to the server.
         // We're only interested in updating the internal frame buffer,
         // so we can ignore the result.
-        if let Ok(updates) =
-            self.fast_path_processor
-                .process(&mut self.image, tdp_fast_path_frame, &mut output)
-        {
+        if let Ok(updates) = self.fast_path_processor.process(
+            &mut self.image,
+            tdp_fast_path_frame,
+            &mut output,
+            &mut None,
+        ) {
             for update in updates {
                 match update {
                     UpdateKind::Region(rect) => {
