@@ -82,6 +82,29 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
     if (argc > 0 && argv[0][0] == '0') {
         return PAM_AUTH_ERR;
     }
+    // If the "interactive" command is requested, perform interactive authentication.
+    if (argc > 0 && strcmp(argv[0], "interactive") == 0) {
+        const void *rawconv;
+        int err = pam_get_item(pamh, PAM_CONV, &rawconv);
+        if (err != PAM_SUCCESS) {
+            return err;
+        }
+        const struct pam_conv *conv = (const struct pam_conv *)rawconv;
+        struct pam_message msg = { .msg_style = PAM_PROMPT_ECHO_ON, .msg = "foo" };
+        const struct pam_message *msg_array = &msg;
+        struct pam_response *resp = NULL;
+
+        err = conv->conv(1, &msg_array, &resp, conv->appdata_ptr);
+        if (err != PAM_SUCCESS) {
+            return err;
+        }
+        int compare = strcmp(resp->resp, "bar");
+        free(resp[0].resp);
+        free(resp);
+        if (compare != 0) {
+            return PAM_AUTH_ERR;
+        }
+    }
 
     pam_info(pamh, "pam_sm_authenticate OK");
     return PAM_SUCCESS;

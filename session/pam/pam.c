@@ -60,75 +60,11 @@ int converse(int n, const struct pam_message **msg, struct pam_response **resp, 
         return PAM_BUF_ERR;
     }
 
-    // Loop over all messages and process them.
-    for (i = 0; i < n; ++i) {
-        if (msg[i] == NULL) {
-            goto fail;
-        }
-
-        aresp[i].resp_retcode = 0;
-        aresp[i].resp = NULL;
-
-        switch (msg[i]->msg_style) {
-        case PAM_PROMPT_ECHO_OFF:
-            // Read back response from user. What the user writes should not
-            // be echoed to the screen.
-            aresp[i].resp = readCallback((uintptr_t)data, 0);
-            if (aresp[i].resp == NULL) {
-                goto fail;
-            }
-            break;
-        case PAM_PROMPT_ECHO_ON:
-            // First write the message to stderr.
-            if (writeCallback((uintptr_t)data, STDERR_FILENO, (char *)(msg[i]->msg)) != 0) {
-                goto fail;
-            }
-
-            // Read back response from user. What the user writes will be
-            // echoed to the screen.
-            aresp[i].resp = readCallback((uintptr_t)data, 1);
-            if (aresp[i].resp == NULL) {
-                goto fail;
-            }
-            break;
-        case PAM_ERROR_MSG:
-            // Write message to stderr.
-            if (writeCallback((uintptr_t)data, STDERR_FILENO, (char *)(msg[i]->msg)) != 0) {
-                goto fail;
-            }
-            if (strlen(msg[i]->msg) > 0 && msg[i]->msg[strlen(msg[i]->msg) - 1] != '\n') {
-                if (writeCallback((uintptr_t)data, STDERR_FILENO, (char *)"\n") != 0) {
-                    goto fail;
-                }
-            }
-            break;
-        case PAM_TEXT_INFO:
-            // Write message to stdout.
-            if (writeCallback((uintptr_t)data, STDOUT_FILENO, (char *)(msg[i]->msg)) != 0) {
-                goto fail;
-            }
-            if (strlen(msg[i]->msg) > 0 && msg[i]->msg[strlen(msg[i]->msg) - 1] != '\n') {
-                if (writeCallback((uintptr_t)data, STDOUT_FILENO, (char *)"\n") != 0) {
-                    goto fail;
-                }
-            }
-
-            break;
-        default:
-            goto fail;
-        }
+    int err = handlerCallback(n, msg, aresp, (size_t)data);
+    if (err == 0) {
+        *resp = aresp;
+        return PAM_SUCCESS;
     }
-    *resp = aresp;
-    return PAM_SUCCESS;
-
- fail:
-    for (i = 0; i < n; ++i) {
-        if (aresp[i].resp != NULL) {
-            memset(aresp[i].resp, 0, strlen(aresp[i].resp));
-            free(aresp[i].resp);
-        }
-    }
-    memset(aresp, 0, n * sizeof *aresp);
     free(aresp);
     *resp = NULL;
     return PAM_CONV_ERR;
@@ -136,7 +72,7 @@ int converse(int n, const struct pam_message **msg, struct pam_response **resp, 
 
 // make_pam_conv creates a PAM conversation function used by PAM to interact
 // with the user.
-struct pam_conv *make_pam_conv(int n)
+struct pam_conv *make_pam_conv(size_t n)
 {
     // This memory allocation will be released in the Close function.
     struct pam_conv *conv = (struct pam_conv *)calloc(1, sizeof(struct pam_conv));
@@ -149,7 +85,7 @@ struct pam_conv *make_pam_conv(int n)
     // free call later. According to the C standard this is okay.
     //
     // https://wiki.sei.cmu.edu/confluence/display/c/INT36-C.+Converting+a+pointer+to+integer+or+integer+to+pointer
-    conv->appdata_ptr = (void *)(uintptr_t)n;
+    conv->appdata_ptr = (void *)n;
 
     return conv;
 }

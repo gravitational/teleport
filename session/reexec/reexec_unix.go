@@ -251,6 +251,20 @@ func runCommand() (exitErr error, err error) {
 		}
 		defer pamContext.Close()
 
+		if err := pamContext.Account(); err != nil {
+			return nil, trace.Errorf("failed to run PAM account group: %v", err.Error())
+		}
+		if cfg.UsePAMAuth {
+			if err := pamContext.Authenticate(); err != nil {
+				return nil, trace.Errorf("failed to run PAM auth group: %v", err.Error())
+			}
+		}
+		pamSession, err := pamContext.OpenSession()
+		if err != nil {
+			return nil, trace.Errorf("failed to open PAM session: %v", err)
+		}
+		defer pamSession.Close()
+
 		// Save off any environment variables that come from PAM.
 		pamEnvironment, err = pamContext.Environment()
 		if err != nil {
@@ -611,6 +625,14 @@ func runNetworking() (code int, err error) {
 		}
 		defer pamContext.Close()
 
+		if err := pamContext.Account(); err != nil {
+			return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
+		}
+		pamSession, err := pamContext.OpenSession()
+		if err != nil {
+			return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
+		}
+		defer pamSession.Close()
 		pamEnvironment, err = pamContext.Environment()
 		if err != nil {
 			return reexecconstants.RemoteCommandFailure, trace.Wrap(err)

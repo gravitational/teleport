@@ -28,7 +28,7 @@ import (
 
 	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
-	toolcommon "github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/session/terminal"
 )
 
 const fieldLabelWidth = 20
@@ -38,7 +38,7 @@ const fieldLabelWidth = 20
 // external data (session metadata, resource names, command summaries, etc.) to
 // prevent terminal injection.
 func sanitize(s string) string {
-	return toolcommon.StripTerminalControlSequences(s)
+	return terminal.StripTerminalControlSequences(s)
 }
 
 // renderDetail builds the scrollable content string for the right-side detail

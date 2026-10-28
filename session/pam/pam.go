@@ -28,9 +28,9 @@ package pam
 // #include <dlfcn.h>
 // #include <security/pam_appl.h>
 // extern char *library_name();
-// extern char* readCallback(int, int);
-// extern int writeCallback(int n, int s, char* c);
-// extern struct pam_conv *make_pam_conv(int);
+// typedef const struct pam_message const_pam_message;
+// extern int handlerCallback(int n, const_pam_message **msg, struct pam_response *resp, size_t data);
+// extern struct pam_conv *make_pam_conv(size_t);
 // extern int _pam_start(void *, const char *, const char *, const struct pam_conv *, pam_handle_t **);
 // extern int _pam_putenv(void *, pam_handle_t *, const char *);
 // extern int _pam_set_item(void *, pam_handle_t *, int, const void *);
@@ -46,16 +46,13 @@ package pam
 import "C"
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
-	"syscall"
 	"unsafe"
 
 	"github.com/gravitational/trace"
@@ -126,6 +123,11 @@ const (
 	// [2] https://github.com/openssh/openssh-portable/blob/V_8_0/auth-pam.c#L615-L654
 	maxMessageSize = 2000 * C.PAM_MAX_MSG_SIZE
 
+	// maxResponseSize is the maximum size of a message to accept as a response to
+	// a PAM message. It is one less than the actual max size so the string passed
+	// to C can be null-terminated.
+	maxResponseSize = C.PAM_MAX_RESP_SIZE - 1
+
 	// maxEnvironmentVariableSize is the maximum size of any environment
 	// variable. Even though pam_env.so sets this to a maximum of 1024, set
 	// it to be 10x that because not all PAM modules follow that convention. [1]
@@ -134,15 +136,20 @@ const (
 	maxEnvironmentVariableSize = 1024 * 10
 )
 
+const (
+	stylePromptEchoOff = C.PAM_PROMPT_ECHO_OFF
+	stylePromptEchoOn  = C.PAM_PROMPT_ECHO_ON
+	styleErrorMessage  = C.PAM_ERROR_MSG
+	styleTextInfo      = C.PAM_TEXT_INFO
+)
+
 // handler is used to register and find instances of *PAM at the package level
 // to enable callbacks from C code.
 type handler interface {
-	// writeStream will write to the output stream (stdout or stderr or
-	// equivalent).
-	writeStream(int, string) (int, error)
-
-	// readStream will read from the input stream (stdin or equivalent).
-	readStream(bool) (string, error)
+	// converse responds to a batch of PAM messages. The returned string slice is
+	// the same length as the input slice; it will contain nil strings for
+	// messages that don't require responses.
+	converse([]pamMessage) ([]*string, error)
 }
 
 var (
@@ -151,90 +158,85 @@ var (
 	handlers     map[int]handler = make(map[int]handler)
 )
 
-//export writeCallback
-func writeCallback(index C.int, stream C.int, s *C.char) C.int {
-	handle, err := lookupHandler(int(index))
+//export handlerCallback
+func handlerCallback(n C.int, messages **C.const_pam_message, responses *C.struct_pam_response, index C.size_t) C.int {
+	handler, err := lookupHandler(int(index))
 	if err != nil {
-		slog.ErrorContext(context.Background(),
-			"Unable to write to output stream",
+		slog.ErrorContext(
+			context.Background(), "unable to find PAM conversation handler",
 			logconstants.ComponentKey, logComponent,
 			"error", err,
 		)
 		return 1
 	}
 
-	// Convert C string to a Go string with a max size of maxMessageSize
-	// (about 1 MB).
-	str := C.GoStringN(s, C.int(C.strnlen(s, C.size_t(maxMessageSize))))
-
-	// Write to the stream (typically stdout or stderr or equivalent).
-	_, err = handle.writeStream(int(stream), str)
+	if messages == nil {
+		slog.ErrorContext(
+			context.Background(), "received null message struct in PAM conversation, this is likely a bug in a PAM module",
+		)
+		return 1
+	}
+	pamMessages := make([]pamMessage, 0, n)
+	for _, msg := range unsafe.Slice(messages, n) {
+		if msg == nil || msg.msg == nil {
+			slog.ErrorContext(
+				context.Background(), "received null message in PAM conversation, this is likely a bug in a PAM module",
+				logconstants.ComponentKey, logComponent,
+			)
+			return 1
+		}
+		pamMessages = append(pamMessages, pamMessage{
+			style: int(msg.msg_style),
+			msg:   C.GoStringN(msg.msg, C.int(C.strnlen(msg.msg, C.size_t(maxMessageSize)))),
+		})
+	}
+	pamResponses, err := handler.converse(pamMessages)
 	if err != nil {
-		slog.ErrorContext(context.Background(),
-			"Unable to write to output stream",
+		slog.ErrorContext(
+			context.Background(), "unable to handle pam conversation",
 			logconstants.ComponentKey, logComponent,
 			"error", err,
 		)
 		return 1
 	}
-
+	responseSlice := unsafe.Slice(responses, n)
+	for i, resp := range pamResponses {
+		if resp != nil {
+			// No need to worry about freeing these strings, that's the PAM conversation
+			// caller's job.
+			responseSlice[i].resp = C.CString(*resp)
+		}
+	}
 	return 0
 }
 
-//export readCallback
-func readCallback(index C.int, e C.int) *C.char {
-	handle, err := lookupHandler(int(index))
-	if err != nil {
-		slog.ErrorContext(context.Background(),
-			"Unable to read from input stream",
-			logconstants.ComponentKey, logComponent,
-			"error", err,
-		)
-		return nil
-	}
+// noopHandler is a handler that returns empty responses.
+type noopHandler struct{}
 
-	var echo bool
-	if e == 1 {
-		echo = true
-	}
-
-	// Read from the stream (typically stdin or equivalent).
-	s, err := handle.readStream(echo)
-	if err != nil {
-		slog.ErrorContext(context.Background(),
-			"Unable to read from input stream",
-			logconstants.ComponentKey, logComponent,
-			"error", err,
-		)
-		return nil
-	}
-
-	// Return one less than PAM_MAX_RESP_SIZE to prevent a Teleport user from
-	// sending more than a PAM module can handle and to allow space for \0.
-	//
-	// Note: The function C.CString allocates memory using malloc. The memory is
-	// not released in Go code because the caller of the callback function (PAM
-	// module) will release it. C.CString will null terminate s.
-	n := int(C.PAM_MAX_RESP_SIZE)
-	if len(s) > n-1 {
-		return C.CString(s[:n-1])
-	}
-	return C.CString(s)
+func (h noopHandler) converse(messages []pamMessage) ([]*string, error) {
+	return make([]*string, len(messages)), nil
 }
 
 // registerHandler will register a instance of *PAM with the package level
 // handlers to support callbacks from C.
-func registerHandler(p *PAM) int {
+func registerHandler(p *PAMContext) int {
 	handlerMu.Lock()
 	defer handlerMu.Unlock()
 
 	// The make_pam_conv function allocates struct pam_conv on the heap. It will
 	// be released by Close function.
 	handlerCount = handlerCount + 1
-	p.conv = C.make_pam_conv(C.int(handlerCount))
-	handlers[handlerCount] = p
+	p.conv = C.make_pam_conv(C.size_t(handlerCount))
+	handlers[handlerCount] = noopHandler{}
 
 	return handlerCount
+}
+
+// setHandler sets the handler for the given index in the package level map.
+func setHandler(handlerIndex int, h handler) {
+	handlerMu.Lock()
+	defer handlerMu.Unlock()
+	handlers[handlerIndex] = h
 }
 
 // unregisterHandler will remove the PAM handle from the package level map
@@ -279,9 +281,9 @@ func init() {
 	}
 }
 
-// PAM is used to create a PAM context and initiate PAM transactions to check
+// PAMContext is used to create a PAM context and initiate PAMContext transactions to check
 // the users account and open/close a session.
-type PAM struct {
+type PAMContext struct {
 	// pamh is a handle to the PAM transaction state.
 	pamh *C.pam_handle_t
 
@@ -318,9 +320,8 @@ type PAM struct {
 	once sync.Once
 }
 
-// Open creates a PAM context and initiates a PAM transaction to check the
-// account and then opens a session.
-func Open(config *pamcfg.PAMConfig) (_ *PAM, retErr error) {
+// Open creates a PAM context and initiates a PAM transaction.
+func Open(config *pamcfg.PAMConfig) (_ *PAMContext, retErr error) {
 	if config == nil {
 		return nil, trace.BadParameter("PAM configuration is required.")
 	}
@@ -329,7 +330,7 @@ func Open(config *pamcfg.PAMConfig) (_ *PAM, retErr error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p := &PAM{
+	p := &PAMContext{
 		pamh:   nil,
 		stdin:  config.Stdin,
 		stdout: config.Stdout,
@@ -355,6 +356,12 @@ func Open(config *pamcfg.PAMConfig) (_ *PAM, retErr error) {
 			p.free()
 		}
 	}()
+
+	setHandler(p.handlerIndex, &printHandler{
+		stdin:  p.stdin,
+		stdout: p.stdout,
+		stderr: p.stderr,
+	})
 
 	// Create and initialize a PAM context. The pam_start function will
 	// allocate pamh if needed and the pam_end function will release any
@@ -399,60 +406,75 @@ func Open(config *pamcfg.PAMConfig) (_ *PAM, retErr error) {
 		}
 	}
 
-	// Trigger the "account" PAM hooks for this login.
-	//
-	// Check that the *nix account is valid. Checking an account varies based off
-	// the PAM modules used in the account stack. Typically this consists of
-	// checking if the account is expired or has access restrictions.
-	//
-	// Note: This function does not perform any authentication!
+	return p, nil
+}
+
+// Account triggers the "account" PAM hooks for this login.
+//
+// Check that the *nix account is valid. Checking an account varies based off
+// the PAM modules used in the account stack. Typically this consists of
+// checking if the account is expired or has access restrictions.
+//
+// Note: This function does not perform any authentication!
+func (p *PAMContext) Account() error {
 	p.retval = C._pam_acct_mgmt(pamHandle, p.pamh, 0)
 	if p.retval != C.PAM_SUCCESS {
-		return nil, p.codeToError()
+		return p.codeToError()
 	}
+	return nil
+}
 
-	if config.UsePAMAuth {
-		// Trigger the "auth" PAM hooks for this login.
-		//
-		// These would perform any extra authentication steps configured in the PAM
-		// stack, like per-session 2FA.
-		p.retval = C._pam_authenticate(pamHandle, p.pamh, 0)
-		if p.retval != C.PAM_SUCCESS {
-			return nil, p.codeToError()
-		}
+// Authenticate triggers the "auth" PAM hooks for this login.
+//
+// These would perform any extra authentication steps configured in the PAM
+// stack, like per-session 2FA.
+func (p *PAMContext) Authenticate() error {
+	p.retval = C._pam_authenticate(pamHandle, p.pamh, 0)
+	if p.retval != C.PAM_SUCCESS {
+		return p.codeToError()
 	}
+	return nil
+}
 
-	// Trigger the "session" PAM hooks for this login.
-	//
-	// Open a user session. Opening a session varies based off the PAM modules
-	// used in the "session" stack. Opening a session typically consists of
-	// printing the MOTD, mounting a home directory, updating auth.log.
+// Session is a PAM session, created by pam_open_session. It must be closed
+// when finished.
+type Session struct {
+	pamCtx *PAMContext
+}
+
+// OpenSession triggers the "session" PAM hooks for this login.
+//
+// Open a user session. Opening a session varies based off the PAM modules
+// used in the "session" stack. Opening a session typically consists of
+// printing the MOTD, mounting a home directory, updating auth.log.
+func (p *PAMContext) OpenSession() (*Session, error) {
 	p.retval = C._pam_open_session(pamHandle, p.pamh, 0)
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError()
 	}
-
-	return p, nil
+	return &Session{pamCtx: p}, nil
 }
 
-// Close will close the session, the PAM context, and release any allocated
-// memory.
-func (p *PAM) Close() error {
-	// Close the PAM session. Closing a session can entail anything from
-	// unmounting a home directory and updating auth.log.
-	var closeErr error
+// Close closes the PAM session. Closing a session can entail anything from
+// unmounting a home directory and updating auth.log.
+func (s *Session) Close() error {
+	p := s.pamCtx
 	p.retval = C._pam_close_session(pamHandle, p.pamh, 0)
 	if p.retval != C.PAM_SUCCESS {
-		closeErr = p.codeToError()
+		return p.codeToError()
 	}
+	return nil
+}
 
+// Close will close the PAM context and release any allocated memory.
+func (p *PAMContext) Close() error {
 	// Unregister handler index at the package level.
 	unregisterHandler(p.handlerIndex)
 
 	// Free any allocated memory on close.
 	p.free()
 
-	return closeErr
+	return nil
 }
 
 // Environment returns the PAM environment variables associated with a PAM
@@ -466,7 +488,7 @@ func (p *PAM) Close() error {
 //	It should be noted that this memory will never be free()'d by libpam.
 //	Once obtained by a call to pam_getenvlist, it is the responsibility
 //	of the calling application to free() this memory.
-func (p *PAM) Environment() ([]string, error) {
+func (p *PAMContext) Environment() ([]string, error) {
 	// Get list of additional environment variables requested from PAM.
 	pam_envlist := C._pam_getenvlist(pamHandle, p.pamh)
 	if pam_envlist == nil {
@@ -493,7 +515,7 @@ func (p *PAM) Environment() ([]string, error) {
 
 // free will end the PAM transaction (which itself will free memory) and
 // then manually free any other memory allocated.
-func (p *PAM) free() {
+func (p *PAMContext) free() {
 	// Only free memory one time to prevent double free bugs.
 	p.once.Do(func() {
 		// Terminate the PAM transaction.
@@ -515,42 +537,11 @@ func (p *PAM) free() {
 	})
 }
 
-// writeStream will write to the output stream (stdout or stderr or
-// equivalent).
-func (p *PAM) writeStream(stream int, s string) (int, error) {
-	writer := p.stdout
-	if stream == syscall.Stderr {
-		writer = p.stderr
-	}
-
-	// Replace \n with \r\n so the message correctly aligned.
-	r := strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
-	n, err := writer.Write([]byte(r.Replace(s)))
-	if err != nil {
-		return n, err
-	}
-
-	return n, nil
-}
-
-// readStream will read from the input stream (stdin or equivalent).
-// TODO(russjones): At some point in the future if this becomes an issue, we
-// should consider supporting echo = false.
-func (p *PAM) readStream(echo bool) (string, error) {
-	// Limit the reader in case stdin is from /dev/zero or other infinite
-	// source.
-	reader := bufio.NewReader(io.LimitReader(p.stdin, int64(C.PAM_MAX_RESP_SIZE)-1))
-	text, err := reader.ReadString('\n')
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// Trim trailing newlines from the response.
-	return strings.TrimRight(text, "\r\n"), nil
-}
-
 // codeToError returns a human readable string from the PAM error.
-func (p *PAM) codeToError() error {
+func (p *PAMContext) codeToError() error {
+	if p.retval == 0 {
+		return nil
+	}
 	err := C._pam_strerror(pamHandle, p.pamh, p.retval)
 	if err != nil {
 		return trace.BadParameter("%s", C.GoString(err))
