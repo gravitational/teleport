@@ -16,13 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  addDays,
-  addHours,
-  addWeeks,
-  differenceInHours,
-  isAfter,
-} from 'date-fns';
+import { addHours, differenceInHours, isAfter } from 'date-fns';
 
 import { Option } from 'shared/components/Select';
 import { AccessRequest } from 'shared/services/accessRequests';
@@ -115,7 +109,7 @@ export function getDurationOptionsFromStartTime(
   // Add preset days up to maximum allowed.
   if (totalHoursDiff >= 24) {
     for (const day of PRESET_DAYS) {
-      const updatedEndDate = addDays(start, day);
+      const updatedEndDate = addHours(start, day * 24);
       if (isAfter(updatedEndDate, accessRequest.maxDuration)) {
         break;
       }
@@ -150,7 +144,7 @@ export function getDurationOptionIndexClosestToOneWeek(
   durationOptions: DurationOption[],
   startDate: Date
 ) {
-  const oneWeekFromSelectedTime = addWeeks(startDate, 1).getTime();
+  const oneWeekFromSelectedTime = addHours(startDate, 7 * 24).getTime();
   const lastDurationIndex = durationOptions.length - 1;
 
   // Default to the last option, since that is the max the user can get.

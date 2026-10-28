@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { addDays, addHours, isAfter } from 'date-fns';
+import { addHours, isAfter } from 'date-fns';
 
 import { Option } from 'shared/components/Select';
 
@@ -39,9 +39,9 @@ export function getPendingRequestDurationOptions(
   // Pick the smaller of the two.
   let maxPendingDate = new Date(maxDuration);
   const maxPendingDay = presetDays.length - 1;
-  const possiblySmallerMaxPendingDate = addDays(
+  const possiblySmallerMaxPendingDate = addHours(
     createdDate,
-    presetDays[maxPendingDay]
+    presetDays[maxPendingDay] * 24
   );
   if (maxPendingDate.getTime() > possiblySmallerMaxPendingDate.getTime()) {
     maxPendingDate = possiblySmallerMaxPendingDate;
@@ -85,7 +85,7 @@ export function getPendingRequestDurationOptions(
   // Add preset days up to maximum allowed.
   if (totalHoursDiff >= 24) {
     for (const day of presetDays) {
-      const updatedEndDate = addDays(createdDate, day);
+      const updatedEndDate = addHours(createdDate, day * 24);
       if (isAfter(updatedEndDate, maxPendingDate)) {
         break;
       }
