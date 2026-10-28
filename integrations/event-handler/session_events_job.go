@@ -54,6 +54,7 @@ type SessionEventsJob struct {
 	app                    *App
 	sessions               chan session
 	semaphore              chan struct{}
+	missingSemaphore       chan struct{}
 	logLimiter             *rate.Limiter
 	backpressureLogLimiter *rate.Limiter
 	sessionsProcessed      atomic.Uint64
@@ -65,6 +66,7 @@ func NewSessionEventsJob(app *App) *SessionEventsJob {
 	j := &SessionEventsJob{
 		app:                    app,
 		semaphore:              make(chan struct{}, app.Config.Concurrency),
+		missingSemaphore:       make(chan struct{}, app.Config.Concurrency*2),
 		sessions:               make(chan session, app.Config.Concurrency*sessionBacklogMultiplier),
 		logLimiter:             rate.NewLimiter(rate.Every(time.Second), 1),
 		backpressureLogLimiter: rate.NewLimiter(rate.Every(time.Minute), 1),
@@ -134,6 +136,7 @@ func (j *SessionEventsJob) ingestSession(ctx context.Context, s session, attempt
 		log.DebugContext(ctx, "Starting session ingest")
 	}
 
+	// Default to standard session processing concurrency if unspecified.
 	if semaphore == nil {
 		semaphore = j.semaphore
 	}
@@ -269,9 +272,7 @@ func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 		}
 
 		err := j.app.State.IterateMissingRecordings(func(sess session, attempts int) error {
-			semaphore := make(chan struct{}, j.app.Config.Concurrency*2)
-
-			return j.ingestSession(ctx, sess, attempts, semaphore)
+			return j.ingestSession(ctx, sess, attempts, j.missingSemaphore)
 		})
 		if err != nil && !lib.IsCanceled(err) {
 			j.app.log.WarnContext(ctx, "Unable to load previously failed sessions for processing", "error", err)
