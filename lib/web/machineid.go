@@ -37,6 +37,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -666,6 +667,9 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 
 	for _, groupMetrics := range report.GetSpec().GetGroups() {
 		for versionString, versionMetrics := range groupMetrics.GetVersions() {
+			if versionString == autoupdate.BotInstanceVersionInvalidTooLong {
+				continue
+			}
 			version, err := semver.NewVersion(versionString)
 			if err != nil {
 				h.logger.ErrorContext(ctx,
