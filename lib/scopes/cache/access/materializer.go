@@ -20,7 +20,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
+	"encoding/base32"
 	"iter"
 	"log/slog"
 	"maps"
@@ -206,15 +206,21 @@ func newMaterializedAssignmentKey(list *accesslist.AccessList, userName string) 
 	}
 }
 
+// materializedAssignmentNameEncoding uses lowercase base32 to conform to scoped resource naming rules.
+var materializedAssignmentNameEncoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567").WithPadding(base32.NoPadding)
+
 // AssignmentName returns the canonical name for the materialized scoped role assignment.
 func (k MaterializedAssignmentKey) AssignmentName() string {
-	h := sha256.New224()
+	h := sha256.New()
 	h.Write([]byte(k.User))
 	h.Write([]byte{0})
 	h.Write([]byte(k.ListName))
 	h.Write([]byte{0})
 	h.Write([]byte(k.ListScope))
-	return "acl-" + base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+	// Retain 128 bits of the hash, which should be enough entropy and encodes
+	// to 26 characters.
+	sum := h.Sum(nil)
+	return "acl-" + materializedAssignmentNameEncoding.EncodeToString(sum[:16])
 }
 
 // AssignmentScope returns the scope of the materialized assignment. For
