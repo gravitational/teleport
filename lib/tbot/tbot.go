@@ -102,18 +102,18 @@ func (b *Bot) markStarted() error {
 
 type getBotIdentityFn func() *identity.Identity
 
-// getBotIdentity returns the bot's own identity. This will return nil if the
-// bot has not been started.
-func (b *Bot) getBotIdentity() *identity.Identity {
+// GetBotIdentity returns the bot's own identity for tests using BotConfig.Testing.
+// The bot must have been started before calling this method.
+func (b *Bot) GetBotIdentity() *identity.Identity {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	return b.identity()
 }
 
-// getClient returns the bot's API client. This will return nil if the bot has
-// not been started.
-func (b *Bot) getClient() *apiclient.Client {
+// GetClient returns the bot's API client for tests using BotConfig.Testing.
+// This will return nil if the bot has not been started.
+func (b *Bot) GetClient() *apiclient.Client {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 

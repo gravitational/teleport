@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"go.yaml.in/yaml/v3"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -82,14 +81,6 @@ type TunnelConfig struct {
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use.
 	Listener net.Listener `yaml:"-"`
-
-	// Clock is a clock. If unset, the standard system clock is used. Used in
-	// tests.
-	clock clockwork.Clock `yaml:"-"`
-
-	// certIssuedHook is an optional hook called when the tunnel requests a new
-	// certificate. Used in tests.
-	certIssuedHook func() `yaml:"-"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -140,9 +131,6 @@ func (t *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
 		return trace.BadParameter("idle_timeout: cannot be negative")
 	}
 
-	if t.clock == nil {
-		t.clock = clockwork.NewRealClock()
-	}
 	if scoped {
 		if t.DelegationSessionID != "" {
 			return trace.BadParameter("delegation_session_id: not supported with scopes")
