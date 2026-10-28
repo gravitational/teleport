@@ -1019,6 +1019,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
 	h.GET("/webapi/auth/export", h.authExportPublic)
 
+	// Returns an empty CRL for CA cert
+	h.GET("/webapi/auth/crl", h.windowsCACRL)
+
 	// join token handlers
 	h.PUT("/webapi/tokens/yaml", h.WithAuth(h.updateTokenYAML))
 	// used for creating a new token

@@ -2619,6 +2619,7 @@ func staticHostsWithAddress(ws WindowsDesktopService) ([]servicecfg.WindowsHost,
 			Address: *addr,
 			Labels:  host.Labels,
 			AD:      host.AD,
+			SID:     host.SID,
 		})
 	}
 	return hostsWithAddress, nil

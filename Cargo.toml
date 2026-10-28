@@ -21,16 +21,16 @@ lto = "thin"
 [workspace.dependencies]
 # Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
 # ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
-ironrdp-cliprdr = "0.7"
-ironrdp-connector = "0.10"
-ironrdp-core = "0.2"
-ironrdp-displaycontrol = "0.8"
-ironrdp-dvc = "0.8"
-ironrdp-graphics = "0.9"
-ironrdp-pdu = "0.9"
-ironrdp-rdpdr = "0.7"
-ironrdp-rdpsnd = "0.9"
-ironrdp-session = "0.11"
-ironrdp-svc = "0.8"
-ironrdp-tls = { version = "0.2", features = ["rustls"] }
-ironrdp-tokio = "0.10"
+ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-core = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-displaycontrol = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-dvc = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
+ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f", features = ["rustls"] }
+ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "376eb8f56634e5c92d7137886e62ddeb6bbb280f" }
