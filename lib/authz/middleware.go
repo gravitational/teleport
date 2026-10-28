@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -39,12 +40,31 @@ import (
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
 
 const (
-	// TeleportImpersonateUserHeader is a header that specifies teleport user identity
-	// that the proxy is impersonating.
-	TeleportImpersonateUserHeader = "Teleport-Impersonate-User"
-	// TeleportImpersonateIPHeader is a header that specifies the real user IP address.
-	TeleportImpersonateIPHeader = "Teleport-Impersonate-IP"
+	// teleportImpersonateHeaderPrefix is the prefix for "Teleport-Impersonate-*"
+	// HTTP headers.
+	teleportImpersonateHeaderPrefix = "Teleport-Impersonate-"
+
+	// TeleportImpersonateUserHeader is the HTTP header that specifies the
+	// teleport user identity that the Proxy is impersonating.
+	// Must only be accepted from a Proxy sender.
+	TeleportImpersonateUserHeader = teleportImpersonateHeaderPrefix + "User"
+
+	// TeleportImpersonateIPHeader is the HTTP header that specifies the real user
+	// IP address.
+	// Must only be accepted from a Proxy sender.
+	TeleportImpersonateIPHeader = teleportImpersonateHeaderPrefix + "IP"
 )
+
+// StripImpersonateHeaders strips all "Teleport-Impersonate-*" headers from the
+// map.
+func StripImpersonateHeaders(headers map[string][]string) {
+	for k := range headers {
+		kPrefix := k[:min(len(k), len(teleportImpersonateHeaderPrefix))]
+		if strings.EqualFold(kPrefix, teleportImpersonateHeaderPrefix) {
+			delete(headers, k)
+		}
+	}
+}
 
 // Middleware is authentication middleware that extracts user information
 // from the TLS handshake.
@@ -105,11 +125,9 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// If the request is coming from a trusted proxy, we already know the user
 	// and we will impersonate him. At this point, we need to remove the
-	// TeleportImpersonateHeader from the request, otherwise the proxy will
-	// attempt sending the request to upstream servers with the impersonation
-	// header from a fake user.
-	r.Header.Del(TeleportImpersonateUserHeader)
-	r.Header.Del(TeleportImpersonateIPHeader)
+	// Teleport-Impersonate-* headers from the request, least they are forwarded
+	// downstream.
+	StripImpersonateHeaders(r.Header)
 
 	// determine authenticated user based on the request parameters
 	ctx := r.Context()

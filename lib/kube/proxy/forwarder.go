@@ -2209,6 +2209,11 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
 	if sess.kubeAPICreds != nil {
 		req.URL.Host = sess.kubeAPICreds.getTargetAddr()
+
+		// Don't forward "Teleport-Impersonate-*" headers to the k8s cluster.
+		// (Note that this branch means the request goes to the k8s cluster, instead
+		// of other Teleport Proxy/Agent.)
+		authz.StripImpersonateHeaders(req.Header)
 	}
 
 	// add origin headers so the service consuming the request on the other site
