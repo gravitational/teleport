@@ -657,6 +657,10 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// The watcher invokes its pre-fetch and per-instance hooks sequentially.
+	// The pre-fetch hook initializes fresh deduplication state before any
+	// instance groups are processed during each normal discovery iteration.
+	var installerDeduplicator *ec2InstallerIterationDeduplicator
 
 	s.ec2Watcher = server.NewWatcher(
 		s.ctx,
@@ -670,7 +674,10 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 			// without waiting for the backoff entries to expire
 			backoff.reset()
 		}),
-		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
+		server.WithPreFetchHookFn(func(fetchers []server.Fetcher[*server.EC2Instances]) {
+			s.ec2WatcherIterationStarted(fetchers)
+			installerDeduplicator = newEC2InstallerIterationDeduplicator()
+		}),
 		server.WithClock[*server.EC2Instances](s.clock),
 		server.WithFetchErrorHookFn[*server.EC2Instances](s.handleEC2WatcherError),
 		server.WithPerInstanceHookFn(func(instanceGroups []*server.EC2Instances) {
@@ -679,10 +686,13 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 					discoveryConfigName: group.DiscoveryConfigName,
 					integration:         group.Integration,
 				}, len(group.Instances))
-
+				if !s.prepareEC2InstallationGroup(group, installerDeduplicator) {
+					continue
+				}
 				if err := s.handleEC2Instances(group, backoff); err != nil {
 					s.logHandleInstancesErr(err)
 				}
+
 			}
 		}),
 		server.WithPostFetchHookFn[*server.EC2Instances](func() {
@@ -722,6 +732,41 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.kubeFetchers = append(s.kubeFetchers, kubeFetchers...)
 
 	return nil
+}
+
+// isRegularEC2ScriptInstallation reports whether group uses the normal SSM
+// script installation path. Rotation and EICE follow separate lifecycles.
+func isRegularEC2ScriptInstallation(group *server.EC2Instances) bool {
+	return !group.Rotation &&
+		group.EnrollMode == types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT
+}
+
+// prepareEC2InstallationGroup removes regular script installation targets that
+// were already selected during the current discovery iteration. It reports
+// whether the group should proceed to installation. Rotation and EICE groups
+// follow separate lifecycles and are left unchanged.
+func (s *Server) prepareEC2InstallationGroup(
+	group *server.EC2Instances,
+	deduplicator *ec2InstallerIterationDeduplicator,
+) bool {
+	if !isRegularEC2ScriptInstallation(group) {
+		return true
+	}
+
+	duplicates := deduplicator.filter(group)
+	if duplicates > 0 {
+		s.Log.DebugContext(
+			s.ctx,
+			"Skipping EC2 installation targets already selected during this discovery iteration",
+			"skipped", duplicates,
+			"discovery_config", group.DiscoveryConfigName,
+			"integration", group.Integration,
+			"account_id", group.AccountID,
+			"region", group.Region,
+		)
+	}
+
+	return len(group.Instances) > 0
 }
 
 func (s *Server) handleEC2WatcherError(err error) bool {
