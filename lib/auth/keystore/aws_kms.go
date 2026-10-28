@@ -196,16 +196,7 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 		slog.Any("algorithm", algorithm),
 		slog.Bool("multi_region", a.multiRegionEnabled))
 
-	tags := make([]kmstypes.Tag, 0, len(a.tags))
-	for k, v := range a.tags {
-		if k == clusterTagKey && usage == keyUsageDecrypt {
-			k = encryptedClusterTagKey
-		}
-		tags = append(tags, kmstypes.Tag{
-			TagKey:   aws.String(k),
-			TagValue: aws.String(v),
-		})
-	}
+	tags := a.keyTags(usage)
 
 	output, err := a.kms.CreateKey(ctx, &kms.CreateKeyInput{
 		Description: aws.String("Teleport CA key"),
@@ -229,6 +220,20 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 	return key, nil
 }
 
+func (a *awsKMSKeystore) keyTags(usage keyUsage) []kmstypes.Tag {
+	tags := make([]kmstypes.Tag, 0, len(a.tags))
+	for k, v := range a.tags {
+		if k == clusterTagKey && usage == keyUsageDecrypt {
+			k = encryptedClusterTagKey
+		}
+		tags = append(tags, kmstypes.Tag{
+			TagKey:   aws.String(k),
+			TagValue: aws.String(v),
+		})
+	}
+	return tags
+}
+
 // generateSigner creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
 func (a *awsKMSKeystore) generateSigner(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
@@ -236,7 +241,7 @@ func (a *awsKMSKeystore) generateSigner(ctx context.Context, algorithm cryptosui
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	keyID, err := a.applyMRKConfig(ctx, key)
+	keyID, err := a.applyMRKConfig(ctx, key, keyUsageSign)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -254,7 +259,7 @@ func (a *awsKMSKeystore) generateDecrypter(ctx context.Context, algorithm crypto
 	if err != nil {
 		return nil, nil, awsOAEPHash, trace.Wrap(err)
 	}
-	keyID, err := a.applyMRKConfig(ctx, key)
+	keyID, err := a.applyMRKConfig(ctx, key, keyUsageDecrypt)
 	if err != nil {
 		return nil, nil, awsOAEPHash, trace.Wrap(err)
 	}
@@ -762,14 +767,14 @@ func (a *awsKMSKeystore) applyMultiRegionConfig(ctx context.Context, keyID []byt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyID, err = a.applyMRKConfig(ctx, key)
+	keyID, err = a.applyMRKConfig(ctx, key, keyUsageSign)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return keyID, nil
 }
 
-func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([]byte, error) {
+func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID, usage keyUsage) ([]byte, error) {
 	if !key.isMRK() {
 		if a.multiRegionEnabled {
 			a.logger.WarnContext(ctx, "Unable to replicate single-region key. A CA rotation is required to migrate to a multi-region key.", "key_arn", key.arn)
@@ -777,13 +782,7 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 		return key.marshal(), nil
 	}
 
-	tags := make([]kmstypes.Tag, 0, len(a.tags))
-	for k, v := range a.tags {
-		tags = append(tags, kmstypes.Tag{
-			TagKey:   aws.String(k),
-			TagValue: aws.String(v),
-		})
-	}
+	tags := a.keyTags(usage)
 
 	client := a.mrk
 	var describeKeyOut *kms.DescribeKeyOutput
