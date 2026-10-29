@@ -3820,8 +3820,8 @@ func AccessExplicitlyDenied(inner error) error {
 // IsAccessExplicitlyDenied returns true if any of the errors in err's chain is
 // an AccessExplicitlyDenied error.
 func IsAccessExplicitlyDenied(err error) bool {
-	var target *accessExplicitlyDenied
-	return errors.As(err, &target)
+	_, ok := errors.AsType[*accessExplicitlyDenied](err)
+	return ok
 }
 
 func (a *accessExplicitlyDenied) Error() string {
