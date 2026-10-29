@@ -85,6 +85,16 @@ You can pass the Mailgun key:
 `mailgun.domain` configures the domain Mailgun will send the emails from.
 This is mandatory when mailgun is enabled.
 
+### `mailgun.region`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`mailgun.region` configures the Mailgun API region to use.
+Accepted values are "us" (default) and "eu". Region must match the
+region your Mailgun domain was created in.
+
 ### `mailgun.privateKey`
 
 | Type | Default |

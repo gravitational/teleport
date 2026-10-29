@@ -20,8 +20,10 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/mailgun/mailgun-go/v4"
 	"github.com/pelletier/go-toml"
 	"gopkg.in/mail.v2"
 
@@ -30,6 +32,13 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+)
+
+const (
+	// mailgunRegionUS identifies the Mailgun US API region, which is the default.
+	mailgunRegionUS = "us"
+	// mailgunRegionEU identifies the Mailgun EU API region.
+	mailgunRegionEU = "eu"
 )
 
 // DeliveryConfig represents email recipients config
@@ -44,7 +53,13 @@ type MailgunConfig struct {
 	Domain         string
 	PrivateKey     string `toml:"private_key"`
 	PrivateKeyFile string `toml:"private_key_file"`
-	APIBase        string `toml:"-"`
+	// Region specifies which Mailgun API region to use to send mail.
+	// Accepted values are "us" (default) and "eu". Region must match the
+	// region your Mailgun domain was created in.
+	Region string `toml:"region"`
+	// APIBase overrides the Mailgun API base URL derived from Region.
+	// It is not exposed via TOML and is mainly intended for tests.
+	APIBase string `toml:"-"`
 }
 
 // SMTPConfig is SMTP-specific configuration options
@@ -117,6 +132,17 @@ func (c *MailgunConfig) CheckAndSetDefaults() error {
 
 	if c.Domain == "" {
 		return trace.BadParameter("provide mailgun.domain to use Mailgun")
+	}
+
+	if c.APIBase == "" {
+		switch strings.ToLower(c.Region) {
+		case "", mailgunRegionUS:
+			c.APIBase = mailgun.APIBaseUS
+		case mailgunRegionEU:
+			c.APIBase = mailgun.APIBaseEU
+		default:
+			return trace.BadParameter("invalid mailgun.region %q, must be one of: %s, %s", c.Region, mailgunRegionUS, mailgunRegionEU)
+		}
 	}
 
 	return nil

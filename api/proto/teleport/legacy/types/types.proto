@@ -8712,6 +8712,10 @@ message MailgunSpec {
 
   // Domain specifies the Mailgun sending domain.
   string domain = 1;
+  // Region specifies which Mailgun API region to use to send mail.
+  // Accepted values are "us" (default, used when empty) and "eu". Region
+  // must match the region your Mailgun domain was created in.
+  string region = 2;
 }
 
 // SMTPSpec holds a generic SMTP service specific settings.

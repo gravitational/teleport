@@ -53,6 +53,10 @@ mailgun:
   # mailgun.domain(string) -- configures the domain Mailgun will send the emails from.
   # This is mandatory when mailgun is enabled.
   domain: ""
+  # mailgun.region(string) -- configures the Mailgun API region to use.
+  # Accepted values are "us" (default) and "eu". Region must match the
+  # region your Mailgun domain was created in.
+  region: ""
   # mailgun.privateKey(string) -- is the Mailgun private key used by the plugin
   # to interact with Mailgun. When set, the Chart creates a Kubernetes Secret
   # for you.

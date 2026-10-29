@@ -27,6 +27,14 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+const (
+	// MailgunRegionUS identifies the Mailgun US API region, which is the
+	// default used when MailgunSpec.Region is empty.
+	MailgunRegionUS = "us"
+	// MailgunRegionEU identifies the Mailgun EU API region.
+	MailgunRegionEU = "eu"
+)
+
 // PluginType represents the type of the plugin
 type PluginType string
 

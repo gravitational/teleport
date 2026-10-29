@@ -337,6 +337,14 @@
                         "yourdomain.mailgun.org"
                     ]
                 },
+                "region": {
+                    "$id": "#/properties/mailgun/properties/region",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "eu"
+                    ]
+                },
                 "privateKey": {
                     "$id": "#/properties/mailgun/properties/privateKey",
                     "type": "string",

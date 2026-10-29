@@ -9,6 +9,7 @@ mailgun:
   privateKey: ""
   privateKeyFromSecret: ""
   privateKeySecretPath: "" # e.g., mailgunPrivateKey
+  region: ""               # e.g., "us" (default) or "eu"
 
 smtp:
   enabled: false

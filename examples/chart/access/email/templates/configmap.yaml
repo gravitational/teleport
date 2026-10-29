@@ -19,6 +19,9 @@ data:
 
     [mailgun]
     domain           = "{{ .Values.mailgun.domain }}"
+    {{- if .Values.mailgun.region }}
+    region           = "{{ .Values.mailgun.region }}"
+    {{- end }}
     private_key_file = "/var/lib/teleport/plugins/email/mailgun_private_key"
     {{- else if .Values.smtp.enabled }}
 

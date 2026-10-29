@@ -46,6 +46,9 @@ configuration values:
 
 **`Mailgun Private Key`**: Configures the Mailgun API key.
 
+**`Mailgun Region`**: Selects the Mailgun API region your domain was created
+in. Possible values are `us` or `eu`. Empty value defaults to `us`.
+
 </details>
 
 ## How it works
@@ -193,6 +196,8 @@ If you are deploying the email plugin on a Linux host:
 1. In the `mailgun` section, assign `domain` to the domain name and subdomain of
    your Mailgun account. 
 1. Assign `mailgun.private_key` to your Mailgun private key.
+1. Set `mailgun.region` to match the region your Mailgun domain was created
+   in. Possible values are `"us"` (default) or `"eu"`.
 
 If you are deploying the email plugin on Kubernetes:
 
@@ -204,6 +209,8 @@ If you are deploying the email plugin on Kubernetes:
   ```
 
 1. Assign `mailgun.privateKeyFromSecret` to `mailgun-private-key`.
+1. Set `mailgun.region` to match the region your Mailgun domain was created
+   in. Possible values are `"us"` (default) or `"eu"`.
 
 </TabItem>
 <TabItem label="Generic SMTP Service">
@@ -420,6 +427,7 @@ teleport:
 mailgun:
   domain: "sandbox123abc.mailgun.org" 
   privateKeyFromSecret: "mailgun-private-key"
+  region: "us" # Set to "eu" if your Mailgun domain was created in the EU region.
 
 # As an alternative, you can use SMTP server credentials:
 #

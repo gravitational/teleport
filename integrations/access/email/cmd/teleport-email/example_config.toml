@@ -16,6 +16,7 @@ addr = "0.0.0.0:3025"                              # Teleport Auth Server GRPC A
 domain = "your-domain-name"
 private_key = "xoxb-11xx"
 # private_key_file = "/var/lib/teleport/plugins/email/mailgun_private_key"
+# region = "us" # Mailgun API region. Must match the region your Mailgun domain was created in.
 
 [smtp]
 host = "smtp.gmail.com"

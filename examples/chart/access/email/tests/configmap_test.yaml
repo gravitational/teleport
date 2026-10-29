@@ -108,3 +108,16 @@ tests:
         privateKey: xoxb-fakekey62b0eac53565a38c8cc0316f6
     asserts:
       - matchSnapshot: {}
+
+  - it: should match the snapshot (mailgun on, eu region)
+    set:
+      teleport:
+        address: teleport.example.com:1234
+      smtp.enabled: false
+      mailgun:
+        enabled: true
+        domain: mymailgunsubdomain.mailgun.org
+        region: eu
+        privateKey: xoxb-fakekey62b0eac53565a38c8cc0316f6
+    asserts:
+      - matchSnapshot: {}
