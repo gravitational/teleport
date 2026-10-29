@@ -333,6 +333,7 @@ test('forceFetch spawns another request, even if there is one pending', async ()
       agents: [
         {
           kind: 'node',
+          scope: '',
           subKind: 'teleport',
           id: 'sus',
           clusterId: 'test-cluster',

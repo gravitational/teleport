@@ -36,6 +36,7 @@ export function CardsView({
   visibleInputFields,
   showResourceSelectedIcon,
   resourceLabelConfig,
+  showScopes,
 }: ResourceViewProps) {
   return (
     <CardsContainer className="CardsContainer">
@@ -55,6 +56,7 @@ export function CardsView({
             visibleInputFields={visibleInputFields}
             resourceLabelConfig={resourceLabelConfig}
             showResourceSelectedIcon={showResourceSelectedIcon}
+            showScope={showScopes}
           />
         )
       )}

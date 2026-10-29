@@ -42,12 +42,14 @@ export const getBackgroundColor = (props: BackgroundColorProps) => {
   return 'transparent';
 };
 
-export const getStatusBackgroundColor = (props: {
+export type StatusBackgroundColorProps = {
   showingStatusInfo: boolean;
   theme: Theme;
   action: '' | 'hover';
   viewType: 'card' | 'list';
-}) => {
+};
+
+export const getStatusBackgroundColor = (props: StatusBackgroundColorProps) => {
   switch (props.action) {
     case 'hover':
       return props.theme.colors.interactive.tonal.alert[1];

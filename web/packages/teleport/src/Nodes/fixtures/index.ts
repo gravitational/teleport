@@ -20,6 +20,7 @@ import { Node } from 'teleport/services/nodes';
 
 export const nodes: Node[] = [
   {
+    scope: '/prod/east',
     kind: 'node',
     subKind: 'teleport',
     tunnel: false,
@@ -40,6 +41,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    scope: '/prod/east',
     kind: 'node',
     tunnel: false,
     subKind: 'teleport',
@@ -60,6 +62,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    scope: '/prod/west',
     kind: 'node',
     subKind: 'teleport',
     tunnel: false,
@@ -80,6 +83,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    scope: '/prod/west',
     kind: 'node',
     tunnel: false,
     subKind: 'teleport',
@@ -100,6 +104,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    scope: '',
     kind: 'node',
     tunnel: false,
     subKind: 'teleport',
@@ -120,6 +125,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    scope: '',
     kind: 'node',
     subKind: 'teleport',
     tunnel: true,
@@ -140,6 +146,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    scope: '/staging',
     kind: 'node',
     tunnel: true,
     subKind: 'teleport',
@@ -163,6 +170,7 @@ export const nodes: Node[] = [
 
 export const moreNodes: Node[] = [
   {
+    scope: '',
     kind: 'node',
     subKind: 'teleport',
     tunnel: false,
@@ -183,6 +191,7 @@ export const moreNodes: Node[] = [
     ],
   },
   {
+    scope: '',
     kind: 'node',
     tunnel: false,
     subKind: 'teleport',
@@ -203,6 +212,7 @@ export const moreNodes: Node[] = [
     ],
   },
   {
+    scope: '',
     kind: 'node',
     subKind: 'teleport',
     tunnel: false,
@@ -223,6 +233,7 @@ export const moreNodes: Node[] = [
     ],
   },
   {
+    scope: '',
     kind: 'node',
     tunnel: false,
     subKind: 'teleport',
@@ -243,6 +254,7 @@ export const moreNodes: Node[] = [
     ],
   },
   {
+    scope: '',
     kind: 'node',
     tunnel: false,
     subKind: 'teleport',
@@ -263,6 +275,7 @@ export const moreNodes: Node[] = [
     ],
   },
   {
+    scope: '',
     kind: 'node',
     subKind: 'teleport',
     tunnel: true,
@@ -283,6 +296,7 @@ export const moreNodes: Node[] = [
     ],
   },
   {
+    scope: '',
     kind: 'node',
     tunnel: true,
     subKind: 'teleport',

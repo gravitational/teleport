@@ -51,6 +51,7 @@ const defaultProps: UnifiedResourcesProps = {
 };
 const node: UnifiedResourceDefinition = {
   kind: 'node',
+  scope: '',
   subKind: 'teleport',
   tunnel: false,
   id: '104',

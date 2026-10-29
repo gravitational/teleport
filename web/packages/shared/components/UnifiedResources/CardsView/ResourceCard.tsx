@@ -19,43 +19,23 @@
 import { Ref, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Box, ButtonLink, Flex, Text } from 'design';
+import { Box, Flex } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
-import { makeLabelTag } from 'design/formatters';
-import { LabelKind } from 'design/Label';
-import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
-import { CopyButton } from '../../CopyButton/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
   getStatusBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
-import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
-import { ResourceSelectedIcon } from '../shared/ResourceSelectedIcon';
-import { SingleLineBox } from '../shared/SingleLineBox';
 import { shouldWarnResourceStatus } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
+import { labelRowHeight, ResourceCardBody } from './ResourceCardBody';
+import { ScopedCardLayout } from './ScopedCardLayout';
+import { CardLayoutProps } from './types';
 import { WarningRightEdgeBadgeSvg } from './WarningRightEdgeBadgeSvg';
-
-// Since we do a lot of manual resizing and some absolute positioning, we have
-// to put some layout constants in place here.
-const labelHeight = 20; // px
-const labelVerticalMargin = 1; // px
-const labelRowHeight = labelHeight + labelVerticalMargin * 2;
-
-/**
- * This box serves twofold purpose: first, it prevents the underlying icon from
- * being squeezed if the parent flexbox starts shrinking items. Second, it
- * prevents the icon from magically occupying too much space, since the SVG
- * element somehow forces the parent to occupy at least full line height.
- */
-const ResTypeIconBox = styled(Box)`
-  line-height: 0;
-`;
 
 export function ResourceCard({
   onLabelClick,
@@ -75,19 +55,9 @@ export function ResourceCard({
   },
   resourceLabelConfig,
   showResourceSelectedIcon,
+  showScope,
 }: Omit<ResourceItemProps, 'expandAllLabels'>) {
-  const {
-    name,
-    primaryIconName,
-    SecondaryIcon,
-    cardViewProps,
-    ActionButton,
-    labels,
-    requiresRequest,
-    status,
-  } = viewItem;
-  const { primaryDesc, secondaryDesc } = cardViewProps;
-
+  const { status } = viewItem;
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
   const [showAllLabels, setShowAllLabels] = useState(false);
   const [numMoreLabels, setNumMoreLabels] = useState(0);
@@ -180,6 +150,64 @@ export function ResourceCard({
 
   const shouldDisplayStatusWarning = shouldWarnResourceStatus(status);
 
+  const layoutProps: CardLayoutProps = {
+    viewItem,
+    setHovered,
+    showingStatusInfo,
+    visibleInputFields,
+    showAllLabels,
+    shouldDisplayStatusWarning,
+    pinned,
+    selected,
+    innerContainer,
+    onMouseLeave,
+    selectResource,
+    pinResource,
+    pinningSupport,
+    hovered,
+    showResourceSelectedIcon,
+    labelsInnerContainer,
+    showMoreLabelsButton,
+    onMoreLabelsClick,
+    numMoreLabels,
+    resourceLabelConfig,
+    onLabelClick,
+    onShowStatusInfo,
+  };
+
+  return showScope ? (
+    <ScopedCardLayout {...layoutProps} />
+  ) : (
+    <CardLayout {...layoutProps} />
+  );
+}
+
+function CardLayout({
+  viewItem,
+  setHovered,
+  showingStatusInfo,
+  visibleInputFields,
+  showAllLabels,
+  shouldDisplayStatusWarning,
+  pinned,
+  selected,
+  innerContainer,
+  onMouseLeave,
+  selectResource,
+  pinResource,
+  pinningSupport,
+  hovered,
+  showResourceSelectedIcon,
+  labelsInnerContainer,
+  showMoreLabelsButton,
+  onMoreLabelsClick,
+  numMoreLabels,
+  resourceLabelConfig,
+  onLabelClick,
+  onShowStatusInfo,
+}: CardLayoutProps) {
+  const { primaryIconName, requiresRequest, scope } = viewItem;
+
   return (
     <CardContainer
       onMouseEnter={() => setHovered(true)}
@@ -234,6 +262,7 @@ export function ResourceCard({
                 pinned={pinned}
                 pinningSupport={pinningSupport}
                 hovered={hovered}
+                scoped={!!scope}
               />
             </Box>
           )}
@@ -246,83 +275,20 @@ export function ResourceCard({
               opacity: ${requiresRequest ? '0.5' : '1'};
             `}
           />
-          {/* MinWidth is important to prevent descriptions from overflowing. */}
-          <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
-            <Flex flexDirection="row" alignItems="center" gap={1}>
-              <SingleLineBox flex="1">
-                <HoverTooltip tipContent={name} showOnlyOnOverflow>
-                  <Text typography="body1">{name}</Text>
-                </HoverTooltip>
-              </SingleLineBox>
-              {visibleInputFields.copy && hovered && (
-                <CopyButton value={name} />
-              )}
-              <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
-                {ActionButton}
-              </ResourceActionButtonWrapper>
-              {(typeof showResourceSelectedIcon === 'function'
-                ? showResourceSelectedIcon(labels)
-                : showResourceSelectedIcon) && <ResourceSelectedIcon />}
-            </Flex>
-            <Flex flexDirection="row" alignItems="center">
-              <ResTypeIconBox>
-                <SecondaryIcon size={18} />
-              </ResTypeIconBox>
-              {primaryDesc && (
-                <SingleLineBox ml={1} title={primaryDesc}>
-                  <Text typography="body3" color="text.slightlyMuted">
-                    {primaryDesc}
-                  </Text>
-                </SingleLineBox>
-              )}
-              {secondaryDesc && (
-                <SingleLineBox ml={2} title={secondaryDesc}>
-                  <Text typography="body3" color="text.muted">
-                    {secondaryDesc}
-                  </Text>
-                </SingleLineBox>
-              )}
-            </Flex>
-            <LabelsContainer showAll={showAllLabels}>
-              <LabelsInnerContainer
-                ref={labelsInnerContainer}
-                hasUnhealthyStatus={shouldDisplayStatusWarning}
-              >
-                <MoreLabelsButton
-                  style={{
-                    visibility:
-                      showMoreLabelsButton && !showAllLabels
-                        ? 'visible'
-                        : 'hidden',
-                  }}
-                  onClick={onMoreLabelsClick}
-                >
-                  + {numMoreLabels} more
-                </MoreLabelsButton>
-                {labels.map((label, i) => {
-                  let kind: LabelKind = 'secondary';
-                  if (resourceLabelConfig?.processLabel) {
-                    kind = resourceLabelConfig.processLabel(label).kind;
-                  }
-
-                  const labelText = makeLabelTag(label);
-                  return (
-                    <StyledLabel
-                      key={i}
-                      title={labelText}
-                      onClick={() => onLabelClick?.(label)}
-                      withHoverState={!!onLabelClick}
-                      kind={kind}
-                      data-is-label=""
-                      {...resourceLabelConfig}
-                    >
-                      {labelText}
-                    </StyledLabel>
-                  );
-                })}
-              </LabelsInnerContainer>
-            </LabelsContainer>
-          </Flex>
+          <ResourceCardBody
+            viewItem={viewItem}
+            visibleInputFields={visibleInputFields}
+            hovered={hovered}
+            showResourceSelectedIcon={showResourceSelectedIcon}
+            showAllLabels={showAllLabels}
+            labelsInnerContainer={labelsInnerContainer}
+            shouldDisplayStatusWarning={shouldDisplayStatusWarning}
+            showMoreLabelsButton={showMoreLabelsButton}
+            onMoreLabelsClick={onMoreLabelsClick}
+            numMoreLabels={numMoreLabels}
+            resourceLabelConfig={resourceLabelConfig}
+            onLabelClick={onLabelClick}
+          />
           {shouldDisplayStatusWarning && !showAllLabels && (
             <HoverTooltip tipContent={'Show Connection Issue'} placement="left">
               <WarningRightEdgeBadgeIcon onClick={onShowStatusInfo} />
@@ -364,21 +330,6 @@ const WarningRightEdgeBadgeIcon = ({
   );
 };
 
-/**
- * The outer container's purpose is to reserve horizontal space on the resource
- * grid. It holds the inner container that normally holds a regular layout of
- * the card, and is fully contained inside the outer container.  Once the user
- * clicks the "more" button, the inner container "pops out" by changing its
- * position to absolute.
- *
- * The card height is fixed to allow the WarningRightEdgeBadgeIcon to stay in
- * place when user clicks on "showAllLabels". Without the fixed height, the
- * container's height shrinks when the inner container pops out, resulting in
- * the svg to jump around (from size difference) and or disappearing.
- *
- * TODO(bl-nero): Known issue: this doesn't really work well with one-column
- * layout;
- */
 const CardContainer = styled.li<{
   showingStatusInfo: boolean;
   showHoverState: boolean;
@@ -408,6 +359,18 @@ const CardContainer = styled.li<{
     `}
 `;
 
+/**
+ * The outer container's purpose is to reserve horizontal space on the resource
+ * grid. It holds the inner container that normally holds a regular layout of
+ * the card, and is fully contained inside the outer container.  Once the user
+ * clicks the "more" button, the inner container "pops out" by changing its
+ * position to absolute.
+ *
+ * The card height is fixed to allow the WarningRightEdgeBadgeIcon to stay in
+ * place when user clicks on "showAllLabels". Without the fixed height, the
+ * container's height shrinks when the inner container pops out, resulting in
+ * the svg to jump around (from size difference) and or disappearing.
+ */
 const CardOuterContainer = styled(Box)<{
   showAllLabels?: boolean;
   shouldDisplayWarning: boolean;
@@ -491,66 +454,5 @@ const CardInnerContainer = styled(Flex)<
           viewType: 'card',
         })};
       `}
-  }
-`;
-
-/**
- * The outer labels container is resized depending on whether we want to show a
- * single row, or all labels. It hides the internal container's overflow if more
- * than one row of labels exist, but is not yet visible.
- */
-const LabelsContainer = styled(Box)<{ showAll?: boolean }>`
-  ${props => (props.showAll ? '' : `height: ${labelRowHeight}px;`)}
-  overflow: hidden;
-`;
-
-const StyledLabel = styled(LabelButtonWithIcon)`
-  height: ${labelHeight}px;
-  margin: 1px 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-  line-height: ${labelHeight - labelVerticalMargin}px;
-`;
-
-/**
- * The inner labels container always adapts to the size of labels.  Its height
- * is measured by the resize observer.
- */
-const LabelsInnerContainer = styled(Flex)<{ hasUnhealthyStatus: boolean }>`
-  position: relative;
-  flex-wrap: wrap;
-  align-items: start;
-  gap: ${props => props.theme.space[1]}px;
-  // Padding is required to prevent the more label button to not collide
-  // with the rendered labels. Just a tiny bit more padding needed to
-  // accomodate contents getting pushed more to the right when a
-  // WarningRightEdgeBadgeIcon renders.
-  padding-right: ${p => (p.hasUnhealthyStatus ? '75px' : '74px')};
-`;
-
-/**
- * It's important for this button to use absolute positioning; otherwise, its
- * presence in the layout may itself influence the resize logic, potentially
- * causing a feedback loop.
- */
-const MoreLabelsButton = styled(ButtonLink)`
-  position: absolute;
-  right: 0;
-
-  height: ${labelHeight}px;
-  margin: ${labelVerticalMargin}px 0;
-  min-height: 0;
-
-  background-color: transparent;
-  color: ${props => props.theme.colors.text.slightlyMuted};
-  font-style: italic;
-
-  transition: visibility 0s;
-  transition: background 150ms;
-
-  &:hover {
-    background-color: transparent;
   }
 `;

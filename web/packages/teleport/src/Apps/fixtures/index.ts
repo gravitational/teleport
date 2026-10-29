@@ -187,6 +187,7 @@ export const mcpApp = makeApp({
 
 export const apps = [
   {
+    scope: '/prod/east',
     name: 'Jenkins',
     uri: 'https://jenkins.teleport-proxy.com',
     publicAddr: 'jenkins.teleport-proxy.com',
@@ -200,6 +201,7 @@ export const apps = [
     fqdn: 'jenkins.one',
   },
   {
+    scope: '/prod/west',
     name: 'TheOtherOne',
     uri: 'https://jenkins.teleport-proxy.com',
     publicAddr: 'jenkins.teleport-proxy.com',
@@ -210,6 +212,7 @@ export const apps = [
     fqdn: 'jenkins.two',
   },
   {
+    scope: '/veryveryvery/loooooooooooooooong/scope',
     name: 'Grafana',
     uri: 'https://grafana.teleport-proxy.com',
     publicAddr: 'grafana.teleport-proxy.com',
@@ -223,6 +226,7 @@ export const apps = [
     fqdn: 'g.one',
   },
   {
+    scope: '/staging',
     kind: 'app',
     name: '11llkk2234234',
     description: 'Teleport Okta',
@@ -269,6 +273,7 @@ export const apps = [
     samlAppSSOUrl: '',
   },
   {
+    scope: '/staging',
     kind: 'app',
     name: 'saml app with launch urls',
     uri: '',

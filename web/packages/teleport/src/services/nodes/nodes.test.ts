@@ -28,6 +28,7 @@ test('correct formatting of nodes fetch response', async () => {
     agents: [
       {
         kind: 'node',
+        scope: '',
         id: '00a53f99-993b-40bc-af51-5ba259af4e43',
         clusterId: 'im-a-cluster-name',
         hostname: 'im-a-nodename',

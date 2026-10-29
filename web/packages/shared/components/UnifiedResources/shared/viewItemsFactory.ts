@@ -51,6 +51,7 @@ export function makeUnifiedResourceViewItemNode(
   const addressIfNotTunnel = resource.tunnel ? '' : resource.addr;
 
   return {
+    scope: resource.scope,
     name: resource.hostname,
     SecondaryIcon: ServerIcon,
     primaryIconName: 'server',
@@ -73,6 +74,7 @@ export function makeUnifiedResourceViewItemDatabase(
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
   return {
+    scope: '',
     name: resource.name,
     SecondaryIcon: DatabaseIcon,
     primaryIconName: getDatabaseIconName(resource.protocol),
@@ -96,6 +98,7 @@ export function makeUnifiedResourceViewItemKube(
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
   return {
+    scope: resource.scope,
     name: resource.name,
     SecondaryIcon: KubernetesIcon,
     primaryIconName: 'kube',
@@ -119,6 +122,7 @@ export function makeUnifiedResourceViewItemApp(
   if (resource.subKind === AppSubKind.MCP) {
     // TODO(greedy52) add address for non-stdio based MCP servers.
     return {
+      scope: resource.scope,
       name: resource.friendlyName || resource.name,
       SecondaryIcon: MCPIcon,
       primaryIconName: guessAppIcon(resource),
@@ -135,6 +139,7 @@ export function makeUnifiedResourceViewItemApp(
     };
   }
   return {
+    scope: resource.scope,
     name: resource.friendlyName || resource.name,
     SecondaryIcon: ApplicationIcon,
     primaryIconName: guessAppIcon(resource),
@@ -158,6 +163,7 @@ export function makeUnifiedResourceViewItemDesktop(
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
   return {
+    scope: '',
     name: resource.name,
     SecondaryIcon: DesktopIcon,
     primaryIconName: 'windows',
@@ -180,6 +186,7 @@ function makeUnifiedResourceViewItemLinuxDesktop(
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
   return {
+    scope: '',
     name: resource.name,
     SecondaryIcon: DesktopIcon,
     primaryIconName: 'linux',
@@ -200,6 +207,7 @@ function makeUnifiedResourceViewItemUserGroup(
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
   return {
+    scope: '',
     name: resource.friendlyName || resource.name,
     SecondaryIcon: ServerIcon,
     primaryIconName: 'server',
@@ -218,6 +226,7 @@ function makeUnifiedResourceViewItemGitServer(
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
   return {
+    scope: '',
     name: resource.github ? resource.github.organization : resource.hostname,
     SecondaryIcon: GitHubIcon,
     primaryIconName: 'git',

@@ -19,11 +19,12 @@
 import { Kube, KubeResource, KubeServer } from './types';
 
 export function makeKube(json): Kube {
-  const { name, requiresRequest, targetHealth } = json;
+  const { scope = '', name, requiresRequest, targetHealth } = json;
   const labels = json.labels || [];
 
   return {
     kind: 'kube_cluster',
+    scope,
     name,
     labels,
     users: json.kubernetes_users || [],

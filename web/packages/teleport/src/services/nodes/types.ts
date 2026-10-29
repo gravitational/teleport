@@ -25,6 +25,7 @@ import { Regions } from '../integrations';
 
 export interface Node {
   kind: 'node';
+  scope: string;
   id: string;
   clusterId: string;
   hostname: string;

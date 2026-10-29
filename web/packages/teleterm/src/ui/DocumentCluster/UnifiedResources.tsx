@@ -535,6 +535,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'node' as const,
+          scope: '', // TODO(bl-nero): Support returning scopes from tsh
           labels: server.labels,
           id: server.name,
           hostname: server.hostname,
@@ -574,6 +575,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'kube_cluster' as const,
+          scope: '', // TODO(bl-nero): Support returning scopes from tsh
           labels: kube.labels,
           name: kube.name,
           requiresRequest: resource.requiresRequest,
@@ -591,6 +593,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'app' as const,
+          scope: '', // TODO(bl-nero): Support returning scopes from tsh
           labels: app.labels,
           name: app.name,
           id: app.name,

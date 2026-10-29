@@ -22,7 +22,7 @@ import styled, { css } from 'styled-components';
 import { Box, ButtonIcon, Flex, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { makeLabelTag } from 'design/formatters';
-import { Tags, Warning } from 'design/Icon';
+import { Contract, Tags, Warning } from 'design/Icon';
 import { LabelKind } from 'design/Label';
 import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
@@ -59,8 +59,10 @@ export function ResourceListItem({
   },
   resourceLabelConfig,
   showResourceSelectedIcon,
+  showScope,
 }: ResourceItemProps) {
   const {
+    scope,
     name,
     primaryIconName,
     SecondaryIcon,
@@ -116,6 +118,7 @@ export function ResourceListItem({
         hideCheckbox={!visibleInputFields.checkbox}
         hidePin={!visibleInputFields.pin}
         showHoverState={visibleInputFields.hoverState}
+        showScope={!!showScope}
       >
         {/* checkbox */}
         {visibleInputFields.checkbox && (
@@ -137,6 +140,7 @@ export function ResourceListItem({
             pinned={pinned}
             pinningSupport={pinningSupport}
             hovered={hovered}
+            scoped={!!scope}
             css={`
               grid-area: pin;
               place-self: center center;
@@ -193,6 +197,29 @@ export function ResourceListItem({
             )}
           </Box>
         </Flex>
+
+        {showScope && scope && (
+          <Flex
+            gap={2}
+            minWidth={0}
+            css={`
+              grid-area: scope;
+            `}
+          >
+            <Contract />
+            <HoverTooltip tipContent={scope} showOnlyOnOverflow>
+              <Text
+                whiteSpace="nowrap"
+                css={`
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                `}
+              >
+                {scope}
+              </Text>
+            </HoverTooltip>
+          </Flex>
+        )}
 
         {/* type */}
         <Flex
@@ -378,7 +405,7 @@ const RowContainer = styled(Box)<{
 `;
 
 const RowInnerContainer = styled(Flex)<
-  BackgroundColorProps & { showHoverState: boolean }
+  BackgroundColorProps & { showHoverState: boolean; showScope: boolean }
 >`
   display: grid;
   column-gap: ${props => props.theme.space[3]}px;
@@ -403,33 +430,64 @@ const RowInnerContainer = styled(Flex)<
       }
     `}
 
-  grid-template-columns: 22px 24px 36px 2fr 1fr 1fr 32px min-content;
-  grid-template-areas:
-    'checkbox pin icon name type address labels-btn warning-icon button'
-    '. . labels labels labels labels labels labels labels';
+  ${p => {
+    const { columns, areas } = makeGridTemplate({
+      checkbox: !p.hideCheckbox,
+      pin: !p.hidePin,
+      scope: p.showScope,
+    });
 
-  ${p =>
-    p.hideCheckbox &&
-    `grid-template-columns: 24px 36px 2fr 1fr 1fr 32px min-content;
-    grid-template-areas:
-    'pin icon name type address labels-btn warning-icon button'
-    '. labels labels labels labels labels labels labels';`}
-
-  ${p =>
-    p.hidePin &&
-    `grid-template-columns: 22px 36px 2fr 1fr 1fr 32px min-content;
-    grid-template-areas:
-    'checkbox icon name type address labels-btn warning-icon button'
-    '. labels labels labels labels labels labels labels';`}
-
-  ${p =>
-    p.hideCheckbox &&
-    p.hidePin &&
-    `grid-template-columns: 36px 2fr 1fr 1fr 32px min-content;
-    grid-template-areas:
-    'icon name type address labels-btn warning-icon button'
-    'labels labels labels labels labels labels labels';`}
+    return css`
+      grid-template-columns: ${columns};
+      grid-template-areas: ${areas};
+    `;
+  }}
 `;
+
+export function makeGridTemplate({
+  checkbox,
+  pin,
+  scope,
+}: {
+  checkbox: boolean;
+  pin: boolean;
+  scope: boolean;
+}): { columns: string; areas: string } {
+  const columns = [];
+  const areas = [];
+  const labelAreas = [];
+
+  if (checkbox) {
+    columns.push('22px');
+    areas.push('checkbox');
+    labelAreas.push('.');
+  }
+
+  if (pin) {
+    columns.push('24px');
+    areas.push('pin');
+    labelAreas.push('.');
+  }
+
+  columns.push('36px', '2fr');
+  areas.push('icon', 'name');
+  labelAreas.push('labels', 'labels');
+
+  if (scope) {
+    columns.push('1.5fr');
+    areas.push('scope');
+    labelAreas.push('labels');
+  }
+
+  columns.push('1fr', '1fr', '32px', 'min-content');
+  areas.push('type', 'address', 'labels-btn', 'warning-icon', 'button');
+  labelAreas.push('labels', 'labels', 'labels', 'labels', 'labels');
+
+  return {
+    columns: columns.join(' '),
+    areas: `'${areas.join(' ')}' '${labelAreas.join(' ')}'`,
+  };
+}
 
 const Name = styled(Text)`
   white-space: nowrap;

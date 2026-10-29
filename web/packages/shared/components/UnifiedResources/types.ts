@@ -78,6 +78,7 @@ export type ResourceTargetHealth = {
 
 export type UnifiedResourceApp = {
   kind: 'app';
+  scope: string;
   id: string;
   name: string;
   description: string;
@@ -106,6 +107,7 @@ export interface UnifiedResourceDatabase {
 
 export interface UnifiedResourceNode {
   kind: 'node';
+  scope: string;
   id: string;
   hostname: string;
   labels: ResourceLabel[];
@@ -118,6 +120,7 @@ export interface UnifiedResourceNode {
 
 export interface UnifiedResourceKube {
   kind: 'kube_cluster';
+  scope: string;
   name: string;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
@@ -192,6 +195,7 @@ export type UnifiedResourcesQueryParams = {
 
 export interface UnifiedResourceViewItem {
   name: string;
+  scope: string;
   labels: ResourceLabel[];
   primaryIconName: ResourceIconName;
   SecondaryIcon: typeof Icon;
@@ -303,6 +307,8 @@ export type ResourceItemProps = {
    * whether the icon should be shown.
    */
   showResourceSelectedIcon?: boolean | ((labels: ResourceLabel[]) => boolean);
+  /** Controls whether the UI should show the scope. */
+  showScope?: boolean;
 };
 
 // Props that are needed for the Card view.
@@ -368,6 +374,8 @@ export type ResourceViewProps = {
    * whether the icon should be shown.
    */
   showResourceSelectedIcon?: boolean | ((labels: ResourceLabel[]) => boolean);
+  /** Controls whether the UI should show scopes. */
+  showScopes?: boolean;
 };
 
 /**

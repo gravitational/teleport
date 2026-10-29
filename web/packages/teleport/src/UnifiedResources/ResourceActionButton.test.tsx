@@ -82,6 +82,7 @@ test('saml app: multiple launch urls should display menu login button', async ()
 
 const resource: App = {
   kind: 'app',
+  scope: '',
   name: 'saml_app',
   uri: '',
   publicAddr: '',

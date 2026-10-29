@@ -27,6 +27,7 @@ export const Default = () => {
     <NodeList
       nodes={[
         {
+          scope: '',
           tunnel: false,
           subKind: 'teleport',
           sshLogins: ['dev', 'root'],
@@ -38,6 +39,7 @@ export const Default = () => {
           labels: [],
         },
         {
+          scope: '',
           tunnel: true,
           subKind: 'teleport',
           sshLogins: ['dev', 'root'],

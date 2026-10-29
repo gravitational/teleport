@@ -50,6 +50,7 @@ export const WithKubeUsers = () => (
         {...props}
         kube={{
           kind: 'kube_cluster',
+          scope: '',
           name: 'some-kube-name',
           labels: [],
           users: ['user1', 'user2'],
@@ -67,6 +68,7 @@ export const WithKubeGroups = () => (
         {...props}
         kube={{
           kind: 'kube_cluster',
+          scope: '',
           name: 'some-kube-name',
           labels: [],
           users: [],
@@ -84,6 +86,7 @@ export const WithKubeUsersAndGroups = () => (
         {...props}
         kube={{
           kind: 'kube_cluster',
+          scope: '',
           name: 'some-kube-name',
           labels: [],
           users: ['user1', 'user2'],
@@ -106,6 +109,7 @@ const props: State = {
   canTestConnection: true,
   kube: {
     kind: 'kube_cluster',
+    scope: '',
     name: 'some-kube-name',
     labels: [],
     users: [],
