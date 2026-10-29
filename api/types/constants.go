@@ -1175,7 +1175,8 @@ var (
 const (
 	// DiscoveryLabelRegion identifies a discovered cloud resource's region.
 	DiscoveryLabelRegion = "region"
-	// DiscoveryLabelAccountID is the label key containing AWS account ID.
+	// DiscoveryLabelAccountID is the legacy label key containing AWS account ID.
+	// Going forward, AWSAccountIDLabel should be used instead.
 	DiscoveryLabelAccountID = "account-id"
 	// DiscoveryLabelEngine is the label key containing database engine name.
 	DiscoveryLabelEngine = "engine"

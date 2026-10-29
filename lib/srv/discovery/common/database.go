@@ -1559,8 +1559,12 @@ func labelsFromRedshiftServerlessVPCEndpoint(endpoint *rsstypes.EndpointAccess, 
 func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 	labels := make(map[string]string)
 	if meta != nil {
-		labels[types.DiscoveryLabelAccountID] = meta.AccountID
+		labels[types.AWSAccountIDLabel] = meta.AccountID
+		labels[types.AWSRegionLabel] = meta.Region
+
+		// Preserve the legacy account-id and region labels for backwards compatibility.
 		labels[types.DiscoveryLabelRegion] = meta.Region
+		labels[types.DiscoveryLabelAccountID] = meta.AccountID
 	}
 	labels[types.CloudLabel] = types.CloudAWS
 	return labels
