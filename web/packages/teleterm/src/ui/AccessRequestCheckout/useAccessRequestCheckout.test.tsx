@@ -18,7 +18,11 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
+  makeAccessRequest as makeTshdAccessRequest,
   makeKube,
   makeRootCluster,
   makeServer,
@@ -459,4 +463,186 @@ test('updating kube namespaces', async () => {
       kubeItem
     );
   }).toThrow(/the same requested kube cluster can be updated/);
+});
+
+describe('scheduled access requests', () => {
+  const START = new Date('2026-03-01T12:00:00.000Z');
+  const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+
+  // setUpCheckout renders the hook with one pending role, then opens the
+  // checkout so the dry run runs.
+  async function setUpCheckout(createAccessRequest: jest.Mock) {
+    const cluster = makeRootCluster();
+    const appContext = new MockAppContext();
+    appContext.clustersService.setState(draftState => {
+      draftState.clusters.set(rootClusterUri, cluster);
+    });
+    appContext.workspacesService.addWorkspace(cluster);
+    await appContext.workspacesService.setActiveWorkspace(rootClusterUri);
+    await appContext.workspacesService
+      .getWorkspaceAccessRequestsService(rootClusterUri)
+      .addOrRemoveRole('requested-role');
+
+    appContext.tshd.createAccessRequest = createAccessRequest;
+
+    const wrapper = ({ children }) => (
+      <MockAppContextProvider appContext={appContext}>
+        {children}
+      </MockAppContextProvider>
+    );
+    const { result } = renderHook(useAccessRequestCheckout, { wrapper });
+    await act(async () => result.current.setShowCheckout(true));
+    return { result };
+  }
+
+  // scheduledResponse answers a dry run with a confirmed fixed window.
+  function scheduledResponse() {
+    return jest.fn().mockResolvedValue(
+      new MockedUnaryCall({
+        request: makeTshdAccessRequest({
+          timing: {
+            scheduled: {
+              start: Timestamp.fromDate(START),
+              duration: BigInt(FOURTEEN_DAYS_MS),
+            },
+          },
+        }),
+      })
+    );
+  }
+
+  beforeEach(() => {
+    jest.useFakeTimers({ doNotFake: ['setTimeout', 'queueMicrotask'] });
+    jest.setSystemTime(START);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('the dry run probes for scheduled timing with the current start and a 14-day duration', async () => {
+    // Set up a dry run that confirms timing.
+    const createAccessRequest = scheduledResponse();
+
+    const { result } = await setUpCheckout(createAccessRequest);
+
+    // Assert the probe asks for a 14 day window starting now.
+    expect(createAccessRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dryRun: true,
+        timing: {
+          scheduled: {
+            start: Timestamp.fromDate(START),
+            duration: BigInt(FOURTEEN_DAYS_MS),
+          },
+        },
+      })
+    );
+
+    // Assert the timing reaches shared state, which activates the controls.
+    await waitFor(() =>
+      expect(result.current.dryRunResponse?.timing?.scheduled).toEqual({
+        start: START,
+        duration: FOURTEEN_DAYS_MS,
+      })
+    );
+  });
+
+  test('a timing-absent dry run response keeps the legacy submission path', async () => {
+    // Set up an Auth that answers the probe without timing.
+    const createAccessRequest = jest
+      .fn()
+      .mockResolvedValue(
+        new MockedUnaryCall({ request: makeTshdAccessRequest() })
+      );
+
+    const { result } = await setUpCheckout(createAccessRequest);
+    await waitFor(() => expect(result.current.dryRunResponse).toBeTruthy());
+    createAccessRequest.mockClear();
+
+    // Submit an access end.
+    const accessEnd = new Date(START.getTime() + 2 * 60 * 60 * 1000);
+    await act(async () =>
+      result.current.createRequest({ reason: 'r', maxDuration: accessEnd })
+    );
+
+    // Assert no scheduled payload, and the legacy end sent as is.
+    expect(createAccessRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timing: undefined,
+        maxDuration: Timestamp.fromDate(accessEnd),
+      })
+    );
+  });
+
+  test('immediate submission keeps the dry-run start and the selected end after dwelling in the form', async () => {
+    // Set up a confirmed window.
+    const createAccessRequest = scheduledResponse();
+    const { result } = await setUpCheckout(createAccessRequest);
+    await waitFor(() =>
+      expect(result.current.dryRunResponse?.timing?.scheduled).toBeTruthy()
+    );
+    createAccessRequest.mockClear();
+
+    // Dwell in the form for 10 minutes before submitting.
+    act(() => jest.advanceTimersByTime(10 * 60 * 1000));
+
+    // Submit with no explicit start, meaning "Immediately on Approval".
+    const accessEnd = new Date(START.getTime() + 3 * 60 * 60 * 1000);
+    const pendingExpiry = new Date(START.getTime() + 24 * 60 * 60 * 1000);
+    await act(async () =>
+      result.current.createRequest({
+        reason: 'r',
+        maxDuration: accessEnd,
+        requestTTL: pendingExpiry,
+      })
+    );
+
+    // Assert the start is not rebased, the duration is end minus it, and the
+    // pending expiry is unchanged.
+    expect(createAccessRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timing: {
+          scheduled: {
+            start: Timestamp.fromDate(START),
+            duration: BigInt(3 * 60 * 60 * 1000),
+          },
+        },
+        requestTtl: Timestamp.fromDate(pendingExpiry),
+      })
+    );
+  });
+
+  test('an explicit future submission sends the selected start and end unchanged', async () => {
+    // Set up a confirmed window.
+    const createAccessRequest = scheduledResponse();
+    const { result } = await setUpCheckout(createAccessRequest);
+    await waitFor(() =>
+      expect(result.current.dryRunResponse?.timing?.scheduled).toBeTruthy()
+    );
+    createAccessRequest.mockClear();
+
+    // Submit a window two days out, lasting four hours.
+    const futureStart = new Date(START.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const accessEnd = new Date(futureStart.getTime() + 4 * 60 * 60 * 1000);
+    await act(async () =>
+      result.current.createRequest({
+        reason: 'r',
+        start: futureStart,
+        maxDuration: accessEnd,
+      })
+    );
+
+    // Assert the selected start is used and spans to the selected end.
+    expect(createAccessRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timing: {
+          scheduled: {
+            start: Timestamp.fromDate(futureStart),
+            duration: BigInt(4 * 60 * 60 * 1000),
+          },
+        },
+      })
+    );
+  });
 });

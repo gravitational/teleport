@@ -20,6 +20,7 @@ package clusters
 
 import (
 	"context"
+	"math"
 	"slices"
 	"time"
 
@@ -137,14 +138,11 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient authcl
 	request.SetSuggestedReviewers(req.GetSuggestedReviewers())
 	request.SetDryRun(req.GetDryRun())
 
-	if req.HasMaxDuration() {
-		request.SetMaxDuration(req.GetMaxDuration().AsTime())
-	}
 	if req.HasRequestTtl() {
 		request.SetExpiry(req.GetRequestTtl().AsTime())
 	}
-	if req.GetAssumeStartTime() != nil {
-		request.SetAssumeStartTime(req.GetAssumeStartTime().AsTime())
+	if err := applyAccessRequestTiming(request, req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	var reqOut types.AccessRequest
@@ -159,6 +157,67 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient authcl
 	return &AccessRequest{
 		URI:           c.URI.AppendAccessRequest(request.GetName()),
 		AccessRequest: reqOut,
+	}, nil
+}
+
+// applyAccessRequestTiming sets the access window. Scheduled timing wins over
+// the legacy fields, which are derived from it.
+func applyAccessRequestTiming(request types.AccessRequest, req *api.CreateAccessRequestRequest) error {
+	timing, err := accessRequestTimingToNative(req.GetTiming())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if timing != nil {
+		request.SetTiming(timing)
+	}
+
+	if scheduled := timing.GetScheduled(); scheduled != nil {
+		request.SetAssumeStartTime(scheduled.Start)
+		request.SetMaxDuration(scheduled.Start.Add(scheduled.Duration))
+		return nil
+	}
+
+	if req.HasMaxDuration() {
+		request.SetMaxDuration(req.GetMaxDuration().AsTime())
+	}
+	if req.GetAssumeStartTime() != nil {
+		request.SetAssumeStartTime(req.GetAssumeStartTime().AsTime())
+	}
+	return nil
+}
+
+// accessRequestTimingToNative converts the timing message, whose duration is in
+// milliseconds, into native timing. Policy bounds stay with Auth.
+func accessRequestTimingToNative(timing *api.AccessRequestTiming) (*types.AccessRequestTiming, error) {
+	if timing == nil {
+		return nil, nil
+	}
+
+	scheduled := timing.GetScheduled()
+	if scheduled == nil {
+		return &types.AccessRequestTiming{}, nil
+	}
+
+	durationMs := scheduled.GetDuration()
+	if durationMs <= 0 {
+		return nil, trace.BadParameter("invalid or missing scheduled duration")
+	}
+	if durationMs > math.MaxInt64/int64(time.Millisecond) {
+		return nil, trace.BadParameter("scheduled duration exceeds maximum supported duration")
+	}
+	// Converting a missing or out-of-range start gives back the wrong time
+	// instead of an error, so reject it up front.
+	if err := scheduled.GetStart().CheckValid(); err != nil {
+		return nil, trace.BadParameter("invalid or missing scheduled start time")
+	}
+
+	return &types.AccessRequestTiming{
+		Mode: &types.AccessRequestTiming_Scheduled{
+			Scheduled: &types.AccessRequestScheduledTiming{
+				Start:    scheduled.GetStart().AsTime(),
+				Duration: time.Duration(durationMs) * time.Millisecond,
+			},
+		},
 	}, nil
 }
 

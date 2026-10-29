@@ -19,7 +19,10 @@
 import { useEffect } from 'react';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
+import {
+  AccessRequest as TshdAccessRequest,
+  AccessRequestTiming as TshdAccessRequestTiming,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 import { mapAttempt } from 'shared/hooks/useAsync';
@@ -105,7 +108,22 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
     resources: request.resources,
     reasonMode: request.reasonMode || 'optional',
     reasonPrompts: request.reasonPrompts,
+    timing: makeUiAccessRequestTiming(request.timing),
   });
+}
+
+function makeUiAccessRequestTiming(timing: TshdAccessRequestTiming) {
+  const scheduled = timing?.scheduled;
+  if (!scheduled) {
+    return undefined;
+  }
+
+  return {
+    scheduled: {
+      start: Timestamp.toDate(scheduled.start),
+      duration: Number(scheduled.duration),
+    },
+  };
 }
 
 // transform tsdh Access Request type into the web's Access Request

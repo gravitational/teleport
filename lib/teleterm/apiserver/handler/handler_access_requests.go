@@ -228,8 +228,26 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		SessionTtl:              timestamppb.New(req.GetSessionTLL()),
 		ReasonMode:              string(dryRunEnrichment.ReasonMode),
 		ReasonPrompts:           dryRunEnrichment.ReasonPrompts,
+		Timing:                  newAPIAccessRequestTiming(req.GetTiming()),
 		UserInfo:                newAPIAccessRequestUserInfo(req.GetUser(), req.GetUserInfo().UserDisplay()),
 		SuggestedReviewersInfo:  suggestedReviewersInfo,
+	}.Build()
+}
+
+// newAPIAccessRequestTiming reports the window Auth confirmed. Legacy requests,
+// and modes this version cannot represent, stay nil.
+func newAPIAccessRequestTiming(timing *types.AccessRequestTiming) *api.AccessRequestTiming {
+	scheduled := timing.GetScheduled()
+	if scheduled == nil {
+		return nil
+	}
+
+	return api.AccessRequestTiming_builder{
+		Scheduled: api.AccessRequestScheduledTiming_builder{
+			Start: timestamppb.New(scheduled.Start),
+			// Drops sub-millisecond precision.
+			Duration: scheduled.Duration.Milliseconds(),
+		}.Build(),
 	}.Build()
 }
 

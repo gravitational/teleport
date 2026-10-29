@@ -153,6 +153,44 @@ export interface AccessRequest {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.AccessRequestUserInfo suggested_reviewers_info = 22;
      */
     suggestedReviewersInfo: AccessRequestUserInfo[];
+    /**
+     * timing is the access window Auth confirmed. Unset for requests that use the
+     * legacy start and end fields.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.AccessRequestTiming timing = 23;
+     */
+    timing?: AccessRequestTiming;
+}
+/**
+ * AccessRequestTiming holds the access window mode, each in its own field.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestTiming
+ */
+export interface AccessRequestTiming {
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.AccessRequestScheduledTiming scheduled = 1;
+     */
+    scheduled?: AccessRequestScheduledTiming;
+}
+/**
+ * AccessRequestScheduledTiming requests a fixed access window. Approval never
+ * moves the window.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestScheduledTiming
+ */
+export interface AccessRequestScheduledTiming {
+    /**
+     * start is the fixed beginning of the access window.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp start = 1;
+     */
+    start?: Timestamp;
+    /**
+     * duration is the length of the window, in milliseconds.
+     *
+     * @generated from protobuf field: int64 duration = 2;
+     */
+    duration: bigint;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestReview
@@ -303,7 +341,8 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
             { no: 19, name: "reason_mode", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 20, name: "reason_prompts", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 21, name: "user_info", kind: "message", T: () => AccessRequestUserInfo },
-            { no: 22, name: "suggested_reviewers_info", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AccessRequestUserInfo }
+            { no: 22, name: "suggested_reviewers_info", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AccessRequestUserInfo },
+            { no: 23, name: "timing", kind: "message", T: () => AccessRequestTiming }
         ]);
     }
     create(value?: PartialMessage<AccessRequest>): AccessRequest {
@@ -394,6 +433,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
                 case /* repeated teleport.lib.teleterm.v1.AccessRequestUserInfo suggested_reviewers_info */ 22:
                     message.suggestedReviewersInfo.push(AccessRequestUserInfo.internalBinaryRead(reader, reader.uint32(), options));
                     break;
+                case /* teleport.lib.teleterm.v1.AccessRequestTiming timing */ 23:
+                    message.timing = AccessRequestTiming.internalBinaryRead(reader, reader.uint32(), options, message.timing);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -469,6 +511,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         /* repeated teleport.lib.teleterm.v1.AccessRequestUserInfo suggested_reviewers_info = 22; */
         for (let i = 0; i < message.suggestedReviewersInfo.length; i++)
             AccessRequestUserInfo.internalBinaryWrite(message.suggestedReviewersInfo[i], writer.tag(22, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.AccessRequestTiming timing = 23; */
+        if (message.timing)
+            AccessRequestTiming.internalBinaryWrite(message.timing, writer.tag(23, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -479,6 +524,106 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AccessRequest
  */
 export const AccessRequest = new AccessRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessRequestTiming$Type extends MessageType<AccessRequestTiming> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.AccessRequestTiming", [
+            { no: 1, name: "scheduled", kind: "message", T: () => AccessRequestScheduledTiming }
+        ]);
+    }
+    create(value?: PartialMessage<AccessRequestTiming>): AccessRequestTiming {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<AccessRequestTiming>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestTiming): AccessRequestTiming {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.teleterm.v1.AccessRequestScheduledTiming scheduled */ 1:
+                    message.scheduled = AccessRequestScheduledTiming.internalBinaryRead(reader, reader.uint32(), options, message.scheduled);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessRequestTiming, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.teleterm.v1.AccessRequestScheduledTiming scheduled = 1; */
+        if (message.scheduled)
+            AccessRequestScheduledTiming.internalBinaryWrite(message.scheduled, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AccessRequestTiming
+ */
+export const AccessRequestTiming = new AccessRequestTiming$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessRequestScheduledTiming$Type extends MessageType<AccessRequestScheduledTiming> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.AccessRequestScheduledTiming", [
+            { no: 1, name: "start", kind: "message", T: () => Timestamp },
+            { no: 2, name: "duration", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessRequestScheduledTiming>): AccessRequestScheduledTiming {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.duration = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<AccessRequestScheduledTiming>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestScheduledTiming): AccessRequestScheduledTiming {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* google.protobuf.Timestamp start */ 1:
+                    message.start = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.start);
+                    break;
+                case /* int64 duration */ 2:
+                    message.duration = reader.int64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessRequestScheduledTiming, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* google.protobuf.Timestamp start = 1; */
+        if (message.start)
+            Timestamp.internalBinaryWrite(message.start, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* int64 duration = 2; */
+        if (message.duration !== 0n)
+            writer.tag(2, WireType.Varint).int64(message.duration);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AccessRequestScheduledTiming
+ */
+export const AccessRequestScheduledTiming = new AccessRequestScheduledTiming$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class AccessRequestReview$Type extends MessageType<AccessRequestReview> {
     constructor() {

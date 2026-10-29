@@ -68,6 +68,23 @@ message AccessRequest {
   AccessRequestUserInfo user_info = 21;
   // suggested_reviewers_info has one entry per suggested_reviewers name, in the same order.
   repeated AccessRequestUserInfo suggested_reviewers_info = 22;
+  // timing is the access window Auth confirmed. Unset for requests that use the
+  // legacy start and end fields.
+  AccessRequestTiming timing = 23;
+}
+
+// AccessRequestTiming holds the access window mode, each in its own field.
+message AccessRequestTiming {
+  AccessRequestScheduledTiming scheduled = 1;
+}
+
+// AccessRequestScheduledTiming requests a fixed access window. Approval never
+// moves the window.
+message AccessRequestScheduledTiming {
+  // start is the fixed beginning of the access window.
+  google.protobuf.Timestamp start = 1;
+  // duration is the length of the window, in milliseconds.
+  int64 duration = 2;
 }
 
 message AccessRequestReview {

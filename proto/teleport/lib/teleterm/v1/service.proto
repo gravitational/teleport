@@ -283,6 +283,10 @@ message CreateAccessRequestRequest {
   // When present, resource_access_ids should be treated as authoritative
   // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
   repeated types.ResourceAccessID resource_access_ids = 10;
+  // timing requests a specific access window. When unset, the legacy
+  // assume_start_time and max_duration above are used as is. When set, it wins
+  // and those two are derived from it.
+  AccessRequestTiming timing = 11;
 }
 
 message CreateAccessRequestResponse {

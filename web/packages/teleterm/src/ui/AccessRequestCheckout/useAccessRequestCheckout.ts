@@ -29,6 +29,7 @@ import {
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { AccessRequestTiming } from 'shared/services/accessRequests';
 
 import {
   CreateAccessRequestRequest,
@@ -47,6 +48,13 @@ import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
+
+/** The longest window Auth can grant. */
+const MAX_SCHEDULED_ACCESS_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
+
+type CreateRequestWithTiming = CreateRequest & {
+  timing?: AccessRequestTiming;
+};
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
@@ -272,15 +280,38 @@ export default function useAccessRequestCheckout() {
     );
   }
 
+  function getScheduledTiming(req: CreateRequestWithTiming) {
+    if (req.dryRun) {
+      return req.timing?.scheduled;
+    }
+
+    const dryRunScheduled = dryRunResponse?.timing?.scheduled;
+    // Despite its name, req.maxDuration is the absolute access end selected in checkout.
+    const accessEnd = req.maxDuration;
+    if (!dryRunScheduled || !accessEnd) {
+      return undefined;
+    }
+
+    const start = req.start || dryRunScheduled.start;
+    return { start, duration: accessEnd.getTime() - start.getTime() };
+  }
+
   /**
    * Shared logic used both during dry runs and regular access request creation.
    */
-  function prepareAndCreateRequest(req: CreateRequest) {
+  function prepareAndCreateRequest(req: CreateRequestWithTiming) {
+    const scheduled = getScheduledTiming(req);
     const params: CreateAccessRequestRequest = {
       rootClusterUri,
       reason: req.reason,
       suggestedReviewers: req.suggestedReviewers || [],
       dryRun: req.dryRun,
+      timing: scheduled && {
+        scheduled: {
+          start: Timestamp.fromDate(scheduled.start),
+          duration: BigInt(scheduled.duration),
+        },
+      },
       resourceIds: pendingAccessRequestsWithoutParentResource
         .filter(d => d.kind !== 'role')
         .map(d => {
@@ -333,6 +364,13 @@ export default function useAccessRequestCheckout() {
         reason: 'placeholder-reason',
         dryRun: true,
         maxDuration: getDryRunMaxDuration(),
+        // Probe with the global maximum. Auth echoes back the window it allows.
+        timing: {
+          scheduled: {
+            start: new Date(),
+            duration: MAX_SCHEDULED_ACCESS_DURATION_MS,
+          },
+        },
       });
       teletermAccessRequest = accessRequest;
     } catch {

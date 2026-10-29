@@ -48,6 +48,7 @@ import { Cluster } from "./cluster_pb";
 import { KubeServer } from "./kube_pb";
 import { KubeResource } from "./kube_pb";
 import { AccessList } from "../../../accesslist/v1/accesslist_pb";
+import { AccessRequestTiming } from "./access_request_pb";
 import { ResourceAccessID } from "../../../legacy/types/resources_pb";
 import { Timestamp } from "../../../../google/protobuf/timestamp_pb";
 import { ResourceID } from "./access_request_pb";
@@ -235,6 +236,14 @@ export interface CreateAccessRequestRequest {
      * @generated from protobuf field: repeated types.ResourceAccessID resource_access_ids = 10;
      */
     resourceAccessIds: ResourceAccessID[];
+    /**
+     * timing requests a specific access window. When unset, the legacy
+     * assume_start_time and max_duration above are used as is. When set, it wins
+     * and those two are derived from it.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.AccessRequestTiming timing = 11;
+     */
+    timing?: AccessRequestTiming;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.CreateAccessRequestResponse
@@ -1957,7 +1966,8 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
             { no: 7, name: "dry_run", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 8, name: "max_duration", kind: "message", T: () => Timestamp },
             { no: 9, name: "request_ttl", kind: "message", T: () => Timestamp },
-            { no: 10, name: "resource_access_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceAccessID }
+            { no: 10, name: "resource_access_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceAccessID },
+            { no: 11, name: "timing", kind: "message", T: () => AccessRequestTiming }
         ]);
     }
     create(value?: PartialMessage<CreateAccessRequestRequest>): CreateAccessRequestRequest {
@@ -2008,6 +2018,9 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
                 case /* repeated types.ResourceAccessID resource_access_ids */ 10:
                     message.resourceAccessIds.push(ResourceAccessID.internalBinaryRead(reader, reader.uint32(), options));
                     break;
+                case /* teleport.lib.teleterm.v1.AccessRequestTiming timing */ 11:
+                    message.timing = AccessRequestTiming.internalBinaryRead(reader, reader.uint32(), options, message.timing);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -2050,6 +2063,9 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
         /* repeated types.ResourceAccessID resource_access_ids = 10; */
         for (let i = 0; i < message.resourceAccessIds.length; i++)
             ResourceAccessID.internalBinaryWrite(message.resourceAccessIds[i], writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.AccessRequestTiming timing = 11; */
+        if (message.timing)
+            AccessRequestTiming.internalBinaryWrite(message.timing, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
