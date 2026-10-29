@@ -152,8 +152,9 @@ func ValidateBeam(b *beamsv1.Beam) error {
 			return trace.BadParameter("status.delegation.roles: not supported in mode %s", delegation.GetMode())
 		}
 	case beamsv1.DelegationMode_DELEGATION_MODE_SELECTED_ROLES:
-		// TODO(boxofrad): Support selected roles in a subsequent PR.
-		fallthrough
+		if len(delegation.GetRoles()) == 0 {
+			return trace.BadParameter("status.delegation.roles: must not be empty when using mode %s", delegation.GetMode())
+		}
 	default:
 		return trace.BadParameter("status.delegation.mode: unsupported mode %s", delegation.GetMode())
 	}

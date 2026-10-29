@@ -3048,3 +3048,13 @@ func (mcp MCPPermissions) IsEmpty() bool {
 func (d DelegationConditions) IsEmpty() bool {
 	return len(d.Roles) == 0
 }
+
+// IsEqual determines whether two RequestKubernetesResources are equivalent.
+func (r *RequestKubernetesResource) IsEqual(o *RequestKubernetesResource) bool {
+	return deriveTeleportEqualRequestKubernetesResource(r, o)
+}
+
+// IsEqual determines whether two AccessRequestConditionsReasons are equivalent.
+func (r *AccessRequestConditionsReason) IsEqual(o *AccessRequestConditionsReason) bool {
+	return deriveTeleportEqualAccessRequestConditionsReason(r, o)
+}

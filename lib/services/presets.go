@@ -961,6 +961,9 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 				BeamLabels: types.Labels{
 					types.BeamOwnerLabel: {"{{user.metadata.name}}"},
 				},
+				Delegation: &types.DelegationConditions{
+					Roles: []string{types.Wildcard},
+				},
 				Rules: []types.Rule{
 					{
 						Resources: []string{types.KindBeam},

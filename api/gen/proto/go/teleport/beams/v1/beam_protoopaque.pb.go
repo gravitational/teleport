@@ -735,6 +735,7 @@ type BeamStatus struct {
 	xxx_hidden_ComputeStatus        ComputeStatus          `protobuf:"varint,12,opt,name=compute_status,json=computeStatus,proto3,enum=teleport.beams.v1.ComputeStatus"`
 	xxx_hidden_Region               string                 `protobuf:"bytes,13,opt,name=region,proto3"`
 	xxx_hidden_Delegation           *DelegationSpec        `protobuf:"bytes,14,opt,name=delegation,proto3"`
+	xxx_hidden_GeneratedRoles       []string               `protobuf:"bytes,15,rep,name=generated_roles,json=generatedRoles,proto3"`
 	xxx_hidden_SnapshotInputs       *[]*BeamSnapshotInput  `protobuf:"bytes,17,rep,name=snapshot_inputs,json=snapshotInputs,proto3"`
 	unknownFields                   protoimpl.UnknownFields
 	sizeCache                       protoimpl.SizeCache
@@ -863,6 +864,13 @@ func (x *BeamStatus) GetDelegation() *DelegationSpec {
 	return nil
 }
 
+func (x *BeamStatus) GetGeneratedRoles() []string {
+	if x != nil {
+		return x.xxx_hidden_GeneratedRoles
+	}
+	return nil
+}
+
 func (x *BeamStatus) GetSnapshotInputs() []*BeamSnapshotInput {
 	if x != nil {
 		if x.xxx_hidden_SnapshotInputs != nil {
@@ -928,6 +936,10 @@ func (x *BeamStatus) SetDelegation(v *DelegationSpec) {
 	x.xxx_hidden_Delegation = v
 }
 
+func (x *BeamStatus) SetGeneratedRoles(v []string) {
+	x.xxx_hidden_GeneratedRoles = v
+}
+
 func (x *BeamStatus) SetSnapshotInputs(v []*BeamSnapshotInput) {
 	x.xxx_hidden_SnapshotInputs = &v
 }
@@ -982,6 +994,10 @@ type BeamStatus_builder struct {
 	Region string
 	// Delegation determines how the beam owner's privleges are delegated to the beam.
 	Delegation *DelegationSpec
+	// GeneratedRoles contains the names of roles that were generated for this beam
+	// for example, those derived from the owner's standing roles to allow the beam
+	// to create resource access requests.
+	GeneratedRoles []string
 	// SnapshotInputs lists the input images used by a build Beam. Each entry
 	// records the image digest and the registry tag that keeps that image
 	// available while the Beam is running. Auth persists these entries before
@@ -1008,6 +1024,7 @@ func (b0 BeamStatus_builder) Build() *BeamStatus {
 	x.xxx_hidden_ComputeStatus = b.ComputeStatus
 	x.xxx_hidden_Region = b.Region
 	x.xxx_hidden_Delegation = b.Delegation
+	x.xxx_hidden_GeneratedRoles = b.GeneratedRoles
 	x.xxx_hidden_SnapshotInputs = &b.SnapshotInputs
 	return m0
 }
@@ -1187,7 +1204,7 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\apurpose\x18\a \x01(\x0e2&.teleport.beams.v1.BeamResourcePurposeR\apurpose\"Z\n" +
 	"\vPublishSpec\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x127\n" +
-	"\bprotocol\x18\x02 \x01(\x0e2\x1b.teleport.beams.v1.ProtocolR\bprotocol\"\xeb\x04\n" +
+	"\bprotocol\x18\x02 \x01(\x0e2\x1b.teleport.beams.v1.ProtocolR\bprotocol\"\x94\x05\n" +
 	"\n" +
 	"BeamStatus\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x14\n" +
@@ -1207,7 +1224,8 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\x06region\x18\r \x01(\tR\x06region\x12A\n" +
 	"\n" +
 	"delegation\x18\x0e \x01(\v2!.teleport.beams.v1.DelegationSpecR\n" +
-	"delegation\x12M\n" +
+	"delegation\x12'\n" +
+	"\x0fgenerated_roles\x18\x0f \x03(\tR\x0egeneratedRoles\x12M\n" +
 	"\x0fsnapshot_inputs\x18\x11 \x03(\v2$.teleport.beams.v1.BeamSnapshotInputR\x0esnapshotInputs\"P\n" +
 	"\x11BeamSnapshotInput\x12\x16\n" +
 	"\x06digest\x18\x01 \x01(\tR\x06digest\x12#\n" +

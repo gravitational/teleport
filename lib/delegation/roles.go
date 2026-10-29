@@ -17,12 +17,16 @@
 package delegation
 
 import (
+	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -151,4 +155,163 @@ func roleNames(roles []types.Role) set.Set[string] {
 		names.Add(role.GetName())
 	}
 	return names
+}
+
+// BuildRolesForAccessRequests generates a set of roles that would allow the
+// delegate to search for, and request access to, resources the delegator can
+// access with their standing roles (or request access to via search_as_roles).
+//
+// Roles with equivalent request.options (e.g. max_duration, kubernetes_resources)
+// are merged into a single role with with search_as_roles being the union of
+// their respective sets. Roles with different request.options are kept separate
+// to ensure we do not lose their conflicting options, thereby creating a vector
+// for privilege escalation.
+//
+// delegatedRoleNames contains the names of roles that are being directly assigned
+// to the delegate. These roles do not need to be represented in the generated set.
+//
+// Generated roles will also not include any deny.request conditions, as it is
+// not possible to "drop" a role with deny conditions through delegation.
+func BuildRolesForAccessRequests(
+	nameInfix string,
+	standingRoles []types.Role,
+	delegatedRoleNames []string,
+) ([]types.Role, error) {
+	delegatedRoleNameSet := set.New(delegatedRoleNames...)
+
+	// Bucket roles by their matching options.
+	//
+	// Create a default bucket where the user's undelegated standing roles are
+	// shared. We also merge into it any "unqualified" search_as_roles (i.e.
+	// those without options such as max_duration or kubernetes_resources).
+	defaultBucket := newAccessRequestConditionBucket(nil /* role */)
+	buckets := []*accessRequestConditionBucket{defaultBucket}
+
+	for _, role := range standingRoles {
+		// This role is delegated, no need to include in derived roles.
+		if delegatedRoleNameSet.Contains(role.GetName()) {
+			continue
+		}
+		defaultBucket.combinedSearchAsRoles.Add(role.GetName())
+		defaultBucket.sourceRoles.Add(role.GetName())
+
+		searchAsRoles := role.GetSearchAsRoles(types.Allow)
+
+		// This role has no search_as_roles, no need to include in derived roles.
+		if len(searchAsRoles) == 0 {
+			continue
+		}
+
+		// Find a bucket that matches this role's conditions.
+		var matchingBucket *accessRequestConditionBucket
+		for _, bucket := range buckets {
+			if bucket.matches(role) {
+				matchingBucket = bucket
+				break
+			}
+		}
+		if matchingBucket == nil {
+			matchingBucket = newAccessRequestConditionBucket(role)
+			buckets = append(buckets, matchingBucket)
+		}
+		matchingBucket.combinedSearchAsRoles.Add(searchAsRoles...)
+		matchingBucket.sourceRoles.Add(role.GetName())
+	}
+
+	// Create derived roles from buckets.
+	var roles []types.Role
+	for idx, bucket := range buckets {
+		if bucket.combinedSearchAsRoles.Len() == 0 {
+			continue
+		}
+
+		role, err := types.NewRole(
+			fmt.Sprintf("delegation-%s-%d", nameInfix, idx),
+			types.RoleSpecV6{},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating generated role")
+		}
+
+		searchAsRoles := bucket.combinedSearchAsRoles.Elements()
+		sort.Strings(searchAsRoles)
+
+		role.SetAccessRequestConditions(types.Allow, types.AccessRequestConditions{
+			SearchAsRoles:       searchAsRoles,
+			Annotations:         bucket.annotations,
+			Thresholds:          bucket.thresholds,
+			MaxDuration:         bucket.maxDuration,
+			KubernetesResources: bucket.kubernetesResources,
+			Reason:              bucket.reason,
+		})
+
+		sourceRoles := bucket.sourceRoles.Elements()
+		sort.Strings(sourceRoles)
+
+		meta := role.GetMetadata()
+		meta.Description = fmt.Sprintf("Automatically generated role to enable delegated access requests. Derived from roles: [%s].", strings.Join(sourceRoles, ", "))
+		role.SetMetadata(meta)
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
+func newAccessRequestConditionBucket(role types.Role) *accessRequestConditionBucket {
+	bucket := &accessRequestConditionBucket{
+		sourceRoles:           set.New[string](),
+		combinedSearchAsRoles: set.New[string](),
+	}
+
+	if role != nil {
+		conds := role.GetAccessRequestConditions(types.Allow)
+		bucket.annotations = conds.Annotations
+		bucket.thresholds = conds.Thresholds
+		bucket.maxDuration = conds.MaxDuration
+		bucket.kubernetesResources = conds.KubernetesResources
+		bucket.reason = conds.Reason
+	}
+	return bucket
+}
+
+type accessRequestConditionBucket struct {
+	annotations         wrappers.Traits
+	thresholds          []types.AccessReviewThreshold
+	maxDuration         types.Duration
+	kubernetesResources []types.RequestKubernetesResource
+	reason              *types.AccessRequestConditionsReason
+
+	sourceRoles           set.Set[string]
+	combinedSearchAsRoles set.Set[string]
+}
+
+func (bucket *accessRequestConditionBucket) matches(role types.Role) bool {
+	conds := role.GetAccessRequestConditions(types.Allow)
+
+	annotationsMatch := maps.EqualFunc(
+		conds.Annotations,
+		bucket.annotations,
+		slices.Equal,
+	)
+
+	thresholdsMatch := slices.EqualFunc(
+		conds.Thresholds,
+		bucket.thresholds,
+		func(a, b types.AccessReviewThreshold) bool {
+			return a.IsEqual(&b)
+		},
+	)
+
+	kubernetesResourcesMatch := slices.EqualFunc(
+		conds.KubernetesResources,
+		bucket.kubernetesResources,
+		func(a, b types.RequestKubernetesResource) bool {
+			return a.IsEqual(&b)
+		},
+	)
+
+	return annotationsMatch &&
+		thresholdsMatch &&
+		kubernetesResourcesMatch &&
+		conds.MaxDuration == bucket.maxDuration &&
+		conds.Reason.IsEqual(bucket.reason)
 }

@@ -185,6 +185,11 @@ message BeamStatus {
   // Delegation determines how the beam owner's privleges are delegated to the beam.
   DelegationSpec delegation = 14;
 
+  // GeneratedRoles contains the names of roles that were generated for this beam
+  // for example, those derived from the owner's standing roles to allow the beam
+  // to create resource access requests.
+  repeated string generated_roles = 15;
+
   // SnapshotInputs lists the input images used by a build Beam. Each entry
   // records the image digest and the registry tag that keeps that image
   // available while the Beam is running. Auth persists these entries before
