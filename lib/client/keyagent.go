@@ -585,7 +585,13 @@ func (a *LocalKeyAgent) addKeyRing(keyRing *KeyRing) error {
 	// RSA private keys do not match.
 	storedKeyRing, err := a.clientStore.GetKeyRing(keyRing.KeyRingIndex)
 	if err != nil {
-		if !trace.IsNotFound(err) {
+		if !IsNoCredentialsError(err) {
+			return trace.Wrap(err)
+		}
+		// The existing key ring may be unusable.
+		// Delete it before saving the new key ring so stale optional (apps, dbs, etc.)
+		// credentials do not survive.
+		if err := a.clientStore.DeleteKeyRing(keyRing.KeyRingIndex); err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	} else {

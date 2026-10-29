@@ -264,8 +264,8 @@ func (issuer *kubeCertIssuer) loadKubeKeyRings(teleportClusters []string) (map[s
 	kubeKeys := map[string]*client.KeyRing{}
 	for _, teleportCluster := range teleportClusters {
 		keyRing, err := issuer.keyStore.GetKeyRing(teleportCluster, client.WithKubeCerts{})
-		if trace.IsNotFound(err) {
-			// No keys stored for this cluster: its certs are issued fresh.
+		if client.IsNoCredentialsError(err) {
+			// No usable keys stored for this cluster: its certs are issued fresh.
 			continue
 		}
 		if err != nil {

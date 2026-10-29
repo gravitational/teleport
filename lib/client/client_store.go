@@ -127,7 +127,7 @@ func (s *Store) KnownHardwareKey(ref *hardwarekey.PrivateKeyRef, keyInfo hardwar
 		Username:    keyInfo.Username,
 		ClusterName: keyInfo.ClusterName,
 	})
-	if trace.IsNotFound(err) {
+	if IsNoCredentialsError(err) {
 		return false, nil
 	} else if err != nil {
 		return false, trace.Wrap(err)
@@ -189,36 +189,52 @@ func IsNoCredentialsError(err error) bool {
 
 // GetKeyRing gets the requested key ring with trusted the requested
 // certificates. The key ring's trusted certs will be retrieved from the trusted
-// certs store. If the key ring is not found or is missing data (certificates, etc.),
-// then an ErrNoCredentials error is returned.
+// certs store. If the key ring is missing, incomplete, or unusable, then an
+// ErrNoCredentials error is returned.
 func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
 	keyRing, err := s.KeyStore.GetKeyRing(idx, s.HardwareKeyService, opts...)
-	if trace.IsNotFound(err) {
+	if trace.IsNotFound(err) || isUnusableStoredCredentialError(err) {
 		return nil, newNoCredentialsError(err)
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// verify that the key ring has a TLS certificate
-	_, err = keyRing.TeleportTLSCertValidBefore()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Verify that the core TLS certificate is parseable and matches its private key.
+	if err := validateTLSCredentialKeyPair(TLSCredential{
+		PrivateKey: keyRing.TLSPrivateKey,
+		Cert:       keyRing.TLSCert,
+	}); err != nil {
+		return nil, newNoCredentialsError(err)
 	}
+
+	// Validate independently reissuable credentials, removing unusable entries
+	// without rejecting the core key ring.
+	s.validateOptionalTLSCredentials(idx, "kubernetes", keyRing.KubeTLSCredentials)
+	s.validateOptionalTLSCredentials(idx, "database", keyRing.DBTLSCredentials)
+	s.validateOptionalTLSCredentials(idx, "application", keyRing.AppTLSCredentials)
+	s.validateOptionalTLSCredentials(idx, "windows_desktop", keyRing.WindowsDesktopTLSCredentials)
+	s.validateOptionalTLSCredentials(idx, "git", keyRing.GitTLSCredentials)
 
 	// if the key ring has an Access Graph TLS certificate, verify it as well
 	if len(keyRing.AccessGraphTLSCert) > 0 {
-		_, err = keyRing.AccessGraphTLSCertValidBefore()
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if err := validateTLSCredentialKeyPair(TLSCredential{
+			PrivateKey: keyRing.TLSPrivateKey,
+			Cert:       keyRing.AccessGraphTLSCert,
+		}); err != nil {
+			// This certificate is optional and can be issued again when needed.
+			s.log.DebugContext(context.Background(), "Ignoring unusable Access Graph certificate",
+				"proxy", idx.ProxyHost,
+				"user", idx.Username,
+				"error", err,
+			)
+			keyRing.AccessGraphTLSCert = nil
 		}
 	}
 
 	// Validate the SSH certificate.
 	if keyRing.Cert != nil {
-		if err := keyRing.CheckCert(); err != nil {
-			if !utils.IsCertExpiredError(err) {
-				return nil, trace.Wrap(err)
-			}
+		if err := keyRing.CheckCert(); err != nil && !utils.IsCertExpiredError(err) {
+			return nil, newNoCredentialsError(err)
 		}
 	}
 
@@ -228,6 +244,29 @@ func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, erro
 	}
 	keyRing.TrustedCerts = trustedCerts
 	return keyRing, nil
+}
+
+func (s *Store) validateOptionalTLSCredentials(idx KeyRingIndex, credentialType string, credentials map[string]TLSCredential) {
+	for name, credential := range credentials {
+		if err := validateTLSCredentialKeyPair(credential); err != nil {
+			s.log.DebugContext(context.Background(), "Ignoring unusable optional TLS credential",
+				"credential_type", credentialType,
+				"credential_name", name,
+				"proxy", idx.ProxyHost,
+				"user", idx.Username,
+				"error", err,
+			)
+			delete(credentials, name)
+		}
+	}
+}
+
+func validateTLSCredentialKeyPair(cred TLSCredential) error {
+	if cred.PrivateKey == nil {
+		return trace.BadParameter("missing TLS private key")
+	}
+	_, err := cred.PrivateKey.TLSCertificate(cred.Cert)
+	return trace.Wrap(err)
 }
 
 // AddTrustedHostKeys is a helper function to add ssh host keys directly, rather than through SaveTrustedCerts.
@@ -303,7 +342,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
-		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
+		if IsNoCredentialsError(err) || trace.IsConnectionProblem(err) {
 			partialStatus.GetKeyRingError = err
 			return partialStatus, nil
 		}

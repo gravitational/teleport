@@ -395,14 +395,40 @@ func (fs *FSKeyStore) writeTLSCredential(cred TLSCredential, keyPath, certPath s
 	return nil
 }
 
+// unusableStoredCredentialError marks corruption or deserialization failures.
+// It must not wrap operational errors such as permission failures.
+type unusableStoredCredentialError struct {
+	wrappedError error
+}
+
+func (e *unusableStoredCredentialError) Error() string { return e.wrappedError.Error() }
+func (e *unusableStoredCredentialError) Unwrap() error { return e.wrappedError }
+
+func newUnusableStoredCredentialError(err error) error {
+	return &unusableStoredCredentialError{wrappedError: err}
+}
+
+func isUnusableStoredCredentialError(err error) bool {
+	return errors.As(err, new(*unusableStoredCredentialError))
+}
+
+// readTLSCredential reads a credential and parses its private key. Certificate
+// validation is performed by the layer responsible for the credential.
 func readTLSCredential(keyPath, certPath string, opts ...keys.ParsePrivateKeyOpt) (TLSCredential, error) {
 	keyPEM, certPEM, err := readTLSCredentialFiles(keyPath, certPath)
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
+	cred, err := buildTLSCredential(keyPEM, certPEM, opts...)
+	return cred, trace.Wrap(err)
+}
+
+func buildTLSCredential(keyPEM, certPEM []byte, opts ...keys.ParsePrivateKeyOpt) (TLSCredential, error) {
 	key, err := keys.ParsePrivateKey(keyPEM, opts...)
 	if err != nil {
-		return TLSCredential{}, trace.Wrap(err)
+		// The files were read successfully.
+		// Any error here means that the serialized private key is unusable.
+		return TLSCredential{}, newUnusableStoredCredentialError(err)
 	}
 	return TLSCredential{
 		PrivateKey: key,
@@ -489,14 +515,8 @@ func readKubeCredential(path string, opts ...keys.ParsePrivateKeyOpt) (TLSCreden
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
-	privateKey, err := keys.ParsePrivateKey(keyPEM, opts...)
-	if err != nil {
-		return TLSCredential{}, trace.Wrap(err)
-	}
-	return TLSCredential{
-		PrivateKey: privateKey,
-		Cert:       certPEM,
-	}, nil
+	cred, err := buildTLSCredential(keyPEM, certPEM, opts...)
+	return cred, trace.Wrap(err)
 }
 
 // readKubeCredentialFile reads kube key and cert PEM blocks from a single
@@ -511,7 +531,9 @@ func readKubeCredentialFile(path string) (keyPEM, certPEM []byte, err error) {
 
 	pems := bytes.Split(credFileContents, []byte("\n\n"))
 	if len(pems) != 2 {
-		return nil, nil, trace.BadParameter("expect key and cert PEM blocks separated by two newlines")
+		return nil, nil, newUnusableStoredCredentialError(
+			trace.BadParameter("expect key and cert PEM blocks separated by two newlines"),
+		)
 	}
 	keyPEM, certPEM = pems[0], pems[1]
 	return keyPEM, certPEM, nil
@@ -711,6 +733,9 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 
 	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx), keys.WithHardwareKeyService(hwks), keys.WithContextualKeyInfo(idx.contextualKeyInfo()))
 	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return nil, newUnusableStoredCredentialError(err)
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -805,9 +830,13 @@ func getCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKeyOpt)
 			certPath := filepath.Join(credentialDir, keyName+keypaths.FileExtTLSCert)
 			cred, err := readTLSCredential(keyPath, certPath, opts...)
 			if err != nil {
-				if trace.IsNotFound(err) {
-					// Somehow we have a key with no cert, skip it. This should
-					// cause a cert re-issue which should solve the problem.
+				if trace.IsNotFound(err) || isUnusableStoredCredentialError(err) {
+					// Skip incomplete or invalid optional credentials so they can
+					// be reissued independently of the core key ring.
+					log.DebugContext(context.Background(), "Skipping unusable TLS credential",
+						"credential_path", certPath,
+						"error", err,
+					)
 					continue
 				}
 				return nil, trace.Wrap(err)
@@ -829,6 +858,13 @@ func getKubeCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKey
 			credPath := filepath.Join(credentialDir, file.Name())
 			cred, err := readKubeCredential(credPath, opts...)
 			if err != nil {
+				if trace.IsNotFound(err) || isUnusableStoredCredentialError(err) {
+					log.DebugContext(context.Background(), "Skipping unusable Kubernetes credential",
+						"credential_path", credPath,
+						"error", err,
+					)
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 			credsByName[credName] = cred

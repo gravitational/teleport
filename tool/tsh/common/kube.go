@@ -735,7 +735,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	k, err := tc.LocalAgent().GetKeyRing(c.teleportCluster, client.WithKubeCerts{})
 	span.End()
 
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil && !client.IsNoCredentialsError(err) {
 		return trace.Wrap(err)
 	}
 	// Loaded existing credentials and have a cert for this cluster? Return it

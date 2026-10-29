@@ -270,8 +270,8 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	// load profile status if key exists
 	key, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			s.Logger.InfoContext(context.Background(), "No keys found for cluster", "cluster", clusterNameForKey)
+		if client.IsNoCredentialsError(err) {
+			s.Logger.InfoContext(context.Background(), "No usable keys found for cluster", "cluster", clusterNameForKey)
 		} else {
 			return nil, trace.Wrap(err)
 		}
@@ -317,7 +317,7 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	// Skip if the profile is empty, the key cannot be found, or the key isn't supported as an agent key.
 	err = clusterClient.LoadKeyForCluster(context.Background(), status.Cluster)
 	if err != nil {
-		if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
+		if !trace.IsNotFound(err) && !client.IsNoCredentialsError(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 			return nil, trace.Wrap(err)
 		}
 		s.Logger.InfoContext(context.Background(), "Could not load key for cluster into the local agent",
