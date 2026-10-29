@@ -37,6 +37,7 @@ package pam
 // extern int _pam_end(void *, pam_handle_t *, int);
 // extern int _pam_authenticate(void *, pam_handle_t *, int);
 // extern int _pam_acct_mgmt(void *, pam_handle_t *, int);
+// extern int _pam_setcred(void *, pam_handle_t *, int);
 // extern int _pam_open_session(void *, pam_handle_t *, int);
 // extern int _pam_close_session(void *, pam_handle_t *, int);
 // extern char **_pam_getenvlist(void *handle, pam_handle_t *pamh);
@@ -51,11 +52,16 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/user"
 	"runtime"
+	"slices"
+	"strconv"
 	"sync"
+	"syscall"
 	"unsafe"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/session/logconstants"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
@@ -306,11 +312,14 @@ type PAMContext struct {
 	// report errors to the user.
 	stderr io.Writer
 
+	// cLogin is the *nix login that that is being used.
+	login string
+
 	// service_name is the name of the PAM policy to use.
 	service_name *C.char
 
-	// login is the *nix login that that is being used.
-	login *C.char
+	// cLogin is the login as a C string.
+	cLogin *C.char
 
 	// handlerIndex is the index to the package level handler map.
 	handlerIndex int
@@ -335,13 +344,14 @@ func Open(config *pamcfg.PAMConfig) (_ *PAMContext, retErr error) {
 		stdin:  config.Stdin,
 		stdout: config.Stdout,
 		stderr: config.Stderr,
+		login:  config.Login,
 	}
 
 	// Both config.ServiceName and config.Username convert between Go strings to
 	// C strings. Since the C strings are allocated on the heap in Go code, this
 	// memory must be released (and will be on the call to the Close method).
 	p.service_name = C.CString(config.ServiceName)
-	p.login = C.CString(config.Login)
+	p.cLogin = C.CString(config.Login)
 
 	// C code does not know that this PAM context exists. To ensure the
 	// conversation function can get messages to the right context, a handle
@@ -366,9 +376,9 @@ func Open(config *pamcfg.PAMConfig) (_ *PAMContext, retErr error) {
 	// Create and initialize a PAM context. The pam_start function will
 	// allocate pamh if needed and the pam_end function will release any
 	// allocated memory.
-	p.retval = C._pam_start(pamHandle, p.service_name, p.login, p.conv, &p.pamh)
+	p.retval = C._pam_start(pamHandle, p.service_name, p.cLogin, p.conv, &p.pamh)
 	if p.retval != C.PAM_SUCCESS {
-		return nil, p.codeToError()
+		return nil, p.codeToError(p.retval)
 	}
 
 	// Set tty and remote host so pam_systemd can classify the session correctly.
@@ -377,7 +387,7 @@ func Open(config *pamcfg.PAMConfig) (_ *PAMContext, retErr error) {
 		defer C.free(unsafe.Pointer(pamTTY))
 		p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_TTY, unsafe.Pointer(pamTTY))
 		if p.retval != C.PAM_SUCCESS {
-			return nil, p.codeToError()
+			return nil, p.codeToError(p.retval)
 		}
 	}
 
@@ -386,7 +396,7 @@ func Open(config *pamcfg.PAMConfig) (_ *PAMContext, retErr error) {
 		defer C.free(unsafe.Pointer(pamRHost))
 		p.retval = C._pam_set_item(pamHandle, p.pamh, C.PAM_RHOST, unsafe.Pointer(pamRHost))
 		if p.retval != C.PAM_SUCCESS {
-			return nil, p.codeToError()
+			return nil, p.codeToError(p.retval)
 		}
 	}
 
@@ -402,7 +412,7 @@ func Open(config *pamcfg.PAMConfig) (_ *PAMContext, retErr error) {
 		defer C.free(unsafe.Pointer(kv))
 		p.retval = C._pam_putenv(pamHandle, p.pamh, kv)
 		if p.retval != C.PAM_SUCCESS {
-			return nil, p.codeToError()
+			return nil, p.codeToError(p.retval)
 		}
 	}
 
@@ -419,7 +429,7 @@ func Open(config *pamcfg.PAMConfig) (_ *PAMContext, retErr error) {
 func (p *PAMContext) Account() error {
 	p.retval = C._pam_acct_mgmt(pamHandle, p.pamh, 0)
 	if p.retval != C.PAM_SUCCESS {
-		return p.codeToError()
+		return p.codeToError(p.retval)
 	}
 	return nil
 }
@@ -431,7 +441,7 @@ func (p *PAMContext) Account() error {
 func (p *PAMContext) Authenticate() error {
 	p.retval = C._pam_authenticate(pamHandle, p.pamh, 0)
 	if p.retval != C.PAM_SUCCESS {
-		return p.codeToError()
+		return p.codeToError(p.retval)
 	}
 	return nil
 }
@@ -440,6 +450,80 @@ func (p *PAMContext) Authenticate() error {
 // when finished.
 type Session struct {
 	pamCtx *PAMContext
+	// targetGroups is the list of group IDs to assume when starting the session.
+	// It is valid for this list to be empty, so only a nil slice indicates that
+	// setgroups should not be called.
+	targetGroups []int
+	// originalGroups is the list of group IDs to return to when the session closes.
+	originalGroups []int
+}
+
+func getUserGroups(u *user.User) ([]int, error) {
+	groupIDStrings, err := u.GroupIds()
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	groupIDs := make([]int, 0, len(groupIDStrings))
+	for _, gidStr := range groupIDStrings {
+		gid, err := strconv.Atoi(gidStr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		groupIDs = append(groupIDs, gid)
+	}
+	return groupIDs, nil
+}
+
+func (p *PAMContext) newSession() (*Session, error) {
+	s := &Session{
+		pamCtx: p,
+	}
+	// setgroups is discouraged on mac, so we won't try.
+	if runtime.GOOS == "darwin" {
+		return s, nil
+	}
+	// Check if setgroups will be necessary.
+	self, err := user.Current()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	selfGroupIDs, err := os.Getgroups()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	slices.Sort(selfGroupIDs)
+
+	target, err := user.Lookup(s.pamCtx.login)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// If the session is for us, no need to change groups.
+	if target.Uid == self.Uid && target.Gid == self.Gid {
+		return s, nil
+	}
+	targetGroupIDs, err := getUserGroups(target)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	slices.Sort(targetGroupIDs)
+	if slices.Equal(selfGroupIDs, targetGroupIDs) {
+		return s, nil
+	}
+	s.originalGroups = selfGroupIDs
+	s.targetGroups = targetGroupIDs
+	return s, nil
+}
+
+// SetGroups updates credentials for an exec command so it will have the
+// correct groups.
+func (s *Session) SetGroups(cred *syscall.Credential) {
+	if s.targetGroups == nil || cred.NoSetGroups {
+		return
+	}
+	cred.Groups = make([]uint32, 0, len(s.targetGroups))
+	for _, gid := range s.targetGroups {
+		cred.Groups = append(cred.Groups, uint32(gid))
+	}
 }
 
 // OpenSession triggers the "session" PAM hooks for this login.
@@ -448,22 +532,68 @@ type Session struct {
 // used in the "session" stack. Opening a session typically consists of
 // printing the MOTD, mounting a home directory, updating auth.log.
 func (p *PAMContext) OpenSession() (*Session, error) {
+	sess, err := p.newSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If pam_group.so is in use, it will expect the caller to already have the
+	// user's supplementary groups. Assume them now.
+	if sess.targetGroups != nil {
+		if err := unix.Setgroups(sess.targetGroups); err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
+
+	p.retval = C._pam_setcred(pamHandle, p.pamh, C.PAM_ESTABLISH_CRED)
+	if p.retval != C.PAM_SUCCESS {
+		return nil, p.codeToError(p.retval)
+	}
+	if sess.targetGroups != nil {
+		// If pam_group.so added groups, save them.
+		newGroups, err := os.Getgroups()
+		if err != nil {
+			_ = C._pam_setcred(pamHandle, p.pamh, C.PAM_DELETE_CRED)
+			if sess.originalGroups != nil {
+				_ = unix.Setgroups(sess.originalGroups)
+			}
+			return nil, trace.ConvertSystemError(err)
+		}
+		sess.targetGroups = newGroups
+	}
+
 	p.retval = C._pam_open_session(pamHandle, p.pamh, 0)
 	if p.retval != C.PAM_SUCCESS {
-		return nil, p.codeToError()
+		_ = C._pam_setcred(pamHandle, p.pamh, C.PAM_DELETE_CRED)
+		if sess.originalGroups != nil {
+			_ = unix.Setgroups(sess.originalGroups)
+		}
+		return nil, p.codeToError(p.retval)
 	}
-	return &Session{pamCtx: p}, nil
+	return sess, nil
 }
 
 // Close closes the PAM session. Closing a session can entail anything from
 // unmounting a home directory and updating auth.log.
 func (s *Session) Close() error {
 	p := s.pamCtx
-	p.retval = C._pam_close_session(pamHandle, p.pamh, 0)
-	if p.retval != C.PAM_SUCCESS {
-		return p.codeToError()
+	errors := make([]error, 0, 3)
+	if retval := C._pam_close_session(pamHandle, p.pamh, 0); retval != C.PAM_SUCCESS {
+		p.retval = retval
+		errors = append(errors, p.codeToError(p.retval))
 	}
-	return nil
+	if retval := C._pam_setcred(pamHandle, p.pamh, C.PAM_DELETE_CRED); retval != C.PAM_SUCCESS {
+		if p.retval == 0 {
+			p.retval = retval
+		}
+		errors = append(errors, p.codeToError(retval))
+	}
+	if s.originalGroups != nil {
+		if err := unix.Setgroups(s.originalGroups); err != nil {
+			errors = append(errors, err)
+		}
+	}
+	return trace.NewAggregate(errors...)
 }
 
 // Close will close the PAM context and release any allocated memory.
@@ -524,7 +654,7 @@ func (p *PAMContext) free() {
 			slog.WarnContext(context.Background(),
 				"Failed to end PAM transaction",
 				logconstants.ComponentKey, logComponent,
-				"error", p.codeToError(),
+				"error", p.codeToError(p.retval),
 			)
 		}
 
@@ -533,23 +663,23 @@ func (p *PAMContext) free() {
 
 		// Release strings that were allocated when opening the PAM context.
 		C.free(unsafe.Pointer(p.service_name))
-		C.free(unsafe.Pointer(p.login))
+		C.free(unsafe.Pointer(p.cLogin))
 	})
 }
 
 // codeToError returns a human readable string from the PAM error.
-func (p *PAMContext) codeToError() error {
-	if p.retval == 0 {
+func (p *PAMContext) codeToError(retval C.int) error {
+	if retval == 0 {
 		return nil
 	}
-	err := C._pam_strerror(pamHandle, p.pamh, p.retval)
+	err := C._pam_strerror(pamHandle, p.pamh, retval)
 	if err != nil {
 		return trace.BadParameter("%s", C.GoString(err))
 	}
 
 	// Return a generic error message with the error code if pam_strerror
 	// somehow failed to return a string.
-	return trace.Errorf("PAM call failed with error code %d", p.retval)
+	return trace.Errorf("PAM call failed with error code %d", retval)
 }
 
 // BuildHasPAM returns true if the binary was build with support for PAM

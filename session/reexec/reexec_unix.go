@@ -44,7 +44,6 @@ import (
 
 	"github.com/gravitational/trace"
 	ocselinux "github.com/opencontainers/selinux/go-selinux"
-	"golang.org/x/sys/unix"
 
 	apiconstants "github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/session/auditd"
@@ -209,6 +208,7 @@ func runCommand() (exitErr error, err error) {
 	// else because PAM is sometimes used to create the local user used to
 	// launch the shell under.
 	var pamEnvironment []string
+	var pamSession *pam.Session
 	if c.PAMConfig != nil {
 		slog.DebugContext(ctx, "Opening PAM context")
 
@@ -259,7 +259,7 @@ func runCommand() (exitErr error, err error) {
 				return nil, trace.Errorf("failed to run PAM auth group: %v", err.Error())
 			}
 		}
-		pamSession, err := pamContext.OpenSession()
+		pamSession, err = pamContext.OpenSession()
 		if err != nil {
 			return nil, trace.Errorf("failed to open PAM session: %v", err)
 		}
@@ -312,7 +312,7 @@ func runCommand() (exitErr error, err error) {
 	}
 
 	// Build the actual command that will launch the shell.
-	cmd, err := BuildCommand(&c, localUser, pamEnvironment)
+	cmd, err := BuildCommand(&c, localUser, pamEnvironment, pamSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -606,6 +606,7 @@ func runNetworking() (code int, err error) {
 	// else because PAM is sometimes used to create the local user used for
 	// networking requests.
 	var pamEnvironment []string
+	var pamSession *pam.Session
 	if c.PAMConfig != nil {
 		// Open the PAM context.
 		pamContext, err := pam.Open(&pamcfg.PAMConfig{
@@ -628,7 +629,7 @@ func runNetworking() (code int, err error) {
 		if err := pamContext.Account(); err != nil {
 			return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 		}
-		pamSession, err := pamContext.OpenSession()
+		pamSession, err = pamContext.OpenSession()
 		if err != nil {
 			return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 		}
@@ -652,22 +653,35 @@ func runNetworking() (code int, err error) {
 		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	if os.Getuid() != int(cred.Uid) || os.Getgid() != int(cred.Gid) {
-		if !cred.NoSetGroups {
+	origUid := os.Getuid()
+	origGid := os.Getgid()
+	if origUid != int(cred.Uid) || origGid != int(cred.Gid) {
+		// If PAM didn't set groups, do it manually.
+		if pamSession == nil && !cred.NoSetGroups {
 			groups := make([]int, len(cred.Groups))
 			for i, g := range cred.Groups {
 				groups[i] = int(g)
 			}
-			if err := unix.Setgroups(groups); err != nil {
+			if err := syscall.Setgroups(groups); err != nil {
 				return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
 			}
 		}
-		if err := unix.Setgid(int(cred.Gid)); err != nil {
-			return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
+		if err := syscall.Setegid(int(cred.Gid)); err != nil {
+			return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to set egid for networking process")
 		}
-		if err := unix.Setuid(int(cred.Uid)); err != nil {
-			return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
+		defer func() {
+			if err := syscall.Setegid(origGid); err != nil {
+				slog.ErrorContext(context.Background(), "Failed to reset egid.", "error", err)
+			}
+		}()
+		if err := syscall.Seteuid(int(cred.Uid)); err != nil {
+			return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to set euid for networking process")
 		}
+		defer func() {
+			if err := syscall.Seteuid(origUid); err != nil {
+				slog.ErrorContext(context.Background(), "Failed to reset euid.", "error", err)
+			}
+		}()
 	}
 
 	// Create a minimal default environment for the user.
@@ -680,6 +694,14 @@ func runNetworking() (code int, err error) {
 
 	os.Setenv("HOME", localUser.HomeDir)
 	os.Setenv("USER", c.Login)
+
+	// Look up xauth binary path now, so we won't be affected if PAM sets PATH
+	// in the environment.
+	xauthBin, err := exec.LookPath("xauth")
+	if err != nil {
+		// Only a problem if we actually do X11.
+		slog.DebugContext(context.Background(), "error searching for xauth binary", "error", err)
+	}
 
 	// Apply any additional environment variables from PAM.
 	for _, kv := range pamEnvironment {
@@ -766,6 +788,7 @@ func runNetworking() (code int, err error) {
 			_ = requestConn.Close()
 			continue
 		}
+		req.X11Request.XauthBin = xauthBin
 
 		// Some PAM modules (e.g. pam_namespace) do not behave properly in multithreaded contexts.
 		// Therefore we favor handling requests and cleanup on the main PAM thread for requests that
@@ -879,12 +902,12 @@ func createNetworkingFile(ctx context.Context, req networking.Request) (*os.File
 		}
 		defer listener.Close()
 
-		removeCmd := x11.NewXAuthCommand(ctx, req.X11Request.XauthFile)
+		removeCmd := x11.NewXAuthCommand(ctx, req.X11Request.XauthBin, req.X11Request.XauthFile)
 		if err := removeCmd.RemoveEntries(display); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		addCmd := x11.NewXAuthCommand(ctx, req.X11Request.XauthFile)
+		addCmd := x11.NewXAuthCommand(ctx, req.X11Request.XauthBin, req.X11Request.XauthFile)
 		if err := addCmd.AddEntry(x11.XAuthEntry{
 			Display: display,
 			Proto:   req.X11Request.AuthProtocol,
@@ -1088,7 +1111,7 @@ func readUserEnv(localUser *user.User, path string) ([]string, error) {
 
 // BuildCommand constructs a command that will execute the user's shell. This
 // function is run by Teleport while it's re-executing.
-func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string) (*exec.Cmd, error) {
+func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string, pamSession *pam.Session) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
@@ -1243,7 +1266,14 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	// workaround this, the credentials struct is only set if the credentials
 	// are different from the process itself. If the credentials are not, simply
 	// pick up the ambient credentials of the process.
-	if err := host.MaybeSetCommandCredentialAsUser(context.Background(), &cmd, localUser, slog.Default()); err != nil {
+	cred, err := host.GetHostUserCredential(localUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if pamSession != nil {
+		pamSession.SetGroups(cred)
+	}
+	if err := host.MaybeSetCommandCredentialAsUser(context.Background(), &cmd, cred, slog.Default()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -20,7 +20,11 @@
 
 package pam
 
-import "github.com/gravitational/teleport/session/pam/pamcfg"
+import (
+	"syscall"
+
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+)
 
 // Constants are defined again here only for tests.
 
@@ -70,6 +74,8 @@ type Session struct{}
 func (p *PAMContext) OpenSession() (*Session, error) {
 	return &Session{}, nil
 }
+
+func (s *Session) SetGroups(*syscall.Credential) {}
 
 func (s *Session) Close() error {
 	return nil

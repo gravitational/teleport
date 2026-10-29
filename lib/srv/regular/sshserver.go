@@ -30,6 +30,7 @@ import (
 	"maps"
 	"net"
 	"os"
+	"os/exec"
 	"os/user"
 	"runtime"
 	"strings"
@@ -2150,7 +2151,8 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	}()
 
 	// check if X11 forwarding is disabled, or if xauth can't be handled.
-	if !s.x11.Enabled || x11.CheckXAuthPath() != nil {
+	_, err = exec.LookPath("xauth")
+	if !s.x11.Enabled || err != nil {
 		return trace.AccessDenied("X11 forwarding is not enabled")
 	}
 

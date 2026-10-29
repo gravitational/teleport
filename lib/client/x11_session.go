@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -81,7 +82,7 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *tracessh.S
 // This will be used during X11 forwarding to forward and authorize
 // XServer requests from the remote server to the client's XServer.
 func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) error {
-	checkXauthErr := x11.CheckXAuthPath()
+	xauthBin, checkXauthErr := exec.LookPath("xauth")
 	if checkXauthErr != nil && !ns.nodeClient.TC.X11ForwardingTrusted {
 		slog.WarnContext(ctx, "Untrusted X11 forwarding requires xauth to be installed in order generated xauth key data")
 		return trace.Wrap(checkXauthErr)
@@ -93,7 +94,7 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 		// Check for existing xauth data. If found, it must be used in order to connect to the client's XServer.
 		var err error
 		if checkXauthErr == nil {
-			ns.clientXAuthEntry, err = x11.NewXAuthCommand(ctx, "" /* xauthFile */).ReadEntry(display)
+			ns.clientXAuthEntry, err = x11.NewXAuthCommand(ctx, xauthBin, "" /* xauthFile */).ReadEntry(display)
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
@@ -139,12 +140,12 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 	}
 
 	slog.InfoContext(ctx, "creating an untrusted xauth cookie for untrusted X11 forwarding", "xauth_file", xauthFile.Name())
-	cmd := x11.NewXAuthCommand(ctx, xauthFile.Name())
+	cmd := x11.NewXAuthCommand(ctx, xauthBin, xauthFile.Name())
 	if err := cmd.GenerateUntrustedCookie(display, ns.nodeClient.TC.X11ForwardingTimeout); err != nil {
 		return trace.Wrap(err)
 	}
 
-	ns.clientXAuthEntry, err = x11.NewXAuthCommand(ctx, xauthFile.Name()).ReadEntry(display)
+	ns.clientXAuthEntry, err = x11.NewXAuthCommand(ctx, xauthBin, xauthFile.Name()).ReadEntry(display)
 	if err != nil {
 		slog.ErrorContext(ctx, "untrusted X11 forwarding setup failed: failed to generate xauth key data")
 		return trace.Wrap(err)
