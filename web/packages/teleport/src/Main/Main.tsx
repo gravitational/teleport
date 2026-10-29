@@ -118,9 +118,7 @@ export function Main(props: MainProps) {
   }, [ctx, history.location.pathname]);
 
   const shouldUseScopePicker =
-    cfg.scopesEnabled &&
-    storageService.getUseLoginScopePicker() &&
-    !storageService.getScopeSelected();
+    cfg.scopesEnabled && !storageService.getScopeSelected();
 
   // If there's no scope selected, prefetch the first page of assigned scopes
   // to figure out if the user should be offered to sign in to a scope.

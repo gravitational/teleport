@@ -55,7 +55,6 @@ import { NavigationCategory } from 'teleport/Navigation';
 import { nodes } from 'teleport/Nodes/fixtures';
 import history from 'teleport/services/history/history';
 import { listAssignedScopes } from 'teleport/services/scopes/scopes';
-import { KeysEnum } from 'teleport/services/storageService';
 import { sessions } from 'teleport/Sessions/fixtures';
 import TeleportContext from 'teleport/teleportContext';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
@@ -83,7 +82,6 @@ const defaultScopesEnabled = cfg.scopesEnabled;
 
 afterEach(() => {
   cfg.scopesEnabled = defaultScopesEnabled;
-  localStorage.removeItem(KeysEnum.USE_LOGIN_SCOPE_PICKER);
 });
 
 beforeEach(() => {
@@ -146,7 +144,6 @@ test('renders', () => {
 
 test('redirects users with available scopes to the scope picker before rendering the app', async () => {
   cfg.scopesEnabled = true;
-  localStorage.setItem(KeysEnum.USE_LOGIN_SCOPE_PICKER, JSON.stringify(true));
   mockUserContextProviderWith(makeTestUserContext());
   const ctx = setupContext();
 
@@ -173,7 +170,6 @@ test('redirects users with available scopes to the scope picker before rendering
 
 test('redirects users to the scope picker if loading scopes results with an error', async () => {
   cfg.scopesEnabled = true;
-  localStorage.setItem(KeysEnum.USE_LOGIN_SCOPE_PICKER, JSON.stringify(true));
   mockListAssignedScopes.mockRejectedValue(
     new Error('listing assigned scopes failed')
   );
