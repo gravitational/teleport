@@ -2234,6 +2234,17 @@ type InstallParams struct {
 	UpdateGroup string `yaml:"update_group,omitempty"`
 	// HTTPProxySettings configures HTTP proxy settings for the installation.
 	HTTPProxySettings *HTTPProxySettings `yaml:"http_proxy_settings,omitempty"`
+	// WindowsScriptName is the name of the teleport installer script resource
+	// for Windows cloud instances to execute.
+	WindowsScriptName string `yaml:"windows_script_name,omitempty"`
+	// RestartAfterEnrollment restarts the discovered Windows VMs after enrollment
+	// to activate the Windows Authentication Package.
+	RestartAfterEnrollment bool `yaml:"restart_after_enrollment,omitempty"`
+	// SkipInstallation skips the installation of the Windows Authentication
+	// Package on discovered Windows VMs. This is useful for VMs that already have
+	// the Windows Authentication Package installed and they just need to be
+	// enrolled into the cluster.
+	SkipInstallation bool `yaml:"skip_installation,omitempty"`
 }
 
 // HTTPProxySettings configures HTTP proxy settings for the installation.
@@ -2257,15 +2268,18 @@ var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeS
 
 func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
-		JoinMethod:      ip.JoinParams.Method,
-		JoinToken:       ip.JoinParams.TokenName,
-		ScriptName:      ip.ScriptName,
-		InstallTeleport: true,
-		SSHDConfig:      ip.SSHDConfig,
-		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
-		Suffix:          ip.Suffix,
-		UpdateGroup:     ip.UpdateGroup,
-		PublicProxyAddr: cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+		JoinMethod:             ip.JoinParams.Method,
+		JoinToken:              ip.JoinParams.TokenName,
+		ScriptName:             ip.ScriptName,
+		InstallTeleport:        true,
+		SSHDConfig:             ip.SSHDConfig,
+		EnrollMode:             types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
+		Suffix:                 ip.Suffix,
+		UpdateGroup:            ip.UpdateGroup,
+		PublicProxyAddr:        cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+		WindowsScriptName:      ip.WindowsScriptName,
+		RestartAfterEnrollment: ip.RestartAfterEnrollment,
+		SkipInstallation:       ip.SkipInstallation,
 	}
 
 	if ip.HTTPProxySettings != nil {
@@ -2329,7 +2343,7 @@ type AzureMatcher struct {
 	Subscriptions []string `yaml:"subscriptions,omitempty"`
 	// ResourceGroups are Azure resource groups to query for resources.
 	ResourceGroups []string `yaml:"resource_groups,omitempty"`
-	// Types are Azure types to match: "mysql", "postgres", "aks", "vm"
+	// Types are Azure types to match: "mysql", "postgres", "aks", "vm", "windows-vm"
 	Types []string `yaml:"types,omitempty"`
 	// Regions are Azure locations to match for databases.
 	Regions []string `yaml:"regions,omitempty"`

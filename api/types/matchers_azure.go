@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"context"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -136,6 +138,10 @@ func (m *AzureMatcher) CheckAndSetDefaults() error {
 
 		if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+
+		if m.Params.RestartAfterEnrollment == true && m.Params.SkipInstallation == true {
+			slog.WarnContext(context.Background(), "restart_after_enrollment has no effect when skip_installation is enabled")
 		}
 	}
 
