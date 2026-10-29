@@ -46,13 +46,14 @@ import (
 const (
 	stateUnstarted = "unstarted"
 	stateBlocked   = "blocked"
+	stateFailed    = "failed"
 	stateMigrated  = "migrated"
 )
 
 // states returns every host state in display order. It is a function, not a
 // package-level slice, so no caller can reorder or extend the set.
 func states() []string {
-	return []string{stateUnstarted, stateBlocked, stateMigrated}
+	return []string{stateUnstarted, stateBlocked, stateFailed, stateMigrated}
 }
 
 // host is one source host the migration tracks.
@@ -88,6 +89,9 @@ const (
 	// preflight read on it.
 	matchedByCheck = "check"
 )
+
+// migrationTokenLabel marks the scoped tokens apply mints.
+const migrationTokenLabel = types.TeleportInternalLabelPrefix + "scope-migration"
 
 // targetAgent identifies a target-side agent.
 type targetAgent struct {
@@ -223,6 +227,9 @@ type stateFile struct {
 	unlock func() error
 	// state is the file's contents; save writes it back.
 	state *migrationState
+	// fresh is set when load found no file on disk, so no plan has run yet;
+	// save clears it.
+	fresh bool
 }
 
 // openStateFile locks and loads the migration's state file, creating the
@@ -265,6 +272,7 @@ func (f *stateFile) load(cfg *Config) error {
 	input, err := os.Open(f.path)
 	if errors.Is(err, fs.ErrNotExist) {
 		f.state = fresh
+		f.fresh = true
 		return nil
 	}
 	if err != nil {
@@ -352,10 +360,15 @@ func (f *stateFile) save() error {
 	if err := maybe.WriteFile(f.path, data, teleport.FileMaskOwnerOnly); err != nil {
 		return trace.Wrap(trace.ConvertSystemError(err), "writing %q", f.path)
 	}
+	f.fresh = false
 	return nil
 }
 
-// close saves and releases the lock.
+// close saves and releases the lock. A fresh state is not saved: only plan
+// writes the first file, so a command that never planned leaves none behind.
 func (f *stateFile) close() error {
+	if f.fresh {
+		return trace.Wrap(f.unlock())
+	}
 	return trace.NewAggregate(f.save(), f.unlock())
 }

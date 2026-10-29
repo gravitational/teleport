@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // node is the part of an SSH server resource the tool needs. Inventories are
@@ -92,16 +93,26 @@ type clusterAPI interface {
 	Nodes(ctx context.Context) iter.Seq2[node, error]
 }
 
-// targetClusterAPI is clusterAPI plus what the migration reads only from the
-// target cluster.
+// targetClusterAPI is clusterAPI plus what the migration reads and writes
+// only in the target cluster.
 type targetClusterAPI interface {
 	clusterAPI
 	// ScopedTokens streams the scoped tokens defined in scope, not those of
 	// its ancestors or descendants.
 	ScopedTokens(ctx context.Context, scope string) iter.Seq2[scopedToken, error]
+	// GetNode looks up one SSH node by host UUID in scope; a node in another
+	// scope is a NotFound.
+	GetNode(ctx context.Context, scope, id string) (node, error)
+	// CreateScopedToken creates token and returns it as the cluster stored it.
+	CreateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error)
+	// DeleteScopedToken deletes the scoped token name in scope.
+	DeleteScopedToken(ctx context.Context, scope, name string) error
+	// GetCAPins returns the pins of the cluster's CA, which a joining agent
+	// checks the cluster against.
+	GetCAPins(ctx context.Context) ([]string, error)
 }
 
-// clusterClient reads one cluster through its API client.
+// clusterClient reads and writes one cluster through its API client.
 type clusterClient struct {
 	clt  *apiclient.Client
 	name string
@@ -155,4 +166,36 @@ func (c *clusterClient) ScopedTokens(ctx context.Context, scope string) iter.Seq
 		return resp.GetTokens(), resp.GetCursor(), nil
 	})
 	return stream.MapErr(stream.Map(tokens, newScopedToken), func(err error) error { return trace.Wrap(err, "listing scoped tokens in %s", scope) })
+}
+
+// GetNode looks up one SSH node by host UUID in scope; a node in another
+// scope is a NotFound.
+func (c *clusterClient) GetNode(ctx context.Context, scope, id string) (node, error) {
+	resp, err := c.clt.PresenceServiceClient().GetSSHServer(ctx, presencepb.GetSSHServerRequest_builder{Name: id, Scope: scope}.Build())
+	if err != nil {
+		return node{}, trace.Wrap(err)
+	}
+	return newNode(resp.GetServer()), nil
+}
+
+// CreateScopedToken creates token and returns it as the cluster stored it.
+func (c *clusterClient) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	created, err := c.clt.CreateScopedToken(ctx, token)
+	return created, trace.Wrap(err)
+}
+
+// DeleteScopedToken deletes the scoped token name in scope.
+func (c *clusterClient) DeleteScopedToken(ctx context.Context, scope, name string) error {
+	return trace.Wrap(c.clt.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{Name: name, Scope: scope}.Build()))
+}
+
+// GetCAPins returns the pins of the cluster's CA, which a joining agent
+// checks the cluster against.
+func (c *clusterClient) GetCAPins(ctx context.Context) ([]string, error) {
+	resp, err := c.clt.GetClusterCACert(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pins, err := tlsca.CalculatePins(resp.TLSCA)
+	return pins, trace.Wrap(err)
 }

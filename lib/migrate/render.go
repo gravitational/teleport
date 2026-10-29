@@ -146,7 +146,7 @@ func renderVerdict(w io.Writer, summary *Summary) error {
 	if n := summary.ByState[stateUnstarted]; n > 0 {
 		parts = append(parts, fmt.Sprintf("%d ready to migrate", n))
 	}
-	if n := summary.ByState[stateBlocked]; n > 0 {
+	if n := summary.ByState[stateBlocked] + summary.ByState[stateFailed]; n > 0 {
 		parts = append(parts, fmt.Sprintf("%d need an operator", n)+unreachableNote(summary))
 	}
 	if len(parts) > 0 {
@@ -244,4 +244,13 @@ func csvSafe(s string) string {
 		return "'" + s
 	}
 	return s
+}
+
+// RenderReport writes how many hosts the command finished and failed on,
+// then each failed host with its reason.
+func RenderReport(w io.Writer, report *Report) {
+	fmt.Fprintf(w, "%d %s, %d failed\n", report.Done, report.Verb, len(report.Failures))
+	for _, failure := range report.Failures {
+		fmt.Fprintf(w, "  %s (node/%s): %s\n", utils.EscapeControl(failure.Hostname), utils.EscapeControl(failure.ID), utils.EscapeControl(failure.Reason))
+	}
 }

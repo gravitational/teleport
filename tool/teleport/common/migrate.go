@@ -36,9 +36,10 @@ type migrateFlags struct {
 	check                                          bool
 }
 
-// onMigratePlan runs `teleport migrate plan`. A host that cannot migrate is
-// reported in the output, not through the exit code.
-func onMigratePlan(ctx context.Context, f *migrateFlags) error {
+// withMigrator loads the --config file, opens the migrator and runs fn with
+// it, then closes it and warns on stderr if that fails. fn's context is
+// canceled by an interrupt, which lets a run stop with its state file intact.
+func withMigrator(ctx context.Context, f *migrateFlags, fn func(context.Context, *migrate.Migrator) error) error {
 	// Before dialing either cluster, so a typo fails the same way every time.
 	if f.resource != "" {
 		if err := migrate.CheckResource(f.resource); err != nil {
@@ -52,7 +53,6 @@ func onMigratePlan(ctx context.Context, f *migrateFlags) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Canceling lets an interrupted run stop with its state file intact.
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	m, err := migrate.NewMigrator(ctx, cfg, migrate.Options{Progress: os.Stderr})
@@ -64,11 +64,43 @@ func onMigratePlan(ctx context.Context, f *migrateFlags) error {
 			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 		}
 	}()
-	summary, err := m.Plan(ctx, migrate.PlanOptions{Check: f.check, Resource: f.resource})
+	return trace.Wrap(fn(ctx, m))
+}
+
+// onMigratePlan runs `teleport migrate plan`. A host that cannot migrate is
+// reported in the output, not through the exit code.
+func onMigratePlan(ctx context.Context, f *migrateFlags) error {
+	return withMigrator(ctx, f, func(ctx context.Context, m *migrate.Migrator) error {
+		summary, err := m.Plan(ctx, migrate.PlanOptions{Check: f.check, Resource: f.resource})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(m.Render(os.Stdout, f.format, f.subset, summary))
+	})
+}
+
+// onMigrateApply runs `teleport migrate apply`. Hosts that failed are listed
+// in the report and make the command exit non-zero; plan, by contrast, exits 0.
+func onMigrateApply(ctx context.Context, f *migrateFlags) error {
+	return withMigrator(ctx, f, func(ctx context.Context, m *migrate.Migrator) error {
+		return reportOutcome(m.Apply(ctx, migrate.ApplyOptions{Resource: f.resource}))
+	})
+}
+
+// reportOutcome prints a non-nil report, including the partial one that comes
+// back with an error, and returns err, or an error counting the failed hosts
+// when err is nil and the report lists any.
+func reportOutcome(report *migrate.Report, err error) error {
+	if report != nil {
+		migrate.RenderReport(os.Stdout, report)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(m.Render(os.Stdout, f.format, f.subset, summary))
+	if report != nil && len(report.Failures) > 0 {
+		return trace.Errorf("hosts failed: %d; see the report above", len(report.Failures))
+	}
+	return nil
 }
 
 // onMigrateHost runs `teleport migrate host <step>`: one migration step on

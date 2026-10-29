@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/scopes"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -123,19 +124,26 @@ func (h hostEnv) install(ctx context.Context, req InstallRequest) (InstallRespon
 	if err := runCommand(ctx, "systemctl", "is-active", "--quiet", scopedUnit); err != nil {
 		return InstallResponse{}, trace.Wrap(err, "%s is not running; check journalctl -u %s", scopedUnit, scopedUnit)
 	}
-	deadline := time.Now().Add(req.Wait)
-	for {
-		if id := h.readTrimmed(path.Join(scopedDataDir, hostid.FileName)); id != "" {
-			return InstallResponse{HostUUID: id}, nil
+	retry, err := retryutils.NewConstant(time.Second)
+	if err != nil {
+		return InstallResponse{}, trace.Wrap(err)
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, req.Wait)
+	defer cancel()
+	var id string
+	err = retry.For(waitCtx, func() error {
+		if id = h.readTrimmed(path.Join(scopedDataDir, hostid.FileName)); id == "" {
+			return trace.NotFound("no host_uuid yet")
 		}
-		if time.Now().After(deadline) {
-			return InstallResponse{}, trace.LimitExceeded("%s is running but wrote no host_uuid within %s; check journalctl -u %s", scopedUnit, req.Wait, scopedUnit)
-		}
-		select {
-		case <-ctx.Done():
-			return InstallResponse{}, trace.Wrap(ctx.Err())
-		case <-time.After(time.Second):
-		}
+		return nil
+	})
+	switch {
+	case err == nil:
+		return InstallResponse{HostUUID: id}, nil
+	case ctx.Err() != nil:
+		return InstallResponse{}, trace.Wrap(ctx.Err())
+	default:
+		return InstallResponse{}, trace.LimitExceeded("%s is running but wrote no host_uuid within %s; check journalctl -u %s", scopedUnit, req.Wait, scopedUnit)
 	}
 }
 

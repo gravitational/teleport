@@ -64,7 +64,8 @@ type Config struct {
 	Source ClusterConfig `yaml:"source"`
 	// Target is the cluster they join.
 	Target ClusterConfig `yaml:"target"`
-	// StateDir holds the state file; empty means ~/.teleport-migrate.
+	// Optional: empty means ~/.teleport-migrate. Otherwise, it is the directory
+	// that holds the state file.
 	StateDir string `yaml:"state_dir"`
 	// Migrations are the mappings; a source host belongs to at most one.
 	Migrations []HostMapping `yaml:"migrations"`

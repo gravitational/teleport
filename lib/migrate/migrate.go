@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"sync"
@@ -42,9 +43,17 @@ const concurrency = 32
 // on a host downloads teleport, so it allows for a slow link.
 const planHostTimeout = 5 * time.Minute
 
+// targetWait bounds each wait for the scoped agent: for it to write its
+// host_uuid, and for the target to list it.
+const targetWait = 5 * time.Minute
+
+// pollInterval is how often a wait on the target checks again.
+const pollInterval = 5 * time.Second
+
 // Options tune a Migrator.
 type Options struct {
-	// Progress receives one line per notable event; nil discards them.
+	// Optional: nil discards the progress lines. Otherwise, it receives one
+	// line per notable event.
 	Progress io.Writer
 }
 
@@ -135,6 +144,15 @@ func refuseSameCluster(source, target clusterAPI) error {
 	return nil
 }
 
+// requireState refuses a state file no plan has written, for the commands
+// that act on what plan recorded.
+func (m *Migrator) requireState() error {
+	if m.stateFile.fresh {
+		return trace.NotFound("no state file at %q; run plan first", m.stateFile.path)
+	}
+	return nil
+}
+
 // Close closes the connections and then saves and closes the state file, in
 // the reverse of the order NewMigrator opened them.
 func (m *Migrator) Close() error {
@@ -151,6 +169,82 @@ func (m *Migrator) progressf(format string, args ...any) {
 	m.progressMu.Lock()
 	defer m.progressMu.Unlock()
 	fmt.Fprintf(m.progress, format+"\n", args...)
+}
+
+// Report is what a command that changes hosts did.
+type Report struct {
+	// Verb is what the command did to the hosts it counts, such as "migrated".
+	Verb string
+	// Done counts the hosts the command succeeded on.
+	Done int
+	// Failures are the hosts the command failed on, in the order they
+	// reported.
+	Failures []Failure
+}
+
+// Failure is one host a command failed on.
+type Failure struct {
+	// ID is the host's UUID.
+	ID string
+	// Hostname is the host's hostname.
+	Hostname string
+	// Reason is why the command failed, on one line.
+	Reason string
+}
+
+// hostsInStates returns the hosts in states, in ID order, or only the one ref
+// names, which must be in states. need describes the states for the error.
+func (m *Migrator) hostsInStates(ref, need string, states ...string) ([]*host, error) {
+	state := m.stateFile.state
+	if ref != "" {
+		name, err := parseNodeRef(ref)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h, err := state.findHost(name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !slices.Contains(states, h.State) {
+			return nil, trace.NotFound("%q is not %s; run plan and check its state", ref, need)
+		}
+		return []*host{h}, nil
+	}
+	var hosts []*host
+	for _, id := range slices.Sorted(maps.Keys(state.Hosts)) {
+		if h := state.Hosts[id]; slices.Contains(states, h.State) {
+			hosts = append(hosts, h)
+		}
+	}
+	return hosts, nil
+}
+
+// act runs fn on hosts, records each result on its host and in the report, and
+// returns the report with any error.
+func (m *Migrator) act(ctx context.Context, verb string, hosts []*host, timeout time.Duration, fn func(context.Context, *host) (*outcome, error)) (*Report, error) {
+	report := &Report{Verb: verb}
+	for result := range forEachHost(ctx, hosts, timeout, fn) {
+		// After the caller's cancel only successes are kept.
+		if result.err != nil && ctx.Err() != nil {
+			continue
+		}
+		h := result.host
+		if result.value != nil {
+			h.setOutcome(*result.value, time.Now().UTC())
+		}
+		if result.err != nil {
+			reason := joinLines(result.err.Error())
+			report.Failures = append(report.Failures, Failure{ID: h.ID, Hostname: h.Hostname, Reason: reason})
+			m.progressf("%s: failed: %s", utils.EscapeControl(h.Hostname), utils.EscapeControl(reason))
+		} else {
+			report.Done++
+			m.progressf("%s: %s", utils.EscapeControl(h.Hostname), verb)
+		}
+	}
+	if err := m.stateFile.save(); err != nil {
+		return report, trace.Wrap(err)
+	}
+	return report, trace.Wrap(ctx.Err())
 }
 
 // hostResult is the outcome of fn for one host.

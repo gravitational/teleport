@@ -221,8 +221,8 @@ func (m *Migrator) selectHosts(previous map[string]*host, source sourceInventory
 // unstarted again.
 const targetGoneReason = "target agent no longer present"
 
-// outcome is what pairing concludes about one host: the target agent it is
-// paired with, if any, and the state that follows.
+// outcome is a host's new state, target agent and reason, as pairing or a
+// command concludes it.
 type outcome struct {
 	targetID  string
 	matchedBy string
@@ -280,7 +280,7 @@ func pairHost(h *host, target targetInventory) outcome {
 	}
 	// No scoped agent and nothing in the way: ready to migrate.
 	switch h.State {
-	case stateUnstarted:
+	case stateFailed, stateUnstarted:
 		return outcome{state: h.State, reason: h.Reason}
 	case stateMigrated:
 		return outcome{state: stateUnstarted, reason: targetGoneReason}
@@ -531,11 +531,12 @@ type Summary struct {
 
 // PlanOptions select the hosts a plan preflights.
 type PlanOptions struct {
-	// Check preflights every host again, not only the hosts with no preflight
-	// yet.
+	// Optional: when set, preflights every host again, not only the hosts with
+	// no preflight yet.
 	Check bool
-	// Resource, node/<uuid> or node/<hostname>, preflights only that host,
-	// even when it has a preflight or is migrated.
+	// Optional: empty preflights every eligible host. Otherwise, node/<uuid> or
+	// node/<hostname> preflights only that host, even when it has a preflight
+	// or is migrated.
 	Resource string
 }
 
