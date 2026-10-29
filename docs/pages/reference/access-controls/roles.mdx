@@ -693,13 +693,17 @@ available for TCP applications.
 You can use the following functions in `where` expressions to filter access to
 session recordings:
 
-| Function | Signature |Description |
+| Function | Signature | Description |
 |---|---|---|
+| `all_end_with` | `all_end_with(string \| array<string>, string) -> bool` | Returns true if the string or every string in the array ends with the specified suffix. |
+| `all_equal` | `all_equal(string \| array<string>, string) -> bool` | Returns true if the string or every string in the array equals the specified value. |
 | `contains` | `contains(array<string>, string) -> bool` | Returns true if the array contains the specified value. |
 | `contains_any` | `contains_any(array<string>, array<string>) -> bool` | Returns true if the two arrays have any elements in common. |
 | `contains_all` | `contains_all(array<string>, array<string>) -> bool` | Returns true if the first array contains all elements of the second array. |
 | `can_view` | `can_view() -> bool` | Returns true if the user can view the SSH Node, Kubernetes Cluster, Database or Windows machine in Teleport. |
 | `equals` | `equals(array<string>, array<string>) -> bool` | Returns true if the two strings or two arrays are equal. |
+| `has_prefix` | `has_prefix(string, string) -> bool` | Returns true if the first string starts with the specified prefix. |
+| `is_subset` | `is_subset(string \| array<string>, string...) -> bool` | Returns true if the string or every string in the array matches one of the allowed values. |
 | `set` | `set(string,string...) -> array<string>` | Converts one or multiple strings into an array. |
 
 

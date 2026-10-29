@@ -1978,14 +1978,16 @@ func ProcessNamespace(namespace string) string {
 
 // WhereExpr is a tree like structure representing a `where` (sub-)expression.
 type WhereExpr struct {
-	Field                    string
-	Literal                  interface{}
-	And, Or                  WhereExpr2
-	Not                      *WhereExpr
-	Equals, Contains         WhereExpr2
-	ContainsAny, ContainsAll WhereExpr2
-	CanView                  *WhereNoExpr
-	MapRef                   *WhereExpr2
+	Field                           string
+	Literal                         interface{}
+	And, Or                         WhereExpr2
+	Not                             *WhereExpr
+	Equals, Contains                WhereExpr2
+	ContainsAny, ContainsAll        WhereExpr2
+	AllEndWith, AllEqual, HasPrefix WhereExpr2
+	IsSubset                        WhereExprN
+	CanView                         *WhereNoExpr
+	MapRef                          *WhereExpr2
 }
 
 // WhereNoExpr is an empty `where` expression used by
@@ -1995,6 +1997,13 @@ type WhereNoExpr struct{}
 // WhereExpr2 is a pair of `where` (sub-)expressions.
 type WhereExpr2 struct {
 	L, R *WhereExpr
+}
+
+// WhereExprN is a `where` expression with one required operand followed by a
+// variable number of operands.
+type WhereExprN struct {
+	L *WhereExpr
+	R []*WhereExpr
 }
 
 // String returns a human readable representation of WhereExpr.
@@ -2025,6 +2034,23 @@ func (e WhereExpr) String() string {
 	}
 	if e.ContainsAll.L != nil && e.ContainsAll.R != nil {
 		return fmt.Sprintf("contains_all(%s, %s)", e.ContainsAll.L, e.ContainsAll.R)
+	}
+	if e.AllEndWith.L != nil && e.AllEndWith.R != nil {
+		return fmt.Sprintf("all_end_with(%s, %s)", e.AllEndWith.L, e.AllEndWith.R)
+	}
+	if e.AllEqual.L != nil && e.AllEqual.R != nil {
+		return fmt.Sprintf("all_equal(%s, %s)", e.AllEqual.L, e.AllEqual.R)
+	}
+	if e.HasPrefix.L != nil && e.HasPrefix.R != nil {
+		return fmt.Sprintf("has_prefix(%s, %s)", e.HasPrefix.L, e.HasPrefix.R)
+	}
+	if e.IsSubset.L != nil {
+		args := make([]string, 0, len(e.IsSubset.R)+1)
+		args = append(args, e.IsSubset.L.String())
+		for _, arg := range e.IsSubset.R {
+			args = append(args, arg.String())
+		}
+		return fmt.Sprintf("is_subset(%s)", strings.Join(args, ", "))
 	}
 	if e.CanView != nil {
 		return "can_view()"

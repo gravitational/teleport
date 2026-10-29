@@ -1474,6 +1474,43 @@ func translateWhereExpr(cond *types.WhereExpr, params *condFilterParams) (dynamo
 		return fallback(), nil
 	}
 
+	if cond.HasPrefix.L != nil || cond.HasPrefix.R != nil {
+		if cond.HasPrefix.L == nil || cond.HasPrefix.R == nil {
+			return dynamoWhereExpr{}, trace.BadParameter("missing operand for has_prefix expression")
+		}
+		left, isPath, err := dynamoPath(cond.HasPrefix.L, params)
+		if err != nil {
+			return dynamoWhereExpr{}, trace.Wrap(err)
+		}
+		prefix, ok := cond.HasPrefix.R.Literal.(string)
+		if !isPath || !ok {
+			return fallback(), nil
+		}
+		return dynamoWhereExpr{
+			condition: fmt.Sprintf("begins_with(%s, %s)", left, params.addValue(prefix)),
+			exact:     true,
+		}, nil
+	}
+
+	runtimeOnly := func(expr types.WhereExpr2, name string) (dynamoWhereExpr, error) {
+		if expr.L == nil || expr.R == nil {
+			return dynamoWhereExpr{}, trace.BadParameter("missing operand for %s expression", name)
+		}
+		return fallback(), nil
+	}
+	if cond.AllEndWith.L != nil || cond.AllEndWith.R != nil {
+		return runtimeOnly(cond.AllEndWith, "all_end_with")
+	}
+	if cond.AllEqual.L != nil || cond.AllEqual.R != nil {
+		return runtimeOnly(cond.AllEqual, "all_equal")
+	}
+	if cond.IsSubset.L != nil || len(cond.IsSubset.R) != 0 {
+		if cond.IsSubset.L == nil || len(cond.IsSubset.R) == 0 {
+			return dynamoWhereExpr{}, trace.BadParameter("missing operand for is_subset expression")
+		}
+		return fallback(), nil
+	}
+
 	if cond.CanView != nil {
 		return fallback(), nil
 	}

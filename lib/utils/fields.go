@@ -21,6 +21,7 @@ package utils
 import (
 	"reflect"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -202,6 +203,22 @@ func (f Fields) GetMapEntry(mapRef *types.WhereExpr2) (any, bool) {
 		return nil, false
 	}
 	return v, true
+}
+
+func (f Fields) getWhereExprValue(expr *types.WhereExpr) (any, bool) {
+	if expr == nil {
+		return nil, false
+	}
+	if expr.MapRef != nil {
+		return f.GetMapEntry(expr.MapRef)
+	}
+	if expr.Field != "" {
+		return f.Get(expr.Field)
+	}
+	if expr.Literal != nil {
+		return expr.Literal, true
+	}
+	return nil, false
 }
 
 // FieldsCondition is a boolean function on Fields.
@@ -482,6 +499,91 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 		}
 	}
 
+	binaryValueCondition := func(pair types.WhereExpr2, predicate func(a, b any) bool) (FieldsCondition, error) {
+		if pair.L == nil || pair.R == nil {
+			return nil, trace.BadParameter("missing predicate operand")
+		}
+		return func(f Fields) bool {
+			left, ok := f.getWhereExprValue(pair.L)
+			if !ok {
+				return false
+			}
+			right, ok := f.getWhereExprValue(pair.R)
+			return ok && predicate(left, right)
+		}, nil
+	}
+
+	allEndWith := func(a, b any) bool {
+		suffix, ok := getString(b)
+		if !ok {
+			return false
+		}
+		if value, ok := getString(a); ok {
+			return strings.HasSuffix(value, suffix)
+		}
+		values, ok := getStrings(a)
+		return ok && !slices.ContainsFunc(values, func(value string) bool {
+			return !strings.HasSuffix(value, suffix)
+		})
+	}
+	if expr.AllEndWith.L != nil || expr.AllEndWith.R != nil {
+		return binaryValueCondition(expr.AllEndWith, allEndWith)
+	}
+
+	allEqual := func(a, b any) bool {
+		expected, ok := getString(b)
+		if !ok {
+			return false
+		}
+		if value, ok := getString(a); ok {
+			return value == expected
+		}
+		values, ok := getStrings(a)
+		return ok && !slices.ContainsFunc(values, func(value string) bool {
+			return value != expected
+		})
+	}
+	if expr.AllEqual.L != nil || expr.AllEqual.R != nil {
+		return binaryValueCondition(expr.AllEqual, allEqual)
+	}
+
+	if expr.HasPrefix.L != nil || expr.HasPrefix.R != nil {
+		return binaryValueCondition(expr.HasPrefix, func(a, b any) bool {
+			value, valueOK := getString(a)
+			prefix, prefixOK := getString(b)
+			return valueOK && prefixOK && strings.HasPrefix(value, prefix)
+		})
+	}
+
+	if expr.IsSubset.L != nil {
+		return func(f Fields) bool {
+			left, ok := f.getWhereExprValue(expr.IsSubset.L)
+			if !ok {
+				return false
+			}
+			allowed, ok := getAllowedValues(f, expr.IsSubset.R)
+			if !ok {
+				return false
+			}
+
+			if value, ok := getString(left); ok {
+				_, ok := allowed[value]
+				return ok
+			}
+
+			values, ok := getStrings(left)
+			if !ok {
+				return false
+			}
+			for _, value := range values {
+				if _, ok := allowed[value]; !ok {
+					return false
+				}
+			}
+			return true
+		}, nil
+	}
+
 	if expr.CanView != nil {
 		if cfg.CanView == nil {
 			return nil, trace.BadParameter("canView expression provided but no canView function specified")
@@ -490,6 +592,22 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 	}
 
 	return nil, trace.BadParameter("failed to convert expression %q to FieldsCondition", expr)
+}
+
+func getAllowedValues(f Fields, values []*types.WhereExpr) (map[string]struct{}, bool) {
+	allowed := make(map[string]struct{}, len(values))
+	for _, arg := range values {
+		value, ok := f.getWhereExprValue(arg)
+		if !ok {
+			return nil, false
+		}
+		str, ok := getString(value)
+		if !ok {
+			return nil, false
+		}
+		allowed[str] = struct{}{}
+	}
+	return allowed, true
 }
 
 func containsAll(slice []string, items []string) bool {

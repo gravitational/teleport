@@ -156,6 +156,14 @@ func predicateIsSubset(a any, b ...any) predicate.BoolPredicate {
 	}
 }
 
+func predicateHasPrefix(a, b any) predicate.BoolPredicate {
+	return func() bool {
+		aval, aOK := a.(string)
+		bval, bOK := b.(string)
+		return aOK && bOK && strings.HasPrefix(aval, bval)
+	}
+}
+
 func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
 	def := predicate.Def{
 		Operators: predicate.Operators{
@@ -203,19 +211,7 @@ func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
 				}
 				return string(ca.GetType()), nil
 			},
-			"has_prefix": func(a, b any) predicate.BoolPredicate {
-				return func() bool {
-					aval, ok := a.(string)
-					if !ok {
-						return false
-					}
-					bval, ok := b.(string)
-					if !ok {
-						return false
-					}
-					return strings.HasPrefix(aval, bval)
-				}
-			},
+			"has_prefix": predicateHasPrefix,
 		},
 		GetIdentifier: ctx.GetIdentifier,
 		GetProperty:   GetStringMapValue,
@@ -858,6 +854,38 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			"contains_any": binaryPred(predicateContainsAny, func(a, b types.WhereExpr) types.WhereExpr {
 				return types.WhereExpr{ContainsAny: types.WhereExpr2{L: &a, R: &b}}
 			}),
+			"all_end_with": binaryPred(predicateAllEndWith, func(a, b types.WhereExpr) types.WhereExpr {
+				return types.WhereExpr{AllEndWith: types.WhereExpr2{L: &a, R: &b}}
+			}),
+			"all_equal": binaryPred(predicateAllEqual, func(a, b types.WhereExpr) types.WhereExpr {
+				return types.WhereExpr{AllEqual: types.WhereExpr2{L: &a, R: &b}}
+			}),
+			"has_prefix": binaryPred(predicateHasPrefix, func(a, b types.WhereExpr) types.WhereExpr {
+				return types.WhereExpr{HasPrefix: types.WhereExpr2{L: &a, R: &b}}
+			}),
+			"is_subset": func(a any, b ...any) types.WhereExpr {
+				left, ok := a.(types.WhereExpr)
+				if !ok {
+					left = types.WhereExpr{Literal: a}
+				}
+
+				right := make([]*types.WhereExpr, 0, len(b))
+				values := make([]any, 0, len(b))
+				allLiterals := left.Literal != nil
+				for _, value := range b {
+					expr, ok := value.(types.WhereExpr)
+					if !ok {
+						expr = types.WhereExpr{Literal: value}
+					}
+					allLiterals = allLiterals && expr.Literal != nil
+					values = append(values, expr.Literal)
+					right = append(right, &expr)
+				}
+				if allLiterals {
+					return types.WhereExpr{Literal: predicateIsSubset(left.Literal, values...)()}
+				}
+				return types.WhereExpr{IsSubset: types.WhereExprN{L: &left, R: right}}
+			},
 			"set": func(a ...any) types.WhereExpr {
 				aVal := make([]string, 0, len(a))
 				for _, v := range a {
@@ -1130,8 +1158,10 @@ func newResourceExpressionParser(opts ...func(*typical.ParserSpec[types.Resource
 	return parser, nil
 }
 
-var resourceExpressionParserOnce sync.Once
-var resourceExpressionParser *typical.Parser[types.ResourceWithLabels, bool]
+var (
+	resourceExpressionParserOnce sync.Once
+	resourceExpressionParser     *typical.Parser[types.ResourceWithLabels, bool]
+)
 
 func getResourceExpressionParser() (*typical.Parser[types.ResourceWithLabels, bool], error) {
 	resourceExpressionParserOnce.Do(func() {
