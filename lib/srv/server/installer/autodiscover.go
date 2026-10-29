@@ -790,8 +790,14 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 			return nil, trace.Wrap(err)
 		}
 
+		region, err := awsIMDSClient.GetRegion(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		nodeLabels[types.AWSInstanceIDLabel] = instanceID
 		nodeLabels[types.AWSAccountIDLabel] = accountID
+		nodeLabels[types.AWSRegionLabel] = region
 
 	case types.InstanceMetadataTypeGCP:
 		gcpIMDSClient, ok := imdsClient.(*gcpimds.InstanceMetadataClient)
