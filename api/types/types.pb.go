@@ -25057,7 +25057,7 @@ type AWSOIDCIntegrationSpecV1 struct {
 	// DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate.
 	// Amazon had some whitelisted providers where the thumbprint was ignored. S3 hosted providers was in that list.
 	// Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed.
-	// DELETE IN 18.0.
+	// DELETE IN 20.0.
 	IssuerS3URI string `protobuf:"bytes,2,opt,name=IssuerS3URI,proto3" json:"issuer_s3_uri,omitempty"` // Deprecated: Do not use.
 	// Audience is used to record a name of a plugin or a discover service in
 	// Teleport that depends on this integration.

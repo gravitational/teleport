@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -365,6 +366,12 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
+	if spec := req.GetIntegration().GetAWSOIDCIntegrationSpec(); spec != nil {
+		if err := awsoidc.CheckS3IssuerAllowed(req.GetIntegration().GetName(), spec.IssuerS3URI); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	switch req.GetIntegration().GetSubKind() {
 	case types.IntegrationSubKindGitHub:
 		spec := req.GetIntegration().GetGitHubIntegrationSpec()
@@ -486,6 +493,10 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.checkS3IssuerUpdateAllowed(ctx, req.GetIntegration()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch req.GetIntegration().GetSubKind() {
 	case types.IntegrationSubKindGitHub:
 		spec := req.GetIntegration().GetGitHubIntegrationSpec()
@@ -579,6 +590,28 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 
 	s.postWriteOp(ig)
 	return igV1, nil
+}
+
+// checkS3IssuerUpdateAllowed rejects setting or changing the deprecated S3 issuer of an AWS OIDC integration.
+// Integrations that already use an S3 issuer can still be updated as long as the S3 issuer is not changed, so that updating other fields keeps working after upgrading.
+func (s *Service) checkS3IssuerUpdateAllowed(ctx context.Context, ig types.Integration) error {
+	spec := ig.GetAWSOIDCIntegrationSpec()
+	if spec == nil || spec.IssuerS3URI == "" {
+		return nil
+	}
+
+	existing, err := s.backend.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name:  ig.GetName(),
+		Scope: ig.GetScope(),
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if existingSpec := existing.GetAWSOIDCIntegrationSpec(); existingSpec != nil && existingSpec.IssuerS3URI == spec.IssuerS3URI {
+		return nil
+	}
+
+	return trace.Wrap(awsoidc.CheckS3IssuerAllowed(ig.GetName(), spec.IssuerS3URI))
 }
 
 func (s *Service) validateGitHubOAuthCallbackURL(ctx context.Context, callbackURL string) error {

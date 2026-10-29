@@ -23,7 +23,9 @@ import (
 	"crypto"
 	"fmt"
 	"net/url"
+	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +39,28 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
+
+// unstableAllowLegacyS3IssuerEnvVar is the environment variable that enables the legacy S3 issuer as source of public keys for the AWS OIDC integration.
+// This method is deprecated and will be removed in v20. Recommended method is to use the proxy http endpoint as the source of public keys.
+// Set its value to "true" to enable using the legacy S3 issuer.
+// DELETE IN v20 (marcoandredinis): During v19 users need this env var to continue using S3, which gives them time to migrate to the new flow.
+const unstableAllowLegacyS3IssuerEnvVar = "TELEPORT_UNSTABLE_LEGACY_S3_AWSOIDC_ISSUER"
+
+// CheckS3IssuerAllowed rejects the deprecated S3 issuer unless explicitly enabled using the "TELEPORT_UNSTABLE_LEGACY_S3_AWSOIDC_ISSUER" env var.
+// This should only be used to reject creating or updating new integrations and token generation.
+// Validation and listing/reading paths should not use this method.
+func CheckS3IssuerAllowed(integrationName, issuerS3URI string) error {
+	if issuerS3URI == "" {
+		return nil
+	}
+	if allowed, _ := strconv.ParseBool(os.Getenv(unstableAllowLegacyS3IssuerEnvVar)); allowed {
+		return nil
+	}
+	return trace.BadParameter("Integration %q uses an S3 bucket to store the public keys, which is deprecated and will be removed in a future version. "+
+		"Reconfigure the integration to use the cluster's public address as the issuer (Web UI: edit the integration and select Reconfigure), "+
+		"or set %s=true on all Auth Service instances to temporarily allow it",
+		integrationName, unstableAllowLegacyS3IssuerEnvVar)
+}
 
 // Cache is the subset of the cached resources that the AWS OIDC Token Generation queries.
 type Cache interface {
@@ -149,6 +173,9 @@ func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationRef ap
 	}
 
 	issuerS3URI := spec.IssuerS3URI
+	if err := CheckS3IssuerAllowed(integration.GetName(), issuerS3URI); err != nil {
+		return "", trace.Wrap(err)
+	}
 	if issuerS3URI == "" {
 		issuer, err := oidc.IssuerForCluster(ctx, cacheClt)
 		return issuer, trace.Wrap(err)

@@ -14047,7 +14047,7 @@ func GenSchemaIntegrationV1Resource(ctx context.Context) (github_com_hashicorp_t
 						},
 						"issuer_s3_uri": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 							Computed:      true,
-							Description:   "IssuerS3URI is the Identity Provider that was configured in AWS. This bucket/prefix/* files must be publicly accessible and contain the following: > .well-known/openid-configuration > .well-known/jwks Format: `s3://<bucket>/<prefix>` Optional. The proxy's endpoint is used if it is not specified.  DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate. Amazon had some whitelisted providers where the thumbprint was ignored. S3 hosted providers was in that list. Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed. DELETE IN 18.0.",
+							Description:   "IssuerS3URI is the Identity Provider that was configured in AWS. This bucket/prefix/* files must be publicly accessible and contain the following: > .well-known/openid-configuration > .well-known/jwks Format: `s3://<bucket>/<prefix>` Optional. The proxy's endpoint is used if it is not specified.  DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate. Amazon had some whitelisted providers where the thumbprint was ignored. S3 hosted providers was in that list. Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed. DELETE IN 20.0.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 						},
@@ -14205,7 +14205,7 @@ func GenSchemaIntegrationV1DataSource(ctx context.Context) (github_com_hashicorp
 						},
 						"issuer_s3_uri": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 							Computed:    true,
-							Description: "IssuerS3URI is the Identity Provider that was configured in AWS. This bucket/prefix/* files must be publicly accessible and contain the following: > .well-known/openid-configuration > .well-known/jwks Format: `s3://<bucket>/<prefix>` Optional. The proxy's endpoint is used if it is not specified.  DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate. Amazon had some whitelisted providers where the thumbprint was ignored. S3 hosted providers was in that list. Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed. DELETE IN 18.0.",
+							Description: "IssuerS3URI is the Identity Provider that was configured in AWS. This bucket/prefix/* files must be publicly accessible and contain the following: > .well-known/openid-configuration > .well-known/jwks Format: `s3://<bucket>/<prefix>` Optional. The proxy's endpoint is used if it is not specified.  DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate. Amazon had some whitelisted providers where the thumbprint was ignored. S3 hosted providers was in that list. Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed. DELETE IN 20.0.",
 							Optional:    true,
 						},
 						"role_arn": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{

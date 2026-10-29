@@ -87,6 +87,23 @@ the output was written to stderr, rather than stdout. `--help` output now
 goes to stdout, and contains info on only one level of subcommands. Affected
 programs include `teleport`, `tsh`, `tctl`, `tbot`, and `teleport-update`.
 
+#### AWS OIDC integrations using S3 bucket as public key storage
+
+AWS OIDC integrations that store public keys in an S3 bucket are now disabled by default.
+No action is needed if you do not use AWS OIDC integrations, or if your integrations already use the cluster's public endpoint.
+
+To check, run `tctl get integrations --format=yaml` and inspect `spec.aws_oidc.issuer_s3_uri` for each `aws-oidc` integration.
+An absent or empty field means the integration is unaffected, and no action is needed.
+
+Before upgrading, migrate affected integrations to use the cluster's public endpoint as the issuer:
+
+- **Web UI:** Edit the integration, select **Reconfigure**, run the generated command in AWS CloudShell, and save the integration.
+
+After migrating, run `tctl integrations test <name>` to verify the integration.
+
+To temporarily continue using an S3 issuer in v19, start all Auth Service instances with `TELEPORT_UNSTABLE_LEGACY_S3_AWSOIDC_ISSUER=true`.
+Support for S3 issuers and this environment variable will be removed in v20.
+
 ## 18.5.0 (12/04/25)
 
 ### Kubernetes support for Relay Service
