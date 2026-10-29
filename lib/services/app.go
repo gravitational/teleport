@@ -112,6 +112,38 @@ func EnsureScopedAppPubAddrEmpty(app types.Application) error {
 	return nil
 }
 
+// ValidateAppIntegration checks how an app refers to its integration. An
+// unscoped app refers to an unscoped integration by bare name. A scoped app's integration
+// must be in the scope qualified name /scope::integration-name and currently restricted
+// to the app's own scope.
+func ValidateAppIntegration(app types.Application) error {
+	ref := app.GetIntegration()
+	if ref == "" {
+		return nil
+	}
+
+	integrationSqn, err := apiscopes.ParseOptionallyQualifiedName(ref)
+	if err != nil {
+		return trace.BadParameter("application %q has an invalid integration reference %q: %v", app.GetName(), ref, err)
+	}
+
+	if app.GetScope() == "" {
+		if integrationSqn.Scope != "" {
+			return trace.BadParameter("unscoped application %q cannot use scoped integration %q", app.GetName(), ref)
+		}
+		return nil
+	}
+
+	if integrationSqn.Scope == "" {
+		return trace.BadParameter("scoped application %q must reference its integration by scope-qualified name (<scope>::<name>), expected integration with scope %q but got %q", app.GetName(), app.GetScope(), ref)
+	}
+
+	if apiscopes.Compare(integrationSqn.Scope, app.GetScope()) != apiscopes.Equivalent {
+		return trace.BadParameter("scoped application %q in scope %q cannot use integration %q from another scope", app.GetName(), app.GetScope(), ref)
+	}
+	return nil
+}
+
 // ValidateApp checks an Application's name, public_addr, and
 // required_apps.
 func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
@@ -125,6 +157,9 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 
 	if app.GetIntegration() != "" && !app.SupportsIntegration() {
 		return trace.BadParameter("app %q does not support integration", app.GetName())
+	}
+	if err := ValidateAppIntegration(app); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if app.GetTLS() != nil {

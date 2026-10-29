@@ -23,6 +23,7 @@
 package integrationv1
 
 import (
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -42,11 +43,12 @@ const (
 
 // ListIntegrationsRequest is a request for a paginated list of Integrations.
 type ListIntegrationsRequest struct {
-	state              protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Limit   int32                  `protobuf:"varint,1,opt,name=limit,proto3"`
-	xxx_hidden_NextKey string                 `protobuf:"bytes,2,opt,name=next_key,json=nextKey,proto3"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Limit       int32                  `protobuf:"varint,1,opt,name=limit,proto3"`
+	xxx_hidden_NextKey     string                 `protobuf:"bytes,2,opt,name=next_key,json=nextKey,proto3"`
+	xxx_hidden_ScopeFilter *v1.Filter             `protobuf:"bytes,3,opt,name=scope_filter,json=scopeFilter,proto3"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *ListIntegrationsRequest) Reset() {
@@ -88,12 +90,34 @@ func (x *ListIntegrationsRequest) GetNextKey() string {
 	return ""
 }
 
+func (x *ListIntegrationsRequest) GetScopeFilter() *v1.Filter {
+	if x != nil {
+		return x.xxx_hidden_ScopeFilter
+	}
+	return nil
+}
+
 func (x *ListIntegrationsRequest) SetLimit(v int32) {
 	x.xxx_hidden_Limit = v
 }
 
 func (x *ListIntegrationsRequest) SetNextKey(v string) {
 	x.xxx_hidden_NextKey = v
+}
+
+func (x *ListIntegrationsRequest) SetScopeFilter(v *v1.Filter) {
+	x.xxx_hidden_ScopeFilter = v
+}
+
+func (x *ListIntegrationsRequest) HasScopeFilter() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_ScopeFilter != nil
+}
+
+func (x *ListIntegrationsRequest) ClearScopeFilter() {
+	x.xxx_hidden_ScopeFilter = nil
 }
 
 type ListIntegrationsRequest_builder struct {
@@ -103,6 +127,8 @@ type ListIntegrationsRequest_builder struct {
 	Limit int32
 	// NextKey is the key for the next page of Integrations.
 	NextKey string
+	// Filters integrations by scope.
+	ScopeFilter *v1.Filter
 }
 
 func (b0 ListIntegrationsRequest_builder) Build() *ListIntegrationsRequest {
@@ -111,6 +137,7 @@ func (b0 ListIntegrationsRequest_builder) Build() *ListIntegrationsRequest {
 	_, _ = b, x
 	x.xxx_hidden_Limit = b.Limit
 	x.xxx_hidden_NextKey = b.NextKey
+	x.xxx_hidden_ScopeFilter = b.ScopeFilter
 	return m0
 }
 
@@ -192,6 +219,7 @@ type ListIntegrationsResponse_builder struct {
 	// NextKey is the key for the next page of Integrations.
 	NextKey string
 	// TotalCount is the total number of integrations in all pages.
+	// Deprecated. Not set anymore.
 	TotalCount int32
 }
 
@@ -207,10 +235,11 @@ func (b0 ListIntegrationsResponse_builder) Build() *ListIntegrationsResponse {
 
 // GetIntegrationRequest is a request for a specific Integration resource.
 type GetIntegrationRequest struct {
-	state           protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Name string                 `protobuf:"bytes,1,opt,name=name,proto3"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name  string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	xxx_hidden_Scope string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetIntegrationRequest) Reset() {
@@ -245,8 +274,19 @@ func (x *GetIntegrationRequest) GetName() string {
 	return ""
 }
 
+func (x *GetIntegrationRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *GetIntegrationRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
+}
+
+func (x *GetIntegrationRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type GetIntegrationRequest_builder struct {
@@ -254,6 +294,8 @@ type GetIntegrationRequest_builder struct {
 
 	// Name is the name of the Integration to be requested.
 	Name string
+	// Scope is the scope of the Integration to be requested.
+	Scope string
 }
 
 func (b0 GetIntegrationRequest_builder) Build() *GetIntegrationRequest {
@@ -261,6 +303,7 @@ func (b0 GetIntegrationRequest_builder) Build() *GetIntegrationRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -409,6 +452,7 @@ type DeleteIntegrationRequest struct {
 	state                                protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Name                      string                 `protobuf:"bytes,1,opt,name=name,proto3"`
 	xxx_hidden_DeleteAssociatedResources bool                   `protobuf:"varint,2,opt,name=delete_associated_resources,json=deleteAssociatedResources,proto3"`
+	xxx_hidden_Scope                     string                 `protobuf:"bytes,3,opt,name=scope,proto3"`
 	unknownFields                        protoimpl.UnknownFields
 	sizeCache                            protoimpl.SizeCache
 }
@@ -452,12 +496,23 @@ func (x *DeleteIntegrationRequest) GetDeleteAssociatedResources() bool {
 	return false
 }
 
+func (x *DeleteIntegrationRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *DeleteIntegrationRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
 
 func (x *DeleteIntegrationRequest) SetDeleteAssociatedResources(v bool) {
 	x.xxx_hidden_DeleteAssociatedResources = v
+}
+
+func (x *DeleteIntegrationRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type DeleteIntegrationRequest_builder struct {
@@ -468,6 +523,8 @@ type DeleteIntegrationRequest_builder struct {
 	// DeleteAssociatedResources allows the request to search associated resources
 	// and attempt to delete them.
 	DeleteAssociatedResources bool
+	// Scope is the scope of the Integration to be deleted.
+	Scope string
 }
 
 func (b0 DeleteIntegrationRequest_builder) Build() *DeleteIntegrationRequest {
@@ -476,6 +533,7 @@ func (b0 DeleteIntegrationRequest_builder) Build() *DeleteIntegrationRequest {
 	_, _ = b, x
 	x.xxx_hidden_Name = b.Name
 	x.xxx_hidden_DeleteAssociatedResources = b.DeleteAssociatedResources
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -530,6 +588,7 @@ type GenerateAWSOIDCTokenRequest struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Issuer      string                 `protobuf:"bytes,1,opt,name=issuer,proto3"`
 	xxx_hidden_Integration string                 `protobuf:"bytes,2,opt,name=integration,proto3"`
+	xxx_hidden_Scope       string                 `protobuf:"bytes,3,opt,name=scope,proto3"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -574,6 +633,13 @@ func (x *GenerateAWSOIDCTokenRequest) GetIntegration() string {
 	return ""
 }
 
+func (x *GenerateAWSOIDCTokenRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 // Deprecated: Marked as deprecated in teleport/integration/v1/integration_service.proto.
 func (x *GenerateAWSOIDCTokenRequest) SetIssuer(v string) {
 	x.xxx_hidden_Issuer = v
@@ -581,6 +647,10 @@ func (x *GenerateAWSOIDCTokenRequest) SetIssuer(v string) {
 
 func (x *GenerateAWSOIDCTokenRequest) SetIntegration(v string) {
 	x.xxx_hidden_Integration = v
+}
+
+func (x *GenerateAWSOIDCTokenRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type GenerateAWSOIDCTokenRequest_builder struct {
@@ -596,6 +666,8 @@ type GenerateAWSOIDCTokenRequest_builder struct {
 	// Integration is the AWS OIDC Integration name.
 	// Required.
 	Integration string
+	// Scope is the scope of the AWS OIDC token request.
+	Scope string
 }
 
 func (b0 GenerateAWSOIDCTokenRequest_builder) Build() *GenerateAWSOIDCTokenRequest {
@@ -604,6 +676,7 @@ func (b0 GenerateAWSOIDCTokenRequest_builder) Build() *GenerateAWSOIDCTokenReque
 	_, _ = b, x
 	x.xxx_hidden_Issuer = b.Issuer
 	x.xxx_hidden_Integration = b.Integration
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -1123,6 +1196,7 @@ type GenerateAWSRACredentialsRequest struct {
 	xxx_hidden_RoleArn                       string                 `protobuf:"bytes,4,opt,name=role_arn,json=roleArn,proto3"`
 	xxx_hidden_SubjectName                   string                 `protobuf:"bytes,5,opt,name=subject_name,json=subjectName,proto3"`
 	xxx_hidden_SessionMaxDuration            *durationpb.Duration   `protobuf:"bytes,6,opt,name=session_max_duration,json=sessionMaxDuration,proto3"`
+	xxx_hidden_Scope                         string                 `protobuf:"bytes,7,opt,name=scope,proto3"`
 	unknownFields                            protoimpl.UnknownFields
 	sizeCache                                protoimpl.SizeCache
 }
@@ -1194,6 +1268,13 @@ func (x *GenerateAWSRACredentialsRequest) GetSessionMaxDuration() *durationpb.Du
 	return nil
 }
 
+func (x *GenerateAWSRACredentialsRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *GenerateAWSRACredentialsRequest) SetIntegration(v string) {
 	x.xxx_hidden_Integration = v
 }
@@ -1216,6 +1297,10 @@ func (x *GenerateAWSRACredentialsRequest) SetSubjectName(v string) {
 
 func (x *GenerateAWSRACredentialsRequest) SetSessionMaxDuration(v *durationpb.Duration) {
 	x.xxx_hidden_SessionMaxDuration = v
+}
+
+func (x *GenerateAWSRACredentialsRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 func (x *GenerateAWSRACredentialsRequest) HasSessionMaxDuration() bool {
@@ -1247,6 +1332,8 @@ type GenerateAWSRACredentialsRequest_builder struct {
 	// SessionMaxDuration is the maximum duration of the session.
 	// Omit the field to use the Profile's default max session duration.
 	SessionMaxDuration *durationpb.Duration
+	// Scope is the scope of the AWS RA Credentials request.
+	Scope string
 }
 
 func (b0 GenerateAWSRACredentialsRequest_builder) Build() *GenerateAWSRACredentialsRequest {
@@ -1259,6 +1346,7 @@ func (b0 GenerateAWSRACredentialsRequest_builder) Build() *GenerateAWSRACredenti
 	x.xxx_hidden_RoleArn = b.RoleArn
 	x.xxx_hidden_SubjectName = b.SubjectName
 	x.xxx_hidden_SessionMaxDuration = b.SessionMaxDuration
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -1382,28 +1470,32 @@ var File_teleport_integration_v1_integration_service_proto protoreflect.FileDesc
 
 const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"\n" +
-	"1teleport/integration/v1/integration_service.proto\x12\x17teleport.integration.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\"J\n" +
+	"1teleport/integration/v1/integration_service.proto\x12\x17teleport.integration.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"\x89\x01\n" +
 	"\x17ListIntegrationsRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x19\n" +
-	"\bnext_key\x18\x02 \x01(\tR\anextKey\"\x90\x01\n" +
+	"\bnext_key\x18\x02 \x01(\tR\anextKey\x12=\n" +
+	"\fscope_filter\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\"\x90\x01\n" +
 	"\x18ListIntegrationsResponse\x128\n" +
 	"\fintegrations\x18\x01 \x03(\v2\x14.types.IntegrationV1R\fintegrations\x12\x19\n" +
 	"\bnext_key\x18\x02 \x01(\tR\anextKey\x12\x1f\n" +
 	"\vtotal_count\x18\x03 \x01(\x05R\n" +
-	"totalCount\"+\n" +
+	"totalCount\"A\n" +
 	"\x15GetIntegrationRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"R\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"R\n" +
 	"\x18CreateIntegrationRequest\x126\n" +
 	"\vintegration\x18\x01 \x01(\v2\x14.types.IntegrationV1R\vintegration\"R\n" +
 	"\x18UpdateIntegrationRequest\x126\n" +
-	"\vintegration\x18\x01 \x01(\v2\x14.types.IntegrationV1R\vintegration\"n\n" +
+	"\vintegration\x18\x01 \x01(\v2\x14.types.IntegrationV1R\vintegration\"\x84\x01\n" +
 	"\x18DeleteIntegrationRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12>\n" +
-	"\x1bdelete_associated_resources\x18\x02 \x01(\bR\x19deleteAssociatedResources\"\x1e\n" +
-	"\x1cDeleteAllIntegrationsRequest\"[\n" +
+	"\x1bdelete_associated_resources\x18\x02 \x01(\bR\x19deleteAssociatedResources\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"\x1e\n" +
+	"\x1cDeleteAllIntegrationsRequest\"q\n" +
 	"\x1bGenerateAWSOIDCTokenRequest\x12\x1a\n" +
 	"\x06issuer\x18\x01 \x01(\tB\x02\x18\x01R\x06issuer\x12 \n" +
-	"\vintegration\x18\x02 \x01(\tR\vintegration\"4\n" +
+	"\vintegration\x18\x02 \x01(\tR\vintegration\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"4\n" +
 	"\x1cGenerateAWSOIDCTokenResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\"A\n" +
 	"\x1dGenerateAzureOIDCTokenRequest\x12 \n" +
@@ -1422,7 +1514,7 @@ const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"'ExportIntegrationCertAuthoritiesRequest\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\"f\n" +
 	"(ExportIntegrationCertAuthoritiesResponse\x12:\n" +
-	"\x10cert_authorities\x18\x01 \x01(\v2\x0f.types.CAKeySetR\x0fcertAuthorities\"\xb9\x02\n" +
+	"\x10cert_authorities\x18\x01 \x01(\v2\x0f.types.CAKeySetR\x0fcertAuthorities\"\xcf\x02\n" +
 	"\x1fGenerateAWSRACredentialsRequest\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x1f\n" +
 	"\vprofile_arn\x18\x02 \x01(\tR\n" +
@@ -1430,7 +1522,8 @@ const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"!profile_accepts_role_session_name\x18\x03 \x01(\bR\x1dprofileAcceptsRoleSessionName\x12\x19\n" +
 	"\brole_arn\x18\x04 \x01(\tR\aroleArn\x12!\n" +
 	"\fsubject_name\x18\x05 \x01(\tR\vsubjectName\x12K\n" +
-	"\x14session_max_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\x12sessionMaxDuration\"\xd3\x01\n" +
+	"\x14session_max_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\x12sessionMaxDuration\x12\x14\n" +
+	"\x05scope\x18\a \x01(\tR\x05scope\"\xd3\x01\n" +
 	" GenerateAWSRACredentialsResponse\x12\"\n" +
 	"\raccess_key_id\x18\x01 \x01(\tR\vaccessKeyId\x12*\n" +
 	"\x11secret_access_key\x18\x02 \x01(\tR\x0fsecretAccessKey\x12#\n" +
@@ -1471,47 +1564,49 @@ var file_teleport_integration_v1_integration_service_proto_goTypes = []any{
 	(*ExportIntegrationCertAuthoritiesResponse)(nil), // 14: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
 	(*GenerateAWSRACredentialsRequest)(nil),          // 15: teleport.integration.v1.GenerateAWSRACredentialsRequest
 	(*GenerateAWSRACredentialsResponse)(nil),         // 16: teleport.integration.v1.GenerateAWSRACredentialsResponse
-	(*types.IntegrationV1)(nil),                      // 17: types.IntegrationV1
-	(*durationpb.Duration)(nil),                      // 18: google.protobuf.Duration
-	(*types.CAKeySet)(nil),                           // 19: types.CAKeySet
-	(*timestamppb.Timestamp)(nil),                    // 20: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                            // 21: google.protobuf.Empty
+	(*v1.Filter)(nil),                                // 17: teleport.scopes.v1.Filter
+	(*types.IntegrationV1)(nil),                      // 18: types.IntegrationV1
+	(*durationpb.Duration)(nil),                      // 19: google.protobuf.Duration
+	(*types.CAKeySet)(nil),                           // 20: types.CAKeySet
+	(*timestamppb.Timestamp)(nil),                    // 21: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                            // 22: google.protobuf.Empty
 }
 var file_teleport_integration_v1_integration_service_proto_depIdxs = []int32{
-	17, // 0: teleport.integration.v1.ListIntegrationsResponse.integrations:type_name -> types.IntegrationV1
-	17, // 1: teleport.integration.v1.CreateIntegrationRequest.integration:type_name -> types.IntegrationV1
-	17, // 2: teleport.integration.v1.UpdateIntegrationRequest.integration:type_name -> types.IntegrationV1
-	18, // 3: teleport.integration.v1.GenerateGitHubUserCertRequest.ttl:type_name -> google.protobuf.Duration
-	19, // 4: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse.cert_authorities:type_name -> types.CAKeySet
-	18, // 5: teleport.integration.v1.GenerateAWSRACredentialsRequest.session_max_duration:type_name -> google.protobuf.Duration
-	20, // 6: teleport.integration.v1.GenerateAWSRACredentialsResponse.expiration:type_name -> google.protobuf.Timestamp
-	0,  // 7: teleport.integration.v1.IntegrationService.ListIntegrations:input_type -> teleport.integration.v1.ListIntegrationsRequest
-	2,  // 8: teleport.integration.v1.IntegrationService.GetIntegration:input_type -> teleport.integration.v1.GetIntegrationRequest
-	3,  // 9: teleport.integration.v1.IntegrationService.CreateIntegration:input_type -> teleport.integration.v1.CreateIntegrationRequest
-	4,  // 10: teleport.integration.v1.IntegrationService.UpdateIntegration:input_type -> teleport.integration.v1.UpdateIntegrationRequest
-	5,  // 11: teleport.integration.v1.IntegrationService.DeleteIntegration:input_type -> teleport.integration.v1.DeleteIntegrationRequest
-	6,  // 12: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:input_type -> teleport.integration.v1.DeleteAllIntegrationsRequest
-	7,  // 13: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:input_type -> teleport.integration.v1.GenerateAWSOIDCTokenRequest
-	9,  // 14: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:input_type -> teleport.integration.v1.GenerateAzureOIDCTokenRequest
-	11, // 15: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:input_type -> teleport.integration.v1.GenerateGitHubUserCertRequest
-	13, // 16: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:input_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
-	15, // 17: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:input_type -> teleport.integration.v1.GenerateAWSRACredentialsRequest
-	1,  // 18: teleport.integration.v1.IntegrationService.ListIntegrations:output_type -> teleport.integration.v1.ListIntegrationsResponse
-	17, // 19: teleport.integration.v1.IntegrationService.GetIntegration:output_type -> types.IntegrationV1
-	17, // 20: teleport.integration.v1.IntegrationService.CreateIntegration:output_type -> types.IntegrationV1
-	17, // 21: teleport.integration.v1.IntegrationService.UpdateIntegration:output_type -> types.IntegrationV1
-	21, // 22: teleport.integration.v1.IntegrationService.DeleteIntegration:output_type -> google.protobuf.Empty
-	21, // 23: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:output_type -> google.protobuf.Empty
-	8,  // 24: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:output_type -> teleport.integration.v1.GenerateAWSOIDCTokenResponse
-	10, // 25: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:output_type -> teleport.integration.v1.GenerateAzureOIDCTokenResponse
-	12, // 26: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:output_type -> teleport.integration.v1.GenerateGitHubUserCertResponse
-	14, // 27: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:output_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
-	16, // 28: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:output_type -> teleport.integration.v1.GenerateAWSRACredentialsResponse
-	18, // [18:29] is the sub-list for method output_type
-	7,  // [7:18] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	17, // 0: teleport.integration.v1.ListIntegrationsRequest.scope_filter:type_name -> teleport.scopes.v1.Filter
+	18, // 1: teleport.integration.v1.ListIntegrationsResponse.integrations:type_name -> types.IntegrationV1
+	18, // 2: teleport.integration.v1.CreateIntegrationRequest.integration:type_name -> types.IntegrationV1
+	18, // 3: teleport.integration.v1.UpdateIntegrationRequest.integration:type_name -> types.IntegrationV1
+	19, // 4: teleport.integration.v1.GenerateGitHubUserCertRequest.ttl:type_name -> google.protobuf.Duration
+	20, // 5: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse.cert_authorities:type_name -> types.CAKeySet
+	19, // 6: teleport.integration.v1.GenerateAWSRACredentialsRequest.session_max_duration:type_name -> google.protobuf.Duration
+	21, // 7: teleport.integration.v1.GenerateAWSRACredentialsResponse.expiration:type_name -> google.protobuf.Timestamp
+	0,  // 8: teleport.integration.v1.IntegrationService.ListIntegrations:input_type -> teleport.integration.v1.ListIntegrationsRequest
+	2,  // 9: teleport.integration.v1.IntegrationService.GetIntegration:input_type -> teleport.integration.v1.GetIntegrationRequest
+	3,  // 10: teleport.integration.v1.IntegrationService.CreateIntegration:input_type -> teleport.integration.v1.CreateIntegrationRequest
+	4,  // 11: teleport.integration.v1.IntegrationService.UpdateIntegration:input_type -> teleport.integration.v1.UpdateIntegrationRequest
+	5,  // 12: teleport.integration.v1.IntegrationService.DeleteIntegration:input_type -> teleport.integration.v1.DeleteIntegrationRequest
+	6,  // 13: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:input_type -> teleport.integration.v1.DeleteAllIntegrationsRequest
+	7,  // 14: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:input_type -> teleport.integration.v1.GenerateAWSOIDCTokenRequest
+	9,  // 15: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:input_type -> teleport.integration.v1.GenerateAzureOIDCTokenRequest
+	11, // 16: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:input_type -> teleport.integration.v1.GenerateGitHubUserCertRequest
+	13, // 17: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:input_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
+	15, // 18: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:input_type -> teleport.integration.v1.GenerateAWSRACredentialsRequest
+	1,  // 19: teleport.integration.v1.IntegrationService.ListIntegrations:output_type -> teleport.integration.v1.ListIntegrationsResponse
+	18, // 20: teleport.integration.v1.IntegrationService.GetIntegration:output_type -> types.IntegrationV1
+	18, // 21: teleport.integration.v1.IntegrationService.CreateIntegration:output_type -> types.IntegrationV1
+	18, // 22: teleport.integration.v1.IntegrationService.UpdateIntegration:output_type -> types.IntegrationV1
+	22, // 23: teleport.integration.v1.IntegrationService.DeleteIntegration:output_type -> google.protobuf.Empty
+	22, // 24: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:output_type -> google.protobuf.Empty
+	8,  // 25: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:output_type -> teleport.integration.v1.GenerateAWSOIDCTokenResponse
+	10, // 26: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:output_type -> teleport.integration.v1.GenerateAzureOIDCTokenResponse
+	12, // 27: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:output_type -> teleport.integration.v1.GenerateGitHubUserCertResponse
+	14, // 28: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:output_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
+	16, // 29: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:output_type -> teleport.integration.v1.GenerateAWSRACredentialsResponse
+	19, // [19:30] is the sub-list for method output_type
+	8,  // [8:19] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_integration_v1_integration_service_proto_init() }

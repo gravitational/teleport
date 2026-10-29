@@ -39,7 +39,7 @@ func (s *Service) ExportIntegrationCertAuthorities(ctx context.Context, in *inte
 	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ig, err := s.cache.GetIntegration(ctx, in.Integration)
+	ig, err := s.cache.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: in.GetIntegration()}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -104,6 +104,13 @@ func (s *Service) newGitHubSSHCA(ctx context.Context) (*types.PluginStaticCreden
 func (s *Service) createGitHubCredentials(ctx context.Context, ig types.Integration) error {
 	var creds []types.PluginStaticCredentials
 
+	// For now we do not allow creating github credentials when the integration is scoped.
+	// The storage layer checks for the github subkind when creating the integration,
+	// but we do not want to allow creating the credentials beforehand.
+	if ig.GetScope() != "" {
+		return trace.BadParameter("scoped integrations do not support the %q subkind", ig.GetSubKind())
+	}
+
 	if ig.GetCredentials() == nil || ig.GetCredentials().GetIdSecret() == nil {
 		return trace.BadParameter("GitHub integration requires OAuth ID and secret for credentials")
 	}
@@ -143,7 +150,10 @@ func (s *Service) createStaticCredentials(ctx context.Context, ig types.Integrat
 }
 
 func (s *Service) maybeUpdateStaticCredentials(ctx context.Context, newIg types.Integration) error {
-	oldIg, err := s.backend.GetIntegration(ctx, newIg.GetName())
+	oldIg, err := s.backend.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name:  newIg.GetName(),
+		Scope: newIg.GetScope(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -151,6 +161,11 @@ func (s *Service) maybeUpdateStaticCredentials(ctx context.Context, newIg types.
 	// Preserve existing credentials.
 	if newIg.GetCredentials() == nil {
 		return trace.Wrap(newIg.SetCredentials(oldIg.GetCredentials()))
+	}
+
+	// For now we do not allow updating github credentials when the integration is scoped.
+	if newIg.GetScope() != "" {
+		return trace.BadParameter("scoped integrations do not support the %q subkind", newIg.GetSubKind())
 	}
 
 	switch newIg.GetSubKind() {

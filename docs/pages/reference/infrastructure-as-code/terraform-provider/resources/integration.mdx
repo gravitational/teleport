@@ -96,6 +96,10 @@ resource "teleport_integration" "aws_roles_anywhere" {
 - `sub_kind` (String) SubKind is an optional resource sub kind, used in some resources
 - `version` (String) Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by "v". For example: `v1`
 
+### Optional
+
+- `scope` (String) Scope is the scope of the integration.
+
 ### Nested Schema for `metadata`
 
 Required:

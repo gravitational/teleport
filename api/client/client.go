@@ -1851,6 +1851,7 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		Expires:       req.Expires,
 		AuthorityType: string(req.AuthorityType),
 		Scope:         req.Scope,
+		AppName:       req.AppName,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -5842,13 +5843,22 @@ func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {
 	return integrationpb.NewIntegrationServiceClient(c.conn)
 }
 
-// ListIntegrations returns a paginated list of Integrations.
+// ListIntegrations returns a paginated list of unscoped Integrations.
 // The response includes a nextKey which must be used to fetch the next page.
+//
+// Deprecated: use [Client.ListIntegrationsV2]
 func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
-	resp, err := c.integrationsClient().ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
+	return c.ListIntegrationsV2(ctx, &integrationpb.ListIntegrationsRequest{
 		Limit:   int32(pageSize),
 		NextKey: nextKey,
 	})
+}
+
+// ListIntegrationsV2 returns a paginated list of Integrations.
+// The response includes a nextKey which must be used to fetch the next page.
+// This version also takes into account scoped Integrations.
+func (c *Client) ListIntegrationsV2(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error) {
+	resp, err := c.integrationsClient().ListIntegrations(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -5861,7 +5871,24 @@ func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey str
 	return integrations, resp.GetNextKey(), nil
 }
 
-// ListAllIntegrations returns the list of all Integrations.
+// RangeIntegrations returns a sequence of applications filtered by the given
+// [*presencepb.ListIntegrationsRequest].
+func (c *Client) RangeIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) iter.Seq2[types.Integration, error] {
+	if req == nil {
+		req = integrationpb.ListIntegrationsRequest_builder{}.Build()
+	}
+
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]types.Integration, string, error) {
+		req.SetNextKey(pageToken)
+		req.SetLimit(int32(pageSize))
+		return c.ListIntegrationsV2(ctx, req)
+	}
+	return clientutils.RangeResources(ctx, req.GetNextKey(), "", pageFn, types.Integration.GetName)
+}
+
+// ListAllIntegrations returns the list of all unscoped Integrations.
+//
+// Deprecated: use [Client.RangeIntegrations], which takes a scope filter.
 func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, error) {
 	var result []types.Integration
 	var nextKey string
@@ -5877,11 +5904,18 @@ func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, 
 	}
 }
 
-// GetIntegration returns an Integration by its name.
+// GetIntegration returns an unscoped Integration by its name.
+//
+// Deprecated: use [Client.GetIntegrationV2]
 func (c *Client) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
-	ig, err := c.integrationsClient().GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
+	return c.GetIntegrationV2(ctx, &integrationpb.GetIntegrationRequest{
 		Name: name,
 	})
+}
+
+// GetIntegrationV2 returns an Integration by its name and scope.
+func (c *Client) GetIntegrationV2(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error) {
+	ig, err := c.integrationsClient().GetIntegration(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5919,11 +5953,18 @@ func (c *Client) UpdateIntegration(ctx context.Context, ig types.Integration) (t
 	return ig, nil
 }
 
-// DeleteIntegration removes an Integration by its name.
+// DeleteIntegration removes an unscoped Integration by its name.
+//
+// Deprecated: use [Client.DeleteIntegrationV2]
 func (c *Client) DeleteIntegration(ctx context.Context, name string) error {
-	_, err := c.integrationsClient().DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+	return c.DeleteIntegrationV2(ctx, &integrationpb.DeleteIntegrationRequest{
 		Name: name,
 	})
+}
+
+// DeleteIntegrationV2 removes an Integration by its name and scope.
+func (c *Client) DeleteIntegrationV2(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) error {
+	_, err := c.integrationsClient().DeleteIntegration(ctx, req)
 	return trace.Wrap(err)
 }
 
@@ -5933,11 +5974,18 @@ func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action
+// with an unscoped integration.
 func (c *Client) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
-	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+	return c.GenerateAWSOIDCTokenV2(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
 		Integration: integration,
 	})
+}
+
+// GenerateAWSOIDCTokenV2 generates a token to be used when executing an AWS OIDC Integration action
+// with the scoped or unscoped integration named in the request.
+func (c *Client) GenerateAWSOIDCTokenV2(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error) {
+	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

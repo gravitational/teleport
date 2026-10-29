@@ -151,6 +151,10 @@ func isAllowedScopedRule(kind string, verb string) bool {
 	case types.KindApp:
 		// apps can be read/written, and carry no credential material beyond labels/config.
 		return isReadWriteNoSecrets(verb)
+	case types.KindIntegration:
+		// integrations can be read/written. only AWS OIDC and AWS Roles Anywhere integrations may be
+		// scoped for now. AWS integrations do not carry any credential material other than role ARNs.
+		return isReadWriteNoSecrets(verb)
 	case types.KindNode:
 		// ssh servers can be read/written, and do not currently contain a concept of a secret.
 		return isReadWriteNoSecrets(verb)

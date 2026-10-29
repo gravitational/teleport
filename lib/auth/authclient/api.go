@@ -347,8 +347,11 @@ type ReadProxyAccessPoint interface {
 	// ListRelayServers returns a paginated list of relay server heartbeats.
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 
-	// ListIntegrations returns a paginated list of all integration resources.
-	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
+	// ListIntegrations returns a page of integration resources respecting scope filters.
+	ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) ([]types.Integration, string, error)
+
+	// RangeIntegrations returns integrations within the range [start, end) respecting scope filters.
+	RangeIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) iter.Seq2[types.Integration, error]
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -889,8 +892,8 @@ type ReadDiscoveryAccessPoint interface {
 	// DiscoveryConfigsGetter lists and reads discovery config resources.
 	services.DiscoveryConfigsGetter
 
-	// GetIntegration returns the specified integration resource.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	// GetIntegration returns the specified scoped or unscoped integration resource.
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 
 	// GetProxies returns a list of registered proxies.
 	//
@@ -941,8 +944,9 @@ type DiscoveryAccessPoint interface {
 	// SubmitUsageEvent submits an external usage event.
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 
-	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action
+	// with the scoped or unscoped integration named in the request.
+	GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error)
 
 	// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
 	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
@@ -1823,9 +1827,10 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 	return w.NoCache.SubmitUsageEvent(ctx, req)
 }
 
-// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
-	return w.NoCache.GenerateAWSOIDCToken(ctx, integration)
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action
+// with the scoped or unscoped integration named in the request.
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx, req)
 }
 
 // GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.

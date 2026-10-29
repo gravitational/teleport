@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -50,7 +51,10 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 
 	for _, allowedRole := range []types.SystemRole{types.RoleDiscovery, types.RoleAuth, types.RoleProxy} {
 		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
-			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration)
+			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, apiscopes.QualifiedName{
+				Scope: req.GetScope(),
+				Name:  req.GetIntegration(),
+			})
 		}
 	}
 
@@ -58,15 +62,17 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 }
 
 // generateAWSOIDCTokenWithoutAuthZ generates a token to be used when executing an AWS OIDC Integration action.
+// A scoped integration's token carries that integration's scope-specific issuer.
 // Bypasses authz and should only be used by other methods that validate AuthZ.
-func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integrationName string) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integration apiscopes.QualifiedName) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	token, err := awsoidc.GenerateAWSOIDCToken(ctx, s.cache, s.keyStoreManager, awsoidc.GenerateAWSOIDCTokenRequest{
-		Integration: integrationName,
+		Integration: integration.Name,
+		Scope:       integration.Scope,
 		Username:    username,
 		Subject:     types.IntegrationAWSOIDCSubject,
 		Clock:       s.clock,
@@ -94,94 +100,103 @@ type AWSOIDCServiceConfig struct {
 // deleteAWSOIDCAssociatedResources deletes associated discovery_configs and
 // app_servers created by the integration being deleted.  Should only be used by
 // methods that check access for VerbDelete on KindIntegration
-func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
+func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, ig types.Integration) error {
 	// TODO(alexhemard): follow up work needed to add explicit labels for
 	// resources created by integration rather than rely on implicit rules
 
-	// Delete discovery_configs created by this integration
-	var configsRequireCleanup []string
-	var configsToDelete []string
+	// Delete discovery_configs created by this integration.
+	// Discovery configs are cluster-level and reference integrations by bare name.
+	// Scoped integrations should not be able to delete discovery configs at this time.
+	// TODO (scopes): Once the discovery service is scope aware, delete this guard.
+	if ig.GetScope() == "" {
+		var configsRequireCleanup []string
+		var configsToDelete []string
 
-	for config, err := range clientutils.Resources(ctx, s.cache.ListDiscoveryConfigs) {
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		for config, err := range clientutils.Resources(ctx, s.cache.ListDiscoveryConfigs) {
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
-		awsMatchers := config.Spec.AWS
+			awsMatchers := config.Spec.AWS
 
-		config.Spec.AWS = slices.DeleteFunc(config.Spec.AWS, func(matcher types.AWSMatcher) bool {
-			return matcher.Integration == ig.GetName()
-		})
+			config.Spec.AWS = slices.DeleteFunc(config.Spec.AWS, func(matcher types.AWSMatcher) bool {
+				return matcher.Integration == ig.GetName()
+			})
 
-		if len(awsMatchers) == len(config.Spec.AWS) {
-			continue
-		}
-
-		// discovery_configs can be assumed to be created by the integration
-		// and deleted if
-		// 1. only has matchers referencing this integration
-		// 2. has valid uuid name
-		if config.IsMatchersEmpty() {
-			_, err := uuid.Parse(config.GetName())
-
-			if err == nil {
-				configsToDelete = append(configsToDelete, config.GetName())
+			if len(awsMatchers) == len(config.Spec.AWS) {
 				continue
 			}
+
+			// discovery_configs can be assumed to be created by the integration
+			// and deleted if
+			// 1. only has matchers referencing this integration
+			// 2. has valid uuid name
+			if config.IsMatchersEmpty() {
+				_, err := uuid.Parse(config.GetName())
+
+				if err == nil {
+					configsToDelete = append(configsToDelete, config.GetName())
+					continue
+				}
+			}
+
+			configsRequireCleanup = append(configsRequireCleanup, config.GetName())
 		}
 
-		configsRequireCleanup = append(configsRequireCleanup, config.GetName())
-	}
+		if len(configsRequireCleanup) > 0 {
+			var qualifiedConfigs []string
+			for _, config := range configsRequireCleanup {
+				qualifiedConfigs = append(qualifiedConfigs, "discovery_config/"+config)
+			}
 
-	if len(configsRequireCleanup) > 0 {
-		var qualifiedConfigs []string
-		for _, config := range configsRequireCleanup {
-			qualifiedConfigs = append(qualifiedConfigs, "discovery_config/"+config)
+			return trace.BadParameter("cannot delete integration, "+
+				"Discovery Configs referencing this integration must be removed first: %s\n\n"+
+				"Use `tsh rm %s` to remove them.",
+				strings.Join(configsRequireCleanup, ", "),
+				strings.Join(qualifiedConfigs, " "))
 		}
 
-		return trace.BadParameter("cannot delete integration, "+
-			"Discovery Configs referencing this integration must be removed first: %s\n\n"+
-			"Use `tsh rm %s` to remove them.",
-			strings.Join(configsRequireCleanup, ", "),
-			strings.Join(qualifiedConfigs, " "))
-	}
+		for _, configName := range configsToDelete {
+			s.logger.DebugContext(ctx, "Deleting discovery_config associated with integration",
+				"discovery_config", configName,
+				"integration", ig.GetName())
 
-	for _, configName := range configsToDelete {
-		s.logger.DebugContext(ctx, "Deleting discovery_config associated with integration",
-			"discovery_config", configName,
-			"integration", ig.GetName())
+			err := s.backend.DeleteDiscoveryConfig(ctx, configName)
 
-		err := s.backend.DeleteDiscoveryConfig(ctx, configName)
-
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
-	// Delete AWS access app_server associated with this integration
+	// Delete AWS access app_server associated with this integration.
 	appServers, err := s.cache.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	integration := apiscopes.QualifiedName{Scope: ig.GetScope(), Name: ig.GetName()}.String()
 	for _, appServer := range appServers {
-		if appServer.GetApp().GetIntegration() == ig.GetName() {
-			s.logger.DebugContext(ctx, "Deleting app_server associated with integration",
-				"app_server", appServer.GetName(),
-				"integration", ig.GetName())
-
-			err := s.backend.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
-				HostId: appServer.GetHostID(),
-				Name:   appServer.GetName(),
-				Scope:  appServer.GetScope(),
-			}.Build())
-
-			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-
-			break
+		if appServer.GetScope() != ig.GetScope() || appServer.GetApp().GetIntegration() != integration {
+			continue
 		}
+
+		s.logger.DebugContext(ctx, "Deleting app_server associated with integration",
+			"app_server", appServer.GetName(),
+			"scope", appServer.GetScope(),
+			"integration", integration)
+
+		err := s.backend.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: appServer.GetHostID(),
+			Name:   appServer.GetName(),
+			Scope:  appServer.GetScope(),
+		}.Build())
+
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		break
 	}
 
 	return nil
@@ -288,7 +303,7 @@ func (s *AWSOIDCService) roleARNForIntegration(ctx context.Context, integrationN
 }
 
 func (s *AWSOIDCService) awsClientReqWithARN(ctx context.Context, integrationName, region, arn string) (*awsoidc.AWSClientRequest, error) {
-	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, integrationName)
+	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, apiscopes.QualifiedName{Name: integrationName})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

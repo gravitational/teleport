@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gravitational/trace"
 
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -105,7 +106,7 @@ func (c *Cache) getBaseConfig(ctx context.Context, region string, opts *options)
 	// loading.
 	// We cache the entire config by integration name, which is empty for
 	// non-integration config, but only use credentials from it on cache hit.
-	cacheKey, err := newCacheKey(opts.integration, opts.rolesAnywhereIntegrationMetadata)
+	cacheKey, err := newCacheKey(apiscopes.QualifiedName{Name: opts.integration, Scope: opts.scope}, opts.rolesAnywhereIntegrationMetadata)
 	if err != nil {
 		return aws.Config{}, trace.Wrap(err)
 	}
@@ -136,7 +137,7 @@ func (c *Cache) getBaseConfig(ctx context.Context, region string, opts *options)
 func (c *Cache) getConfigForRoleChain(ctx context.Context, cfg aws.Config, opts *options) (aws.Config, error) {
 	for i, r := range opts.assumeRoles {
 		// cache credentials by integration and assumed-role chain.
-		cacheKey, err := newCacheKey(opts.integration, opts.rolesAnywhereIntegrationMetadata, opts.assumeRoles[:i+1]...)
+		cacheKey, err := newCacheKey(apiscopes.QualifiedName{Name: opts.integration, Scope: opts.scope}, opts.rolesAnywhereIntegrationMetadata, opts.assumeRoles[:i+1]...)
 		if err != nil {
 			return aws.Config{}, trace.Wrap(err)
 		}
@@ -164,14 +165,16 @@ func (c *Cache) getConfigForRoleChain(ctx context.Context, cfg aws.Config, opts 
 // The cache key can be used to get role credentials without calling AWS STS.
 // Therefore, we marshal the key as JSON to be sure the input cannot be
 // manipulated to retrieve other credentials.
-func newCacheKey(integrationName string, rolesAnywhereIntegrationMetadata RolesAnywhereMetadata, roleChain ...AssumeRole) (string, error) {
+func newCacheKey(integrationSqn apiscopes.QualifiedName, rolesAnywhereIntegrationMetadata RolesAnywhereMetadata, roleChain ...AssumeRole) (string, error) {
 	type configCacheKey struct {
 		Integration                      string                `json:"integration"`
+		Scope                            string                `json:"scope"`
 		RoleChain                        []AssumeRole          `json:"role_chain"`
 		RolesAnywhereIntegrationMetadata RolesAnywhereMetadata `json:"roles_anywhere_integration_metadata"`
 	}
 	out, err := json.Marshal(configCacheKey{
-		Integration:                      integrationName,
+		Integration:                      integrationSqn.Name,
+		Scope:                            integrationSqn.Scope,
 		RoleChain:                        roleChain,
 		RolesAnywhereIntegrationMetadata: rolesAnywhereIntegrationMetadata,
 	})

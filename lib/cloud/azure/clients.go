@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/gravitational/trace"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -73,14 +74,14 @@ type ClientsOption func(clients *clients)
 
 type azureOIDCCredentials interface {
 	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 }
 
 // WithIntegrationCredentials configures Azure cloud clients to use integration credentials.
 func WithIntegrationCredentials(integrationName string, auth azureOIDCCredentials) ClientsOption {
 	return func(clt *clients) {
 		clt.credentialFunc = func(ctx context.Context) (azcore.TokenCredential, error) {
-			integration, err := auth.GetIntegration(ctx, integrationName)
+			integration, err := auth.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: integrationName}.Build())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

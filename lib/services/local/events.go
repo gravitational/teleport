@@ -2639,7 +2639,10 @@ func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error
 
 func newIntegrationParser() *integrationParser {
 	return &integrationParser{
-		baseParser: newBaseParser(backend.NewKey(integrationsPrefix)),
+		baseParser: newBaseParser(
+			backend.NewKey(integrationsPrefix),
+			backend.NewKey(scopedPrefix, integrationsPrefix),
+		),
 	}
 }
 
@@ -2650,6 +2653,33 @@ type integrationParser struct {
 func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		key := event.Item.Key
+
+		scopedIntegrationPrefix := backend.NewKey(scopedPrefix, integrationsPrefix)
+		if key.HasPrefix(scopedIntegrationPrefix) {
+			components := key.TrimPrefix(scopedIntegrationPrefix).Components()
+			if len(components) != 2 {
+				return nil, trace.NotFound("failed parsing %v", key.String())
+			}
+
+			scope, err := scopes.DecodeFromKey(components[0])
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &types.IntegrationV1{
+				ResourceHeader: types.ResourceHeader{
+					Kind:    types.KindIntegration,
+					Version: types.V1,
+					Metadata: types.Metadata{
+						Name:      components[1],
+						Namespace: apidefaults.Namespace,
+					},
+				},
+				Scope: scope,
+			}, nil
+		}
+
 		name := event.Item.Key.TrimPrefix(backend.NewKey(integrationsPrefix)).String()
 		if name == "" {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())

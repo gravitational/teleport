@@ -173,7 +173,7 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 	// Strip MFA from context for the read call so the MFA response is not
 	// consumed before the UpdateIntegration call that actually needs it.
 	getCtx := mfa.ContextWithMFAResponse(r.Context(), nil)
-	integration, err := clt.GetIntegration(getCtx, integrationName)
+	integration, err := clt.GetIntegration(getCtx, integrationv1.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -286,7 +286,7 @@ func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := clt.GetIntegration(r.Context(), integrationName)
+	ig, err := clt.GetIntegration(r.Context(), integrationv1.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -311,7 +311,7 @@ func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := clt.GetIntegration(r.Context(), integrationName)
+	ig, err := clt.GetIntegration(r.Context(), integrationv1.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -727,7 +727,7 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := clt.GetIntegration(r.Context(), integrationName)
+	ig, err := clt.GetIntegration(r.Context(), integrationv1.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -893,7 +893,10 @@ func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p htt
 
 	startKey := values.Get("startKey")
 
-	igs, nextKey, err := clt.ListIntegrations(r.Context(), int(limit), startKey)
+	igs, nextKey, err := clt.ListIntegrations(r.Context(), integrationv1.ListIntegrationsRequest_builder{
+		Limit:   limit,
+		NextKey: startKey,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

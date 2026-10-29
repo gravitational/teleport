@@ -43,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/utils"
@@ -569,7 +570,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	}
 
 	// Ensure the IntegrationName is valid.
-	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName)
+	_, err = h.GetProxyClient().GetIntegration(ctx, integrationv1.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -1101,7 +1102,7 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := clt.GetIntegration(ctx, integrationName)
+	ig, err := clt.GetIntegration(ctx, integrationv1.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1188,7 +1189,7 @@ func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := clt.GetIntegration(ctx, integrationName)
+	ig, err := clt.GetIntegration(ctx, integrationv1.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1213,6 +1214,19 @@ func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Reque
 	}
 
 	return nil, nil
+}
+
+// integrationScopeFromQuery returns the optional scope query parameter for
+// scoped integrations.
+func integrationScopeFromQuery(r *http.Request) (string, error) {
+	scope := r.URL.Query().Get("scope")
+	if scope == "" {
+		return "", nil
+	}
+	if err := apiscopes.WeakValidate(scope); err != nil {
+		return "", trace.BadParameter("invalid scope %q: %v", scope, err)
+	}
+	return scope, nil
 }
 
 func (h *Handler) getAppServerByName(ctx context.Context, userClient authclient.ClientI, appServerName string) (types.AppServer, error) {
@@ -1246,8 +1260,16 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.BadParameter("missing integrationName param")
 	}
 
+	scope, err := integrationScopeFromQuery(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Ensure the IntegrationName is valid.
-	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName)
+	_, err = h.GetProxyClient().GetIntegration(ctx, integrationv1.GetIntegrationRequest_builder{
+		Name:  integrationName,
+		Scope: scope,
+	}.Build())
 	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -1258,7 +1280,14 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
-	proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
+	var issuerPath string
+	if scope != "" {
+		issuerPath, err = awsoidc.ScopedIssuerPath(scope, integrationName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, issuerPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

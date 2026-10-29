@@ -54,7 +54,6 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -153,7 +152,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindUIConfig:                           rc.createUIConfig,
 		types.KindLock:                               rc.createLock,
 		types.KindNetworkRestrictions:                rc.createNetworkRestrictions,
-		types.KindAppServer:                          rc.createAppServer,
 		types.KindDatabase:                           rc.createDatabase,
 		types.KindToken:                              rc.createToken,
 		types.KindInstaller:                          rc.createInstaller,
@@ -1117,21 +1115,6 @@ func (rc *ResourceCommand) updateDynamicWindowsDesktop(ctx context.Context, clie
 	return nil
 }
 
-func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	appServer, err := services.UnmarshalAppServer(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if appServer.GetApp().GetIntegration() == "" {
-		return trace.BadParameter("only applications that use an integration can be created")
-	}
-	if _, err := client.UpsertApplicationServer(ctx, appServer); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("application server %q has been upserted\n", appServer.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -2076,28 +2059,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("DiscoveryConfig %q removed\n", ref.Name)
 
-	case types.KindAppServer:
-		appServers, err := client.GetApplicationServers(ctx, rc.namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		deleted := false
-		for _, server := range appServers {
-			if server.GetName() == ref.Name {
-				if err := client.DeleteAppServer(ctx, &presencev1.DeleteAppServerRequest{
-					Name:   server.GetName(),
-					HostId: server.GetHostID(),
-					Scope:  server.GetScope(),
-				}); err != nil {
-					return trace.Wrap(err)
-				}
-				deleted = true
-			}
-		}
-		if !deleted {
-			return trace.NotFound("application server %q not found", ref.Name)
-		}
-		fmt.Printf("application server %q has been deleted\n", ref.Name)
 	case types.KindOktaImportRule:
 		if err := client.OktaClient().DeleteOktaImportRule(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2763,25 +2724,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 		}
 		return &databaseServerCollection{servers: servers}, nil
 
-	case types.KindAppServer:
-		servers, err := client.GetApplicationServers(ctx, rc.namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if ref.Name == "" {
-			return &appServerCollection{servers: servers}, nil
-		}
-
-		var out []types.AppServer
-		for _, server := range servers {
-			if server.GetName() == ref.Name || server.GetHostname() == ref.Name {
-				out = append(out, server)
-			}
-		}
-		if len(out) == 0 {
-			return nil, trace.NotFound("application server %q not found", ref.Name)
-		}
-		return &appServerCollection{servers: out}, nil
 	case types.KindNetworkRestrictions:
 		nr, err := client.GetNetworkRestrictions(ctx)
 		if err != nil {

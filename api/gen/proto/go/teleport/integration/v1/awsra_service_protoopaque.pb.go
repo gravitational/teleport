@@ -38,10 +38,11 @@ const (
 
 // AWSRolesAnywherePingRequest is a request for doing an health check against the configured integration.
 type AWSRolesAnywherePingRequest struct {
-	state           protoimpl.MessageState             `protogen:"opaque.v1"`
-	xxx_hidden_Mode isAWSRolesAnywherePingRequest_Mode `protobuf_oneof:"mode"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state            protoimpl.MessageState             `protogen:"opaque.v1"`
+	xxx_hidden_Mode  isAWSRolesAnywherePingRequest_Mode `protobuf_oneof:"mode"`
+	xxx_hidden_Scope string                             `protobuf:"bytes,3,opt,name=scope,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *AWSRolesAnywherePingRequest) Reset() {
@@ -87,6 +88,13 @@ func (x *AWSRolesAnywherePingRequest) GetCustom() *AWSRolesAnywherePingRequestWi
 	return nil
 }
 
+func (x *AWSRolesAnywherePingRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *AWSRolesAnywherePingRequest) SetIntegration(v string) {
 	x.xxx_hidden_Mode = &aWSRolesAnywherePingRequest_Integration{v}
 }
@@ -97,6 +105,10 @@ func (x *AWSRolesAnywherePingRequest) SetCustom(v *AWSRolesAnywherePingRequestWi
 		return
 	}
 	x.xxx_hidden_Mode = &aWSRolesAnywherePingRequest_Custom{v}
+}
+
+func (x *AWSRolesAnywherePingRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 func (x *AWSRolesAnywherePingRequest) HasMode() bool {
@@ -166,6 +178,9 @@ type AWSRolesAnywherePingRequest_builder struct {
 	// This is useful when the integration is not configured.
 	Custom *AWSRolesAnywherePingRequestWithoutIntegration
 	// -- end of xxx_hidden_Mode
+	// Scope is the scope of the integration named in `integration`.
+	// Empty for unscoped integrations. Ignored when `custom` is set.
+	Scope string
 }
 
 func (b0 AWSRolesAnywherePingRequest_builder) Build() *AWSRolesAnywherePingRequest {
@@ -178,6 +193,7 @@ func (b0 AWSRolesAnywherePingRequest_builder) Build() *AWSRolesAnywherePingReque
 	if b.Custom != nil {
 		x.xxx_hidden_Mode = &aWSRolesAnywherePingRequest_Custom{b.Custom}
 	}
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -410,6 +426,7 @@ type ListRolesAnywhereProfilesRequest struct {
 	xxx_hidden_PageSize           int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3"`
 	xxx_hidden_NextPageToken      string                 `protobuf:"bytes,3,opt,name=next_page_token,json=nextPageToken,proto3"`
 	xxx_hidden_ProfileNameFilters []string               `protobuf:"bytes,4,rep,name=profile_name_filters,json=profileNameFilters,proto3"`
+	xxx_hidden_Scope              string                 `protobuf:"bytes,5,opt,name=scope,proto3"`
 	unknownFields                 protoimpl.UnknownFields
 	sizeCache                     protoimpl.SizeCache
 }
@@ -467,6 +484,13 @@ func (x *ListRolesAnywhereProfilesRequest) GetProfileNameFilters() []string {
 	return nil
 }
 
+func (x *ListRolesAnywhereProfilesRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *ListRolesAnywhereProfilesRequest) SetIntegration(v string) {
 	x.xxx_hidden_Integration = v
 }
@@ -481,6 +505,10 @@ func (x *ListRolesAnywhereProfilesRequest) SetNextPageToken(v string) {
 
 func (x *ListRolesAnywhereProfilesRequest) SetProfileNameFilters(v []string) {
 	x.xxx_hidden_ProfileNameFilters = v
+}
+
+func (x *ListRolesAnywhereProfilesRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type ListRolesAnywhereProfilesRequest_builder struct {
@@ -507,6 +535,8 @@ type ListRolesAnywhereProfilesRequest_builder struct {
 	//	^profile.*$
 	//	^.*name.*$
 	ProfileNameFilters []string
+	// Scope is the scope of the AWS Roles Anywhere Integration.
+	Scope string
 }
 
 func (b0 ListRolesAnywhereProfilesRequest_builder) Build() *ListRolesAnywhereProfilesRequest {
@@ -517,6 +547,7 @@ func (b0 ListRolesAnywhereProfilesRequest_builder) Build() *ListRolesAnywherePro
 	x.xxx_hidden_PageSize = b.PageSize
 	x.xxx_hidden_NextPageToken = b.NextPageToken
 	x.xxx_hidden_ProfileNameFilters = b.ProfileNameFilters
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -734,10 +765,11 @@ var File_teleport_integration_v1_awsra_service_proto protoreflect.FileDescriptor
 
 const file_teleport_integration_v1_awsra_service_proto_rawDesc = "" +
 	"\n" +
-	"+teleport/integration/v1/awsra_service.proto\x12\x17teleport.integration.v1\"\xab\x01\n" +
+	"+teleport/integration/v1/awsra_service.proto\x12\x17teleport.integration.v1\"\xc1\x01\n" +
 	"\x1bAWSRolesAnywherePingRequest\x12\"\n" +
 	"\vintegration\x18\x01 \x01(\tH\x00R\vintegration\x12`\n" +
-	"\x06custom\x18\x02 \x01(\v2F.teleport.integration.v1.AWSRolesAnywherePingRequestWithoutIntegrationH\x00R\x06customB\x06\n" +
+	"\x06custom\x18\x02 \x01(\v2F.teleport.integration.v1.AWSRolesAnywherePingRequestWithoutIntegrationH\x00R\x06custom\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scopeB\x06\n" +
 	"\x04mode\"\x95\x01\n" +
 	"-AWSRolesAnywherePingRequestWithoutIntegration\x12(\n" +
 	"\x10trust_anchor_arn\x18\x01 \x01(\tR\x0etrustAnchorArn\x12\x1f\n" +
@@ -749,12 +781,13 @@ const file_teleport_integration_v1_awsra_service_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x10\n" +
 	"\x03arn\x18\x02 \x01(\tR\x03arn\x12\x17\n" +
 	"\auser_id\x18\x03 \x01(\tR\x06userId\x12#\n" +
-	"\rprofile_count\x18\x04 \x01(\x05R\fprofileCount\"\xbb\x01\n" +
+	"\rprofile_count\x18\x04 \x01(\x05R\fprofileCount\"\xd1\x01\n" +
 	" ListRolesAnywhereProfilesRequest\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12&\n" +
 	"\x0fnext_page_token\x18\x03 \x01(\tR\rnextPageToken\x120\n" +
-	"\x14profile_name_filters\x18\x04 \x03(\tR\x12profileNameFilters\"\x96\x01\n" +
+	"\x14profile_name_filters\x18\x04 \x03(\tR\x12profileNameFilters\x12\x14\n" +
+	"\x05scope\x18\x05 \x01(\tR\x05scope\"\x96\x01\n" +
 	"!ListRolesAnywhereProfilesResponse\x12I\n" +
 	"\bprofiles\x18\x01 \x03(\v2-.teleport.integration.v1.RolesAnywhereProfileR\bprofiles\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xab\x02\n" +

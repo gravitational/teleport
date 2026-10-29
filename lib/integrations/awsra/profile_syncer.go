@@ -37,11 +37,14 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -107,8 +110,8 @@ type SyncerCache interface {
 	GetProxies() ([]types.Server, error)
 	// ListProxyServers returns a paginated list of registered proxy servers.
 	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
-	// ListIntegrations returns a paginated list of all integration resources.
-	ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error)
+	// ListIntegrations returns a page of integration resources respecting scope filters.
+	ListIntegrations(ctx context.Context, req *integrationv1.ListIntegrationsRequest) ([]types.Integration, string, error)
 }
 
 // RolesAnywhereClient is an interface that defines methods to interact with the AWS IAM Roles Anywhere service.
@@ -332,7 +335,12 @@ func integrationsWithProfileSyncEnabled(ctx context.Context, cache SyncerCache) 
 	var nextKey string
 
 	for {
-		resp, respNextKey, err := cache.ListIntegrations(ctx, 0, nextKey)
+		// Integrations in every scope are synced: a scoped integration's profiles become
+		// scoped apps in its scope.
+		resp, respNextKey, err := cache.ListIntegrations(ctx, integrationv1.ListIntegrationsRequest_builder{
+			NextKey:     nextKey,
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -375,6 +383,7 @@ func buildAWSRolesAnywhereClientForIntegration(ctx context.Context, params AWSRo
 		ProfileARN:            profileSyncProfileARN,
 		RoleARN:               profileSyncRoleARN,
 		SubjectCommonName:     params.subjectName,
+		Integration:           apiscopes.QualifiedName{Scope: integration.GetScope(), Name: integration.GetName()},
 		AcceptRoleSessionName: profileAcceptsRoleSessionName,
 		KeyStoreManager:       params.KeyStoreManager,
 		Cache:                 params.Cache,
@@ -506,7 +515,7 @@ func processProfile(ctx context.Context, req processProfileRequest) error {
 		return errDisabledProfile
 	}
 
-	appServer, err := convertProfile(req.Params, req.Profile, req.Integration.GetName(), req.ProxyPublicAddr)
+	appServer, err := convertProfile(req.Params, req.Profile, req.Integration, req.ProxyPublicAddr)
 	if err != nil {
 		return trace.BadParameter("failed to convert Profile to AppServer: %v", err)
 	}
@@ -534,12 +543,14 @@ func awsConsoleURLForARN(parsedARN arn.ARN) string {
 	}
 }
 
-func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integrationv1.RolesAnywhereProfile, integrationName string, proxyPublicAddr string) (types.AppServer, error) {
-	parsedProfileARN, err := arn.Parse(profile.Arn)
+func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integrationv1.RolesAnywhereProfile, integration types.Integration, proxyPublicAddr string) (types.AppServer, error) {
+	parsedProfileARN, err := arn.Parse(profile.GetArn())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	integrationName := integration.GetName()
+	integrationScope := integration.GetScope()
 	applicationName := profile.Name + "-" + integrationName
 
 	labels := make(map[string]string, len(profile.Tags))
@@ -551,12 +562,24 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 		}
 	}
 
+	// As per RFD 0309:
+	// Apps synced from a scoped integration inherit the integration's scope.
+	// The app's public address is derived from the scope and app name.
+	// The integration is referenced by scope qualified name.
 	appURL := utils.DefaultAppPublicAddr(strings.ToLower(applicationName), proxyPublicAddr)
+	integrationRef := integrationName
+	if integrationScope != "" {
+		// Scoped app servers must have a DNS-safe name, so the name of an app synced from a scoped
+		// integration is lowercased. Unscoped apps keep the profile's casing.
+		applicationName = strings.ToLower(applicationName)
+		appURL = scopedapp.ScopedAppPublicAddr(integrationScope, applicationName, proxyPublicAddr)
+		integrationRef = apiscopes.QualifiedName{Scope: integrationScope, Name: integrationName}.String()
+	}
 
 	labels[types.AWSAccountIDLabel] = parsedProfileARN.AccountID
 	labels[constants.AWSAccountIDLabel] = parsedProfileARN.AccountID
-	labels[types.IntegrationLabel] = integrationName
-	labels[types.AWSRolesAnywhereProfileARNLabel] = profile.Arn
+	labels[types.IntegrationLabel] = integrationRef
+	labels[types.AWSRolesAnywhereProfileARNLabel] = profile.GetArn()
 
 	// TODO(marco): add origin label in v19: teleport.dev/origin: integration_awsrolesanywhere
 	// types.Metadata.CheckAndSetDefaults in v17 returns an error if the origin label is set to AWS Roles Anywhere.
@@ -575,9 +598,10 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 				Name:   applicationName,
 				Labels: labels,
 			},
+			Scope: integrationScope,
 			Spec: types.AppSpecV3{
 				URI:         awsConsoleURLForARN(parsedProfileARN),
-				Integration: integrationName,
+				Integration: integrationRef,
 				PublicAddr:  appURL,
 				AWS: &types.AppAWS{
 					RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
@@ -587,7 +611,7 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 				},
 			},
 		},
-	})
+	}, integrationScope)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

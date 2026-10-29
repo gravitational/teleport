@@ -9225,6 +9225,9 @@ message IntegrationV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "status"
   ];
+
+  // Scope is the scope of the integration.
+  string scope = 4;
 }
 
 // IntegrationSpecV1 contains properties of all the supported integrations.

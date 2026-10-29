@@ -779,23 +779,6 @@ var (
 		ForceSetKind: "apitypes.KindVnetConfig",
 	}
 
-	integration = payload{
-		Name:                   "Integration",
-		VarName:                "integration",
-		TypeName:               "IntegrationV1",
-		IfaceName:              "Integration",
-		GetMethod:              "GetIntegration",
-		CreateMethod:           "CreateIntegration",
-		UpdateMethod:           "UpdateIntegration",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "DeleteIntegration",
-		ID:                     "integration.Metadata.Name",
-		Kind:                   "integration",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_integration",
-		HasCheckAndSetDefaults: true,
-	}
-
 	inferenceModel = payload{
 		Name:                  "InferenceModel",
 		VarName:               "inferenceModel",
@@ -1092,8 +1075,6 @@ func genTFSchema() {
 	generateDataSource(discoveryConfig, pluralDataSource)
 	generateResource(vnetConfig, singularResource)
 	generateDataSource(vnetConfig, singularDataSource)
-	generateResource(integration, pluralResource)
-	generateDataSource(integration, pluralDataSource)
 	generateResource(inferenceModel, pluralResource)
 	generateDataSource(inferenceModel, pluralDataSource)
 	generateResource(inferenceSecret, pluralResource)

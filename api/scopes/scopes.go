@@ -59,8 +59,9 @@ const (
 	// breakingChars is a special set of characters that we explicitly consider to be invalid
 	// members even when performing looser/weaker validation. This it intended to be an additional
 	// guardrail against erroneous interpretation of future extensions to scope syntax by outdated
-	// agents in the event of improper cross-version compat logic.
-	breakingChars = "\\@(){}\"'%*?#$!+=|<>,;~`&[]/"
+	// agents in the event of improper cross-version compat logic. ':' is not valid because we
+	// turn the scope and resource name into an aws urn. See [lib/integrations/awsra/IntegrationURISAN]
+	breakingChars = "\\@(){}\"'%*?#$!+=|<>,;~`&[]/:"
 )
 
 // Root is the root scope. Non-policy resources being grandfathered into scoping should use this

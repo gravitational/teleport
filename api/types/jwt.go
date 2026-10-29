@@ -44,8 +44,13 @@ type GenerateAppTokenRequest struct {
 	// AuthorityType configures which Teleport authority issues the JWT token.
 	AuthorityType CertAuthType
 
-	// Scope is the scope that this app token is valid for.
+	// Scope is the scope of the recipient application. Empty for unscoped apps.
 	Scope string
+
+	// AppName is the name of the recipient application. Required for scoped
+	// apps: together with Scope it names the app in the token's issuer and
+	// audience claims, and auth checks that the calling agent serves it.
+	AppName string
 }
 
 // Check validates the request.

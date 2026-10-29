@@ -35,7 +35,7 @@ func (s *Service) GenerateAzureOIDCToken(ctx context.Context, req *integrationpb
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = s.cache.GetIntegration(ctx, req.Integration)
+	_, err = s.cache.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: req.GetIntegration()}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

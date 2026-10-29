@@ -40,8 +40,12 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awscommon"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -103,13 +107,15 @@ type Backend interface {
 // ServiceConfig holds configuration options for
 // the Integration gRPC service.
 type ServiceConfig struct {
-	Authorizer      authz.Authorizer
-	Backend         Backend
-	Cache           Cache
-	KeyStoreManager KeyStoreManager
-	Logger          *slog.Logger
-	Clock           clockwork.Clock
-	Emitter         apievents.Emitter
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	ScopesFeatures   scopes.Features
+	Backend          Backend
+	Cache            Cache
+	KeyStoreManager  KeyStoreManager
+	Logger           *slog.Logger
+	Clock            clockwork.Clock
+	Emitter          apievents.Emitter
 	// NotifyGitHubCallbackMigration is called after integration changes to
 	// update the GitHub OAuth callback migration notification.
 	NotifyGitHubCallbackMigration func()
@@ -142,6 +148,10 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("authorizer is required")
 	}
 
+	if s.ScopedAuthorizer == nil {
+		return trace.BadParameter("scoped authorizer is required")
+	}
+
 	if s.Emitter == nil {
 		return trace.BadParameter("emitter is required")
 	}
@@ -167,13 +177,15 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 // Service implements the teleport.integration.v1.IntegrationService RPC service.
 type Service struct {
 	integrationpb.UnimplementedIntegrationServiceServer
-	authorizer      authz.Authorizer
-	cache           Cache
-	keyStoreManager KeyStoreManager
-	backend         Backend
-	logger          *slog.Logger
-	clock           clockwork.Clock
-	emitter         apievents.Emitter
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	scopesFeatures   scopes.Features
+	cache            Cache
+	keyStoreManager  KeyStoreManager
+	backend          Backend
+	logger           *slog.Logger
+	clock            clockwork.Clock
+	emitter          apievents.Emitter
 
 	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 	notifyGitHubCallbackMigration   func()
@@ -189,6 +201,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	return &Service{
 		logger:                          cfg.Logger,
 		authorizer:                      cfg.Authorizer,
+		scopedAuthorizer:                cfg.ScopedAuthorizer,
+		scopesFeatures:                  cfg.ScopesFeatures,
 		cache:                           cfg.Cache,
 		keyStoreManager:                 cfg.KeyStoreManager,
 		backend:                         cfg.Backend,
@@ -204,48 +218,77 @@ var _ integrationpb.IntegrationServiceServer = (*Service)(nil)
 
 // ListIntegrations returns a paginated list of all Integration resources.
 func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) (*integrationpb.ListIntegrationsResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead, types.VerbList); err != nil {
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindIntegration, scopedaccess.List, scopedaccess.Read); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	results, nextKey, err := s.cache.ListIntegrations(ctx, int(req.GetLimit()), req.GetNextKey())
+	// List method scope filters must use identity-based defaults per RFD 0229i.
+	req.SetScopeFilter(authContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
+	igs, nextKey, err := generic.CollectPageAndCursor(
+		stream.FilterMap(
+			s.cache.RangeIntegrations(ctx, req),
+			func(ig types.Integration) (*types.IntegrationV1, bool) {
+				// Filter out integrations the caller may not read
+				if _, err := authContext.CheckerContext.Decision(ctx, ig.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					return checker.CheckAccessToRules(&ruleCtx, types.KindIntegration, scopedaccess.List, scopedaccess.Read)
+				}); err != nil {
+					return nil, false
+				}
+
+				// Credentials are not used outside of Auth service.
+				igV1, ok := ig.WithoutCredentials().(*types.IntegrationV1)
+				return igV1, ok
+			},
+		),
+		int(req.GetLimit()),
+		getCursorForIntegration,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	igs := make([]*types.IntegrationV1, len(results))
-	for i, r := range results {
-		r = r.WithoutCredentials()
-		v1, ok := r.(*types.IntegrationV1)
-		if !ok {
-			return nil, trace.BadParameter("unexpected Integration type %T", r)
-		}
-		igs[i] = v1
-	}
-
-	return &integrationpb.ListIntegrationsResponse{
+	return integrationpb.ListIntegrationsResponse_builder{
 		Integrations: igs,
 		NextKey:      nextKey,
-	}, nil
+	}.Build(), nil
 }
 
-// GetIntegration returns the specified Integration resource.
+// getCursorForIntegration wraps [services.GetCursorForIntegration] with a signature
+// referencing [*types.IntegrationV1] directly, to help go infer the typing for
+// [generic.CollectPageAndCursor].
+func getCursorForIntegration(ig *types.IntegrationV1) string {
+	return services.GetCursorForIntegration(ig)
+}
+
+// GetIntegration returns the specified scoped or unscoped Integration resource.
 func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (*types.IntegrationV1, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindIntegration, scopedaccess.Read); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	integration, err := s.cache.GetIntegration(ctx, req.GetName())
+	integration, err := s.cache.GetIntegration(ctx, req)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := authContext.CheckerContext.Decision(ctx, integration.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindIntegration, scopedaccess.Read)
+	}); err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, trace.NotFound("integration %q not found", req.GetName())
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -259,17 +302,38 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 	return igV1, nil
 }
 
-// CreateIntegration creates a new Integration resource.
+// CreateIntegration creates a new scoped or unscoped Integration resource.
 func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.CreateIntegrationRequest) (*types.IntegrationV1, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbCreate); err != nil {
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindIntegration, scopedaccess.Create); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+
+	// Only unscoped callers have mfa admin action supported.
+	if unscopedCtx, ok := authContext.UnscopedContext(); ok {
+		if err := unscopedCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if req.GetIntegration() == nil {
+		return nil, trace.BadParameter("missing integration")
+	}
+
+	if req.GetIntegration().GetScope() != "" {
+		if err := s.scopesFeatures.AssertEnabled(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if _, err := authContext.CheckerContext.Decision(ctx, req.GetIntegration().GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindIntegration, scopedaccess.Create)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -316,9 +380,10 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 			Type: events.IntegrationCreateEvent,
 			Code: events.IntegrationCreateCode,
 		},
-		UserMetadata: authCtx.GetUserMetadata(),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    ig.GetName(),
+			Scope:   ig.GetScope(),
 			Expires: ig.Expiry(),
 		},
 		IntegrationMetadata: igMeta,
@@ -337,17 +402,38 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 	return igV1, nil
 }
 
-// UpdateIntegration updates an existing integration.
+// UpdateIntegration updates an existing scoped or unscoped integration.
 func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.UpdateIntegrationRequest) (*types.IntegrationV1, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUpdate); err != nil {
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindIntegration, scopedaccess.Update); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+
+	// Only unscoped callers have mfa admin action supported.
+	if unscopedCtx, ok := authContext.UnscopedContext(); ok {
+		if err := unscopedCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if req.GetIntegration() == nil {
+		return nil, trace.BadParameter("missing integration")
+	}
+
+	if req.GetIntegration().GetScope() != "" {
+		if err := s.scopesFeatures.AssertEnabled(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if _, err := authContext.CheckerContext.Decision(ctx, req.GetIntegration().GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindIntegration, scopedaccess.Update)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -392,9 +478,10 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 			Type: events.IntegrationUpdateEvent,
 			Code: events.IntegrationUpdateCode,
 		},
-		UserMetadata: authCtx.GetUserMetadata(),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    ig.GetName(),
+			Scope:   ig.GetScope(),
 			Expires: ig.Expiry(),
 		},
 		IntegrationMetadata: igMeta,
@@ -458,27 +545,40 @@ func validateAWSRolesAnywhereProfileFilters(ig types.Integration) error {
 // Note that there is no rollback if some error happens in the middle of the
 // process.
 func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) (*emptypb.Empty, error) {
-	s.logger.DebugContext(ctx, "Deleting integration", "integration", req.GetName())
+	s.logger.DebugContext(ctx, "Deleting integration", "integration", req.GetName(), "scope", req.GetScope())
 
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindIntegration, scopedaccess.Delete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.cache.GetIntegration(ctx, req.GetName())
+	if unscopedCtx, ok := authContext.UnscopedContext(); ok {
+		if err := unscopedCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	ig, err := s.cache.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Name:  req.GetName(),
+		Scope: req.GetScope(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.DeleteAssociatedResources {
-		if err := s.deleteAssociatedResources(ctx, authCtx, ig); err != nil {
+	if _, err := authContext.CheckerContext.Decision(ctx, ig.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindIntegration, scopedaccess.Delete)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetDeleteAssociatedResources() {
+		if err := s.deleteAssociatedResources(ctx, authContext, ig); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -492,7 +592,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteIntegration(ctx, req.GetName()); err != nil {
+	if err := s.backend.DeleteIntegration(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -506,9 +606,10 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 			Type: events.IntegrationDeleteEvent,
 			Code: events.IntegrationDeleteCode,
 		},
-		UserMetadata: authCtx.GetUserMetadata(),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: ig.GetName(),
+			Name:  ig.GetName(),
+			Scope: ig.GetScope(),
 		},
 		IntegrationMetadata: igMeta,
 		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
@@ -581,12 +682,17 @@ func (s *Service) ensureNoGitHubAssociatedResources(ctx context.Context, ig type
 	return nil
 }
 
-func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
+func (s *Service) deleteAssociatedResources(ctx context.Context, authContext *authz.ScopedContext, ig types.Integration) error {
 	switch ig.GetSubKind() {
 	case types.IntegrationSubKindAWSOIDC:
-		return trace.Wrap(s.deleteAWSOIDCAssociatedResources(ctx, authCtx, ig))
+		return trace.Wrap(s.deleteAWSOIDCAssociatedResources(ctx, ig))
 	case types.IntegrationSubKindGitHub:
-		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, authCtx, ig))
+		// GitHub integrations are currently not scoped.
+		unscopedCtx, ok := authContext.UnscopedContext()
+		if !ok {
+			return trace.AccessDenied("deleting the resources associated with a GitHub integration requires an unscoped identity")
+		}
+		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, unscopedCtx, ig))
 	default:
 		return trace.NotImplemented("DeleteAssociatedResources not supported for integration kind %q", ig.GetKind())
 	}

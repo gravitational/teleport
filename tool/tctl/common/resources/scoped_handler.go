@@ -45,6 +45,8 @@ func ScopedHandlers() map[string]ScopedHandler {
 		types.KindKubernetesCluster:           scopedKubeClusterHandler(),
 		types.KindKubeServer:                  scopedKubeServerHandler(),
 		types.KindApp:                         scopedAppHandler(),
+		types.KindAppServer:                   scopedAppServerHandler(),
+		types.KindIntegration:                 scopedIntegrationHandler(),
 	}
 }
 

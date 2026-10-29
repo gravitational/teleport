@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/entitlements"
@@ -142,8 +143,8 @@ type ExternalAuditStorageGetter interface {
 // IntegrationGetter is an interface for a service that can retrieve an
 // integration by name.
 type IntegrationGetter interface {
-	// GetIntegration returns the specified integration resources.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	// GetIntegration returns the specified integration resource.
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 }
 
 // NewConfigurator returns a new Configurator set up with the current active
@@ -184,7 +185,8 @@ func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAud
 	}
 
 	oidcIntegrationName := spec.IntegrationName
-	integration, err := integrationSvc.GetIntegration(ctx, oidcIntegrationName)
+	// External Audit Storage references integrations by bare name, so only an unscoped integration can back it.
+	integration, err := integrationSvc.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: oidcIntegrationName}.Build())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound(

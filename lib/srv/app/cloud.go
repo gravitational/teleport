@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
@@ -60,9 +61,10 @@ type AWSSigninRequest struct {
 	Issuer string
 	// ExternalID is the AWS external ID.
 	ExternalID string
-	// Integration is the Integration name to use to generate credentials.
-	// If empty, it will use ambient credentials
-	Integration string
+	// Integration is the scope qualified name of the Integration to use to generate
+	// credentials.
+	// If empty, it will use ambient credentials.
+	Integration apiscopes.QualifiedName
 	// RolesAnywhereMetadata contains the Profile/Role information to use when
 	// sourcing the credentials from a Roles Anywhere integration.
 	RolesAnywhereMetadata awsconfig.RolesAnywhereMetadata
@@ -188,7 +190,8 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	// be bound to the duration used in the next AssumeRole call.
 
 	integrationMetadata := awsconfig.IntegrationMetadata{
-		Name:                  req.Integration,
+		Name:                  req.Integration.Name,
+		Scope:                 req.Integration.Scope,
 		RolesAnywhereMetadata: req.RolesAnywhereMetadata,
 	}
 

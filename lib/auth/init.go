@@ -44,15 +44,16 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/vnet"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
@@ -823,7 +824,12 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	}
 
 	// Collect CAs from integrations to avoid deleting them.
-	for ig, err := range clientutils.Resources(ctx, asrv.Services.ListIntegrations) {
+	// Only GitHub integrations hold CA keys, and GitHub integrations are currently unscoped,
+	// so just list the unscoped integrations here.
+	igs := asrv.Services.RangeIntegrations(ctx, integrationpb.ListIntegrationsRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+	}.Build())
+	for ig, err := range igs {
 		if err != nil {
 			return trace.Wrap(err)
 		}

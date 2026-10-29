@@ -92,7 +92,7 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	}
 
 	// Ensure the IntegrationName is valid.
-	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName)
+	_, err = h.GetProxyClient().GetIntegration(ctx, integrationv1.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -165,7 +165,7 @@ func (h *Handler) validateAWSRolesAnywhereIntegration(w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = clt.GetIntegration(ctx, integrationName)
+	_, err = clt.GetIntegration(ctx, integrationv1.GetIntegrationRequest_builder{Name: integrationName}.Build())
 	switch {
 	case err == nil:
 		return nil, trace.AlreadyExists("integration named %q already exists", integrationName)

@@ -30,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 )
 
 const (
@@ -44,7 +45,7 @@ const (
 
 // GenerateOIDCTokenFn is a function that should return a valid, signed JWT for
 // authenticating to AWS via OIDC.
-type GenerateOIDCTokenFn func(ctx context.Context, integration string) (string, error)
+type GenerateOIDCTokenFn func(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error)
 
 type credsOrErr struct {
 	creds aws.Credentials
@@ -282,7 +283,9 @@ func (cc *CredentialsCache) refresh(ctx context.Context) (aws.Credentials, error
 	defer cc.log.InfoContext(ctx, "Exiting AWS credentials refresh")
 
 	cc.log.InfoContext(ctx, "Generating Token")
-	oidcToken, err := cc.getGenerateOIDCTokenFn()(ctx, cc.integration)
+	oidcToken, err := cc.getGenerateOIDCTokenFn()(ctx, integrationpb.GenerateAWSOIDCTokenRequest_builder{
+		Integration: cc.integration,
+	}.Build())
 	if err != nil {
 		cc.log.ErrorContext(ctx, "Token generation failed", errorValue(err))
 		return aws.Credentials{}, trace.Wrap(err)

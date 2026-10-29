@@ -6370,6 +6370,12 @@ func GenSchemaIntegrationV1(ctx context.Context) (github_com_hashicorp_terraform
 			Description: "Metadata is resource metadata",
 			Required:    true,
 		},
+		"scope": {
+			Description:   "Scope is the scope of the integration.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"aws_oidc": {
@@ -61596,6 +61602,23 @@ func CopyIntegrationV1FromTerraform(_ context.Context, tf github_com_hashicorp_t
 			}
 		}
 	}
+	{
+		a, ok := tf.Attrs["scope"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"IntegrationV1.scope"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"IntegrationV1.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+			} else {
+				var t string
+				if !v.Null && !v.Unknown {
+					t = string(v.Value)
+				}
+				obj.Scope = t
+			}
+		}
+	}
 	return diags
 }
 
@@ -62309,6 +62332,28 @@ func CopyIntegrationV1ToTerraform(ctx context.Context, obj *github_com_gravitati
 				v.Unknown = false
 				tf.Attrs["spec"] = v
 			}
+		}
+	}
+	{
+		t, ok := tf.AttrTypes["scope"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"IntegrationV1.scope"})
+		} else {
+			v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+				if err != nil {
+					diags.Append(attrWriteGeneralError{"IntegrationV1.scope", err})
+				}
+				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+				if !ok {
+					diags.Append(attrWriteConversionFailureDiag{"IntegrationV1.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
+				v.Null = string(obj.Scope) == ""
+			}
+			v.Value = string(obj.Scope)
+			v.Unknown = false
+			tf.Attrs["scope"] = v
 		}
 	}
 	return diags

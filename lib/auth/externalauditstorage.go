@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -30,9 +31,10 @@ import (
 
 // GenerateExternalAuditStorageOIDCToken generates a signed OIDC token for use by
 // the External Audit Storage feature when authenticating to customer AWS accounts.
-func (a *Server) GenerateExternalAuditStorageOIDCToken(ctx context.Context, integration string) (string, error) {
+func (a *Server) GenerateExternalAuditStorageOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error) {
 	token, err := awsoidc.GenerateAWSOIDCToken(ctx, a, a.GetKeyStore(), awsoidc.GenerateAWSOIDCTokenRequest{
-		Integration: integration,
+		Integration: req.GetIntegration(),
+		Scope:       req.GetScope(),
 		Username:    a.ServerID,
 		Subject:     types.IntegrationAWSOIDCSubjectAuth,
 		Clock:       a.clock,

@@ -876,8 +876,12 @@ message GenerateAppTokenRequest {
   // TODO(greedy52) DEPRECATE IN v20
   string authority_type = 6;
   // Scope is defined when a scoped service must generate an app token.
-  // It will be used when making scoped rbac decisions
+  // Used when making scoped rbac decisions alongside app_name.
   string scope = 7;
+  // AppName is the name of the application this token targets. Required for
+  // scoped apps. The app_name and scope is used to derive the audience and
+  // issuer claims.
+  string app_name = 8;
 }
 
 // GenerateAppTokenResponse contains a signed application token.

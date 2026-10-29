@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -624,12 +625,14 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	token, err := s.client.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
+	token, err := s.client.GenerateAWSOIDCToken(ctx, integrationpb.GenerateAWSOIDCTokenRequest_builder{
+		Integration: awsInfo.Integration,
+	}.Build())
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
 
-	integration, err := s.client.GetIntegration(ctx, awsInfo.Integration)
+	integration, err := s.client.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: awsInfo.Integration}.Build())
 	if err != nil {
 		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
 	}

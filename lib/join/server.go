@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
@@ -94,8 +95,8 @@ type AuthService interface {
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
 	GetAWSOrganizationsClientGetter() iamjoin.OrganizationsAPIGetter
-	GenerateAWSOIDCToken(ctx context.Context, integrationName string) (string, error)
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error)
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 	GetAzureDevopsIDTokenValidator() azuredevops.Validator
 	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client

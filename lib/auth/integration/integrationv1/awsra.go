@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
@@ -51,11 +52,13 @@ func (s *Service) GenerateAWSRACredentials(ctx context.Context, req *integration
 }
 
 // generateAWSRACredentialsWithoutAuthZ generates a set of AWS credentials which uses the AWS Roles Anywhere integration.
+// A scoped integration's leaf certificate carries the integration's scope as a URI SAN.
 // Bypasses authz and should only be used by other methods that validate AuthZ.
 // If trustAnchor is unset, it will use the trust anchor from the integration spec.
 func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req *integrationpb.GenerateAWSRACredentialsRequest, trustAnchor string) (*integrationpb.GenerateAWSRACredentialsResponse, error) {
+	integrationRef := apiscopes.QualifiedName{Scope: req.GetScope(), Name: req.GetIntegration()}
 	if trustAnchor == "" {
-		spec, err := s.getAWSRolesAnywhereIntegrationSpec(ctx, req.GetIntegration())
+		spec, err := s.getAWSRolesAnywhereIntegrationSpec(ctx, integrationRef)
 		if err != nil {
 			return nil, trace.BadParameter("trust anchor not provided and could not be fetched from the integration: %v", err)
 		}
@@ -75,6 +78,7 @@ func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req 
 		ProfileARN:            req.GetProfileArn(),
 		RoleARN:               req.GetRoleArn(),
 		SubjectCommonName:     req.GetSubjectName(),
+		Integration:           integrationRef,
 		DurationSeconds:       durationSeconds,
 		AcceptRoleSessionName: req.GetProfileAcceptsRoleSessionName(),
 		KeyStoreManager:       s.keyStoreManager,
@@ -93,14 +97,17 @@ func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req 
 	}, nil
 }
 
-func (s *Service) getAWSRolesAnywhereIntegrationSpec(ctx context.Context, integrationName string) (*types.AWSRAIntegrationSpecV1, error) {
-	integration, err := s.cache.GetIntegration(ctx, integrationName)
+func (s *Service) getAWSRolesAnywhereIntegrationSpec(ctx context.Context, integrationRef apiscopes.QualifiedName) (*types.AWSRAIntegrationSpecV1, error) {
+	integration, err := s.cache.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Scope: integrationRef.Scope,
+		Name:  integrationRef.Name,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	spec := integration.GetAWSRolesAnywhereIntegrationSpec()
 	if spec == nil {
-		return nil, trace.BadParameter("integration %q is not an AWSRA integration", integrationName)
+		return nil, trace.BadParameter("integration %q is not an AWSRA integration", integrationRef)
 	}
 
 	return spec, nil
@@ -193,18 +200,23 @@ func (s *AWSRolesAnywhereService) ListRolesAnywhereProfiles(ctx context.Context,
 	}
 
 	// ListRolesAnywhereProfiles uses the ProfileSync config's Profile and Role.
-	spec, err := s.integrationService.getAWSRolesAnywhereIntegrationSpec(ctx, req.GetIntegration())
+	spec, err := s.integrationService.getAWSRolesAnywhereIntegrationSpec(ctx, apiscopes.QualifiedName{
+		Name:  req.GetIntegration(),
+		Scope: req.GetScope(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	trustAnchor := spec.TrustAnchorARN
 
-	credentials, err := s.integrationService.generateAWSRACredentialsWithoutAuthZ(ctx, &integrationpb.GenerateAWSRACredentialsRequest{
+	credentials, err := s.integrationService.generateAWSRACredentialsWithoutAuthZ(ctx, integrationpb.GenerateAWSRACredentialsRequest_builder{
+		Integration:                   req.GetIntegration(),
+		Scope:                         req.GetScope(),
 		ProfileArn:                    spec.ProfileSyncConfig.ProfileARN,
 		RoleArn:                       spec.ProfileSyncConfig.RoleARN,
 		ProfileAcceptsRoleSessionName: spec.ProfileSyncConfig.ProfileAcceptsRoleSessionName,
 		SubjectName:                   authCtx.Identity.GetIdentity().Username,
-	}, trustAnchor)
+	}.Build(), trustAnchor)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -264,9 +276,12 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 
 	var trustAnchorARN, profileARN, roleARN string
 
-	switch req.Mode.(type) {
-	case *integrationpb.AWSRolesAnywherePingRequest_Integration:
-		spec, err := s.integrationService.getAWSRolesAnywhereIntegrationSpec(ctx, req.GetIntegration())
+	switch req.WhichMode() {
+	case integrationpb.AWSRolesAnywherePingRequest_Integration_case:
+		spec, err := s.integrationService.getAWSRolesAnywhereIntegrationSpec(ctx, apiscopes.QualifiedName{
+			Name:  req.GetIntegration(),
+			Scope: req.GetScope(),
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -275,7 +290,7 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 		profileARN = spec.ProfileSyncConfig.ProfileARN
 		roleARN = spec.ProfileSyncConfig.RoleARN
 
-	case *integrationpb.AWSRolesAnywherePingRequest_Custom:
+	case integrationpb.AWSRolesAnywherePingRequest_Custom_case:
 		trustAnchorARN = req.GetCustom().GetTrustAnchorArn()
 		profileARN = req.GetCustom().GetProfileArn()
 		roleARN = req.GetCustom().GetRoleArn()
@@ -291,11 +306,14 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 		"role_arn", roleARN,
 	)
 
-	credentialsRequest := &integrationpb.GenerateAWSRACredentialsRequest{
+	// In custom mode no integration is named, so the certificate carries no integration SAN.
+	credentialsRequest := integrationpb.GenerateAWSRACredentialsRequest_builder{
+		Integration: req.GetIntegration(),
+		Scope:       req.GetScope(),
 		ProfileArn:  profileARN,
 		RoleArn:     roleARN,
 		SubjectName: authCtx.Identity.GetIdentity().Username,
-	}
+	}.Build()
 
 	trustAnchorARNParsed, err := arn.Parse(trustAnchorARN)
 	if err != nil {

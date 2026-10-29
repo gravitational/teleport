@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -1809,6 +1810,8 @@ type CertificateRequest struct {
 	NotAfter time.Time
 	// DNSNames is a list of DNS names to add to certificate
 	DNSNames []string
+	// URISANs is a list of URI SANs to add to the certificate.
+	URISANs []*url.URL
 	// Optional. ExtraExtensions to populate.
 	// Note: ExtraExtensions can override ExtKeyUsage and SANs (like DNSNames).
 	ExtraExtensions []pkix.Extension
@@ -1879,6 +1882,7 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		IsCA:                  false,
 		ExtraExtensions:       req.ExtraExtensions,
 		CRLDistributionPoints: req.CRLDistributionPoints,
+		URIs:                  req.URISANs,
 	}
 
 	// sort out principals into DNS names and IP addresses

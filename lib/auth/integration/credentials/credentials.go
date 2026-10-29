@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -109,14 +110,14 @@ func GetByPurpose(ctx context.Context, ref *types.PluginStaticCredentialsRef, pu
 
 // IntegrationGetter defines an interface to retrieve an integration by name.
 type IntegrationGetter interface {
-	// GetIntegration returns the specified integration resources.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	// GetIntegration returns the specified integration resource.
+	GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (types.Integration, error)
 }
 
 // GetIntegrationWithCredRef is a helper to get the integration and its
 // PluginStaticCredentialsRef.
 func GetIntegrationWithCredRef(ctx context.Context, integration string, igGetter IntegrationGetter) (types.Integration, *types.PluginStaticCredentialsRef, error) {
-	ig, err := igGetter.GetIntegration(ctx, integration)
+	ig, err := igGetter.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: integration}.Build())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -727,12 +728,14 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
+	token, err := s.authClient.GenerateAWSOIDCToken(ctx, integrationpb.GenerateAWSOIDCTokenRequest_builder{
+		Integration: awsInfo.Integration,
+	}.Build())
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
 
-	integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
+	integration, err := s.authClient.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: awsInfo.Integration}.Build())
 	if err != nil {
 		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
 	}

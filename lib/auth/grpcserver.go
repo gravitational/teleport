@@ -1702,7 +1702,7 @@ func (g *GRPCServer) GenerateSnowflakeJWT(ctx context.Context, req *authpb.Snowf
 
 // UpsertApplicationServer registers an application server.
 func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.UpsertApplicationServerRequest) (*types.KeepAlive, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1719,10 +1719,13 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 	// Okta are redirected differently which could create unpredictable or insecure behavior if applied
 	// to non-Okta apps.
 	hasOktaOrigin := server.Origin() == types.OriginOkta || app.Origin() == types.OriginOkta
-	if !authz.HasBuiltinRole(auth.context, string(types.RoleOkta)) {
-		if hasOktaOrigin {
-			return nil, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin")
-		}
+	// The Okta service is currently unscoped only.
+	isOktaService := false
+	if unscopedCtx, ok := auth.scopedContext.UnscopedContext(); ok {
+		isOktaService = authz.HasBuiltinRole(*unscopedCtx, string(types.RoleOkta))
+	}
+	if hasOktaOrigin && !isOktaService {
+		return nil, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin")
 	}
 
 	if err := services.ValidateApp(app, auth); err != nil {
@@ -2062,6 +2065,7 @@ func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateA
 		Expires:       req.Expires,
 		AuthorityType: types.CertAuthType(req.AuthorityType),
 		Scope:         req.Scope,
+		AppName:       req.AppName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6526,6 +6530,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
 		Authorizer:                    cfg.Authorizer,
+		ScopedAuthorizer:              cfg.ScopedAuthorizer,
+		ScopesFeatures:                cfg.AuthServer.scopesFeatures,
 		Backend:                       cfg.AuthServer.Services,
 		Cache:                         cfg.AuthServer.Cache,
 		KeyStoreManager:               cfg.AuthServer.GetKeyStore(),

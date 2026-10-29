@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -249,7 +250,7 @@ func (c *githubAddCommand) createGitHubIntegration(ctx context.Context, clt gith
 	}
 
 	c.cleanupsOnError = append(c.cleanupsOnError, func(ctx context.Context) {
-		if err := clt.DeleteIntegration(ctx, plan.name); err != nil && !trace.IsNotFound(err) {
+		if err := clt.DeleteIntegration(ctx, integrationv1.DeleteIntegrationRequest_builder{Name: plan.name}.Build()); err != nil && !trace.IsNotFound(err) {
 			fmt.Fprintf(c.stdout, "Warning: failed to delete integration %[1]q: %[2]v. Please delete it manually: tctl rm integration/%[1]s\n", plan.name, err)
 		}
 	})
@@ -351,7 +352,7 @@ func waitForGitHubIntegration(ctx context.Context, clt githubAddClient, name str
 
 	var ig types.Integration
 	if err := retry.For(ctx, func() error {
-		ig, err = clt.GetIntegration(ctx, name)
+		ig, err = clt.GetIntegration(ctx, integrationv1.GetIntegrationRequest_builder{Name: name}.Build())
 		switch {
 		case err == nil:
 			return nil

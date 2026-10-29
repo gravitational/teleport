@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
@@ -54,7 +56,7 @@ func generateAWSClientSideCredentials(
 		return "", errAppWithoutAWSClientSideCredentials
 	}
 
-	appInfo, err := getAppServerByName(ctx, a, req.AppName)
+	appInfo, err := getAppServerByName(ctx, a, apiscopes.QualifiedName{Scope: req.TargetScope, Name: req.AppName})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -65,7 +67,16 @@ func generateAWSClientSideCredentials(
 		return "", errAppWithoutAWSClientSideCredentials
 	}
 
-	integration, err := a.GetIntegration(ctx, integrationName)
+	// A scoped app refers to its integration by scope-qualified name.
+	integrationSQN, err := apiscopes.ParseOptionallyQualifiedName(integrationName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	integration, err := a.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
+		Scope: integrationSQN.Scope,
+		Name:  integrationSQN.Name,
+	}.Build())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -75,7 +86,9 @@ func generateAWSClientSideCredentials(
 		// Unlike normal app access, AWS Roles Anywhere credential generation
 		// returns externally usable AWS credentials directly from Auth without
 		// flowing through the app service first, so Auth must enforce both app
-		// access and the requested AWS role ARN before calling AWS.
+		// access and the requested AWS role ARN before calling AWS. A scoped
+		// integration's credentials are additionally bound to its scope by the
+		// leaf certificate's URI SAN (see awsra.GenerateCredentials).
 		if err := authorizeAWSRolesAnywhereCredentials(ctx, a, req, appInfo, attestedKeyPolicy); err != nil {
 			if errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired) {
 				return "", trace.Wrap(err)
@@ -106,13 +119,6 @@ func authorizeAWSRolesAnywhereCredentials(
 	appInfo types.Application,
 	attestedKeyPolicy keys.PrivateKeyPolicy,
 ) error {
-	unscoped := req.CheckerContext.CertParams().UnscopedCertParams()
-	if unscoped == nil {
-		// AWS Roles Anywhere credential issuance requires an unscoped access
-		// checker; scoped identities cannot mint these credentials.
-		return trace.AccessDenied("AWS Roles Anywhere credentials require an unscoped identity")
-	}
-
 	state, err := req.CheckerContext.AccessStateFromTLSIdentity(ctx, &tlsca.Identity{
 		Username:         req.User.GetName(),
 		MFAVerified:      req.MFAVerified,
@@ -124,25 +130,24 @@ func authorizeAWSRolesAnywhereCredentials(
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(unscoped.CheckAccess(
-		appInfo,
-		state,
-		&services.AWSRoleARNMatcher{RoleARN: req.AWSRoleARN},
-	))
+	_, err = req.CheckerContext.Decision(ctx, appInfo.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.App().CheckAccessToApp(appInfo, state, &services.AWSRoleARNMatcher{RoleARN: req.AWSRoleARN})
+	})
+	return trace.Wrap(err)
 }
 
-func getAppServerByName(ctx context.Context, a *Server, appServerName string) (types.Application, error) {
+func getAppServerByName(ctx context.Context, a *Server, app apiscopes.QualifiedName) (types.Application, error) {
 	appServers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for _, s := range appServers {
-		if s.GetName() == appServerName {
+		if s.GetName() == app.Name && s.GetScope() == app.Scope {
 			return s.GetApp(), nil
 		}
 	}
-	return nil, trace.NotFound("application %q not found", appServerName)
+	return nil, trace.NotFound("application %q not found", app.String())
 }
 
 func generateAWSRolesAnywhereCredentials(
@@ -172,6 +177,7 @@ func generateAWSRolesAnywhereCredentials(
 		ProfileARN:            awsProfileARN,
 		RoleARN:               req.AWSRoleARN,
 		SubjectCommonName:     req.User.GetName(),
+		Integration:           apiscopes.QualifiedName{Scope: integration.GetScope(), Name: integration.GetName()},
 		KeyStoreManager:       a.keyStore,
 		AcceptRoleSessionName: acceptRoleSessionName,
 		DurationSeconds:       &durationSeconds,

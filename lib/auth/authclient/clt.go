@@ -639,6 +639,30 @@ func (c *Client) IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywh
 	return integrationv1.NewAWSRolesAnywhereServiceClient(c.APIClient.GetConnection())
 }
 
+// GetIntegration returns the specified scoped or unscoped integration. It shadows the embedded api
+// client's name-based GetIntegration, which only resolves unscoped integrations and stays for
+// external callers of the api module.
+func (c *Client) GetIntegration(ctx context.Context, req *integrationv1.GetIntegrationRequest) (types.Integration, error) {
+	return c.APIClient.GetIntegrationV2(ctx, req)
+}
+
+// ListIntegrations returns a page of integrations respecting scope filters. It shadows the embedded
+// api client's unscoped-only ListIntegrations.
+func (c *Client) ListIntegrations(ctx context.Context, req *integrationv1.ListIntegrationsRequest) ([]types.Integration, string, error) {
+	return c.APIClient.ListIntegrationsV2(ctx, req)
+}
+
+// DeleteIntegration removes the specified scoped or unscoped integration. It shadows the embedded
+// api client's name-based DeleteIntegration.
+func (c *Client) DeleteIntegration(ctx context.Context, req *integrationv1.DeleteIntegrationRequest) error {
+	return c.APIClient.DeleteIntegrationV2(ctx, req)
+}
+
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+func (c *Client) GenerateAWSOIDCToken(ctx context.Context, req *integrationv1.GenerateAWSOIDCTokenRequest) (string, error) {
+	return c.APIClient.GenerateAWSOIDCTokenV2(ctx, req)
+}
+
 // UserTasksClient returns a client for managing User Task resources.
 func (c *Client) UserTasksClient() services.UserTasks {
 	return c.APIClient.UserTasksServiceClient()
@@ -1655,8 +1679,9 @@ type ClientI interface {
 	// Implements ReadAccessPoint.
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 
-	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action
+	// with the scoped or unscoped integration named in the request.
+	GenerateAWSOIDCToken(ctx context.Context, req *integrationv1.GenerateAWSOIDCTokenRequest) (string, error)
 
 	// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
 	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)

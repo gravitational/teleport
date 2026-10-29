@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -88,7 +89,7 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 }
 
 func (c *Command) test(ctx context.Context, client testClient) error {
-	integration, err := client.IntegrationsClient().GetIntegration(ctx, c.testArgs.integration)
+	integration, err := client.IntegrationsClient().GetIntegration(ctx, integrationv1.GetIntegrationRequest_builder{Name: c.testArgs.integration}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -143,7 +144,7 @@ type testClient interface {
 }
 
 type integrationsFetcher interface {
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetIntegration(ctx context.Context, req *integrationv1.GetIntegrationRequest) (types.Integration, error)
 }
 
 type testClientAdapter struct {

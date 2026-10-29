@@ -176,3 +176,13 @@ func PrintMetadataLabels(labels map[string]string) string {
 	}
 	return sb.String()
 }
+
+// makeNamePredicate makes a predicate expression that can be used for
+// filtering resources by name. Returns empty if name is empty.
+func makeNamePredicate(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	return fmt.Sprintf(`name == %q`, name)
+}

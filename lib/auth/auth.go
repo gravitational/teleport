@@ -71,6 +71,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -146,6 +147,7 @@ import (
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/resourceusage"
 	libscopes "github.com/gravitational/teleport/lib/scopes"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1159,9 +1161,10 @@ func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionReq
 	return r.IdentityInternal.WebSessions().Get(ctx, req)
 }
 
-// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
-	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action
+// with the scoped or unscoped integration named in the request.
+func (r *Services) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error) {
+	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, req)
 }
 
 // GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
@@ -1872,10 +1875,12 @@ func (a *Server) GetDeviceAssertionServer() CreateDeviceAssertionFunc {
 	return a.deviceAssertionServer
 }
 
-// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (a *Server) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action
+// with the scoped or unscoped integration named in the request.
+func (a *Server) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (string, error) {
 	token, err := awsoidc.GenerateAWSOIDCToken(ctx, a, a.GetKeyStore(), awsoidc.GenerateAWSOIDCTokenRequest{
-		Integration: integration,
+		Integration: req.GetIntegration(),
+		Scope:       req.GetScope(),
 		Username:    a.ServerID,
 		Subject:     types.IntegrationAWSOIDCSubjectAuth,
 		Clock:       a.clock,
@@ -6967,6 +6972,27 @@ func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeSe
 // UpsertApplicationServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	// Choke point: every app-write path converges here.
+	// Keepalives skip via UnconditionalUpdateApplicationServer.
+	//
+	// A scoped app server registered without an agent (for aws oidc and roles anywhere)
+	// needs to have its public address derived here before persisting.
+	if app := server.GetApp(); app != nil && server.GetScope() != "" && app.GetIntegration() != "" && app.GetPublicAddr() == "" {
+		addr, err := a.getScopedAppPublicAddr(ctx, app)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		app.SetPublicAddr(addr)
+	}
+
+	// Scoped app servers are validated as a whole (name, scope and derived public address). Unscoped
+	// app servers keep the existing validation of their embedded app in the gRPC handler.
+	if server.GetScope() != "" {
+		if err := services.ValidateAppServer(server, a); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	lease, err := a.Services.UpsertApplicationServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6979,6 +7005,28 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	})
 
 	return lease, nil
+}
+
+func (a *Server) getScopedAppPublicAddr(ctx context.Context, app types.Application) (string, error) {
+	proxies, err := clientutils.CollectWithFallback(ctx, a.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return a.GetProxies()
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if len(proxies) > 0 && proxies[0].GetPublicAddr() != "" {
+		addr, err := utils.ParseAddr(proxies[0].GetPublicAddr())
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return scopedapp.ScopedAppPublicAddr(app.GetScope(), app.GetName(), addr.Host()), nil
+	}
+	cn, err := a.GetClusterName(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return scopedapp.ScopedAppPublicAddr(app.GetScope(), app.GetName(), cn.GetClusterName()), nil
 }
 
 // UpsertLinuxDesktop upserts a Linux desktop resource.

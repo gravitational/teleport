@@ -35,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -337,7 +338,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 				return trace.Wrap(err, "failed to create Azure OIDC integration")
 			}
 
-			integration, err := args.authClient.GetIntegration(ctx, integrationSpec.GetName())
+			integration, err := args.authClient.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{Name: integrationSpec.GetName()}.Build())
 			if err != nil {
 				return trace.Wrap(err, "failed to get Azure OIDC integration")
 			}

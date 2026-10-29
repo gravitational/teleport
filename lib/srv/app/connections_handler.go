@@ -40,6 +40,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -541,12 +542,18 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 		"aws_role_arn", identity.RouteToApp.AWSRoleARN,
 	)
 
+	// A scoped app references its integration by scope-qualified name.
+	integration, err := apiscopes.ParseOptionallyQualifiedName(app.GetIntegration())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	url, err := c.cfg.Cloud.GetAWSSigninURL(r.Context(), AWSSigninRequest{
 		Identity:    identity,
 		TargetURL:   app.GetURI(),
 		Issuer:      app.GetPublicAddr(),
 		ExternalID:  app.GetAWSExternalID(),
-		Integration: app.GetIntegration(),
+		Integration: integration,
 		RolesAnywhereMetadata: awsconfig.RolesAnywhereMetadata{
 			ProfileARN:                    app.GetAWSRolesAnywhereProfileARN(),
 			ProfileAcceptsRoleSessionName: app.GetAWSRolesAnywhereAcceptRoleSessionName(),

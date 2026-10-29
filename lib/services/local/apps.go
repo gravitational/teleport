@@ -194,6 +194,10 @@ func validateApp(app types.Application) error {
 		return trace.Wrap(err)
 	}
 
+	if err := services.ValidateAppIntegration(app); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if app.GetScope() == "" {
 		return nil
 	}
@@ -220,10 +224,6 @@ func validateApp(app types.Application) error {
 
 	if app.IsLLM() {
 		return trace.BadParameter("scoped applications do not support LLM apps")
-	}
-
-	if app.GetIntegration() != "" {
-		return trace.BadParameter("scoped applications do not support integrations")
 	}
 
 	return nil

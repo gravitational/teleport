@@ -1213,6 +1213,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	// OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
 	h.GET("/.well-known/openid-configuration", h.WithLimiter(h.openidConfiguration))
+	// Unauthenticated access to the OpenID Configuration of scoped AWS OIDC integrations, served
+	// at /scope/<scope-segment>/<integration-name>/.well-known/openid-configuration (RFD 0309).
+	h.GET("/scope/*rest", h.WithLimiter(h.scopedOpenidConfiguration))
 	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
 	h.GET("/webapi/thumbprint", h.WithLimiter(h.thumbprint))
 

@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -135,16 +136,9 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("argument --proxy-public-url is required")
 	}
 
-	issuerURL, err := url.Parse(r.ProxyPublicAddress)
-	if err != nil {
-		return trace.BadParameter("--proxy-public-url is not a valid url: %v", err)
+	if err := r.setIssuer(); err != nil {
+		return trace.Wrap(err)
 	}
-	r.issuer = issuerURL.Host
-	if issuerURL.Port() == "443" {
-		r.issuer = issuerURL.Hostname()
-	}
-	r.issuerURL = issuerURL.String()
-
 	r.ownershipTags = tags.DefaultResourceCreationTags(r.Cluster, r.IntegrationName, common.OriginIntegrationAWSOIDC)
 
 	switch r.IntegrationPolicyPreset {
@@ -152,6 +146,22 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 	default:
 		return ErrAWSOIDCInvalidPolicyPreset
 	}
+
+	return nil
+}
+
+func (r *IdPIAMConfigureRequest) setIssuer() error {
+	issuerURL, err := url.Parse(r.ProxyPublicAddress)
+	if err != nil {
+		return trace.BadParameter("--proxy-public-url is not a valid url: %v", err)
+	}
+
+	r.issuer = issuerURL.Host
+	if issuerURL.Port() == "443" {
+		r.issuer = issuerURL.Hostname()
+	}
+	r.issuer += strings.TrimSuffix(issuerURL.Path, "/")
+	r.issuerURL = issuerURL.String()
 
 	return nil
 }
