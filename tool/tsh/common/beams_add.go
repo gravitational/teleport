@@ -49,6 +49,7 @@ type beamsAddCommand struct {
 	console             bool
 	format              string
 	region              string
+	roles               string
 	isTerminalOverwrite func(io.Writer) bool
 	// userCredentialClientOverride replaces the root cluster connection in
 	// tests.
@@ -62,6 +63,7 @@ func newBeamsAddCommand(parent *kingpin.CmdClause) *beamsAddCommand {
 	}
 	cmd.Flag("console", "Connect to the beam via SSH after creation.").Default("true").BoolVar(&cmd.console)
 	cmd.Flag("region", "Region where the beam should live. If not specified, the closest region is selected.").StringVar(&cmd.region)
+	cmd.Flag("roles", "Comma-separated list of roles that will be delegated to the beam.").StringVar(&cmd.roles)
 	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
 		Short('f').
 		Default(teleport.Text).
@@ -103,6 +105,14 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 		}
 		defer rootClient.Close()
 
+		delegation := beamsv1.DelegationSpec_builder{
+			Mode: beamsv1.DelegationMode_DELEGATION_MODE_OWNER_STANDING_ROLES,
+		}
+		if c.roles != "" {
+			delegation.Mode = beamsv1.DelegationMode_DELEGATION_MODE_SELECTED_ROLES
+			delegation.Roles = strings.Split(c.roles, ",")
+		}
+
 		// Create the beam.
 		rsp, err := rootClient.
 			BeamServiceClient().
@@ -110,6 +120,7 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 				Egress:         beamsv1.EgressMode_EGRESS_MODE_UNRESTRICTED,
 				ProxyRegion:    proxyRegion,
 				OverrideRegion: c.region,
+				Delegation:     delegation.Build(),
 			}.Build())
 		if err != nil {
 			return trace.Wrap(err)

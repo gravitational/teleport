@@ -69,6 +69,7 @@ func formatBeam(beam *beamsv1.Beam, proxyAddr string) formattedBeam {
 		URL:             beamPublishURL(beam, proxyAddr),
 		RequestedRegion: beam.GetSpec().GetRequestedRegion(),
 		Region:          beam.GetStatus().GetRegion(),
+		Roles:           beam.GetStatus().GetDelegation().GetRoles(),
 	}
 }
 
@@ -133,6 +134,9 @@ type formattedBeam struct {
 
 	// Region is the region the Beam was provisioned in.
 	Region string `json:"region,omitempty"`
+
+	// Roles that have been delegated to the beam.
+	Roles []string `json:"roles,omitempty"`
 }
 
 // getBeam reads a beam by UUID or human-friendly name depending on the format

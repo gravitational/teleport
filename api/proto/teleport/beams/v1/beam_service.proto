@@ -66,6 +66,10 @@ message CreateBeamRequest {
   // OverrideRegion is the user-requested Beam routing region.
   // This field may override ProxyRegion.
   string override_region = 4;
+
+  // Delegation determines how the beam owner's privileges will be delegated to
+  // the beam.
+  DelegationSpec delegation = 5;
 }
 
 // CreateBeamResponse contains the results of the CreateBeam RPC.
