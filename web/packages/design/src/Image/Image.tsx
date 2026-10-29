@@ -30,6 +30,8 @@ import {
   MaxHeightProps,
   maxWidth,
   MaxWidthProps,
+  minWidth,
+  MinWidthProps,
   space,
   SpaceProps,
   width,
@@ -42,6 +44,7 @@ interface ImageProps
     ColorProps,
     WidthProps,
     HeightProps,
+    MinWidthProps,
     MaxWidthProps,
     MaxHeightProps,
     AlignSelfProps {
@@ -59,5 +62,5 @@ export default Image;
 const StyledImg = styled.img<ImageProps>`
   display: block;
   outline: none;
-  ${color} ${space} ${width} ${height} ${maxWidth} ${maxHeight} ${alignSelf}
+  ${color} ${space} ${width} ${height} ${minWidth} ${maxWidth} ${maxHeight} ${alignSelf}
 `;
