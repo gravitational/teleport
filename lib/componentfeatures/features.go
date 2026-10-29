@@ -35,7 +35,7 @@ const (
 	// FeatureResourceConstraintsSSHV1 indicates support for enforcing SSH login
 	// constraints on nodes.
 	FeatureResourceConstraintsSSHV1
-	// FeatureAppForwardedIdentityV1 indicates that an Application Service replica accepts a Proxy-forwarded client
+	// FeatureAppForwardedIdentityV1 indicates that an Application Service instance accepts a Proxy-forwarded client
 	// identity for the application in its App Server record. See [SupportsAppForwardedIdentityV1].
 	FeatureAppForwardedIdentityV1
 )

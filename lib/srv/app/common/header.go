@@ -131,8 +131,11 @@ const (
 	// satisfy.
 	AppErrorCodeMFARequired AppErrorCode = "mfa-required"
 	// AppErrorCodeUnsupportedApplicationType means that the application can't be served with a forwarded client
-	// identity and needs an application-specific access path.
+	// identity and needs a certificate for the application.
 	AppErrorCodeUnsupportedApplicationType AppErrorCode = "unsupported-application-type"
+	// AppErrorCodeNoCapableReplica means that no reachable Application Service instance serves the application with a
+	// forwarded client identity. The client can retry.
+	AppErrorCodeNoCapableReplica AppErrorCode = "no-capable-replica"
 	// AppErrorCodeResourceDenied means that the application's app_resources
 	// rules deny the request path or method. The client may still access other
 	// paths of the application.

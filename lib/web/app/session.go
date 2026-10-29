@@ -19,6 +19,8 @@
 package app
 
 import (
+	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -74,20 +76,7 @@ func (h *Handler) newSession(ws types.WebSession) (*session, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Don't trust any "X-Forward-*" headers the client sends, instead set our own.
-	delegate := reverseproxy.NewHeaderRewriter()
-	delegate.TrustForwardHeader = false
-	hr := common.NewHeaderRewriter(delegate)
-
-	// Create a forwarder that will be used to forward requests.
-	fwd, err := reverseproxy.New(
-		reverseproxy.WithPassHostHeader(),
-		reverseproxy.WithFlushInterval(100*time.Millisecond),
-		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(h.logger),
-		reverseproxy.WithErrorHandler(h.handleForwardError),
-		reverseproxy.WithRewriter(hr),
-	)
+	fwd, err := newForwarder(transport, h.handleForwardError, h.logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,4 +85,23 @@ func (h *Handler) newSession(ws types.WebSession) (*session, error) {
 		ws:  ws,
 		tr:  transport,
 	}, nil
+}
+
+// newForwarder creates a forwarder that sends requests to an application
+// through rt.
+func newForwarder(rt http.RoundTripper, onError reverseproxy.ErrorHandlerFunc, logger *slog.Logger) (*reverseproxy.Forwarder, error) {
+	// Don't trust any "X-Forward-*" headers the client sends, instead set our own.
+	delegate := reverseproxy.NewHeaderRewriter()
+	delegate.TrustForwardHeader = false
+	hr := common.NewHeaderRewriter(delegate)
+
+	fwd, err := reverseproxy.New(
+		reverseproxy.WithPassHostHeader(),
+		reverseproxy.WithFlushInterval(100*time.Millisecond),
+		reverseproxy.WithRoundTripper(rt),
+		reverseproxy.WithLogger(logger),
+		reverseproxy.WithErrorHandler(onError),
+		reverseproxy.WithRewriter(hr),
+	)
+	return fwd, trace.Wrap(err)
 }

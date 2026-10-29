@@ -409,8 +409,8 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 	}
 
 	features := componentfeatures.ForAppServer(server)
-	// The Proxy sends forwarded-identity requests only to replicas that advertise this feature. Advertise it only for
-	// apps that this replica can serve that way.
+	// The Proxy sends forwarded-identity requests only to instances that advertise this feature. Advertise it only for
+	// apps that this instance can serve that way.
 	if s.c.ConnectionsHandler.acceptsForwardedIdentity() && componentfeatures.SupportsAppForwardedIdentityV1(copy) {
 		features = componentfeatures.Join(features, componentfeatures.New(componentfeatures.FeatureAppForwardedIdentityV1))
 	}

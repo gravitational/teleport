@@ -235,20 +235,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Scheme = "https"
 	r.URL.Host = constants.APIDomain
 
-	// Remove the application session cookie from the header. This is done by
-	// first wiping out the "Cookie" header then adding back all cookies
-	// except the application session cookies. This appears to be the safest way
-	// to serialize cookies.
-	cookies := r.Cookies()
-	r.Header.Del("Cookie")
-	for _, cookie := range cookies {
-		switch cookie.Name {
-		case CookieName, SubjectCookieName:
-			continue
-		default:
-			r.AddCookie(cookie)
-		}
-	}
+	removeAppSessionCookies(r)
 
 	// If this looks like a Azure CLI request and at least once app server is
 	// an Azure app, parse the JWT cookie using the client's public key and
@@ -276,6 +263,23 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	}
 
 	return nil
+}
+
+// removeAppSessionCookies removes the application session cookies from the
+// header. This is done by first wiping out the "Cookie" header then adding
+// back all cookies except the application session cookies. This appears to be
+// the safest way to serialize cookies.
+func removeAppSessionCookies(r *http.Request) {
+	cookies := r.Cookies()
+	r.Header.Del("Cookie")
+	for _, cookie := range cookies {
+		switch cookie.Name {
+		case CookieName, SubjectCookieName:
+			continue
+		default:
+			r.AddCookie(cookie)
+		}
+	}
 }
 
 // resignAzureJWTCookie checks the auth header bearer token for a JWT

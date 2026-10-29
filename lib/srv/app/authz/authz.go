@@ -226,10 +226,10 @@ func WriteForwardedError(w http.ResponseWriter, r *http.Request, err error) (com
 	switch {
 	case errors.Is(err, ErrUnsupportedApplicationType):
 		code = common.AppErrorCodeUnsupportedApplicationType
-		message = "This application can't be accessed on this path. Use an application-specific access path."
+		message = "This application requires a certificate for the application, such as one from `tsh app login`."
 	case errors.Is(err, services.ErrSessionMFARequired):
 		code = common.AppErrorCodeMFARequired
-		message = "This application requires per-session MFA, which this access path can't complete."
+		message = "This application requires per-session MFA, which needs a certificate for the application."
 	case errors.Is(err, authz.ErrUserNotFound), errors.Is(err, authz.ErrUserSessionRoleNotFound):
 		code = common.AppErrorCodeSessionInvalid
 		message = http.StatusText(http.StatusForbidden)
