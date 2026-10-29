@@ -23,28 +23,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 )
 
-// IterateResources is a helper that iterates through each resource from all
-// pages and passes them one by one to the provided callback.
-// Deprecated: Prefer using [Resources] instead.
-// TODO(tross): DELETE IN 19.0.0
-func IterateResources[T any](
-	ctx context.Context,
-	pageFunc func(context.Context, int, string) ([]T, string, error),
-	callback func(T) error,
-) error {
-	for item, err := range Resources(ctx, pageFunc) {
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := callback(item); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
 // rangeParams are parameters provided to [rangeInternal]
 type rangeParams[T any] struct {
 	// start is the minimum inclusive key in the range yielded by the iteration.
