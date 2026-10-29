@@ -66,9 +66,14 @@ func NewKubeClusterFromAWSEKS(clusterName, clusterArn string, tags map[string]st
 func labelsFromAWSKubeClusterTags(tags map[string]string, parsedARN arn.ARN) map[string]string {
 	labels := awsEKSTagsToLabels(tags)
 	labels[types.CloudLabel] = types.CloudAWS
-	labels[types.DiscoveryLabelRegion] = parsedARN.Region
-	labels[types.DiscoveryLabelAccountID] = parsedARN.AccountID
+	labels[types.AWSRegionLabel] = parsedARN.Region
+	labels[types.AWSAccountIDLabel] = parsedARN.AccountID
 	labels[types.DiscoveryLabelAWSArn] = parsedARN.String()
+
+	// Preserve the legacy account-id and region labels for backwards compatibility.
+	labels[types.DiscoveryLabelAccountID] = parsedARN.AccountID
+	labels[types.DiscoveryLabelRegion] = parsedARN.Region
+
 	return labels
 }
 

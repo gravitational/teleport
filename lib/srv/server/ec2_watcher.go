@@ -434,7 +434,7 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []t
 		if !types.IsOpenSSHNodeSubKind(node.GetSubKind()) {
 			continue
 		}
-		region, ok := node.GetLabel(types.AWSInstanceRegion)
+		region, ok := node.GetLabel(types.AWSRegionLabel)
 		if !ok {
 			continue
 		}

@@ -906,9 +906,13 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
-	// AWSInstanceRegion is used to identify the region an EC2
-	// instance is running in
-	AWSInstanceRegion = TeleportNamespace + "/aws-region"
+	// AWSRegionLabel identifies the AWS region a resource resides in.
+	AWSRegionLabel = TeleportNamespace + "/aws-region"
+	// AWSInstanceRegion identifies the AWS region an EC2 instance resides in.
+	//
+	// Deprecated: use [AWSRegionLabel].
+	//go:fix inline
+	AWSInstanceRegion = AWSRegionLabel
 	// AWSSSORegionLabel is the AWS Identity Center SSO region label.
 	AWSSSORegionLabel = TeleportNamespace + "/sso-region"
 	// SubscriptionIDLabelInternal is a hidden label (teleport.internal/) used
