@@ -91,10 +91,6 @@ func (a *authorizer) authorizeScoped(ctx context.Context) (scopedCtx *ScopedCont
 		}
 	}()
 
-	if !a.scopesFeatures.Enabled {
-		return nil, trace.AccessDenied("cannot authorize scoped identity, scoping is not enabled for this cluster")
-	}
-
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
