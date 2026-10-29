@@ -63,6 +63,8 @@ const (
 
 	defaultExpiryBatchSize = 1000
 	defaultExpiryInterval  = 30 * time.Second
+
+	defaultHoldTimeout = 30 * time.Second
 )
 
 // Config is the configuration struct for [Backend]; outside of tests or custom
@@ -215,6 +217,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		buf:    backend.NewCircularBuffer(),
 		cancel: cancel,
 
+		holdTimeout: defaultHoldTimeout,
 		connMetrics: newConnMetrics(Name),
 	}
 
@@ -247,6 +250,10 @@ type Backend struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
+	// holdTimeout limits how long a single attempt may hold a pool connection,
+	// from acquire to release. A zero value disables the timeout. Waiting in Acquire
+	// is limited only by the call context.
+	holdTimeout time.Duration
 	connMetrics connMetrics
 }
 
@@ -728,8 +735,31 @@ func instrumentedRetry[T any](b *Backend, ctx context.Context, op operation,
 		b.connMetrics.inUse.Inc()
 		defer b.connMetrics.inUse.Dec()
 
-		v, err := f(ctx, conn)
+		// Timers can be expensive at scale. To mitigate this allocate the
+		// timeout context after a connection has been acquired. This limits
+		// the number of timers to at most the size of the connection pool.
+		fctx := ctx
+		if b.holdTimeout > 0 {
+			var cancel context.CancelFunc
+			fctx, cancel = context.WithTimeoutCause(ctx, b.holdTimeout, holdTimeoutError{})
+			defer cancel()
+		}
+
+		v, err := f(fctx, conn)
 		b.connMetrics.holdObserver(op.kind, err).Observe(time.Since(t1).Seconds())
+
+		// Check if hold timeout fired
+		if err != nil && errors.Is(context.Cause(fctx), holdTimeoutError{}) {
+			b.log.DebugContext(ctx, "Backend operation exceeded hold timeout",
+				"operation", op.name,
+				"hold_timeout", b.holdTimeout,
+			)
+		}
+
 		return v, trace.Wrap(err)
 	})
 }
+
+type holdTimeoutError struct{}
+
+func (holdTimeoutError) Error() string { return "connection hold timeout exceeded" }
