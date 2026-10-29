@@ -129,3 +129,25 @@ func ContainsAll[S ~[]E, E comparable](haystack S, needles S) bool {
 	}
 	return true
 }
+
+// SliceWith returns a copy of the slice with the given element appended to it,
+// but only if the slice does not already contain the element. Otherwise, the
+// slice will be returned unmodified.
+func SliceWith[T comparable](input []T, elem T) []T {
+	if slices.Contains(input, elem) {
+		return input
+	}
+	output := make([]T, len(input), len(input)+1)
+	copy(output, input)
+	return append(output, elem)
+}
+
+// SliceWithout returns a copy of the slice with the given element removed from it.
+func SliceWithout[T comparable](input []T, elem T) []T {
+	return slices.DeleteFunc(
+		slices.Clone(input),
+		func(e T) bool {
+			return e == elem
+		},
+	)
+}

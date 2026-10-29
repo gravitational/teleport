@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -110,6 +111,12 @@ type Generator struct {
 	botIdentity    *Facade
 	fips, insecure bool
 	scoped         bool
+
+	mu sync.Mutex // guards directRoleAssignment
+	// directRoleAssignment caches whether the bot identity uses direct
+	// assignment for unscoped roles. It's safe to cache this forever because
+	// the bot `spec.direct_unscoped_role_assignment` field is immutable.
+	directRoleAssignment *bool
 }
 
 type generateOpts struct {
@@ -122,7 +129,7 @@ type generateOpts struct {
 	routeToDatabase      *proto.RouteToDatabase
 	kubernetesCluster    *string
 	routeToCluster       *string
-	reissuable           bool
+	reissuable           *bool
 }
 
 // GenerateOption allows you to customize aspects of the generated identity.
@@ -205,7 +212,7 @@ func WithRouteToDatabase(route proto.RouteToDatabase) GenerateOption {
 // Scoped bots do not support reissuable identities.
 func WithReissuableRoleImpersonation(allow bool) GenerateOption {
 	return func(opts *generateOpts) {
-		opts.reissuable = allow
+		opts.reissuable = &allow
 	}
 }
 
@@ -294,7 +301,7 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		// auth cannot differentiate renewable vs impersonated requests when
 		// len(roleRequests) == 0.
 		UseRoleRequests:             true,
-		ReissuableRoleImpersonation: o.reissuable,
+		ReissuableRoleImpersonation: o.reissuable != nil && *o.reissuable,
 	}
 
 	if o.routeToApp != nil {
@@ -308,6 +315,50 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 	}
 	if o.routeToCluster != nil {
 		req.RouteToCluster = *o.routeToCluster
+	}
+
+	useDirectAssignment, err := g.shouldUseDirectRoleAssignment(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if useDirectAssignment {
+		botName := o.currentIdentity.TLSIdentity.BotName
+
+		// Direct role assignment is incompatible with Delegation V1, in which
+		// you get real user credentials rather than bot credentials.
+		if o.delegationSessionID != "" {
+			return nil, trace.BadParameter(
+				"Bot %s has `spec.direct_unscoped_role_assignment` enabled but this service is configured "+
+					"with a `delegation_session_id`. This combination is incompatible; migrate to Delegation V2.",
+				botName,
+			)
+		}
+		// Direct role assignment is incompatible with renewable join methods
+		// because the auth server's generation tracking ensures only a single
+		// instance of the tbot process is actively using the identity. Doling
+		// out renewable certificates in outputs would therefore cause lockouts
+		// and generally isn't what you want anyway.
+		if o.currentIdentity.TLSIdentity.Renewable {
+			return nil, trace.BadParameter(
+				"Bot %s has `spec.direct_unscoped_role_assignment` enabled but is using the %s join method. "+
+					"This combination is incompatible; consider migrating to %s or a delegated join method instead.",
+				botName,
+				types.JoinMethodToken,
+				types.JoinMethodBoundKeypair,
+			)
+		}
+		// For services that support it, we must honor `allow_reissue: false`
+		// rather than letting `spec.direct_unscoped_role_assignment` silently
+		// enable reissuance.
+		if o.reissuable != nil && !*o.reissuable {
+			return nil, trace.BadParameter(
+				"Bot %s has `spec.direct_unscoped_role_assignment` enabled which requires reissuable credentials. "+
+					"Add `allow_reissue: true` to this service's configuration.",
+				botName,
+			)
+		}
+		req.RoleRequests = nil
+		req.UseRoleRequests = false
 	}
 
 	keyPurpose := cryptosuites.BotImpersonatedIdentity
@@ -419,6 +470,22 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 	return newIdentity, nil
 }
 
+func (g *Generator) shouldUseDirectRoleAssignment(ctx context.Context) (bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.directRoleAssignment == nil {
+		user, err := g.client.GetUser(ctx, g.botIdentity.Get().X509Cert.Subject.CommonName, false /* withSecrets */)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		label, _ := user.GetLabel(types.BotDirectRoleAssignmentLabel)
+		g.directRoleAssignment = new(label == types.True)
+	}
+
+	return *g.directRoleAssignment, nil
+}
+
 func (g *Generator) botDefaultRoles(ctx context.Context) ([]string, error) {
 	role, err := g.client.GetRole(ctx, g.botIdentity.Get().X509Cert.Subject.CommonName)
 	if err != nil {
@@ -487,7 +554,7 @@ func (o *generateOpts) scopedCertsRequest(clusterName string) (*issuancev1pb.Iss
 		return nil, trace.BadParameter("delegation sessions are not supported for scoped bots")
 	case o.currentIdentity != nil:
 		return nil, trace.BadParameter("current identity is not supported for scoped bots")
-	case o.reissuable:
+	case o.reissuable != nil && *o.reissuable:
 		return nil, trace.BadParameter("reissuable role impersonation is not supported for scoped bots")
 	case o.routeToCluster != nil && *o.routeToCluster != "" && *o.routeToCluster != clusterName:
 		return nil, trace.BadParameter("leaf cluster routing is not supported for scoped bots")

@@ -336,8 +336,11 @@ type BotSpec struct {
 	//
 	// Cannot be set for a scoped Bot.
 	MaxSessionTtl *durationpb.Duration `protobuf:"bytes,3,opt,name=max_session_ttl,json=maxSessionTtl,proto3" json:"max_session_ttl,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Determines whether unscoped roles are assigned directly to the bot's internal
+	// user, rather than indirectly via role impersonation. Defaults to false.
+	DirectUnscopedRoleAssignment bool `protobuf:"varint,4,opt,name=direct_unscoped_role_assignment,json=directUnscopedRoleAssignment,proto3" json:"direct_unscoped_role_assignment,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *BotSpec) Reset() {
@@ -386,6 +389,13 @@ func (x *BotSpec) GetMaxSessionTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *BotSpec) GetDirectUnscopedRoleAssignment() bool {
+	if x != nil {
+		return x.DirectUnscopedRoleAssignment
+	}
+	return false
+}
+
 func (x *BotSpec) SetRoles(v []string) {
 	x.Roles = v
 }
@@ -396,6 +406,10 @@ func (x *BotSpec) SetTraits(v []*Trait) {
 
 func (x *BotSpec) SetMaxSessionTtl(v *durationpb.Duration) {
 	x.MaxSessionTtl = v
+}
+
+func (x *BotSpec) SetDirectUnscopedRoleAssignment(v bool) {
+	x.DirectUnscopedRoleAssignment = v
 }
 
 func (x *BotSpec) HasMaxSessionTtl() bool {
@@ -430,6 +444,9 @@ type BotSpec_builder struct {
 	//
 	// Cannot be set for a scoped Bot.
 	MaxSessionTtl *durationpb.Duration
+	// Determines whether unscoped roles are assigned directly to the bot's internal
+	// user, rather than indirectly via role impersonation. Defaults to false.
+	DirectUnscopedRoleAssignment bool
 }
 
 func (b0 BotSpec_builder) Build() *BotSpec {
@@ -439,6 +456,7 @@ func (b0 BotSpec_builder) Build() *BotSpec {
 	x.Roles = b.Roles
 	x.Traits = b.Traits
 	x.MaxSessionTtl = b.MaxSessionTtl
+	x.DirectUnscopedRoleAssignment = b.DirectUnscopedRoleAssignment
 	return m0
 }
 
@@ -563,11 +581,12 @@ const file_teleport_machineid_v1_bot_proto_rawDesc = "" +
 	"\x05scope\x18\a \x01(\tR\x05scope\"3\n" +
 	"\x05Trait\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
-	"\x06values\x18\x02 \x03(\tR\x06values\"\x98\x01\n" +
+	"\x06values\x18\x02 \x03(\tR\x06values\"\xdf\x01\n" +
 	"\aBotSpec\x12\x14\n" +
 	"\x05roles\x18\x01 \x03(\tR\x05roles\x124\n" +
 	"\x06traits\x18\x02 \x03(\v2\x1c.teleport.machineid.v1.TraitR\x06traits\x12A\n" +
-	"\x0fmax_session_ttl\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\rmaxSessionTtl\"\x9a\x01\n" +
+	"\x0fmax_session_ttl\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\rmaxSessionTtl\x12E\n" +
+	"\x1fdirect_unscoped_role_assignment\x18\x04 \x01(\bR\x1cdirectUnscopedRoleAssignment\"\x9a\x01\n" +
 	"\tBotStatus\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\tR\buserName\x12\x1b\n" +
 	"\trole_name\x18\x03 \x01(\tR\broleName\x12B\n" +

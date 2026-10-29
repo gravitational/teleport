@@ -150,6 +150,7 @@ Optional:
 
 Optional:
 
+- `direct_unscoped_role_assignment` (Boolean) Determines whether unscoped roles are assigned directly to the bot's internal user, rather than indirectly via role impersonation. Defaults to false.
 - `max_session_ttl` (String) The max session TTL value for the bot's internal role. Unless specified, bots may not request a value beyond the default maximum TTL of 12 hours. This value may not be larger than 7 days (168 hours).
 - `roles` (List of String) A list of roles the created bot should be allowed to assume via role impersonation.
 - `traits` (Map of List of String) The traits that will be associated with the bot for the purposes of role templating.

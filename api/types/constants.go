@@ -1313,6 +1313,11 @@ const (
 	// from a user.
 	BotScopeLabel = TeleportInternalLabelPrefix + "bot-scope"
 
+	// BotDirectRoleAssignmentLabel is the label used to mark a Bot user as
+	// having unscoped roles assigned directly to it, rather than via legacy
+	// role impersonation.
+	BotDirectRoleAssignmentLabel = TeleportInternalLabelPrefix + "bot-direct-role-assignment"
+
 	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
 	// A pratical example of this is to create a correlation between a Node Provision Token and
 	// the Node that used that token to join the cluster

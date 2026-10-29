@@ -27,6 +27,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -140,6 +141,12 @@ func GenSchemaBot(ctx context.Context) (schema.Schema, diag.Diagnostics) {
 						Computed:    true,
 						Description: "The max session TTL value for the bot's internal role. Unless specified, bots may not request a value beyond the default maximum TTL of 12 hours. This value may not be larger than 7 days (168 hours).",
 						CustomType:  tfschema.DurationType{},
+					},
+					"direct_unscoped_role_assignment": schema.BoolAttribute{
+						Optional:      true,
+						Computed:      true,
+						Description:   "Determines whether unscoped roles are assigned directly to the bot's internal user, rather than indirectly via role impersonation. Defaults to false.",
+						PlanModifiers: []planmodifier.Bool{boolplanmodifier.RequiresReplace()},
 					},
 				},
 				Description: "The configured properties of a bot.",
@@ -514,9 +521,10 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		}
 
 		result.Spec, diags = types.ObjectValue(specTypes, map[string]attr.Value{
-			"traits":          traits,
-			"roles":           roles,
-			"max_session_ttl": durationValue(bot.GetSpec().GetMaxSessionTtl()),
+			"traits":                          traits,
+			"roles":                           roles,
+			"max_session_ttl":                 durationValue(bot.GetSpec().GetMaxSessionTtl()),
+			"direct_unscoped_role_assignment": types.BoolValue(bot.GetSpec().GetDirectUnscopedRoleAssignment()),
 		})
 		if diags.HasError() {
 			return Bot{}, diags
@@ -789,9 +797,10 @@ func (b Bot) GetMetadata() *headerv1.Metadata {
 
 func (b Bot) GetSpec() *machineidv1.BotSpec {
 	return &machineidv1.BotSpec{
-		Traits:        b.GetTraits(),
-		Roles:         b.GetRoles(),
-		MaxSessionTtl: b.GetMaxSessionTTL(),
+		Traits:                       b.GetTraits(),
+		Roles:                        b.GetRoles(),
+		MaxSessionTtl:                b.GetMaxSessionTTL(),
+		DirectUnscopedRoleAssignment: b.GetDirectUnscopedRoleAssignment(),
 	}
 }
 
@@ -940,6 +949,21 @@ func (b Bot) GetMaxSessionTTL() *durationpb.Duration {
 	}
 
 	return durationpb.New(dur.Value)
+}
+
+func (b Bot) GetDirectUnscopedRoleAssignment() bool {
+	if !attrPresent(b.Spec) {
+		return false
+	}
+	direct, ok := b.Spec.Attributes()["direct_unscoped_role_assignment"]
+	if !ok {
+		return false
+	}
+	bool, ok := direct.(types.Bool)
+	if !ok {
+		return false
+	}
+	return bool.ValueBool()
 }
 
 func (b Bot) GetScope() string {

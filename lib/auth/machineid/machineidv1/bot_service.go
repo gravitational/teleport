@@ -41,6 +41,7 @@ import (
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -535,14 +536,19 @@ func UpsertBot(
 		return nil, trace.Wrap(err, "fetching existing bot user")
 	}
 
-	// An unscoped bot's name can mimic a scoped bot's encoded user name, so
-	// refuse to write through a user that belongs to a different (scope, name)
-	// or to no bot at all.
 	if existingUser != nil {
+		// An unscoped bot's name can mimic a scoped bot's encoded user name, so
+		// refuse to write through a user that belongs to a different (scope, name)
+		// or to no bot at all.
 		existingBotName, _ := existingUser.GetLabel(types.BotLabel)
 		existingBotScope, _ := existingUser.GetLabel(types.BotScopeLabel)
 		if existingBotName != bot.GetMetadata().GetName() || existingBotScope != bot.GetScope() {
 			return nil, trace.AlreadyExists("bot %q: backing user is held by a different bot or user", bot.GetMetadata().GetName())
+		}
+
+		// Prevent user from changing direct_unscoped_role_assignment.
+		if bot.GetSpec().GetDirectUnscopedRoleAssignment() != directUnscopedRoleAssignment(existingUser) {
+			return nil, trace.BadParameter("spec.direct_unscoped_role_assignment is immutable")
 		}
 	}
 
@@ -767,9 +773,14 @@ func (bs *BotService) UpdateBot(
 					"spec.roles: must not contain empty strings",
 				)
 			}
-			role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
-				Roles: req.GetBot().GetSpec().GetRoles(),
-			})
+			if directUnscopedRoleAssignment(user) {
+				roles := apiutils.SliceWith(req.GetBot().GetSpec().GetRoles(), role.GetName())
+				user.SetRoles(roles)
+			} else {
+				role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
+					Roles: req.GetBot().GetSpec().GetRoles(),
+				})
+			}
 		case "spec.traits":
 			traits := map[string][]string{}
 			for _, t := range req.GetBot().GetSpec().GetTraits() {
@@ -1038,6 +1049,9 @@ func StrongValidateBot(b *pb.Bot) error {
 		if len(b.GetSpec().GetTraits()) > 0 {
 			return trace.BadParameter("spec.traits: cannot be set on scoped bot")
 		}
+		if b.GetSpec().GetDirectUnscopedRoleAssignment() {
+			return trace.BadParameter("spec.direct_unscoped_role_assignment: cannot be set on scoped bot")
+		}
 	}
 
 	return nil
@@ -1052,6 +1066,7 @@ var nonPropagatedLabels = set.New(
 	//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 	types.BotGenerationLabel,
 	types.BotScopeLabel,
+	types.BotDirectRoleAssignmentLabel,
 )
 
 // botFromUserAndRole converts a user and role to an unscoped bot. This should
@@ -1071,6 +1086,14 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 		return nil, trace.BadParameter("botFromUserAndRole called on user with scope label")
 	}
 
+	directRoleAssignment := directUnscopedRoleAssignment(user)
+	var roles []string
+	if directRoleAssignment {
+		roles = apiutils.SliceWithout(user.GetRoles(), role.GetName())
+	} else {
+		roles = role.GetImpersonateConditions(types.Allow).Roles
+	}
+
 	b := pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
@@ -1085,8 +1108,9 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 			Delegation: user.GetDelegation(),
 		}.Build(),
 		Spec: pb.BotSpec_builder{
-			Roles:         role.GetImpersonateConditions(types.Allow).Roles,
-			MaxSessionTtl: durationpb.New(role.GetOptions().MaxSessionTTL.Duration()),
+			Roles:                        roles,
+			MaxSessionTtl:                durationpb.New(role.GetOptions().MaxSessionTTL.Duration()),
+			DirectUnscopedRoleAssignment: directRoleAssignment,
 		}.Build(),
 	}.Build()
 
@@ -1182,9 +1206,6 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 				// Bots read certificate authorities to watch for CA rotations
 				types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
 			},
-			Impersonate: &types.ImpersonateConditions{
-				Roles: bot.GetSpec().GetRoles(),
-			},
 		},
 	})
 	if err != nil {
@@ -1205,9 +1226,18 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "new user")
 	}
-	user.SetRoles([]string{resourceName})
-	userMeta := user.GetMetadata()
 
+	if bot.GetSpec().GetDirectUnscopedRoleAssignment() {
+		roles := apiutils.SliceWith(bot.GetSpec().GetRoles(), role.GetName())
+		user.SetRoles(roles)
+	} else {
+		user.SetRoles([]string{resourceName})
+		role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
+			Roles: bot.GetSpec().GetRoles(),
+		})
+	}
+
+	userMeta := user.GetMetadata()
 	// First copy in the labels from the Bot resource
 	userMeta.Labels = map[string]string{}
 	maps.Copy(userMeta.Labels, bot.GetMetadata().GetLabels())
@@ -1226,6 +1256,11 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	// We track the Bot description within the User description field because
 	// the Role description already has a message.
 	userMeta.Description = bot.GetMetadata().GetDescription()
+	if bot.GetSpec().GetDirectUnscopedRoleAssignment() {
+		userMeta.Labels[types.BotDirectRoleAssignmentLabel] = types.True
+	} else {
+		delete(userMeta.Labels, types.BotDirectRoleAssignmentLabel)
+	}
 	user.SetMetadata(userMeta)
 
 	traits := map[string][]string{}
@@ -1313,4 +1348,9 @@ func botExpiryFromUser(user types.User) *timestamppb.Timestamp {
 // BotToUserAndRole converts the given bot into a user and role for storage.
 func BotToUserAndRole(bot *pb.Bot, createdBy string) (types.User, types.Role, error) {
 	return botToUserAndRole(bot, time.Now(), createdBy)
+}
+
+func directUnscopedRoleAssignment(user types.User) bool {
+	v, _ := user.GetLabel(types.BotDirectRoleAssignmentLabel)
+	return v == types.True
 }
