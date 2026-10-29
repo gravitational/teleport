@@ -31,8 +31,8 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
-import { Timestamp } from "../../google/protobuf/timestamp_pb";
 import { Duration } from "../../google/protobuf/duration_pb";
+import { Timestamp } from "../../google/protobuf/timestamp_pb";
 /**
  * a successful user login
  *
@@ -545,6 +545,14 @@ export interface BeamsDestroyedEvent {
      * @generated from protobuf field: string region = 3;
      */
     region: string;
+    /**
+     * the beam's expiry at destroy time, billing caps usage here so late destroys aren't overcharged
+     *
+     * PostHog property: tp.beam.expires_at
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp expires_at = 4;
+     */
+    expiresAt?: Timestamp;
 }
 /**
  * BeamsPublishedEvent is emitted when a beam app is published.
@@ -6652,7 +6660,8 @@ class BeamsDestroyedEvent$Type extends MessageType<BeamsDestroyedEvent> {
         super("prehog.v1alpha.BeamsDestroyedEvent", [
             { no: 1, name: "beam_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "reason", kind: "enum", T: () => ["prehog.v1alpha.BeamDestroyReason", BeamDestroyReason, "BEAM_DESTROY_REASON_"] },
-            { no: 3, name: "region", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "region", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "expires_at", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<BeamsDestroyedEvent>): BeamsDestroyedEvent {
@@ -6678,6 +6687,9 @@ class BeamsDestroyedEvent$Type extends MessageType<BeamsDestroyedEvent> {
                 case /* string region */ 3:
                     message.region = reader.string();
                     break;
+                case /* google.protobuf.Timestamp expires_at */ 4:
+                    message.expiresAt = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.expiresAt);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -6699,6 +6711,9 @@ class BeamsDestroyedEvent$Type extends MessageType<BeamsDestroyedEvent> {
         /* string region = 3; */
         if (message.region !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.region);
+        /* google.protobuf.Timestamp expires_at = 4; */
+        if (message.expiresAt)
+            Timestamp.internalBinaryWrite(message.expiresAt, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

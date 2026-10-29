@@ -392,6 +392,11 @@ message BeamsDestroyedEvent {
   //
   // PostHog property: tp.beam.region
   string region = 3;
+
+  // the beam's expiry at destroy time, billing caps usage here so late destroys aren't overcharged
+  //
+  // PostHog property: tp.beam.expires_at
+  google.protobuf.Timestamp expires_at = 4;
 }
 
 // BeamsPublishedEvent is emitted when a beam app is published.

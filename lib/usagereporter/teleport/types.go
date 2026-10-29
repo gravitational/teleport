@@ -2403,9 +2403,10 @@ func (e *BeamsDestroyedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEve
 	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_BeamsDestroyed{
 			BeamsDestroyed: &prehogv1a.BeamsDestroyedEvent{
-				BeamId: a.AnonymizeString(e.BeamId),
-				Reason: e.Reason,
-				Region: e.Region,
+				BeamId:    a.AnonymizeString(e.BeamId),
+				Reason:    e.Reason,
+				Region:    e.Region,
+				ExpiresAt: e.ExpiresAt,
 			},
 		},
 	}
