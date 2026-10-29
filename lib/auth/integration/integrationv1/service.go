@@ -756,7 +756,11 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 			TrustAnchorARN: ig.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN,
 		}
 	case types.IntegrationSubKindOAuthProxy:
-		// TODO(nixpig): Add metadata for OAuth Proxy integration audit events.
+		igMeta.OAuthProxy = &apievents.OAuthProxyIntegrationMetadata{
+			IssuerUrl:   ig.GetOAuthProxyIntegrationSpec().IssuerUrl,
+			UpstreamUrl: ig.GetOAuthProxyIntegrationSpec().UpstreamUrl,
+			Scopes:      ig.GetOAuthProxyIntegrationSpec().Scopes,
+		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)
 	}

@@ -39,10 +39,12 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/userexternalcredentials"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -75,6 +77,7 @@ type OAuthProxyServiceConfig struct {
 	UserExternalCredentials services.UserExternalCredentials
 	Encryptor               userexternalcredentials.Encryptor
 	Client                  *http.Client
+	Emitter                 apievents.Emitter
 }
 
 // CheckAndSetDefaults checks the OAuthProxyServiceConfig fields and returns an error if a required param is not provided,
@@ -93,6 +96,8 @@ func (cfg *OAuthProxyServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("user external credentials is required")
 	case cfg.Encryptor == nil:
 		return trace.BadParameter("encryptor is required")
+	case cfg.Emitter == nil:
+		return trace.BadParameter("emitter is required")
 	}
 
 	if cfg.Client == nil {
@@ -127,6 +132,7 @@ type OAuthProxyService struct {
 	userExternalCredentials services.UserExternalCredentials
 	encryptor               userexternalcredentials.Encryptor
 	client                  *http.Client
+	emitter                 apievents.Emitter
 }
 
 // NewOAuthProxyService returns a new OAuthProxyService.
@@ -150,6 +156,7 @@ func NewOAuthProxyService(cfg *OAuthProxyServiceConfig) (*OAuthProxyService, err
 			Jar:           cfg.Client.Jar,
 			Timeout:       cfg.Client.Timeout,
 		},
+		emitter: cfg.Emitter,
 	}, nil
 }
 
@@ -244,23 +251,33 @@ func (s *OAuthProxyService) CompleteOAuthProxyAuthorization(ctx context.Context,
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToResource(ig, types.VerbUse); err != nil {
+	resp, grantedScopes, err := s.completeOAuthProxyAuthorization(ctx, authzCtx, ig, req)
+	s.emitAuthorizeEvent(ctx, authzCtx, ig, grantedScopes, err)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	return resp, nil
+}
+
+func (s *OAuthProxyService) completeOAuthProxyAuthorization(ctx context.Context, authzCtx *authz.Context, ig types.Integration, req *integrationpb.CompleteOAuthProxyAuthorizationRequest) (*integrationpb.CompleteOAuthProxyAuthorizationResponse, []string, error) {
+	if err := authzCtx.CheckAccessToResource(ig, types.VerbUse); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	if !ig.IsOAuthProxy() {
-		return nil, trace.BadParameter("integration is not an OAuth Proxy")
+		return nil, nil, trace.BadParameter("integration is not an OAuth Proxy")
 	}
 
 	cfg, err := s.oauthConfig(ctx, ig)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	authReq, err := s.backend.ConsumeOAuthProxyAuthRequest(ctx, authzCtx.User.GetName(), ig.GetName(), req.GetState())
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Failed to consume request", "integration", ig.GetName(), "error", err)
-		return nil, trace.NotFound("valid request not found")
+		return nil, nil, trace.NotFound("valid request not found")
 	}
 
 	exchangeCtx := context.WithValue(ctx, oauth2.HTTPClient, s.client)
@@ -270,21 +287,23 @@ func (s *OAuthProxyService) CompleteOAuthProxyAuthorization(ctx context.Context,
 	tok, err := cfg.Exchange(exchangeCtx, req.GetAuthorizationCode(), oauth2.VerifierOption(authReq.CodeVerifier))
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Failed to complete token exchange", "integration", ig.GetName(), "error", err)
-		return nil, trace.Errorf("failed to complete token exchange")
+		return nil, nil, trace.AccessDenied("failed to complete token exchange")
 	}
 
 	if tok.AccessToken == "" {
 		s.logger.ErrorContext(ctx, "Missing access token on provider response", "integration", ig.GetName())
-		return nil, trace.BadParameter("invalid response")
+		return nil, nil, trace.BadParameter("invalid response")
 	}
 
+	scopes := grantedScopes(ig.GetOAuthProxyIntegrationSpec().Scopes, tok)
+
 	if err := s.storeUserCredentials(ctx, authReq.Integration, authReq.User, tok); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, scopes, trace.Wrap(err)
 	}
 
 	return integrationpb.CompleteOAuthProxyAuthorizationResponse_builder{
 		Expires: timestamppb.New(tok.Expiry),
-	}.Build(), nil
+	}.Build(), scopes, nil
 }
 
 // oauthConfig builds the OAuth config for the authorization request.
@@ -422,6 +441,55 @@ func (s *OAuthProxyService) requireUserSession(ctx context.Context, user string)
 	return nil
 }
 
+// emitAuthorizeEvent emits the authorize event for an OAuth Proxy authorization against a token provider.
+func (s *OAuthProxyService) emitAuthorizeEvent(ctx context.Context, authzCtx *authz.Context, ig types.Integration, grantedScopes []string, authErr error) {
+	igMeta, err := getIntegrationMetadata(ig)
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to build OAuth Proxy integration metadata for audit event", "integration", ig.GetName(), "error", err)
+	}
+
+	code := events.OAuthProxyAuthorizeCode
+	status := apievents.Status{Success: true}
+
+	if authErr != nil {
+		code = events.OAuthProxyAuthorizeFailureCode
+		status = apievents.Status{
+			Success: false,
+			Error:   authErr.Error(),
+		}
+	}
+
+	event := &apievents.OAuthProxyAuthorize{
+		Metadata: apievents.Metadata{
+			Type: events.OAuthProxyAuthorizeEvent,
+			Code: code,
+		},
+		UserMetadata: authzCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    ig.GetName(),
+			Expires: ig.Expiry(),
+		},
+		IntegrationMetadata: igMeta,
+		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
+		Status:              status,
+		GrantedScopes:       grantedScopes,
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, event); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit OAuth Proxy integration authorize audit event", "integration", ig.GetName(), "error", err)
+	}
+}
+
+// grantedScopes returns the scopes granted by the token, if the scope field is present,
+// or the requested scopes if none.
+func grantedScopes(requestedScopes []string, tok *oauth2.Token) []string {
+	if scopes, ok := tok.Extra("scope").(string); ok && strings.TrimSpace(scopes) != "" {
+		return strings.Fields(scopes)
+	}
+
+	return requestedScopes
+}
+
 // validateHTTPSEndpoint ensures the given endpoint is a valid HTTPS URL.
 func validateHTTPSEndpoint(endpoint string) error {
 	u, err := url.Parse(endpoint)
@@ -429,7 +497,7 @@ func validateHTTPSEndpoint(endpoint string) error {
 	case err != nil:
 		return trace.Wrap(err)
 	case u.Scheme != "https" || u.Host == "":
-		return trace.Errorf("not a valid HTTPS URL")
+		return trace.BadParameter("not a valid HTTPS URL")
 	}
 
 	return nil
