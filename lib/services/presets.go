@@ -938,7 +938,18 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 	}
 
 	allowLLMApps := fmt.Sprintf(`labels[%q] == %q`, types.BeamAppTypeLabel, types.SubKindLLM)
-	allowBeamApps := fmt.Sprintf(`labels[%q] == user.metadata.name`, types.BeamOwnerLabel)
+
+	// Allow resources where the current user matches the owner label.
+	allowDirectlyOwned := fmt.Sprintf(`labels[%q] == user.metadata.name`, types.BeamOwnerLabel)
+
+	// Allow resources where the current user is in the delegation chain, because
+	// their beam created and sub-delegated to a beam.
+	allowIndirectlyOwned := fmt.Sprintf(
+		`contains(labels_matching(%q), user.metadata.name)`,
+		types.BeamDelegatorLabelPrefix+"*",
+	)
+
+	or := func(conds ...string) string { return strings.Join(conds, " || ") }
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
@@ -953,17 +964,23 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Logins:              []string{types.BeamsLogin},
-				AppLabelsExpression: strings.Join([]string{allowLLMApps, allowBeamApps}, " || "),
-				NodeLabels: types.Labels{
-					types.BeamOwnerLabel: {"{{user.metadata.name}}"},
-				},
-				BeamLabels: types.Labels{
-					types.BeamOwnerLabel: {"{{user.metadata.name}}"},
-				},
+				Logins: []string{types.BeamsLogin},
 				Delegation: &types.DelegationConditions{
 					Roles: []string{types.Wildcard},
 				},
+				AppLabelsExpression: or(
+					allowLLMApps,
+					allowDirectlyOwned,
+					allowIndirectlyOwned,
+				),
+				NodeLabelsExpression: or(
+					allowDirectlyOwned,
+					allowIndirectlyOwned,
+				),
+				BeamLabelsExpression: or(
+					allowDirectlyOwned,
+					allowIndirectlyOwned,
+				),
 				Rules: []types.Rule{
 					{
 						Resources: []string{types.KindBeam},

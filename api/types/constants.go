@@ -1477,6 +1477,28 @@ const (
 	// BeamRegionLabel is the label used to track the resolved routing region
 	// for a Beam.
 	BeamRegionLabel = BeamsInternalLabelPrefix + "region"
+
+	// BeamDelegatorLabelPrefix is the prefix of labels we add to beam resources
+	// to capture the username of the original user/bot who delegated their access
+	// and every identity (i.e. beam) who sub-delegated this access to this beam.
+	//
+	// This label can be used instead of "teleport.internal/beams/owner" in role
+	// expressions when you want to allow a user to be able to access not only
+	// beams they directly own, but those owned *by their beams*, and so on.
+	//
+	// Example labels:
+	//
+	// 	teleport.internal/beams/delegator/0: original-user
+	// 	teleport.internal/beams/delegator/1: beam-1
+	// 	teleport.internal/beams/delegator/2: beam-2
+	//
+	// Example expression:
+	//
+	// 	contains(
+	// 	  labels_matching("teleport.internal/beams/delegator/*"),
+	// 	  user.metadata.name
+	// 	)
+	BeamDelegatorLabelPrefix = BeamsInternalLabelPrefix + "delegator/"
 )
 
 const (

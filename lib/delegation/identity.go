@@ -25,6 +25,19 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// UserChain returns the given user's delegation chain (if it is part of one) or
+// creates a new chain with the user at the root.
+func UserChain(user User) *delegationv1.Delegation {
+	if user.GetDelegation() != nil {
+		return user.GetDelegation()
+	}
+	return delegationv1.Delegation_builder{
+		Chain: []*delegationv1.DelegationChainLink{
+			ChainLinkFromUser(user),
+		},
+	}.Build()
+}
+
 // BuildChain adds the delegate to the delegator's chain (if it is part of one)
 // or creates a new chain with the delegator at the root.
 func BuildChain(delegator, delegate User) (*delegationv1.Delegation, error) {
@@ -32,18 +45,10 @@ func BuildChain(delegator, delegate User) (*delegationv1.Delegation, error) {
 		return nil, trace.BadParameter("user is already part of a delegation chain")
 	}
 
-	var chain []*delegationv1.DelegationChainLink
-	if len(delegator.GetDelegation().GetChain()) == 0 {
-		chain = []*delegationv1.DelegationChainLink{
-			ChainLinkFromUser(delegator),
-		}
-	} else {
-		chain = slices.Clone(delegator.GetDelegation().GetChain())
-	}
+	chain := slices.Clone(UserChain(delegator).GetChain())
+	chain = append(chain, ChainLinkFromUser(delegate))
 
-	delegation := delegationv1.Delegation_builder{
-		Chain: append(chain, ChainLinkFromUser(delegate)),
-	}.Build()
+	delegation := delegationv1.Delegation_builder{Chain: chain}.Build()
 	if err := Validate(delegation); err != nil {
 		return nil, trace.Wrap(err)
 	}
