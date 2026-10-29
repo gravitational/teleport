@@ -377,7 +377,7 @@ func gitServerSupportsHTTPS(server types.Server) bool {
 // Close flushes and closes all cached session chunks.
 func (h *Handler) Close() error {
 	h.closeCancel()
-	h.sessionChunks.Shutdown(context.WithoutCancel(h.closeContext))
+	h.sessionChunks.Shutdown(h.closeContext)
 	h.closeWG.Wait()
 	return nil
 }
