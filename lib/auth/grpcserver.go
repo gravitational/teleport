@@ -6765,20 +6765,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	integrationv1pb.RegisterAWSRolesAnywhereServiceServer(server, integrationAWSRolesAnywhereServiceServer)
 
-	// TODO(nixpig): Register OAuthProxyService once credential storage implemented.
-	// oauthProxyServiceServer, err := integrationv1.NewOAuthProxyService(&integrationv1.OAuthProxyServiceConfig{
-	// 	Authorizer:            cfg.Authorizer,
-	// 	Clock:                 cfg.AuthServer.clock,
-	// 	Logger:                cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.oauthproxy.service"),
-	// 	Backend:               cfg.AuthServer.Services,
-	// 	Cache:                 cfg.AuthServer.Cache,
-	// 	ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
-	// })
-	// if err != nil {
-	// 	return nil, trace.Wrap(err)
-	// }
-	// integrationv1pb.RegisterOAuthProxyServiceServer(server, oauthProxyServiceServer)
-
 	userTask, err := usertasksv1.NewService(usertasksv1.ServiceConfig{
 		Authorizer:    cfg.Authorizer,
 		Backend:       cfg.AuthServer.Services,
