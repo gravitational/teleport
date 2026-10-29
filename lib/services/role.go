@@ -296,35 +296,13 @@ func ValidateRole(r types.Role) error {
 	if err := validateSessionPolicies(r); err != nil {
 		errs = append(errs, err)
 	}
-	if err := validateAppResources(r); err != nil {
+	if err := appresource.ValidateRole(r); err != nil {
 		errs = append(errs, err)
 	}
 	if err := validateCertExtensions(r); err != nil {
 		errs = append(errs, err)
 	}
 	return trace.NewAggregate(errs...)
-}
-
-// validateAppResources rejects a role whose app_resources or
-// app_resources_expressions the appresource package cannot compile. A role
-// that sets neither field passes, whatever its version.
-func validateAppResources(r types.Role) error {
-	ruleCount := len(r.GetAppResources(types.Allow)) + len(r.GetAppResourcesExpressions(types.Allow)) +
-		len(r.GetAppResources(types.Deny)) + len(r.GetAppResourcesExpressions(types.Deny))
-	if ruleCount == 0 {
-		return nil
-	}
-	role, err := appresource.NewRole(r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if n := len(role.Resources) + len(role.Expressions); n > appresource.MaxRulesPerRole {
-		return trace.BadParameter("role %q holds %d app_resources and app_resources_expressions entries, over the cap of %d", r.GetName(), n, appresource.MaxRulesPerRole)
-	}
-	if _, err := appresource.CompileRoles([]appresource.Role{role}); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // validateCertExtensions validates cert extensions in the role. Extensions that

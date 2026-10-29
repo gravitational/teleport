@@ -103,12 +103,6 @@ func (d denyResponse) write(w http.ResponseWriter) {
 	fmt.Fprint(w, body)
 }
 
-// versionSkewDecision returns the deny decision for a request this version
-// of Teleport cannot evaluate.
-func versionSkewDecision(roles ...string) *appresource.Decision {
-	return &appresource.Decision{Deny: &appresource.DenyDetails{Kind: appresource.DenyRoleVersionUnsupported}, Roles: roles}
-}
-
 // stripRequestOverrideHeaders removes the request method and path override
 // headers, except on a request an allow_all rule allowed.
 func stripRequestOverrideHeaders(r *http.Request, decision appresource.Decision) {
@@ -160,45 +154,44 @@ func (c *ConnectionsHandler) appResourcesDenial(r *http.Request, authCtx *authz.
 }
 
 // decideAppResources evaluates the request against the app_resources rules of
-// the caller's roles that grant app access. It returns nil when no role of v9
-// or newer grants app access, so the request keeps full v8 behavior.
+// the caller's roles that grant app access. Every role the caller holds is
+// checked for rules under deny, regardless of labels or role versions. It
+// returns nil when no role of v9 or newer grants app access and no role sets
+// rules under deny, so the request keeps full v8 behavior.
 func (c *ConnectionsHandler) decideAppResources(r *http.Request, log *slog.Logger, authCtx *authz.Context, app types.Application) *appresource.Decision {
 	identity := authCtx.Identity.GetIdentity()
 	roles := authCtx.Checker.Roles()
 	traits := authCtx.Checker.Traits()
 
-	partition := appresource.PartitionRoles(grantingRoles(roles, app, identity.Username, traits))
+	granting := grantingRoles(roles, app, identity.Username, traits)
+	partition := appresource.PartitionRoles(appresource.CallerRoles{Held: roles, Granting: granting})
 	if !partition.Enforced() {
 		return nil
-	}
-	// Deny overrides allow, so a rule in the deny block this version of
-	// Teleport cannot evaluate denies the request, regardless of labels or
-	// other roles.
-	if name, ok := appresource.HasDenyRules(roles); ok {
-		if c.v9WarnOnce(warnDenyRule, identity.Username, app.GetName()) {
-			log.WarnContext(r.Context(), "Denied app request: a role sets app_resources or app_resources_expressions under deny, which this Teleport version does not implement, and unimplemented rules deny by default. Remove the deny rule to restore access.", "role", name)
-		}
-		return versionSkewDecision(name)
 	}
 	if len(partition.IgnoredRoleNames) > 0 && c.v9WarnOnce(warnDropped, identity.Username, app.GetName()) {
 		log.WarnContext(r.Context(), "Dropped v8-or-older roles that grant a v9-governed app; v8 roles cannot re-open unrestricted access.", "dropped_roles", partition.IgnoredRoleNames)
 	}
-	if len(partition.Errors) > 0 && c.v9WarnOnce(warnSkew, identity.Username, app.GetName()) {
-		errs := make([]error, 0, len(partition.Errors))
-		for _, err := range partition.Errors {
-			errs = append(errs, err)
+	var denying []string
+	var skew []error
+	for _, err := range partition.Errors {
+		if errors.Is(err, appresource.ErrRoleHasDenyRules) {
+			denying = append(denying, err.Name)
+			continue
 		}
-		log.WarnContext(r.Context(), "Dropped roles with app_resources rules or role versions this Teleport version does not implement. Unimplemented rules deny by default. Upgrade this app agent to enforce the intended rules.", "error", errors.Join(errs...))
+		skew = append(skew, err)
+	}
+	if len(denying) > 0 && c.v9WarnOnce(warnDenyRule, identity.Username, app.GetName()) {
+		log.WarnContext(r.Context(), "Denied app request: a role sets app_resources or app_resources_expressions under deny, which this Teleport version does not implement, and unimplemented rules deny by default. Remove the deny rule to restore access.", "roles", denying)
+	}
+	if len(skew) > 0 && c.v9WarnOnce(warnSkew, identity.Username, app.GetName()) {
+		log.WarnContext(r.Context(), "Dropped roles with app_resources rules or role versions this Teleport version does not implement. Unimplemented rules deny by default. Upgrade this app agent to enforce the intended rules.", "error", errors.Join(skew...))
 	}
 
 	request := appresource.Request{Method: r.Method, Path: r.URL.EscapedPath()}
 	caller := appresource.Identity{Name: identity.Username, Roles: authCtx.Checker.RoleNames(), Traits: traits}
 	decision, err := partition.Evaluate(request, caller)
-	if err != nil {
-		if c.v9WarnOnce(warnEvaluate, identity.Username, app.GetName()) {
-			log.WarnContext(r.Context(), "Denied app request: a rule could not be evaluated.", "error", err)
-		}
-		return versionSkewDecision(partition.RoleNames()...)
+	if err != nil && c.v9WarnOnce(warnEvaluate, identity.Username, app.GetName()) {
+		log.WarnContext(r.Context(), "Denied app request: a rule could not be evaluated.", "error", err)
 	}
 	return &decision
 }

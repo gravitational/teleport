@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/url"
 	"os"
 	"reflect"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 const evaluateRequestHelpText = `Evaluate one HTTP request against the app_resources
@@ -56,9 +58,9 @@ the app_resources and app_resources_expressions rules of v9 or newer roles and
 print the decision.
 
 PATH is the path an app resource is reached at, such as /api/v4/projects. The
-roles come from the --spec file and no cluster is contacted. Without a user
-resource in the file, every role in it is evaluated. The file holds no app, so
-app_labels are ignored and every role counts as granting the app.`
+roles come from the --spec files and no cluster is contacted. Without a user
+resource in the files, every role in them is evaluated. The files hold no app,
+so app_labels are ignored and every role counts as granting the app.`
 
 // appsEvaluateFlags is the part of an evaluate subcommand that both
 // subcommands share.
@@ -140,21 +142,11 @@ func (c *appsEvaluateRequestCommand) run(ctx context.Context, clt *authclient.Cl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Scan every held role, because a deny rule's scope is unknown. A deny
-	// applies only where a v9 or newer role grants the app.
-	if appresource.PartitionRoles(granting).Enforced() {
-		if decision, ok := denyRulesDecision(c.stderr, roles); ok {
-			return trace.Wrap(writeDecision(c.stdout, decision, c.format))
-		}
-	}
 	request := appresource.Request{
 		Method: strings.ToUpper(c.method),
 		Path:   cmp.Or(u.EscapedPath(), "/"),
 	}
-	decision, err := evaluateRoles(c.stderr, granting, request, identity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	decision := evaluateRoles(c.stderr, appresource.CallerRoles{Held: roles, Granting: granting}, request, identity)
 	return trace.Wrap(writeDecision(c.stdout, decision, c.format))
 }
 
@@ -162,8 +154,9 @@ func (c *appsEvaluateRequestCommand) run(ctx context.Context, clt *authclient.Cl
 type appsEvaluateResourceCommand struct {
 	appsEvaluateFlags
 
-	path string
-	spec string
+	path   string
+	specs  []string
+	traits []string
 }
 
 // Initialize registers the subcommand, its argument, and its flags under apps.
@@ -171,14 +164,15 @@ func (c *appsEvaluateResourceCommand) Initialize(apps *kingpin.CmdClause) {
 	command := apps.Command("evaluate-resource", evaluateResourceHelpText)
 	c.addCommonFlags(command)
 	command.Arg("path", "Request path, such as /api/v4/projects.").Required().StringVar(&c.path)
-	command.Flag("spec", "YAML file with one or more role resources and an optional user resource. The request is evaluated against the user's roles without contacting a cluster, or against every role in the file when there is no user resource.").Required().StringVar(&c.spec)
+	command.Flag("spec", "YAML file with role resources and an optional user resource. The request is evaluated against the user's roles without contacting a cluster, or against every role when there is no user resource. Repeat the flag to read more files, with at most one user resource across them.").Required().StringsVar(&c.specs)
+	command.Flag("trait", "User trait as name=value, which replaces the user's trait of that name. Repeat the flag to set more traits, or to add values to one trait. Put a value with a comma in double quotes.").StringsVar(&c.traits)
 }
 
-// run evaluates the request against the roles in the --spec file and writes
+// run evaluates the request against the roles in the --spec files and writes
 // the decision to stdout. The user resource, if present, is the identity the
 // request is evaluated for and selects the roles.
 func (c *appsEvaluateResourceCommand) run() error {
-	spec, err := c.readSpec()
+	spec, err := c.readSpecs()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -191,14 +185,15 @@ func (c *appsEvaluateResourceCommand) run() error {
 			return trace.Wrap(err)
 		}
 	} else {
-		// Every role in the file is evaluated, so user.roles lists them all.
+		// Every role in the files is evaluated, so user.roles lists them all.
 		identity.Roles = sortedNames(roles)
+	}
+	identity.Traits, err = applyTraitFlags(identity.Traits, c.traits)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	if names := rolesWithAppLabels(roles); len(names) > 0 {
 		fmt.Fprintf(c.stderr, "Warning: roles %s set app_labels, which are ignored because the spec holds no app\n", quotedList(names))
-	}
-	if decision, ok := denyRulesDecision(c.stderr, roles); ok {
-		return trace.Wrap(writeDecision(c.stdout, decision, c.format))
 	}
 	// Parse the path so a space is escaped as it would be inside a URL.
 	u, err := url.Parse(c.path)
@@ -209,10 +204,7 @@ func (c *appsEvaluateResourceCommand) run() error {
 		return trace.BadParameter("PATH %q must be a path only, such as /api/v4/projects", c.path)
 	}
 	request := appresource.Request{Method: strings.ToUpper(c.method), Path: u.EscapedPath()}
-	decision, err := evaluateRoles(c.stderr, roles, request, identity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	decision := evaluateRoles(c.stderr, appresource.CallerRoles{Held: roles, Granting: roles}, request, identity)
 	return trace.Wrap(writeDecision(c.stdout, decision, c.format))
 }
 
@@ -256,56 +248,28 @@ func identityFromUser(user types.User) appresource.Identity {
 }
 
 // evaluateRoles returns the [appresource.Decision] that allows or denies
-// request under the app_resources rules of roles. Warnings go to stderr.
-func evaluateRoles(stderr io.Writer, roles []types.Role, request appresource.Request, identity appresource.Identity) (appresource.Decision, error) {
-	if len(roles) == 0 {
+// request under the app_resources rules of roles.Granting. A rule under deny
+// in any of roles.Held denies. Warnings go to stderr.
+func evaluateRoles(stderr io.Writer, roles appresource.CallerRoles, request appresource.Request, identity appresource.Identity) appresource.Decision {
+	partition := appresource.PartitionRoles(roles)
+	if len(roles.Granting) == 0 && len(partition.Errors) == 0 {
 		fmt.Fprintln(stderr, "Warning: no role to evaluate")
 	}
-	partition := appresource.PartitionRoles(roles)
 	for _, err := range partition.Errors {
-		fmt.Fprintf(stderr, "Warning: %s, so the role is not evaluated\n", shortUserMessage(err))
+		fmt.Fprintf(stderr, "Warning: %s, so the request is denied\n", shortUserMessage(err))
 	}
 	if !partition.Enforced() && len(partition.IgnoredRoleNames) > 0 {
 		fmt.Fprintln(stderr, "Warning: every role predates v9, so app_resources rules do not apply")
-		return appresource.Decision{Allowed: true, Roles: partition.IgnoredRoleNames}, nil
+		return appresource.Decision{Allowed: true, Roles: partition.IgnoredRoleNames}
 	}
 	if len(partition.IgnoredRoleNames) > 0 {
 		fmt.Fprintf(stderr, "Warning: dropped pre-v9 roles %s, because a v9 role is present\n", quotedList(partition.IgnoredRoleNames))
 	}
-	// A version-skew deny lists every role of v9 or newer, the unreadable ones
-	// included.
-	skewNames := make([]string, 0, len(partition.Roles)+len(partition.Errors))
-	for _, role := range partition.Roles {
-		skewNames = append(skewNames, role.Name)
-	}
-	for _, err := range partition.Errors {
-		skewNames = append(skewNames, err.Name)
-	}
-	// A role whose rule does not compile is dropped like a role that cannot
-	// be read, so an allow_all rule of another role still allows.
-	unreadable := len(partition.Errors) > 0
-	var compilable []appresource.Role
-	for _, role := range partition.Roles {
-		if _, err := appresource.CompileRoles([]appresource.Role{role}); err != nil {
-			fmt.Fprintf(stderr, "Warning: %s, so the role is not evaluated\n", shortUserMessage(err))
-			unreadable = true
-			continue
-		}
-		compilable = append(compilable, role)
-	}
-	compiledRoles, err := appresource.CompileRoles(compilable)
-	if err != nil {
-		return appresource.Decision{}, trace.Wrap(err)
-	}
-	decision, err := compiledRoles.Evaluate(request, identity)
+	decision, err := partition.Evaluate(request, identity)
 	if err != nil {
 		fmt.Fprintf(stderr, "Warning: %s, so the request is denied\n", shortUserMessage(err))
-		return denyDecision(appresource.DenyRoleVersionUnsupported, skewNames), nil
 	}
-	if unreadable && !allowedByAllowAll(decision, compilable) {
-		return denyDecision(appresource.DenyRoleVersionUnsupported, skewNames), nil
-	}
-	return decision, nil
+	return decision
 }
 
 // quotedList returns items quoted and separated by ", ".
@@ -318,20 +282,6 @@ func quotedList(items []string) string {
 		fmt.Fprintf(&b, "%q", item)
 	}
 	return b.String()
-}
-
-// denyRulesDecision returns a deny decision and true when a role has rules
-// under deny. It returns false when no role has one.
-func denyRulesDecision(stderr io.Writer, roles []types.Role) (appresource.Decision, bool) {
-	denying, ok := appresource.HasDenyRules(roles)
-	if !ok {
-		return appresource.Decision{}, false
-	}
-	fmt.Fprintf(stderr, "Warning: role %q sets app_resources or app_resources_expressions under deny, so the request is denied\n", denying)
-	return appresource.Decision{
-		Deny:  &appresource.DenyDetails{Kind: appresource.DenyRoleVersionUnsupported},
-		Roles: sortedNames(roles),
-	}, true
 }
 
 // sortedNames returns the names of items, sorted.
@@ -367,54 +317,44 @@ func shortUserMessage(err error) string {
 	return first
 }
 
-// allowedByAllowAll returns true when decision allows the request through a
-// role with an allow_all rule.
-func allowedByAllowAll(decision appresource.Decision, roles []appresource.Role) bool {
-	if !decision.Allowed || decision.Allow == nil {
-		return false
-	}
-	for _, role := range roles {
-		if role.Name == decision.Allow.Role && role.HasAllowAll() {
-			return true
-		}
-	}
-	return false
-}
-
-// denyDecision returns a deny of kind. The returned Roles field lists names,
-// sorted.
-func denyDecision(kind appresource.DenyKind, names []string) appresource.Decision {
-	names = slices.Clone(names)
-	slices.Sort(names)
-	return appresource.Decision{
-		Deny:  &appresource.DenyDetails{Kind: kind},
-		Roles: names,
-	}
-}
-
-// spec is the content of a --spec file, role resources and an optional user
-// resource as YAML documents separated by ---. user is nil when the file has
-// no user resource.
+// spec is the content of the --spec files, role resources and an optional
+// user resource as YAML documents separated by ---. user is nil when no file
+// has a user resource.
 type spec struct {
 	roles []types.Role
 	user  types.User
 }
 
-// readSpec returns the content of the file at --spec.
-func (c *appsEvaluateResourceCommand) readSpec() (spec, error) {
-	f, err := utils.OpenFileAllowingUnsafeLinks(c.spec)
-	if err != nil {
-		return spec{}, trace.Wrap(err)
+// readSpecs returns the content of the files at --spec. It returns an error
+// when the files contain no role, two roles with the same name, or more than
+// one user.
+func (c *appsEvaluateResourceCommand) readSpecs() (spec, error) {
+	var s spec
+	for _, path := range c.specs {
+		if err := s.readFile(path); err != nil {
+			return spec{}, trace.Wrap(err, "reading --spec %s", path)
+		}
 	}
-	defer f.Close()
-	spec, err := parseSpec(f)
-	return spec, trace.Wrap(err)
+	if len(s.roles) == 0 {
+		return spec{}, trace.BadParameter("the spec contains no role")
+	}
+	return s, nil
 }
 
-// parseSpec returns the role resources and the optional user resource read
-// from r. It returns an error for a resource of any other kind.
-func parseSpec(r io.Reader) (spec, error) {
-	var s spec
+// readFile adds the role resources and the user resource in the file at path
+// to s.
+func (s *spec) readFile(path string) error {
+	f, err := utils.OpenFileAllowingUnsafeLinks(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer f.Close()
+	return trace.Wrap(s.parse(f))
+}
+
+// parse adds the role resources and the user resource read from r to s. It
+// returns an error for a resource of any other kind.
+func (s *spec) parse(r io.Reader) error {
 	decoder := kyaml.NewYAMLOrJSONDecoder(r, defaults.LookaheadBufSize)
 	for doc := 1; ; doc++ {
 		var raw services.UnknownResource
@@ -423,7 +363,7 @@ func parseSpec(r io.Reader) (spec, error) {
 			break
 		}
 		if err != nil {
-			return spec{}, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		if reflect.ValueOf(raw).IsZero() {
 			// A document with only comments decodes to the zero value.
@@ -433,30 +373,65 @@ func parseSpec(r io.Reader) (spec, error) {
 		case types.KindRole:
 			role, err := services.UnmarshalRole(raw.Raw)
 			if err != nil {
-				return spec{}, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 			if slices.ContainsFunc(s.roles, func(r types.Role) bool { return r.GetName() == role.GetName() }) {
-				return spec{}, trace.BadParameter("the spec contains more than one role named %q", role.GetName())
+				return trace.BadParameter("the spec contains more than one role named %q", role.GetName())
 			}
 			s.roles = append(s.roles, role)
 		case types.KindUser:
 			if s.user != nil {
-				return spec{}, trace.BadParameter("the spec contains more than one user")
+				return trace.BadParameter("the spec contains more than one user")
 			}
 			s.user, err = services.UnmarshalUser(raw.Raw)
 			if err != nil {
-				return spec{}, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 		case "":
-			return spec{}, trace.BadParameter("the spec document %d has no kind", doc)
+			return trace.BadParameter("the spec document %d has no kind", doc)
 		default:
-			return spec{}, trace.BadParameter("the spec document %d has kind %q, only role and user documents are read", doc, raw.Kind)
+			return trace.BadParameter("the spec document %d has kind %q, only role and user documents are read", doc, raw.Kind)
 		}
 	}
-	if len(s.roles) == 0 {
-		return spec{}, trace.BadParameter("the spec contains no role")
+	return nil
+}
+
+// applyTraitFlags returns traits with each --trait flag applied. A flag
+// replaces each trait it names, and a second flag with the same name adds
+// its values. traits is not modified.
+func applyTraitFlags(traits map[string][]string, flags []string) (map[string][]string, error) {
+	if len(flags) == 0 {
+		return traits, nil
 	}
-	return s, nil
+	merged := maps.Clone(traits)
+	if merged == nil {
+		merged = map[string][]string{}
+	}
+	replaced := map[string]struct{}{}
+	for _, flag := range flags {
+		parsed, err := parse.MultiValueLabelSelectorSpec(flag)
+		if err != nil || len(parsed) == 0 || hasEmptyValue(parsed) {
+			return nil, trace.BadParameter("--trait %q must be name=value", flag)
+		}
+		for name, values := range parsed {
+			if _, ok := replaced[name]; !ok {
+				merged[name] = nil
+				replaced[name] = struct{}{}
+			}
+			merged[name] = append(merged[name], values...)
+		}
+	}
+	return merged, nil
+}
+
+// hasEmptyValue returns true when a trait in traits has an empty value.
+func hasEmptyValue(traits map[string][]string) bool {
+	for _, values := range traits {
+		if slices.Contains(values, "") {
+			return true
+		}
+	}
+	return false
 }
 
 // appByHost returns the registered app whose public address is host. When

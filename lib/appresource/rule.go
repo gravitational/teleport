@@ -156,15 +156,15 @@ func validateAllowUnsafe(u *types.AppResourceUnsafe) error {
 	return nil
 }
 
-// validatePaths checks the count and byte caps on a rule's path patterns. The
+// validatePaths checks the count and byte limits on a rule's path patterns. The
 // pattern syntax is checked when the rule compiles.
 func validatePaths(paths []string) error {
 	if len(paths) > maxPaths {
-		return trace.BadParameter("a rule holds %d paths, over the cap of %d", len(paths), maxPaths)
+		return trace.BadParameter("a rule holds %d paths, over the limit of %d", len(paths), maxPaths)
 	}
 	for _, p := range paths {
 		if len(p) > maxPathBytes {
-			return trace.BadParameter("path is %d bytes, over the %d byte cap", len(p), maxPathBytes)
+			return trace.BadParameter("path is %d bytes, over the %d byte limit", len(p), maxPathBytes)
 		}
 	}
 	return nil
@@ -181,14 +181,14 @@ func validateMethods(methods []string) error {
 	return nil
 }
 
-// validateWhere checks the byte cap on a sugared rule's where clause. The where
+// validateWhere checks the byte limit on a sugared rule's where clause. The where
 // language itself is checked when the clause compiles.
 func validateWhere(where string) error {
 	if where == "" {
 		return nil
 	}
 	if len(where) > maxWhereBytes {
-		return trace.BadParameter("where clause is %d bytes, over the %d byte cap", len(where), maxWhereBytes)
+		return trace.BadParameter("where clause is %d bytes, over the %d byte limit", len(where), maxWhereBytes)
 	}
 	return nil
 }

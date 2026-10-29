@@ -16,26 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package appresource checks whether an HTTP app request is allowed
-// by a role. Roles carry allow-only rules. A rule can match on
-// request path, HTTP method, and a where predicate over the user
-// identity. A rule sets either paths, with the other fields
-// optional, or allow_all, which stands alone.
+// Package appresource implements fine-grained access to HTTP apps. It checks
+// whether an HTTP app request is allowed by the app_resources and
+// app_resources_expressions rules of a caller's roles.
 //
-// Example role fragment:
+// When a role of version v9 or newer grants an app, every request to the app
+// is denied unless a rule of a role that grants the app allows it. The v8 and
+// older roles that grant the app are then dropped. When only older roles grant
+// the app, the rules do not apply. The rules apply to HTTP apps only.
+// GovernsApp returns false for the app kinds they do not apply to.
 //
-//	allow:
-//	  app_resources:
-//	    - paths:
-//	        - /api/v4/user/{username}
-//	      where: user.name == vars.username
+// The rules are allow-only. A role that sets either field under deny denies
+// every request.
 //
-// In a paths rule, only a capture in allow_unsafe.encoded matches a segment
-// with an encoded slash (%2F). An app_resources_expressions entry can allow
-// a path with an encoded slash only when every path.match in it has the
-// allow_unsafe_encoded option and one of them matches the path, whatever the
-// rest of the entry does with that match. An entry with no path.match never
-// allows it.
+// A rule is an app_resources entry, the sugared form, or an
+// app_resources_expressions entry, the desugared form. The first rule that
+// matches allows the request. A request no rule allows is denied as
+// DenyNotAllowed, with the hints that rules recorded.
+//
+// The "Fine-Grained Access Controls" page of the Teleport docs describes the
+// rule syntax, the evaluation order, and the limits.
 package appresource
 
 import (
@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// MaxRulesPerRole is the maximum number of rules and expressions in one role.
+// MaxRulesPerRole is the maximum number of rules in one role.
 const MaxRulesPerRole = 64
 
 // MaxPathSegmentsPerRole is the maximum number of path segments in one role.
@@ -61,9 +61,15 @@ const maxRulesPerRequest = 256
 // caller's roles. Nothing limits how many roles a caller can hold.
 const MaxPathSegmentsPerRoleSet = maxRulesPerRequest * maxPaths * 4 // 65536
 
-// Role is a role's name and its allow app_resources and
+// expressionSegmentChars are the characters an app_resources_expressions
+// entry counts as path segments. Each node a path.match tree builds comes from
+// a call, a "/" in a string, an escape, or a string argument, so the count is
+// at least the number of nodes.
+const expressionSegmentChars = "(/\\\"`"
+
+// roleRules is a role's name and its allow app_resources and
 // app_resources_expressions entries.
-type Role struct {
+type roleRules struct {
 	// Name is the role name, returned in Decision.Roles.
 	Name string
 	// Resources are the role's app_resources entries.
@@ -72,13 +78,13 @@ type Role struct {
 	Expressions []string
 }
 
-// HasAllowAll returns true when the role's only rule is an allow_all rule.
-func (r Role) HasAllowAll() bool {
+// hasAllowAll returns true when the role's only rule is an allow_all rule.
+func (r roleRules) hasAllowAll() bool {
 	return len(r.Resources) == 1 && len(r.Expressions) == 0 && r.Resources[0].IsAllowAllOnly()
 }
 
-// RoleSet is the compiled rules of a caller's roles, in evaluation order.
-type RoleSet []compiledRole
+// roleSet is the compiled rules of a caller's roles, in evaluation order.
+type roleSet []compiledRole
 
 // compiledRole is one role's compiled rules. allowAll is set when any
 // app_resources entry sets allow_all.
@@ -88,31 +94,12 @@ type compiledRole struct {
 	rules    []ruleEvaluator
 }
 
-// CompileRoles compiles the roles a caller holds into a RoleSet. Roles with
-// an allow_all rule come first, each group sorted by name, and within a role
-// app_resources entries come before app_resources_expressions entries. It
-// returns an error for an invalid rule.
-func CompileRoles(roles []Role) (RoleSet, error) {
-	if err := checkRoleSet(roles); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	compiled := make([]compiledRole, 0, len(roles))
-	for _, role := range roles {
-		c, err := compileRole(role)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		compiled = append(compiled, c)
-	}
-	return newRoleSet(compiled), nil
-}
-
 // compileRole compiles one role's rules, app_resources entries first.
-func compileRole(role Role) (compiledRole, error) {
+func compileRole(role roleRules) (compiledRole, error) {
 	if err := checkPathSegments(role); err != nil {
 		return compiledRole{}, trace.Wrap(err)
 	}
-	compiled := compiledRole{name: role.Name, allowAll: role.HasAllowAll()}
+	compiled := compiledRole{name: role.Name, allowAll: role.hasAllowAll()}
 	for i, rule := range role.Resources {
 		c, err := newCompiledRule(rule)
 		if err != nil {
@@ -132,8 +119,8 @@ func compileRole(role Role) (compiledRole, error) {
 
 // newRoleSet returns roles in evaluation order, the roles with an allow_all
 // rule first and each group sorted by name.
-func newRoleSet(roles []compiledRole) RoleSet {
-	set := RoleSet(slices.Clone(roles))
+func newRoleSet(roles []compiledRole) roleSet {
+	set := roleSet(slices.Clone(roles))
 	slices.SortStableFunc(set, func(a, b compiledRole) int {
 		if a.allowAll && !b.allowAll {
 			return -1
@@ -147,7 +134,7 @@ func newRoleSet(roles []compiledRole) RoleSet {
 }
 
 // roleNames returns the role names in the set, in evaluation order.
-func (s RoleSet) roleNames() []string {
+func (s roleSet) roleNames() []string {
 	names := make([]string, 0, len(s))
 	for _, role := range s {
 		names = append(names, role.name)
@@ -155,11 +142,11 @@ func (s RoleSet) roleNames() []string {
 	return names
 }
 
-// Evaluate returns the first matching rule's decision, or a deny with the
+// evaluate returns the first matching rule's decision, or a deny with the
 // hints recorded across all roles. An allow_all rule allows every request,
 // including one with an unsupported method or a malformed path. An error
 // means a rule could not be evaluated, and the Decision is the zero value.
-func (s RoleSet) Evaluate(request Request, identity Identity) (Decision, error) {
+func (s roleSet) evaluate(request Request, identity Identity) (Decision, error) {
 	roles := s.roleNames()
 	if name := s.allowAllRole(); name != "" {
 		return Decision{
@@ -222,7 +209,7 @@ func (s RoleSet) Evaluate(request Request, identity Identity) (Decision, error) 
 }
 
 // ruleCount returns the number of rules across the set.
-func (s RoleSet) ruleCount() int {
+func (s roleSet) ruleCount() int {
 	n := 0
 	for _, role := range s {
 		n += len(role.rules)
@@ -233,30 +220,16 @@ func (s RoleSet) ruleCount() int {
 // allowAllRole returns the first role's name when it has an allow_all rule,
 // and "" otherwise. Roles with an allow_all rule sort first, so no other role
 // can have one.
-func (s RoleSet) allowAllRole() string {
+func (s roleSet) allowAllRole() string {
 	if len(s) == 0 || !s[0].allowAll {
 		return ""
 	}
 	return s[0].name
 }
 
-// checkRoleSet rejects a set of roles holding more than
-// MaxPathSegmentsPerRoleSet path segments together. It runs before any role
-// compiles, so an oversized set costs nothing to reject.
-func checkRoleSet(roles []Role) error {
-	segments := 0
-	for _, role := range roles {
-		segments += pathSegments(role)
-	}
-	if segments > MaxPathSegmentsPerRoleSet {
-		return trace.BadParameter("the roles hold %d path segments, over the cap of %d", segments, MaxPathSegmentsPerRoleSet)
-	}
-	return nil
-}
-
 // exceedsRequestLimits returns true when roles hold more rules or more path
 // segments together than one request may evaluate.
-func exceedsRequestLimits(roles []Role) bool {
+func exceedsRequestLimits(roles []roleRules) bool {
 	rules, segments := 0, 0
 	for _, role := range roles {
 		rules += len(role.Resources) + len(role.Expressions)
@@ -265,23 +238,31 @@ func exceedsRequestLimits(roles []Role) bool {
 	return rules > maxRulesPerRequest || segments > MaxPathSegmentsPerRoleSet
 }
 
-// pathSegments returns the number of path segments across every path pattern
-// of role.
-func pathSegments(role Role) int {
+// pathSegments returns the number of path segments in the app_resources paths
+// and the app_resources_expressions entries of role. An entry counts one
+// segment for each character of expressionSegmentChars in its text.
+func pathSegments(role roleRules) int {
 	segments := 0
 	for _, rule := range role.Resources {
 		for _, path := range rule.Paths {
 			segments += strings.Count(path, "/")
 		}
 	}
+	for _, expr := range role.Expressions {
+		for _, c := range expr {
+			if strings.ContainsRune(expressionSegmentChars, c) {
+				segments++
+			}
+		}
+	}
 	return segments
 }
 
-// checkPathSegments rejects a role whose path patterns hold more than
-// MaxPathSegmentsPerRole segments together.
-func checkPathSegments(role Role) error {
+// checkPathSegments rejects a role whose rules hold more than
+// MaxPathSegmentsPerRole path segments together.
+func checkPathSegments(role roleRules) error {
 	if segments := pathSegments(role); segments > MaxPathSegmentsPerRole {
-		return trace.BadParameter("role %q holds %d path segments, over the cap of %d", role.Name, segments, MaxPathSegmentsPerRole)
+		return trace.BadParameter("role %q holds %d path segments, over the limit of %d", role.Name, segments, MaxPathSegmentsPerRole)
 	}
 	return nil
 }

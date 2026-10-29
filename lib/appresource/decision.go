@@ -106,7 +106,8 @@ type Decision struct {
 	// Deny contains details iff Allowed is false.
 	Deny *DenyDetails
 	// Roles are the evaluated roles in evaluation order, followed by the
-	// roles that were not evaluated.
+	// roles that were not evaluated. When a role sets rules under deny, Roles
+	// lists only the roles that do.
 	Roles []string
 }
 
@@ -128,7 +129,7 @@ type AllowDetails struct {
 type DenyDetails struct {
 	// Kind is the structured reason for the deny.
 	Kind DenyKind
-	// Hints lists the hints recorded, in rule order, capped at maxHints.
+	// Hints lists at most maxHints hints, in rule order.
 	Hints []Hint
 }
 

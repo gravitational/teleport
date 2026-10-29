@@ -573,8 +573,8 @@ Evaluate one request for an app resource against the app_resources and
 app_resources_expressions rules of v9 or newer roles and print the decision.
 
 PATH is the path an app resource is reached at, such as /api/v4/projects.
-The roles come from the --spec file and no cluster is contacted. Without a user
-resource in the file, every role in it is evaluated. The file holds no app,
+The roles come from the --spec files and no cluster is contacted. Without a user
+resource in the files, every role in them is evaluated. The files hold no app,
 so app_labels are ignored and every role counts as granting the app.
 
 Usage:
@@ -589,7 +589,8 @@ Flags:
 |---|---|---|
 |`--format`|`yaml` (one of: `yaml`, `json`)|Output format.|
 |`--method`|`GET`|Request method, in upper or lower case.|
-|`--spec`|*no default*|YAML file with one or more role resources and an optional user resource. The request is evaluated against the user's roles without contacting a cluster, or against every role in the file when there is no user resource.|
+|`--spec`|*no default*|YAML file with role resources and an optional user resource. The request is evaluated against the user's roles without contacting a cluster, or against every role when there is no user resource. Repeat the flag to read more files, with at most one user resource across them.|
+|`--trait`|*no default*|User trait as name=value, which replaces the user's trait of that name. Repeat the flag to set more traits, or to add values to one trait. Put a value with a comma in double quotes.|
 
 Arguments:
 

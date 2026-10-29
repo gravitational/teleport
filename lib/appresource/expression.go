@@ -50,8 +50,7 @@ type compiledEntry struct {
 	patterns []*Pattern
 }
 
-// Evaluate returns the value of the entry for the given Env. The package doc
-// says when an entry allows a path with an encoded slash (%2F).
+// Evaluate returns the value of the entry for the given Env.
 func (c *compiledEntry) Evaluate(e Env) (bool, error) {
 	// Before the expression, because a negation or an || branch would turn a
 	// failed path.match into an allow.
