@@ -36,9 +36,11 @@ import (
 
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -79,6 +81,8 @@ type GenerateCredentialsRequest struct {
 	KeyStoreManager KeyStoreManager
 	/// Cache is used to get the current cluster name and cert authority keys.
 	Cache Cache
+	// IsEnterpriseBuild reports whether this is an enterprise build of Teleport.
+	IsEnterpriseBuild bool
 
 	// CreateSession is the API used to create a session with AWS IAM Roles Anywhere.
 	// This is used to mock the CreateSession API in tests.
@@ -94,6 +98,8 @@ type KeyStoreManager interface {
 
 // Cache is the subset of the cached resources that the Service queries.
 type Cache interface {
+	subca.CAOverrideGetter
+
 	// GetCertAuthority returns cert authority by id
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	// GetClusterName returns the current cluster name.
@@ -153,6 +159,9 @@ type Credentials struct {
 	// Otherwise, the serial number is logged.
 	// This field is not part of the credential_process schema.
 	SerialNumber string `json:"-"`
+	// CAOverride contains details of the active CA override, if any.
+	// This field is not part of the credential_process schema.
+	CAOverride *events.CAOverrideCertificateDetails `json:"-"`
 }
 
 // EncodeCredentialProcessFormat encodes the credentials in the format expected by the AWS CLI credential_process.
@@ -239,7 +248,25 @@ func GenerateCredentials(ctx context.Context, req GenerateCredentialsRequest) (*
 		return nil, trace.Wrap(err)
 	}
 
-	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+	resolver, err := subca.LoadCAOverrideResolver(
+		ctx,
+		req.Cache,
+		req.IsEnterpriseBuild,
+		types.CertAuthorityOverrideID{
+			ClusterName: clusterName.GetClusterName(),
+			CAType:      string(types.AWSRACA),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, err := resolver.CalculateOverride(subca.Certificate{PEM: tlsCert})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsCA, err := tlsca.FromCertAndSigner(result.CACertificate.PEM, tlsSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -297,6 +324,7 @@ func GenerateCredentials(ctx context.Context, req GenerateCredentialsRequest) (*
 		SessionToken:    createSessionResp.SessionToken,
 		Expiration:      parsedExpiration,
 		SerialNumber:    x509Cert.SerialNumber.String(),
+		CAOverride:      result.ToEventOverrideDetailsProto(),
 	}, nil
 }
 

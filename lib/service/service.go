@@ -3133,6 +3133,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Logger:            logger,
 			KeyStoreManager:   authServer.GetKeyStore(),
 			Cache:             authServer.Cache,
+			IsEnterpriseBuild: process.Config.Modules.IsEnterpriseBuild(),
 			StatusReporter:    authServer.Services,
 			Backend:           process.backend,
 			AppServerUpserter: authServer,

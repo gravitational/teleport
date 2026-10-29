@@ -210,6 +210,7 @@ func generateAWSRolesAnywhereCredentials(
 		AcceptRoleSessionName: acceptRoleSessionName,
 		DurationSeconds:       &durationSeconds,
 		Cache:                 a.Cache,
+		IsEnterpriseBuild:     a.modules.IsEnterpriseBuild(),
 	}
 
 	// Replace by the override function if it is set.
@@ -223,8 +224,8 @@ func generateAWSRolesAnywhereCredentials(
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	// TODO(cthach): Set CAOverride in event when the AWS RA CA supports CA overrides.
 	event.SerialNumber = resp.SerialNumber
+	event.CAOverride = resp.CAOverride
 
 	encodedCredentials, err := resp.EncodeCredentialProcessFormat()
 	return encodedCredentials, trace.Wrap(err)

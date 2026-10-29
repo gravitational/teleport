@@ -6735,6 +6735,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		CheckGitHubIntegrationLicense: cfg.AuthServer.checkGitHubIntegrationLicense,
 		FIPS:                          cfg.AuthServer.fips,
 		StorageBackend:                cfg.AuthServer.getBackend(),
+		IsEnterpriseBuild:             cfg.AuthServer.modules.IsEnterpriseBuild(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -46,6 +46,7 @@ import (
 	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -62,6 +63,9 @@ type AWSRolesAnywhereProfileSyncerParams struct {
 
 	// Cache is used to get the current cluster name and cert authority keys.
 	Cache SyncerCache
+
+	// IsEnterpriseBuild reports whether this is an enterprise build of Teleport.
+	IsEnterpriseBuild bool
 
 	// Backend is used access the lock primitives to ensure only one Syncer is running at any given time.
 	Backend backend.Backend
@@ -99,6 +103,8 @@ type StatusReporter interface {
 
 // SyncerCache is the subset of the cached resources that the syncer service queries.
 type SyncerCache interface {
+	subca.CAOverrideGetter
+
 	// GetCertAuthority returns cert authority by id
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	// GetClusterName returns the current cluster name.
@@ -388,6 +394,7 @@ func buildAWSRolesAnywhereClientForIntegration(ctx context.Context, params AWSRo
 		AcceptRoleSessionName: profileAcceptsRoleSessionName,
 		KeyStoreManager:       params.KeyStoreManager,
 		Cache:                 params.Cache,
+		IsEnterpriseBuild:     params.IsEnterpriseBuild,
 		CreateSession:         params.createSession,
 	})
 	if err != nil {

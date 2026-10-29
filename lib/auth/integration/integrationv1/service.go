@@ -49,11 +49,14 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Cache is the subset of the cached resources that the Service queries.
 type Cache interface {
+	subca.CAOverrideGetter
+
 	// GetClusterName returns local cluster name of the current auth server
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
@@ -131,6 +134,8 @@ type ServiceConfig struct {
 	CheckGitHubIntegrationLicense func(ctx context.Context, spec *types.GitHubIntegrationSpecV1) error
 	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
+	// IsEnterpriseBuild reports whether this is an enterprise build of Teleport.
+	IsEnterpriseBuild bool
 
 	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
 	// This is used to allow mocking in tests, because the real implementation does
@@ -216,6 +221,7 @@ type Service struct {
 	checkGitHubIntegrationLicense   func(ctx context.Context, spec *types.GitHubIntegrationSpecV1) error
 	fips                            bool
 	storageBackend                  StorageBackend
+	isEnterpriseBuild               bool
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -240,6 +246,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		checkGitHubIntegrationLicense:   cfg.CheckGitHubIntegrationLicense,
 		fips:                            cfg.FIPS,
 		storageBackend:                  cfg.StorageBackend,
+		isEnterpriseBuild:               cfg.IsEnterpriseBuild,
 	}, nil
 }
 

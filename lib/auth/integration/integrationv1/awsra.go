@@ -83,6 +83,7 @@ func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req 
 		AcceptRoleSessionName: req.GetProfileAcceptsRoleSessionName(),
 		KeyStoreManager:       s.keyStoreManager,
 		Cache:                 s.cache,
+		IsEnterpriseBuild:     s.isEnterpriseBuild,
 		CreateSession:         s.awsRolesAnywhereCreateSessionFn,
 	})
 	if err != nil {
