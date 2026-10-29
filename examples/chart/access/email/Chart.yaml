@@ -2,7 +2,7 @@ apiVersion: v2
 name: teleport-plugin-email
 description: A Helm chart for the Teleport Email Plugin
 type: application
-version: &version "18.11.7"
+version: &version "18.11.8"
 appVersion: *version
 
 dependencies:

@@ -1,6 +1,6 @@
 name: teleport-operator
 apiVersion: v2
-version: &version "18.11.7"
+version: &version "18.11.8"
 appVersion: *version
 description: Teleport Operator provides management of select Teleport resources.
 icon: https://goteleport.com/static/teleport-symbol-bimi.svg

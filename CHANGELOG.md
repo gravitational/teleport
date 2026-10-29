@@ -1,5 +1,78 @@
 # Changelog
 
+## 18.11.8 (10/29/26)
+
+**MCP**
+* VNet in Beams now tunnels streamable-HTTP MCP apps, so MCP clients in a beam can reach them.
+* Fixed MCP clients getting a dropped connection or a hang, rather than an error, when the Application Service denies access to an MCP server.
+* Added support for specifying OAuth parameters for MCP server apps.
+
+**tbot / Machine ID**
+* Fixed `workload-identity-jwt` not renewing the JWT-SVID on a consistent interval.
+* Enable scopes for tbot service workload-identity-aws-roles-anywhere.
+* Improved tbot application proxy performance by reusing upstream connections.
+* Tbot application proxy now returns 3xx responses to the client, instead of following them.
+* Idle timeout option added to tbot application tunnel.
+* Improve handling of timeouts for tbot application proxy and tunnel.
+* Properly support `usage_mode: single` across all scoped join methods.
+* Fixed "waiting for anonymous telemetry to be sent" message being shown by `tbot` even when anonymous telemetry is disabled or has already been sent.
+* Added a way to require the use of hardware keys for all user credentials in the cluster without requiring per-session MFA and without affecting Machine ID bots (Enterprise only).
+* Added support for using the `terraform_cloud`, `spacelift`, `bitbucket`, and `env0` join methods with scoped tokens.
+
+**Terraform / Operator**
+* Added an agent skill for deploying Teleport Database Service on AWS ECS using Terraform.
+* Added support for enrolling and accessing Azure AKS clusters to the terraform modules.
+* Providers block included in generated discovery terraform templates.
+* Added a Terraform module for deploying Teleport agents to AWS ECS.
+* Add support for dynamic app registration with Operator and Terraform support.
+* Adds support for `crown_jewel` matcher to the Teleport Operator and Terraform provider.
+* Added ephemeral resource into MWI Terraform provider for AWS Roles Anywhere Temporary Credentials as teleportmwi_aws_roles_anywhere.
+* Deprecates the `teleportmwi_kubernetes` Terraform data source, prefer the `teleportmwi_kubernetes` ephemeral resource.
+
+**Desktop Access**
+* Fixed potential file corruption that can occur when copying files from the target desktop to the local machine from a Desktop Access session's shared directory.
+
+**Discovery**
+* Fixed duplicate EC2 auto-discovery failure reporting for mixed SSM installation batches.
+* Added `tctl discovery databases` command to report the availability of AWS databases discovered by Teleport Discovery Service.
+* Fixed `discovery_config` status to clear errors when the latest sync has no errors.
+
+**Access Requests / SSO / Auth sessions**
+* A shorter `tsh login` no longer cuts short an SSO user's web session, and a deleted user is redirected to the login page instead of seeing a 404.
+* A single MFA ceremony can now be used to issue certs for multiple applications when proxied through a single, multiplexed local tsh proxy.
+* Updated Teleport SAML IdP to support user's active Access Request attribute mapping.
+* Fixed automatic Access Request review approving requests whose deny rule failed to evaluate, or whose resources could not be resolved.
+* Added support for resetting the MFA devices of SSO users.
+* Fixed a bug where the certificate authorities of a disabled trusted cluster remained in the Auth Service cache until the next restart.
+
+**Performance / reliability**
+* Fix potential goroutine leak in Kubernetes port forward proxy leading to Proxy and potentially Kube Agent OOM.
+* Reduced CPU usage in Auth Service instances at start or after reconnections to the cluster state storage backend in clusters with large number of agents.
+* Reduced CPU usage in Auth Service instances in clusters with large number of Kubernetes Service agents.
+* Reduced memory usage of the Athena audit log consumer.
+* Fixed an issue where TCP app connections could not reach Application Service instances that joined after the app session started.
+
+**UI / CLI UX**
+* Added `tctl detections triage`, `resolve`, `close` and `reopen` to change a detection's status, with a reason supplied via `--reason` or an interactive editor.
+* The `tctl detections` flags `--format`, `--from` and `--to` moved onto the `ls` and `get` subcommands and must now be passed after the subcommand, as in `tctl detections ls --format json`.
+* Introduced pagination to the List Bots UI view to improve page load times on clusters with a large number of Bots.
+
+**Audit log / events**
+* Do not mark `dynamo_requests` conflicts as errors. Instead, label them as `"conflict"`.
+* Fixed exec session events so that they are no longer emitted with a duplicate index.
+* Fixed an issue where Identity Security audit log export would stop after the stream to Access Graph ended.
+
+**App Access / plugins / misc**
+* Allow multiplexing multiple AWS apps with one `tsh proxy` or `tsh aws --exec` command.
+* Allow enabling Okta Identity Security sync on Teleport Enterprise Cloud.
+* Fixed an issue where the Jira access plugin created but did not update issues if Jira took more than 5s to answer.
+* Fixed App Access buffering Server-Sent Events and other streaming responses until completion when `trust_x_forwarded_for` is enabled.
+
+**Build / images**
+* Updated docker distroless image from debian12 to debian13.
+* Updated CA certificate bundle in every Teleport container image.
+* Updated Teleport's brotli dependency, resolving GHSA-c9gr-gmg4-2vqv
+
 ## 18.11.7 (10/21/26)
 
 * Update Electron to 43.8.1. This prevents Teleport Connect (desktop client) from
