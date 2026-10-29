@@ -20,6 +20,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -32,10 +33,11 @@ import (
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -98,23 +100,9 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 		return nil, trace.Wrap(err)
 	}
 
-	authorities, err := client.ExportAllAuthorities(
-		ctx,
-		h.GetProxyClient(),
-		client.ExportAuthoritiesRequest{
-			AuthType: string(types.AWSRACA),
-		},
-	)
+	certAuthoritiesData, err := awsRATrustAnchorCertPEMs(ctx, h.GetProxyClient(), clusterName, h.cfg.Modules.IsEnterpriseBuild())
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if len(authorities) == 0 {
-		return nil, trace.NotFound("no AWS IAM Roles Anywhere CA found")
-	}
-
-	var certAuthoritiesData [][]byte
-	for _, authority := range authorities {
-		certAuthoritiesData = append(certAuthoritiesData, authority.Data)
 	}
 
 	awsRACACertB64 := base64.RawStdEncoding.EncodeToString(bytes.Join(certAuthoritiesData, []byte("\n")))
@@ -143,6 +131,61 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
+}
+
+func awsRATrustAnchorCertPEMs(ctx context.Context, clt authclient.ClientI, clusterName string, isEnterpriseBuild bool) ([][]byte, error) {
+	const loadKeys = false
+	ca, err := clt.GetCertAuthority(ctx, types.CertAuthID{
+		Type:        types.AWSRACA,
+		ClusterName: clusterName,
+	}, loadKeys)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resolver, err := subca.LoadCAOverrideResolver(
+		ctx,
+		clt,
+		isEnterpriseBuild,
+		types.CertAuthorityOverrideID{
+			ClusterName: clusterName,
+			CAType:      string(types.AWSRACA),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyPairs := append(
+		ca.GetActiveKeys().TLS,
+		ca.GetAdditionalTrustedKeys().TLS...,
+	)
+
+	// Active keys and additional trusted keys can repeat the same cert (e.g.
+	// during a CA rotation). Deduplicate so the bundle contains each one once.
+	var certPEMs [][]byte
+	seen := make(map[string]struct{}, len(keyPairs))
+	for _, keyPair := range keyPairs {
+		certPEM := keyPair.Cert
+
+		result, err := resolver.CalculateOverride(subca.Certificate{PEM: certPEM})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certPEM = result.CACertificate.PEM
+
+		if _, ok := seen[string(certPEM)]; ok {
+			continue
+		}
+
+		seen[string(certPEM)] = struct{}{}
+		certPEMs = append(certPEMs, certPEM)
+	}
+	if len(certPEMs) == 0 {
+		return nil, trace.BadParameter("no AWS IAM Roles Anywhere CA found (this is a bug)")
+	}
+
+	return certPEMs, nil
 }
 
 // validateAWSRolesAnywhereIntegration performs a validation for the AWS Roles Anywhere Integration name.
