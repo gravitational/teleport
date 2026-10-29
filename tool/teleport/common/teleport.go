@@ -490,6 +490,8 @@ Examples:
 	migratePlanCmd.Flag("resource", "Preflight only this host: node/<uuid> or node/<hostname>.").StringVar(&migrateFlags.resource)
 	migrateApplyCmd := migrateCmd.Command("apply", "Install a scoped agent beside every unstarted or failed host's source agent.").Hidden()
 	migrateApplyCmd.Flag("resource", "Migrate only this host: node/<uuid> or node/<hostname>.").StringVar(&migrateFlags.resource)
+	migrateRollbackCmd := migrateCmd.Command("rollback", "Remove the scoped agent from migrated and failed hosts and from the target, leaving the source agent untouched.").Hidden()
+	migrateRollbackCmd.Flag("resource", "Roll back only this host: node/<uuid> or node/<hostname>.").StringVar(&migrateFlags.resource)
 	migrateHostCmd := migrateCmd.Command("host", "Run one migration step on this host, reading the request on stdin.").Hidden()
 	migrateHostCmd.Arg("step", "The step to run.").Required().StringVar(&migrateFlags.hostStep)
 
@@ -827,6 +829,8 @@ Examples:
 		err = onMigratePlan(ctx, &migrateFlags)
 	case migrateApplyCmd.FullCommand():
 		err = onMigrateApply(ctx, &migrateFlags)
+	case migrateRollbackCmd.FullCommand():
+		err = onMigrateRollback(ctx, &migrateFlags)
 	case migrateHostCmd.FullCommand():
 		err = onMigrateHost(ctx, &migrateFlags)
 	case dumpNodeConfigure.FullCommand():

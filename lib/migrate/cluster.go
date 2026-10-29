@@ -91,6 +91,9 @@ type clusterAPI interface {
 	ClusterName() string
 	// Nodes streams every SSH node in every scope.
 	Nodes(ctx context.Context) iter.Seq2[node, error]
+	// DeleteNode deletes the SSH node id in scope, as tctl rm node
+	// <scope>::<id> does.
+	DeleteNode(ctx context.Context, scope, id string) error
 }
 
 // targetClusterAPI is clusterAPI plus what the migration reads and writes
@@ -150,6 +153,11 @@ func (c *clusterClient) Nodes(ctx context.Context) iter.Seq2[node, error] {
 		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 	}.Build())
 	return stream.Map(servers, newNode)
+}
+
+// DeleteNode deletes the SSH node id in scope.
+func (c *clusterClient) DeleteNode(ctx context.Context, scope, id string) error {
+	return trace.Wrap(c.clt.DeleteSSHServer(ctx, presencepb.DeleteSSHServerRequest_builder{Name: id, Scope: scope}.Build()))
 }
 
 // ScopedTokens streams the scoped tokens defined in scope, a page at a time.

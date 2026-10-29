@@ -50,6 +50,10 @@ const targetWait = 5 * time.Minute
 // pollInterval is how often a wait on the target checks again.
 const pollInterval = 5 * time.Second
 
+// cleanupTimeout bounds the cluster cleanup a rollback runs after its host
+// step, detached from the host's timeout.
+const cleanupTimeout = 30 * time.Second
+
 // Options tune a Migrator.
 type Options struct {
 	// Optional: nil discards the progress lines. Otherwise, it receives one

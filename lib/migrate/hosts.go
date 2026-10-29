@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/migrate/hoststep"
 	"github.com/gravitational/teleport/lib/modules"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
@@ -185,10 +186,6 @@ func (r *sshHosts) Run(ctx context.Context, hostID string, argv []string, stdin 
 // Close closes the cluster connection every Run shared.
 func (r *sshHosts) Close() error { return trace.Wrap(r.cluster.Close()) }
 
-// hostCacheRoot holds the teleport binaries the oneoff script downloads, one
-// directory per version.
-const hostCacheRoot = "/var/cache/teleport-migrate"
-
 // newHostBinary returns the oneoff script params that run this build's
 // version, edition and FIPS mode of teleport from the host's cache, downloading
 // it from baseURL first; EntrypointArgs is set per step. Like teleport-update,
@@ -209,7 +206,7 @@ func newHostBinary(baseURL string) (oneoff.OneOffScriptParams, error) {
 		TeleportFlavor:  flavor,
 		TeleportFIPS:    fips,
 		Entrypoint:      "teleport",
-		CacheDir:        hostCacheRoot,
+		CacheDir:        hoststep.CacheRoot,
 		// The step's JSON result is the only thing on stdout.
 		LogToStderr: true,
 	}, nil

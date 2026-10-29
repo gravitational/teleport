@@ -87,7 +87,7 @@ func (h hostEnv) install(ctx context.Context, req InstallRequest) (InstallRespon
 	defer unlock()
 
 	if h.exists(scopedConfigPath) {
-		if err := h.checkScopedConfigOwner(req); err != nil {
+		if err := h.checkScopedConfigOwner(req.Proxy, req.SourceHostUUID, "roll that host back or remove the config by hand"); err != nil {
 			return InstallResponse{}, trace.Wrap(err)
 		}
 	}

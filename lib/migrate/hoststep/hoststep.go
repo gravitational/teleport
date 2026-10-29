@@ -49,6 +49,9 @@ const Preflight = "preflight"
 // source agent.
 const Install = "install"
 
+// Uninstall is the host step that removes the scoped agent's install.
+const Uninstall = "uninstall"
+
 // scopedInstallSuffix is the install suffix of the scoped agent.
 const scopedInstallSuffix = "migrated"
 
@@ -62,8 +65,17 @@ const scopedConfigPath = "/etc/teleport_" + scopedInstallSuffix + ".yaml"
 // directory of the source agent's.
 const scopedPIDFileName = "teleport_" + scopedInstallSuffix + ".pid"
 
+// scopedInstallDir is the scoped agent's install directory.
+const scopedInstallDir = "/opt/teleport/" + scopedInstallSuffix
+
 // scopedUnit is the scoped agent's systemd unit.
 const scopedUnit = "teleport_" + scopedInstallSuffix + ".service"
+
+// scopedUpdaterTimer is the timer that runs the scoped agent's updater.
+const scopedUpdaterTimer = "teleport-update_" + scopedInstallSuffix + ".timer"
+
+// scopedUpdaterService is the service the scoped agent's updater timer starts.
+const scopedUpdaterService = "teleport-update_" + scopedInstallSuffix + ".service"
 
 // RunHostStep runs one migration step on this host, as `teleport migrate host
 // <step>`, reading the step's JSON request from in and writing its JSON result
@@ -75,6 +87,8 @@ func RunHostStep(ctx context.Context, step string, in io.Reader, out io.Writer) 
 		return runStep(ctx, in, out, h.preflight)
 	case Install:
 		return runStep(ctx, in, out, h.install)
+	case Uninstall:
+		return runStep(ctx, in, out, h.uninstall)
 	}
 	return trace.BadParameter("unknown host step %q", step)
 }
@@ -264,8 +278,10 @@ func IsMintedJoinMethod(method string) bool {
 }
 
 // checkScopedConfigOwner refuses unless the scoped config on the host targets
-// req's proxy and labels the scoped agent with req's source host.
-func (h hostEnv) checkScopedConfigOwner(req InstallRequest) error {
+// wantProxy and labels the scoped agent with wantSourceHost. remedy ends the
+// refusal of another migration's config, saying what to do instead; a config
+// without the tool's label can only be removed by hand.
+func (h hostEnv) checkScopedConfigOwner(wantProxy, wantSourceHost, remedy string) error {
 	existing, err := h.readAgentConfig(scopedConfigPath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -275,14 +291,17 @@ func (h hostEnv) checkScopedConfigOwner(req InstallRequest) error {
 	switch {
 	case existing.Version == defaults.TeleportConfigVersionV3:
 		proxy = existing.ProxyServer
-	case slices.Contains(existing.AuthServers, req.Proxy):
-		proxy = req.Proxy
+	case slices.Contains(existing.AuthServers, wantProxy):
+		proxy = wantProxy
 	default:
 		proxy = cmp.Or(existing.AuthServer, strings.Join(existing.AuthServers, ","))
 	}
 	sourceHost := existing.SSH.Labels[SourceHostLabel]
-	if proxy != req.Proxy || sourceHost != req.SourceHostUUID {
-		return trace.CompareFailed("the scoped config at %q belongs to another migration (proxy %q, source host %q); roll that host back or remove the config by hand", scopedConfigPath, proxy, sourceHost)
+	if sourceHost == "" {
+		return trace.CompareFailed("the scoped config at %q has no %s label, so teleport migrate did not install it; remove the scoped install by hand", scopedConfigPath, SourceHostLabel)
+	}
+	if proxy != wantProxy || sourceHost != wantSourceHost {
+		return trace.CompareFailed("the scoped config at %q belongs to another migration (proxy %q, source host %q); %s", scopedConfigPath, proxy, sourceHost, remedy)
 	}
 	return nil
 }
@@ -297,6 +316,17 @@ func runCommand(ctx context.Context, name string, args ...string) error {
 	return nil
 }
 
+// isExecutable reports whether p is a regular file someone may execute.
+func isExecutable(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0
+}
+
+// unitActive reports whether systemd says unit is active.
+func unitActive(ctx context.Context, unit string) bool {
+	return exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unit).Run() == nil
+}
+
 // Correlation labels: the labels a migrated scoped agent carries, so plan can
 // pair a target node with its source host.
 const (
@@ -305,3 +335,7 @@ const (
 	// SourceHostLabel holds the UUID of the source host the agent migrated from.
 	SourceHostLabel = types.TeleportInternalLabelPrefix + "migrate-source-host-uuid"
 )
+
+// CacheRoot holds the teleport binaries the oneoff script downloads, one
+// directory per version.
+const CacheRoot = "/var/cache/teleport-migrate"
