@@ -85,6 +85,14 @@ var errNoInstances = errors.New("all fetched nodes already enrolled")
 
 const noDiscoveryConfig = ""
 
+// ec2GroupProcessingConcurrencyLimit bounds concurrent EC2 SSM installation
+// groups per Discovery Service process. SendCommand accepts at most 50
+// instances, so a limit of 2 allows the smallest multi-group case (50 + 1)
+// to share one timeout wave while permitting at most 100 targeted instances
+// and result waiters at once. Further increases require load testing for SSM
+// throttling.
+const ec2GroupProcessingConcurrencyLimit = 2
+
 // Matchers contains all matchers used by discovery service
 type Matchers struct {
 	// AWS is a list of AWS EC2 matchers.
@@ -662,6 +670,13 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	// instance groups are processed during each normal discovery iteration.
 	var installerDeduplicator *ec2InstallerIterationDeduplicator
 
+	// ec2InstallerGroup is shared by the watcher hooks. Pre-fetch, per-instance
+	// processing, and post-fetch occur sequentially. Post-fetch waits for the
+	// current group before the next normal iteration can replace the pointer.
+	// Missed-rotation processing bypasses the pre- and post-fetch hooks, so
+	// rotation groups must remain synchronous and must never use this group.
+	var ec2InstallerGroup *errgroup.Group
+
 	s.ec2Watcher = server.NewWatcher(
 		s.ctx,
 		s.Log.With("cloud", "AWS"),
@@ -677,6 +692,8 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithPreFetchHookFn(func(fetchers []server.Fetcher[*server.EC2Instances]) {
 			s.ec2WatcherIterationStarted(fetchers)
 			installerDeduplicator = newEC2InstallerIterationDeduplicator()
+			ec2InstallerGroup = new(errgroup.Group)
+			ec2InstallerGroup.SetLimit(ec2GroupProcessingConcurrencyLimit)
 		}),
 		server.WithClock[*server.EC2Instances](s.clock),
 		server.WithFetchErrorHookFn[*server.EC2Instances](s.handleEC2WatcherError),
@@ -686,16 +703,39 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 					discoveryConfigName: group.DiscoveryConfigName,
 					integration:         group.Integration,
 				}, len(group.Instances))
+
 				if !s.prepareEC2InstallationGroup(group, installerDeduplicator) {
 					continue
 				}
-				if err := s.handleEC2Instances(group, backoff); err != nil {
-					s.logHandleInstancesErr(err)
+
+				handleInstancesOrLogErr := func() {
+					if err := s.handleEC2Instances(group, backoff); err != nil {
+						s.logHandleInstancesErr(err)
+					}
+				}
+
+				// Rotation and EICE follow separate lifecycles and remain synchronous.
+				if isRegularEC2ScriptInstallation(group) {
+					ec2InstallerGroup.Go(func() error {
+						// SetLimit may leave this closure queued behind active groups.
+						// If shutdown frees a slot, do not start new AWS work with
+						// an already-canceled server context.
+						if err := s.ctx.Err(); err != nil {
+							return nil
+						}
+						handleInstancesOrLogErr()
+						// returning nil makes sure failures in one installation group, does not fail other unrelated groups
+						return nil
+					})
+				} else {
+					handleInstancesOrLogErr()
 				}
 
 			}
 		}),
 		server.WithPostFetchHookFn[*server.EC2Instances](func() {
+			// wait errors are intentionally ignored because each installation logs its own error and returns nil
+			_ = ec2InstallerGroup.Wait()
 			s.ec2WatcherIterationEnded()
 			backoff.expireEntries(s.clock.Now())
 		}),

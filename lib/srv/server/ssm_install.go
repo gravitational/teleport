@@ -262,11 +262,12 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest, report SSMIn
 
 	installTimeout := getAWSInstallTimeout()
 	waiterMaxWait := installTimeout + awsSSMResultGracePeriod
-	// EC2 install handling remains synchronous in discovery, so a wedged SSM
-	// invocation can delay later groups until the configured timeout and SSM
-	// status headroom elapse.
-	// TODO(carlisia): Decouple SSM result waiting from synchronous discovery
-	// iterations so a wedged invocation does not stall later EC2 groups.
+	// SSM result collection remains synchronous within one bounded discovery
+	// group slot. A wedged invocation occupies that slot until its deadline, but
+	// does not prevent other slots from processing unrelated groups.
+	// TODO(michaelpm91): Consider decoupling result collection if occupied slots
+	// remain a scalability bottleneck after group-level concurrency is measured.
+
 	// Give SSM time to publish a terminal state after the install timeout, then
 	// keep the context alive beyond the waiter so Teleport can collect and
 	// report that state.
