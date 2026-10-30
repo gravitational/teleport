@@ -141,19 +141,33 @@ func Distribute(ctx context.Context, clt services.UserExternalCredentials, usern
 }
 
 func addToSession(ctx context.Context, clt services.UserExternalCredentials, session *usercredpb.UserExternalCredentials, authEncrypted *usercredpb.Credential) error {
-	// The maximum number of attempts to update the session on revision
-	// conflicts.
-	const maxAttempts = 3
-	for attempt := 1; ; attempt++ {
+	mutate := func(_ context.Context, session *usercredpb.UserExternalCredentials) error {
 		credential, err := encryptWithUserPublicKey(session.GetSpec().GetEncryptionPublicKey(), authEncrypted)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		credentials := slices.DeleteFunc(slices.Clone(session.GetSpec().GetCredentials()), func(c *usercredpb.Credential) bool {
 			return c.GetResourceKind() == credential.GetResourceKind() && c.GetResourceName() == credential.GetResourceName()
 		})
 		session.GetSpec().SetCredentials(append(credentials, credential))
+		return nil
+	}
+
+	return trace.Wrap(UpdateWithRetry(ctx, clt, session, mutate))
+}
+
+// MutateCredentialsFunc mutates provided usercredpb.UserExternalCredentials.
+type MutateCredentialsFunc func(context.Context, *usercredpb.UserExternalCredentials) error
+
+// UpdateWithRetry applies "mutate" to resource and updates it, retrying on
+// revision conflicts (re-fetching the latest resource each time) up to 3
+// attempts.
+func UpdateWithRetry(ctx context.Context, clt services.UserExternalCredentials, session *usercredpb.UserExternalCredentials, mutate MutateCredentialsFunc) (err error) {
+	const maxAttempts = 3
+	for attempt := 1; ; attempt++ {
+		if err := mutate(ctx, session); err != nil {
+			return trace.Wrap(err)
+		}
 
 		if _, err := clt.UpdateUserExternalCredentials(ctx, session); !trace.IsCompareFailed(err) || attempt >= maxAttempts {
 			return trace.Wrap(err)

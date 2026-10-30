@@ -234,8 +234,12 @@ func (s *Service) ListUserExternalCredentials(ctx context.Context, req *pb.ListU
 	if !authz.IsLocalUser(*authCtx) {
 		return nil, trace.AccessDenied("only users can list user external credentials")
 	}
-	username := authCtx.User.GetName()
-	if user := req.GetFilter().GetUser(); user != "" && user != username {
+	identity := authCtx.Identity.GetIdentity()
+	owner, err := credentialOwner(&identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if user := req.GetFilter().GetUser(); user != "" && user != owner {
 		return nil, trace.AccessDenied("cannot list user external credentials of other users")
 	}
 	if req.GetFilter().GetKeyId() != "" {
@@ -243,7 +247,7 @@ func (s *Service) ListUserExternalCredentials(ctx context.Context, req *pb.ListU
 	}
 
 	resources, nextPageToken, err := s.cfg.Backend.ListUserExternalCredentials(ctx, int(req.GetPageSize()), req.GetPageToken(), pb.EncryptionKeyID_builder{
-		User:     username,
+		User:     owner,
 		Delegate: req.GetFilter().GetDelegate(),
 	}.Build())
 	if err != nil {
@@ -278,7 +282,11 @@ func (s *Service) DecryptUserExternalCredential(ctx context.Context, req *pb.Dec
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.decryptLimiter.RegisterRequest(identity.Username); err != nil {
+	owner, err := credentialOwner(identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.decryptLimiter.RegisterRequest(owner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -286,7 +294,8 @@ func (s *Service) DecryptUserExternalCredential(ctx context.Context, req *pb.Dec
 	if err != nil {
 		return nil, trace.Wrap(err, "decrypting user external credential")
 	}
-	if payload.User != identity.Username {
+
+	if payload.User != owner {
 		return nil, trace.AccessDenied("user external credential does not belong to the user certificate")
 	}
 
@@ -325,8 +334,12 @@ func (s *Service) RefreshOAuthTokens(ctx context.Context, req *pb.RefreshOAuthTo
 	if !authz.IsLocalUser(*authCtx) {
 		return nil, trace.AccessDenied("only users can refresh user external credentials")
 	}
-	username := authCtx.User.GetName()
-	if err := s.writeLimiter.RegisterRequest(username); err != nil {
+	identity := authCtx.Identity.GetIdentity()
+	owner, err := credentialOwner(&identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.writeLimiter.RegisterRequest(owner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -334,7 +347,7 @@ func (s *Service) RefreshOAuthTokens(ctx context.Context, req *pb.RefreshOAuthTo
 	payload, err := s.cfg.Encryptor.DecryptPayload(ctx, req.GetAuthEncryptedRefreshToken())
 	if err != nil {
 		return nil, trace.Wrap(err, "decrypting refresh token")
-	} else if payload.User != username {
+	} else if payload.User != owner {
 		return nil, trace.AccessDenied("refresh token does not belong to the caller")
 	}
 	handler, err := s.getResourceHandler(payload.ResourceKind)
@@ -355,15 +368,15 @@ func (s *Service) RefreshOAuthTokens(ctx context.Context, req *pb.RefreshOAuthTo
 	}
 
 	// Refresh and distribute.
-	token, err := handler.RefreshOAuthToken(ctx, username, payload.ResourceName, payload.Credential)
+	token, err := handler.RefreshOAuthToken(ctx, owner, payload.ResourceName, payload.Credential)
 	if err != nil {
 		return nil, trace.Wrap(err, "refreshing OAuth token")
 	}
-	authEncrypted, err := userexternalcredentials.MakeAuthEncryptedOAuthCredential(ctx, s.cfg.Encryptor, username, payload.ResourceKind, payload.ResourceName, token)
+	authEncrypted, err := userexternalcredentials.MakeAuthEncryptedOAuthCredential(ctx, s.cfg.Encryptor, owner, payload.ResourceKind, payload.ResourceName, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := userexternalcredentials.Distribute(ctx, s.cfg.Backend, username, authEncrypted); err != nil {
+	if err := userexternalcredentials.Distribute(ctx, s.cfg.Backend, owner, authEncrypted); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &pb.RefreshOAuthTokensResponse{}, nil
@@ -380,7 +393,11 @@ func (s *Service) SyncUserExternalCredentials(ctx context.Context, req *pb.SyncU
 		return nil, trace.AccessDenied("only users can sync user external credentials")
 	}
 	identity := authCtx.Identity.GetIdentity()
-	if err := s.writeLimiter.RegisterRequest(identity.Username); err != nil {
+	owner, err := credentialOwner(&identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.writeLimiter.RegisterRequest(owner); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -459,11 +476,13 @@ func (s *Service) isOAuthTokenReadyForRefresh(ctx context.Context, authCtx *auth
 }
 
 // checkSyncTarget checks the target is another session of the caller.
-//
-// TODO(greedy52) support delegated sessions (e.g. beams).
 func checkSyncTarget(identity *tlsca.Identity, target *pb.EncryptionKeyID) error {
+	owner, err := credentialOwner(identity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	switch {
-	case target.GetUser() != identity.Username:
+	case target.GetUser() != owner:
 		return trace.AccessDenied("cannot sync user external credentials to other users")
 	case target.GetKeyId() == identity.EncryptionKeyID:
 		return trace.BadParameter("cannot sync user external credentials to the caller's own session")
@@ -477,4 +496,15 @@ func mergeCredentials(existing, incoming *pb.UserExternalCredentials) *pb.UserEx
 		services.PutUserExternalCredential(merged, credential)
 	}
 	return merged
+}
+
+func credentialOwner(identity *tlsca.Identity) (string, error) {
+	if chain := identity.Delegation.GetChain(); len(chain) > 0 {
+		rootDelegator, err := services.DelegatorUsername(chain[0])
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return rootDelegator, nil
+	}
+	return identity.Username, nil
 }

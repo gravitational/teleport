@@ -19,6 +19,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -195,4 +196,28 @@ func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...Ma
 	default:
 		return nil, trace.BadParameter("unrecognized github connector version %T", githubConnector)
 	}
+}
+
+// FindGitHubIdentity returns the user's GitHub identity, or from its delegator.
+func FindGitHubIdentity(ctx context.Context, user UserState, getter UserOrLoginStateGetter) (types.ExternalIdentity, error) {
+	if len(user.GetGithubIdentities()) > 0 {
+		// At most one GitHub identity expected.
+		return user.GetGithubIdentities()[0], nil
+	}
+
+	// If user has no github identity, try from it's delegator.
+	if chain := user.GetDelegation().GetChain(); len(chain) > 0 {
+		rootDelegator, err := DelegatorUsername(chain[0])
+		if err != nil {
+			return types.ExternalIdentity{}, trace.Wrap(err)
+		}
+		delegator, err := GetUserOrLoginState(ctx, getter, rootDelegator)
+		if err != nil {
+			return types.ExternalIdentity{}, trace.Wrap(err)
+		}
+		if len(delegator.GetGithubIdentities()) > 0 {
+			return delegator.GetGithubIdentities()[0], nil
+		}
+	}
+	return types.ExternalIdentity{}, nil
 }

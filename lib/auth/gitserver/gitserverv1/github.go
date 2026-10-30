@@ -159,7 +159,14 @@ func (s *Service) authAndFindServer(ctx context.Context, name, org string) (*aut
 // checkAndResolveEncryptionPublicKey ensures the right encryption public key is
 // set in the request.
 func (s *Service) checkAndResolveEncryptionPublicKey(ctx context.Context, authCtx *authz.Context, req *types.GithubAuthRequest) error {
-	identityKeyID := authCtx.Identity.GetIdentity().EncryptionKeyID
+	identity := authCtx.Identity.GetIdentity()
+
+	// Delegates should ask delegators to authorize GitHub.
+	if len(identity.Delegation.GetChain()) > 0 {
+		return trace.AccessDenied("delegated identities cannot authorize a new GitHub organization")
+	}
+
+	identityKeyID := identity.EncryptionKeyID
 	if identityKeyID == "" || len(req.EncryptionPublicKey) != 0 {
 		if services.MakeUserEncryptionKeyID(req.EncryptionPublicKey) != identityKeyID {
 			return trace.AccessDenied("encryption public key does not match the caller's session")

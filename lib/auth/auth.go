@@ -3989,13 +3989,9 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		return nil, trace.Wrap(err)
 	}
 
-	// At most one GitHub identity expected.
-	// TODO(greedy52) for delegated bots, resolve the external identity from
-	// the delegation chain.
-	var githubUserID, githubUsername string
-	if githubIdentities := req.User.GetGithubIdentities(); len(githubIdentities) > 0 {
-		githubUserID = githubIdentities[0].UserID
-		githubUsername = githubIdentities[0].Username
+	githubIdentity, err := services.FindGitHubIdentity(ctx, req.User, a.Services)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// collect fields which are mutually exclusive to scoped or unscoped certs
@@ -4076,8 +4072,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				DeviceID:                 req.DeviceExtensions.DeviceID,
 				DeviceAssetTag:           req.DeviceExtensions.AssetTag,
 				DeviceCredentialID:       req.DeviceExtensions.CredentialID,
-				GitHubUserID:             githubUserID,
-				GitHubUsername:           githubUsername,
+				GitHubUserID:             githubIdentity.UserID,
+				GitHubUsername:           githubIdentity.Username,
 				HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 			},
 		}
@@ -4234,7 +4230,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 			Name:      req.GitServerName,
 			SessionID: req.GitSessionID,
 		},
-		GitHubUserID:    githubUserID,
+		GitHubUserID:    githubIdentity.UserID,
 		EncryptionKeyID: req.EncryptionKeyID,
 	}
 
