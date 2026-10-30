@@ -258,8 +258,8 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		}
 
 		return awsLoginTemplate.Execute(output, map[string]string{
-			"awsAppName":        app.GetName(),
-			"escapedAWSAppName": shsprintf.EscapeDefaultContext(app.GetName()),
+			"awsAppName":        appName,
+			"escapedAWSAppName": shsprintf.EscapeDefaultContext(appName),
 			"awsCmd":            "s3 ls",
 			"awsRoleARN":        routeToApp.AWSRoleARN,
 		})
