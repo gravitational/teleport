@@ -23,6 +23,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"os"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
@@ -169,6 +171,21 @@ func mySQLVersionToProto(database types.Database) string {
 
 	// Include MySQL server version
 	return string(common.ProtocolMySQLWithVerPrefix) + versionBase64
+}
+
+// disableUpstreamHTTP2EnvVar turns WithUpstreamHTTP2 into a no-op,
+// an escape hatch should HTTP/2 to the upstream misbehave.
+const disableUpstreamHTTP2EnvVar = "TELEPORT_UNSTABLE_DISABLE_KUBE_HTTP2"
+
+// WithUpstreamHTTP2 is a LocalProxyConfigOpt that enables HTTP/2 to the upstream for the HTTP access proxy.
+func WithUpstreamHTTP2() LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
+		if disabled, _ := strconv.ParseBool(os.Getenv(disableUpstreamHTTP2EnvVar)); disabled {
+			return nil
+		}
+		config.UpstreamHTTP2 = true
+		return nil
+	}
 }
 
 // WithOnSetCert provides a callback when lp.SetCert is called.

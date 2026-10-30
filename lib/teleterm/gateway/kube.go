@@ -163,6 +163,7 @@ func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 			},
 			alpnproxy.WithHTTPMiddleware(middleware),
 			alpnproxy.WithClusterCAs(k.closeContext, k.cfg.RootClusterCACertPoolFunc),
+			alpnproxy.WithUpstreamHTTP2(),
 		)
 		if err != nil {
 			return trace.NewAggregate(err, listener.Close())
@@ -184,6 +185,7 @@ func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 			alpnproxy.WithHTTPMiddleware(middleware),
 			alpnproxy.WithSNI(client.GetKubeTLSServerName(webProxyHost)),
 			alpnproxy.WithClusterCAs(k.closeContext, k.cfg.RootClusterCACertPoolFunc),
+			alpnproxy.WithUpstreamHTTP2(),
 		)
 		if err != nil {
 			return trace.NewAggregate(err, listener.Close())
