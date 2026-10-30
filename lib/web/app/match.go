@@ -19,13 +19,15 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"math/rand/v2"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
@@ -92,10 +94,12 @@ func appMatchesPublicAddr(app readonly.Application, publicAddr string) bool {
 	return app.GetPublicAddr() == publicAddr
 }
 
-// MatchName matches on the name of an application.
-func MatchName(name string) Matcher {
+// matchUnscopedName matches an unscoped app by name. A scoped app answers only
+// to its hash, which MatchPublicAddr matches.
+func matchUnscopedName(name string) Matcher {
 	return func(appServer readonly.AppServer) bool {
-		return appServer.GetApp().GetName() == name
+		app := appServer.GetApp()
+		return app.GetScope() == "" && app.GetName() == name
 	}
 }
 
@@ -105,14 +109,15 @@ func MatchName(name string) Matcher {
 // canAccess, when specified, reports whether the requesting user is permitted to
 // access a given application. It is used to disambiguate when an FQDN matches
 // more than one application. When no match is accessible, or canAccess is nil,
-// it falls back to a plain best-effort pick and leaves the final access decision
-// to the application service.
+// it falls back to the first match and leaves the final access decision to the
+// application service. Matches come in a fixed order, so Proxies that see the
+// same apps resolve a given FQDN and user to the same app.
 //
 // Note: This function can incorrectly resolve application names. For example,
 // if you have an application named "acme" within both the root and leaf
 // cluster, this method will always return "acme" running within the root
-// cluster. Always supply public address and cluster name to deterministically
-// resolve an application.
+// cluster. Always supply public address and cluster name to resolve an
+// application in a specific cluster.
 func ResolveFQDN(
 	ctx context.Context,
 	clusterGetter reversetunnelclient.ClusterGetter,
@@ -158,8 +163,22 @@ func ResolveFQDN(
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	// The local cluster goes first, then leaves by name, so that Proxies with
+	// the same leaves pick the same one whatever order their tunnels connected
+	// in.
+	leaf := func(c reversetunnelclient.Cluster) int {
+		if c.GetName() == localClusterName {
+			return 0
+		}
+		return 1
+	}
+	clusterClients = slices.SortedFunc(slices.Values(clusterClients), func(a, b reversetunnelclient.Cluster) int {
+		return cmp.Or(cmp.Compare(leaf(a), leaf(b)), strings.Compare(a.GetName(), b.GetName()))
+	})
 	for _, clusterClient := range clusterClients {
-		servers, err = MatchUnshuffled(ctx, clusterClient, MatchName(appName))
+		// A scoped app is only ever addressed by its hash, and matching one by
+		// name here would hide a same-named unscoped app in a leaf.
+		servers, err = MatchUnshuffled(ctx, clusterClient, matchUnscopedName(appName))
 		if err == nil && len(servers) > 0 {
 			return pickAppServer(servers, canAccess), clusterClient.GetName(), nil
 		}
@@ -168,22 +187,54 @@ func ResolveFQDN(
 	return nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
 }
 
-// pickAppServer chooses one app server from a set of matches. When canAccess is
-// provided it prefers servers the user is allowed to access.
+// pickAppServer chooses one app server from a set of matches, the first in
+// sortAppServers order that canAccess allows, so that a given user gets the
+// same app every time.
 //
-// If no apps are accessible or canAccess is nil it falls back to a random match,
+// If no apps are accessible or canAccess is nil it falls back to the first,
 // leaving the final access decision to the app_service.
 func pickAppServer(servers []types.AppServer, canAccess func(types.Application) bool) types.AppServer {
+	sorted := sortAppServers(servers)
 	if canAccess != nil {
-		accessible := make([]types.AppServer, 0, len(servers))
-		for _, s := range servers {
-			if canAccess(s.GetApp()) {
-				accessible = append(accessible, s)
-			}
-		}
-		if len(accessible) > 0 {
-			return accessible[rand.N(len(accessible))]
+		// Every copy is checked, since each agent labels its own copy and access
+		// can depend on those labels.
+		if i := slices.IndexFunc(sorted, func(s types.AppServer) bool { return canAccess(s.GetApp()) }); i >= 0 {
+			return sorted[i]
 		}
 	}
-	return servers[rand.N(len(servers))]
+	return sorted[0]
+}
+
+// sortAppServers returns servers sorted with scoped apps first, then by app
+// name, scope, public address with empty ones last, then host and server
+// name, so that every Proxy orders the same matches the same way.
+func sortAppServers(servers []types.AppServer) []types.AppServer {
+	// An unscoped app can only have a scoped app's hashed address by taking it
+	// on purpose, so scoped apps are given priority.
+	unscoped := func(server types.AppServer) int {
+		if server.GetApp().GetScope() == "" {
+			return 1
+		}
+		return 0
+	}
+	// An agent that can't find an app's public address leaves its copy without
+	// one, and a session routed by that copy is rejected by agents whose copy
+	// has an address. Copies with an address therefore take precedence.
+	noAddr := func(server types.AppServer) int {
+		if server.GetApp().GetPublicAddr() == "" {
+			return 1
+		}
+		return 0
+	}
+	return slices.SortedFunc(slices.Values(servers), func(a, b types.AppServer) int {
+		return cmp.Or(
+			cmp.Compare(unscoped(a), unscoped(b)),
+			strings.Compare(a.GetApp().GetName(), b.GetApp().GetName()),
+			apiscopes.Sort(a.GetApp().GetScope(), b.GetApp().GetScope()),
+			cmp.Compare(noAddr(a), noAddr(b)),
+			strings.Compare(a.GetApp().GetPublicAddr(), b.GetApp().GetPublicAddr()),
+			strings.Compare(a.GetHostID(), b.GetHostID()),
+			strings.Compare(a.GetName(), b.GetName()),
+		)
+	})
 }
