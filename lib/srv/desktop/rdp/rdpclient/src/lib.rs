@@ -51,8 +51,8 @@ mod cliprdr;
 mod license;
 mod linux_desktop_encoder;
 mod network_client;
-mod piv;
 mod rdpdr;
+mod scard;
 mod ssl;
 mod util;
 
