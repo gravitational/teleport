@@ -80,6 +80,7 @@ func Handlers() map[string]Handler {
 		types.KindKubeServer:                         kubeServerHandler(),
 		types.KindKubernetesCluster:                  kubeClusterHandler(),
 		types.KindLinuxDesktop:                       linuxDesktopHandler(),
+		types.KindLLMEndpointQuota:                   llmEndpointQuotaHandler(),
 		types.KindLock:                               lockHandler(),
 		types.KindLoginRule:                          loginRuleHandler(),
 		types.KindNetworkRestrictions:                networkRestrictionsHandler(),

@@ -81,5 +81,6 @@ func Commands() []CLICommand {
 		&BoundKeypairCommand{},
 		&ScopedCommand{},
 		&integrations.Command{},
+		&LLMCommand{},
 	}
 }

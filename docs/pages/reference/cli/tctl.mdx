@@ -2076,6 +2076,23 @@ Flags:
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]wide`|`false`|Do not truncate the Description column, even if it exceeds terminal width|
 
+## tctl llm usage
+
+List current LLM usage
+
+Usage:
+
+```code
+$ tctl llm usage [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--endpoint`|*no default*|Retrieve usage only from the specified LLM endpoint|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+
 ## tctl lock
 
 Create a new lock.
