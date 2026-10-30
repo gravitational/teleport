@@ -56,6 +56,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/encoding/protojson"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -91,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/client/reexec"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/delegation"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
@@ -5943,6 +5946,15 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 		fmt.Fprintf(w, "  Delegation session: %s\n", p.DelegationSessionID)
 	}
 
+	if p.Delegation != nil && len(p.Delegation.GetChain()) != 0 {
+		const label = "  Delegation chain:   "
+		fmt.Fprint(w, label)
+		delegation.NewPrinter(w, delegation.PrinterConfig{
+			IndentSpaces:    len(label),
+			IndentFirstLine: false,
+		}).Print(p.Delegation.Delegation)
+	}
+
 	if debug {
 		first := true
 		for k, v := range p.CriticalOptions {
@@ -6114,6 +6126,14 @@ type profileInfo struct {
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
 	EncryptionKeyID          string                   `json:"encryption_key_id,omitempty"`
 	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
+	Delegation               *delegationInfo          `json:"delegation,omitempty"`
+}
+
+// delegationInfo wraps delegationv1.Delegation to implement json.Marshaler.
+type delegationInfo struct{ *delegationv1.Delegation }
+
+func (w *delegationInfo) MarshalJSON() ([]byte, error) {
+	return protojson.MarshalOptions{UseProtoNames: true}.Marshal(w.Delegation)
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -6169,6 +6189,10 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		GitHubIdentity:           p.GitHubIdentity,
 		EncryptionKeyID:          p.EncryptionKeyID,
 		DelegationSessionID:      p.DelegationSessionID,
+	}
+
+	if p.Delegation != nil {
+		out.Delegation = &delegationInfo{p.Delegation}
 	}
 
 	// update active profile info from env
@@ -6234,17 +6258,27 @@ func serializeProfiles(profile *profileInfo, profiles []*profileInfo, env map[st
 		Env      map[string]string `json:"environment,omitempty"`
 	}{profile, []*profileInfo{}, env}
 	profileData.Profiles = append(profileData.Profiles, profiles...)
-	var out []byte
-	var err error
+
 	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(profileData, "", "  ")
+		out, err := utils.FastMarshal(profileData)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		// We re-indent rather than using utils.FastMarshalIndent because it
+		// can't properly handle custom MarshalJSON methods (e.g. when we wrap
+		// protobuf messages to implement json.Marshaler).
+		var buf bytes.Buffer
+		if err := json.Indent(&buf, out, "", "  "); err != nil {
+			return "", trace.Wrap(err)
+		}
+		return buf.String(), nil
 	} else {
-		out, err = yaml.Marshal(profileData)
+		out, err := yaml.Marshal(profileData)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return string(out), nil
 	}
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(out), nil
 }
 
 func getTshEnv() map[string]string {

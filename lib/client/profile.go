@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/scopes"
@@ -333,6 +334,10 @@ type ProfileStatus struct {
 	// DelegationSessionID is the ID of the Delegation Session the profile's
 	// credentials are associated with.
 	DelegationSessionID string
+
+	// Delegation contains the chain-of-delegation between the current user and
+	// other users, bots, or beams who delegated their access to them.
+	Delegation *delegationv1.Delegation
 }
 
 // GitHubIdentity is the GitHub identity attached to the user.
@@ -468,6 +473,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		EncryptionKeyID:          tlsID.EncryptionKeyID,
 		TLSRoutingEnabled:        opts.TLSRoutingEnabled,
 		DelegationSessionID:      sshIdent.DelegationSessionID,
+		Delegation:               sshIdent.Delegation,
 	}, nil
 }
 
