@@ -1,0 +1,621 @@
+---
+title: Fine-Grained Access Controls for Web Applications
+sidebar_label: Fine-Grained Access Controls
+description: Explains how role v9 authorizes each HTTP request to an application through the app_resources rules.
+toc_max_heading_level: 4
+tags:
+ - conceptual
+ - zero-trust
+ - privileged-access
+page_type: conceptual
+---
+
+Teleport 19 introduces fine-grained rules for web applications. Before Teleport
+19, Teleport allowed every request to a web application, as long as the caller's
+roles granted access to the application.
+
+Teleport 19 introduces role version `v9`, which encodes the fine-grained rules
+in its `app_resources` and `app_resources_expressions` fields. With a `v9` role,
+access to the application through `app_labels` or `app_labels_expression` is
+not sufficient. The request must also satisfy at least one fine-grained access
+rule. The two rule fields are:
+
+- `app_resources`, a list of declarative YAML rules with the fields `paths`,
+  `methods`, and `where`.
+- `app_resources_expressions`, a list of predicates in the Teleport predicate
+  language, for more complex rules that `app_resources` cannot express.
+
+The rules apply only to web applications. They do not affect TCP, MCP, cloud
+(AWS console, Azure, and GCP), LLM, or Identity Center applications, or a
+request made with a scoped identity. Every Application Service agent must run
+Teleport 19 or later before a role is moved to `v9`, see
+[Agent version requirements](#agent-version-requirements).
+
+## Example roles
+
+The `allow_all: true` rule below allows every request to the applications the
+role grants, as a `v8` role does:
+
+```yaml
+kind: role
+version: v9
+metadata:
+  name: gitlab-all
+spec:
+  allow:
+    app_labels:
+      vendor: [gitlab]
+    app_resources:
+      - allow_all: true
+```
+
+The role below allows `GET` and `HEAD` requests to every path of the
+applications it grants, and nothing else:
+
+```yaml
+kind: role
+version: v9
+metadata:
+  name: gitlab-read
+spec:
+  allow:
+    app_labels:
+      vendor: [gitlab]
+    app_resources:
+      - paths: ["/**"]
+        methods: [GET, HEAD]
+```
+
+To restrict a role further, see [Rule syntax](#rule-syntax).
+
+## Rule syntax
+
+This section describes the fields of an `app_resources` rule and the predicate
+language of an `app_resources_expressions` entry.
+
+### Declarative rules
+
+The `app_resources` field is valid only under `allow` and only in role version
+`v9` and above. One matching rule is enough to allow a request. A rule sets
+`paths`, a list of path patterns, optionally narrowed by `methods` and `where`,
+or `allow_all: true`, which stands alone and authorizes every request, see
+[Example roles](#example-roles).
+
+The role below authorizes read requests to the projects a user's
+`allowed_projects` trait lists, and nothing else:
+
+```yaml
+kind: role
+version: v9
+metadata:
+  name: gitlab-dev
+spec:
+  allow:
+    app_labels:
+      vendor: [gitlab]
+    app_resources:
+      - paths: ["/api/v4/projects/{project}/**"]
+        methods: [GET, HEAD]
+        where: contains(user.traits["allowed_projects"], vars.project)
+        deny_code_hint: project_not_allowed
+        deny_reason_hint: "Project is not in the caller's allowlist"
+```
+
+A rule has these fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `paths` | list of strings | Path patterns, see [Path patterns](#path-patterns). |
+| `methods` | list of strings | HTTP methods the rule matches, see [Methods](#methods). An empty list matches every accepted method. |
+| `where` | string | A predicate over the caller and the path captures, see [The `where` predicate](#the-where-predicate). |
+| `allow_unsafe` | object | Options that extend what the rule allows. Its one field, `encoded`, allows the encoded slash (`%2F`) in a capture, see [Path patterns](#path-patterns). |
+| `allow_all` | bool | Authorizes every request. It cannot be combined with any other field. Teleport rejects a role that has an `allow_all` rule beside another `app_resources` rule or an `app_resources_expressions` entry. |
+| `allow_code` | string | A code recorded in the decision when the rule matches, see [Allow codes and deny hints](#allow-codes-and-deny-hints). |
+| `allow_reason` | string | An explanation recorded with `allow_code`. It requires `allow_code`. |
+| `deny_code_hint` | string | A code recorded in the decision when the rule's path and method match but `where` is false. It requires `where`. |
+| `deny_reason_hint` | string | An explanation recorded with `deny_code_hint`. It requires `deny_code_hint`. |
+
+A rule authorizes one HTTP request. A request that upgrades the connection, a
+WebSocket handshake for example, is authorized once. No rule applies to the
+traffic on the upgraded connection.
+
+The `app_resources_expressions` field is a list of string predicates. Every
+`app_resources` rule except `allow_all` can be written as an
+`app_resources_expressions` predicate, but not the reverse. See [Predicate
+rules](#predicate-rules).
+
+#### Path patterns
+
+A pattern matches the request path segment by segment and is built from these
+segment forms:
+
+| Pattern | Matches | Does not match | Note |
+|---|---|---|---|
+| `/health` | `/health` | `/health/`, `/healthz` | A literal segment matches exactly. |
+| `/` | `/` | `/x`, `/health` | `/**` also matches `/`. |
+| `/api/*` | `/api/x` | `/api`, `/api/`, `/api/x/`, `/api/x/1` | `*` matches exactly one segment. |
+| `/api/**` | `/api`, `/api/`, `/api/v4` | `/apix` | `**` matches zero or more segments. It is valid only as the last segment. |
+| `/repo/{id}/log` | `/repo/42/log`, binding `id` to `42` | `/repo/42` | `{name}` matches one segment and binds it to `vars.name`. |
+| `/files/!secret/**` | `/files/public/x`, `/files/Secret/x` | `/files/secret/x` | `!seg` matches any one segment except `seg`. The comparison is case-sensitive. |
+
+A trailing slash is significant. `/health` and `/health/` are different
+patterns, and a rule that allows both must list both.
+
+A capture name is ASCII letters, digits, and underscores, and does not start
+with a digit. A capture name is bound once per path, so `/a/{id}/{id}` is
+invalid. A capture read in `where` must be bound by every path of the rule. The
+rule below is invalid, because `/health` does not bind `version`:
+
+```yaml
+app_resources:
+  - paths: ["/api/{version}/**", "/health"]
+    where: vars.version == "v4"
+```
+
+To fix it, write one rule per path.
+
+A literal segment is written with the plain character, not its percent-encoded
+form. The pattern `/content/café.md` matches the request path
+`/content/caf%C3%A9.md`, and the pattern `/sites/Team Site` matches
+`/sites/Team%20Site`.
+
+A rule does not match a path with an encoded slash (`%2F` or `%2f`) unless the
+rule allows it explicitly. An application that decodes the slash before it
+routes a request can see a different path than the one Teleport matched. Allow
+the encoded slash only for an application that treats it as content and never
+decodes it into a path separator, such as the GitLab API, where `group%2Fproj`
+is one path segment.
+
+An encoded slash is allowed only in a capture listed in `allow_unsafe.encoded`.
+Each key in the map must be a `{name}` capture in `paths`. Its value lists the
+characters the captured segment may contain percent-encoded. Currently, the only
+supported value is `/`.
+
+The rule below matches `/api/v4/projects/group%2Fproj/jobs` and binds
+`vars.project` to `group/proj`:
+
+```yaml
+app_resources:
+  - paths: ["/api/v4/projects/{project}/**"]
+    where: has_prefix(vars.project, "group/")
+    allow_unsafe:
+      encoded:
+        project: "/"
+```
+
+A capture in the map also matches a segment with no encoded slash.
+A rule without `allow_unsafe.encoded` does not match a path with an encoded
+slash. When such a request is denied, the response contains the hint
+`teleport_unsafe_encoded_char`.
+
+The rule above does not match `/api/v4/projects/group%2Fproj/src%2Fmain.go`,
+because `**` does not match a segment with an encoded slash. Teleport rejects a
+role whose map has a key that is not a capture in any path of the rule. Teleport
+forwards the request path to the application unchanged.
+
+#### Methods
+
+A rule may list `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, and
+`OPTIONS`, written in upper or lower case. An empty `methods` list matches all
+seven methods.
+
+A request method must be one of these seven, in upper case. Teleport denies any
+other request, `TRACE` included, as `teleport_invalid_request`. An `allow_all`
+rule still allows it, see [Evaluation order](#evaluation-order).
+
+When a browser sends a CORS preflight, an `OPTIONS` request, without
+credentials, the Teleport Proxy Service answers it from the application's `cors`
+configuration without consulting any rule. A preflight sent with credentials
+reaches the rules like any other `OPTIONS` request. Teleport logs a warning once
+per user and application when such a preflight is denied, see
+[Denied requests](#denied-requests).
+
+Teleport removes the following headers from an allowed request:
+
+- `X-HTTP-Method`
+- `X-HTTP-Method-Override`
+- `X-Method-Override`
+- `X-Original-URI`
+- `X-Original-URL`
+- `X-Rewrite-URL`
+
+Teleport matches the header name in any case, and with `_` in place of `-`.
+Teleport keeps these headers when an `allow_all` rule allows the request. An
+app's `rewrite.headers` configuration is applied after the removal, so a
+rewrite of one of these names reaches the app.
+
+Teleport does not remove the `_method` query or form parameter that some
+frameworks accept. A rule that allows a `POST` to a path therefore also allows
+every method the application accepts through the `_method` parameter on that
+path.
+
+#### The `where` predicate
+
+A rule with a `where` clause matches only when the clause is true. The clause
+can read these values:
+
+| Value | Type | Description |
+|---|---|---|
+| `user.name` | string | The Teleport username. |
+| `user.roles` | list of strings | The names of the user's roles. |
+| `user.traits["key"]` | list of strings | The values of one trait. A trait the user does not have is an empty list. |
+| `request.method` | string | The request method. |
+| `vars.name` | string | The decoded segment a `{name}` capture bound. |
+
+For a user without the trait, `contains(user.traits["key"], x)` is false and
+`!contains(user.traits["key"], x)` is true. A negated condition with a
+misspelled trait key is true, so write a condition in the positive form where
+possible.
+
+The predicate has these functions:
+
+| Function | Description |
+|---|---|
+| `contains(list, item)` | Returns true when `list` contains `item`. |
+| `set(item, ...)` | Returns a list of the given strings. |
+| `lower(s)` | Returns `s` in lower case. |
+| `upper(s)` | Returns `s` in upper case. |
+| `has_prefix(s, prefix)` | Returns true when `s` starts with `prefix`. |
+| `has_suffix(s, suffix)` | Returns true when `s` ends with `suffix`. |
+| `has_substring(s, substring)` | Returns true when `s` contains `substring`. |
+
+The operators are `==`, `!=`, `&&`, `||`, `!`, and parentheses. The literals
+are `true` and `false`. Regular expressions are not available.
+
+The rule below allows a user to read their own GitLab user record, and allows a
+member of the `gitlab-admins` group to read any user's record:
+
+```yaml
+app_resources:
+  - paths: ["/api/v4/users/{username}"]
+    methods: [GET]
+    where: vars.username == user.name || contains(user.traits["groups"], "gitlab-admins")
+```
+
+### Predicate rules
+
+The `spec.allow.app_resources_expressions` field is a list of entries. Each
+entry is one predicate. A request is allowed when any entry is true. Like
+`app_resources`, the field is valid only under `allow`. An entry is written in
+the language of the `where` predicate and can read the same values and call the
+same functions. An entry adds these functions:
+
+| Function | Description |
+|---|---|
+| `path.match(tree, option...)` | Returns true when the request path matches `tree`. The only option is `allow_unsafe_encoded(name, "/")`. |
+| `allow_code(code, reason, expr)` | Returns `expr`. When `expr` is true, records `code` and `reason` as the allow code. |
+| `deny_hint(code, reason, expr)` | Returns `expr`. When `expr` is false, records `code` and `reason` as a deny hint. |
+
+The tree passed to `path.match` is built from these constructors:
+
+| Constructor | Matches |
+|---|---|
+| `literal(text, child...)` | The segment `text`, written in its plain form. |
+| `glob(child...)` | Any one segment. |
+| `glob_without(set(text, ...), child...)` | Any one segment not in the set. |
+| `capture(name, child...)` | Any one segment, bound to `vars.name`. |
+| `greedy()` | Zero or more remaining segments, none with an encoded slash (`%2F`). |
+| `greedy_except(tree, ...)` | Like `greedy()`, except when one of the trees matches the remaining segments exactly. `literal("api", greedy_except(literal("internal")))` matches `/api/internal/x` and not `/api/internal`. The comparison is case-sensitive. A tree cannot contain `capture`, `optional`, or `greedy_except`. |
+| `slash()` | A trailing slash. `literal("files", slash())` matches `/files/` and not `/files`. |
+| `optional(child...)` | The end of the path, or one of the children. `literal("files", optional(slash()))` matches `/files` and `/files/`. |
+| `root(child...)` | Any one of its children as the first segment. It is valid only as the top node. A tree with one first segment needs no `root`. |
+
+A `literal` may join several segments with `/`, so `literal("api/v4", greedy())`
+is the same tree as `literal("api", literal("v4", greedy()))`. A code, a
+literal's text, a capture's name, the arguments of `allow_unsafe_encoded`, and
+the members of the `set` in `glob_without` must be
+string literals. A reason may be any string expression.
+
+The `allow_unsafe_encoded(name, "/")` option lets the `capture` called `name`
+match a segment with an encoded slash (`%2F`). Every `path.match` call in one
+entry must have the same options, and the tree of each call must have a
+`capture` for each option. Otherwise, Teleport rejects the role when it is
+written. To combine a path with the capture and a path without it, put both
+under one `root`.
+
+For a request path with an encoded slash, an entry without the option is false
+and records the hint `teleport_unsafe_encoded_char`, even when it negates
+`path.match` or has no `path.match` call.
+`!path.match(glob())` and `request.method == "GET"` are both false for such a
+path.
+
+For a path with an encoded slash, an entry with the option can be true only when
+one of its `path.match` calls matches the path. A negation or an `||` branch
+cannot make it true instead. The entry below allows a `GET` of `/api/a%2Fb` and
+not a `GET` of `/other/a%2Fb`:
+
+```yaml
+app_resources_expressions:
+  - >-
+    request.method == "GET"
+    || path.match(literal("api", capture("x")), allow_unsafe_encoded("x", "/"))
+```
+
+Each path in `paths` is one `path.match` tree:
+
+| Path | `path.match` tree |
+|---|---|
+| `/health` | `literal("health")` |
+| `/` | `slash()` |
+| `/api/` | `literal("api", slash())` |
+| `/api/*` | `literal("api", glob())` |
+| `/api/**` | `literal("api", greedy())` |
+| `/repo/{id}/log` | `literal("repo", capture("id", literal("log")))` |
+| `/files/!secret/**` | `literal("files", glob_without(set("secret"), greedy()))` |
+
+A rule with several paths is one `root` with one child per path. Each key in
+`allow_unsafe.encoded` is one `allow_unsafe_encoded` option. A `methods` list is
+a condition on `request.method`. A `where` clause follows with `&&`. The entry
+below is the `gitlab-dev` rule from [Declarative rules](#declarative-rules):
+
+```yaml
+app_resources_expressions:
+  - >-
+    path.match(literal("api/v4/projects", capture("project", greedy())))
+    && contains(set("GET", "HEAD"), request.method)
+    && deny_hint("project_not_allowed", "Project is not in the caller's allowlist", contains(user.traits["allowed_projects"], vars.project))
+```
+
+A predicate expresses what an `app_resources` rule cannot. A `deny_hint` can
+wrap one part of a condition, so an entry with several conditions records which
+one failed. The `greedy_except` constructor allows a subtree except some paths
+below it. The `optional` constructor matches a path
+with and without a trailing segment from one tree. One entry can combine several
+`path.match` calls with `||`.
+
+The entry below allows every path under `/api` except `/api/v4/admin` and the
+paths below it:
+
+```yaml
+app_resources_expressions:
+  - path.match(literal("api", greedy_except(literal("v4/admin", greedy()))))
+```
+
+A `vars.name` read must follow a `path.match` that binds `name` on every branch
+of the entry's `&&` and `||` operators. Teleport rejects an entry with an
+unbound read when the role is written.
+
+## Request evaluation
+
+This section describes how Teleport reads the request path, the order in which
+it evaluates the rules, and what it records when it allows or denies the
+request.
+
+### Request paths
+
+Teleport matches the request path as the client sent it, without the query
+string. Teleport decodes each segment before it compares the segment with a
+pattern. Every query string on an allowed path is allowed, and a rule cannot
+exclude one. Where a query parameter selects the operation, `?action=delete`
+for example, register that operation as its own application or restrict it in
+the application.
+
+Before any rule other than `allow_all` runs, Teleport denies a request as
+`teleport_invalid_request` unless its path meets all of the following:
+
+- It starts with `/`, has no two slashes in a row, and no segment is `.` or
+  `..`. A trailing slash is allowed.
+- It is at most 8 KiB long.
+- Every character outside a percent-escape is one that
+  [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986#section-3.3) allows in a
+  path, except `;`.
+- Every percent-escape is the encoded slash (`%2F`), the encoded space (`%20`),
+  or a byte of the UTF-8 encoding of a non-ASCII character. Any other encoded
+  ASCII character, such as `%61` (`a`) or `%2E` (`.`), is rejected.
+- The decoded text is valid UTF-8, is
+  [NFKC-normalized](https://www.unicode.org/reports/tr15/#Norm_Forms), and
+  contains only letters, marks, numbers, punctuation, symbols, and the space.
+- No segment starts with a character that composes onto the character before
+  it, such as `%CC%87` (U+0307, combining dot above).
+- No segment starts or ends with a space, consists only of dots and spaces,
+  or ends with a run of dots and spaces that contains a dot.
+
+### Evaluation order
+
+Teleport evaluates the rules of every role that grants the application, in
+this order:
+
+- Roles with an `allow_all` rule come first, then the other roles. Each group
+  is sorted by name.
+- Within a role, `app_resources` rules come before `app_resources_expressions`
+  entries, each in list order.
+
+The first matching rule allows the request. The decision records its
+`allow_code` and captures. A role with an `allow_all` rule therefore allows
+every request, including one with a rejected path or method. Only a role the
+agent cannot read and the per-request limits deny before it, see
+[Denied requests](#denied-requests). The order changes only which `allow_code`
+and which hints are recorded, not whether a request is allowed.
+
+When a v9 role and a v8 or older role both grant the same application, Teleport
+drops the older roles from the decision, so they cannot restore unrestricted
+access to an application a v9 role restricts.
+
+### Allow codes and deny hints
+
+Teleport evaluates the rules of the caller's roles into a decision. The decision
+records whether the request is allowed and the roles it was made from. An
+allowed decision also records the matching role, and the matching rule's code,
+reason, and captures. A denied decision also records the deny kind and the
+hints. The `tctl apps evaluate-request` and `tctl apps evaluate-resource`
+commands print the decision, see [Testing a rule](#testing-a-rule).
+
+A rule can set `allow_code` and `allow_reason` to label the requests it allows.
+When a rule with `allow_code` allows a request, Teleport records an
+`app.session.request.allowed` audit event with the role, the code, and the
+reason.
+
+When Teleport denies a request, the decision contains up to 16 hints. An
+`app_resources` rule records its hint when its path and method match but its
+`where` clause is false. A `deny_hint` call records its hint when its
+expression is false. A rule that does not allow an encoded slash (`%2F`) in the
+request path records the hint `teleport_unsafe_encoded_char`.
+
+A code is lower-case letters, digits, and underscores. The `teleport_` prefix
+is reserved for the deny kinds below and for Teleport's own hints. See
+[Limits](#limits) for the length limits.
+
+### Denied requests
+
+Teleport records every denied request as an `app.session.request.denied` audit
+event with the method, the path, the `deny_kind`, the evaluated roles, and the
+hints. The response the caller receives depends on the deny kind:
+
+| Status | Deny kind | When |
+|---|---|---|
+| 400 | `teleport_invalid_request` | The request path or method is rejected, see [Request paths](#request-paths) and [Methods](#methods). Only an `allow_all` rule can still allow the request. |
+| 403 | `teleport_request_not_allowed` | No rule matched the request. |
+| 500 | `teleport_too_many_rules` | The caller's v9 roles that grant the application have more than 256 rules or more than 65536 path segments together, see [Limits](#limits). No rule runs. |
+| 500 | `teleport_role_version_unsupported` | The Application Service cannot evaluate the caller's roles, and denies every request whatever any other role allows. The cause is a role of a newer version, or a rule with a field, a path pattern, or a function the agent does not implement. Upgrade the agent, see [Agent version requirements](#agent-version-requirements). |
+
+The audit event records the deny kind. The body of a 500 response contains
+`teleport_internal_access_error` in place of the deny kind.
+
+Every response body is a JSON object. A 403 body also contains the hints:
+
+```json
+{
+  "allowed": false,
+  "deny_kind": "teleport_request_not_allowed",
+  "hints": [
+    {
+      "code": "project_not_allowed",
+      "reason": "Project is not in the caller's allowlist"
+    }
+  ]
+}
+```
+
+## Limits
+
+Teleport rejects a role over a per-role or per-rule limit when the role is
+written. The Application Service checks the per-request limits on each request.
+It denies a request over the rule or path segment limit as
+`teleport_too_many_rules`, and a request path over 8 KiB as
+`teleport_invalid_request`. A decision keeps the first 16 deny hints.
+
+| Limit | Value |
+|---|---|
+| Rules per role, `app_resources` and `app_resources_expressions` together | 64 |
+| Paths per rule | 64 |
+| Path segments per role | 16384 |
+| Length of one path pattern | 1 KiB |
+| Length of one `where` clause | 1 KiB |
+| Length of one `app_resources_expressions` entry | 4 KiB |
+| Length of a code | 256 bytes |
+| Length of a reason | 1 KiB |
+| Rules per request, across the v9 roles that grant the application | 256 |
+| Path segments per request, across the v9 roles that grant the application | 65536 |
+| Deny hints per decision | 16 |
+| Length of a request path | 8 KiB |
+
+The limits related to path segments count each slash in a `paths` entry, so
+`/api/v4/projects` has three segments. In an `app_resources_expressions` entry,
+each slash is counted, as is each opening parenthesis, backslash, double quote,
+and backtick. This count is usually higher than the number of real path
+segments. For example, `path.match(literal("api"))` matches the one-segment path
+`/api` and counts as four segments (2x`(`, 2x`"`) towards the limits.
+
+## Testing a rule
+
+The `tctl apps evaluate-request` command evaluates one request for the logged-in
+user against the roles that grant the application at the given URL, and prints
+the decision:
+
+```code
+$ tctl apps evaluate-request https://gitlab.teleport.example.com/api/v4/projects/42/issues
+```
+
+The `tctl apps evaluate-resource` command reads roles and an optional user from
+YAML files and contacts no cluster, so a rule can be tested before the role
+exists. Repeat `--spec` to read more than one file. Together, the files can
+contain at most one user resource. Without a user resource, every role in the
+files is evaluated. The file below contains the `gitlab-dev` role from
+[Declarative rules](#declarative-rules) and a user. Unlike the role there,
+this copy has no `app_labels`. The command evaluates the rules without an
+application, so it ignores `app_labels` and prints a warning for a role that
+sets them:
+
+```yaml
+# gitlab-dev.yaml
+kind: role
+version: v9
+metadata:
+  name: gitlab-dev
+spec:
+  allow:
+    app_resources:
+      - paths: ["/api/v4/projects/{project}/**"]
+        methods: [GET, HEAD]
+        where: contains(user.traits["allowed_projects"], vars.project)
+        deny_code_hint: project_not_allowed
+        deny_reason_hint: "Project is not in the caller's allowlist"
+---
+kind: user
+version: v2
+metadata:
+  name: alice
+spec:
+  roles: [gitlab-dev]
+  traits:
+    allowed_projects: ["42", "99"]
+```
+
+The role allows a `GET` of a project in the trait. The decision records the
+role whose rule matched and the capture:
+
+```code
+$ tctl apps evaluate-resource --spec=gitlab-dev.yaml /api/v4/projects/42/issues
+allow_role: gitlab-dev
+allowed: true
+roles:
+- gitlab-dev
+vars:
+  project: "42"
+```
+
+The role denies a `GET` of a project outside the trait, with the hint:
+
+```code
+$ tctl apps evaluate-resource --spec=gitlab-dev.yaml /api/v4/projects/7/issues
+allowed: false
+deny_kind: teleport_request_not_allowed
+hints:
+- code: project_not_allowed
+  reason: Project is not in the caller's allowlist
+roles:
+- gitlab-dev
+```
+
+The `--method` flag defaults to `GET` and `--format` to `yaml`.
+
+The `--trait key=value` flag sets `user.traits["key"]` to the given value, in
+place of the user's own. Repeat the flag to set more traits or to
+add values to one trait. With `--trait=allowed_projects=7`, the role allows the
+request for project 7:
+
+```code
+$ tctl apps evaluate-resource --spec=gitlab-dev.yaml --trait=allowed_projects=7 /api/v4/projects/7/issues
+allow_role: gitlab-dev
+allowed: true
+roles:
+- gitlab-dev
+vars:
+  project: "7"
+```
+
+See the
+[tctl reference](../../../reference/cli/tctl.mdx#tctl-apps-evaluate-resource)
+for every flag.
+
+## Agent version requirements
+
+Upgrade all Application Service agents to Teleport 19 before using role v9. An
+agent on Teleport 18 or earlier cannot evaluate `app_resources`, so the Auth
+Service serves it a downgraded v8 copy of each v9 role. For a role with an
+`allow_all` rule the copy grants the same access as v9. For any other role the
+copy moves the allow `app_labels` and `app_labels_expression` to the deny side,
+so the older agent denies those applications instead of granting them. A role
+does not record which application types it grants, so a downgraded role also
+denies the TCP, MCP, and cloud applications it selects, and can deny more
+applications than the v9 role restricts.
