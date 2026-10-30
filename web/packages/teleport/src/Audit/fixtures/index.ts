@@ -3277,6 +3277,7 @@ export const events = [
     session_id: '123456',
     success: true,
     service_provider_entity_id: 'valid-entity-id',
+    access_requests: ['242025f3-fdb6-4850-aa14-3c9cbc0bcf88'],
   },
   {
     code: 'TSI000I',

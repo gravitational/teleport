@@ -67,11 +67,12 @@ Once the expressions are evaluated, the resulting values are asserted in the SAM
 
 The following user attributes are available for mapping between Teleport IdP and service providers:
 
-| Attributes | Syntax                                                       |
-| ---------- | ------------------------------------------------------------ |
-| Username   | `uid` or `user.metadata.name`.                               |
-| Roles      | `eduPersonAffiliation` or `user.spec.roles`.                 |
-| Traits     | `user.spec.traits.firstname`, `user.spec.traits.groups` etc. |
+| Attributes          | Syntax                                                       |
+| ------------------- | ------------------------------------------------------------ |
+| Username            | `uid` or `user.metadata.name`.                               |
+| Roles               | `eduPersonAffiliation` or `user.spec.roles`.                 |
+| Traits              | `user.spec.traits.firstname`, `user.spec.traits.groups` etc. |
+| Access Requests     | `session.access_requests`.                                   |
 
 Given a correct and supported predicate expression, attributes will be mapped as long as the requested attributes are present
 in Teleport.
@@ -201,7 +202,7 @@ will appear in the actual SAML assertion, but not in the test output.
 
 First, create a service provider YAML spec:
 ```code
-cat > sp.yml <<'EOF'
+$ cat > sp.yml <<'EOF'
 kind: saml_idp_service_provider
 version: v1
 metadata:

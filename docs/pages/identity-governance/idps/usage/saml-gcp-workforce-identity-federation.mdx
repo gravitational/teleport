@@ -240,6 +240,133 @@ Refer to the GCP docs to learn other methods to obtain credentials that can be u
 GCP recommends safeguarding the login profile configuration file by making it read-only and with an ACL.  
 </Admonition>
 
+## Correlate GCP console sessions and Teleport Access Requests
+
+You can correlate GCP console sessions and Teleport Access Requests by using Teleport 
+SAML IdP Access Request attribute mapping and comparing audit events in Teleport and GCP Cloud Audit Log. 
+
+A reference for configuration and log correlation is provided below.
+
+### Prerequisites
+
+- Enable GCP organization-level audit logging for [Data Access activity](https://docs.cloud.google.com/iam/docs/audit-logging#enabling_audit_logging) 
+  covering `Security Token Service` and `Cloud OAuth API` as explained in the [GCP Workforce Identity Federation audit logging examples](https://docs.cloud.google.com/iam/docs/audit-logging/examples-workforce-identity) 
+- Enable [Detailed logging](https://docs.cloud.google.com/iam/docs/configuring-workforce-identity-federation#create-saml-provider) for the Workforce pool provider. 
+
+### Attribute mapping
+
+1. Configure the GCP SAML service provider resource in Teleport with Access Request attribute mapping.
+Example:
+```yaml
+kind: saml_idp_service_provider
+metadata:
+  name: gcp-console-app
+spec:
+  # Spec fields omitted for brevity. 
+  attribute_mapping:    
+    - name: groups
+      value: user.spec.roles
+    - name: access_requests # custom name for the attribute
+      value: session.access_requests # expression variable that maps to user's active Access Request IDs
+``` 
+
+2. Configure the GCP WIF workforce pool provider to recognize attributes sent by Teleport. 
+Example:
+```yaml
+Attribute mappings:
+  # map incoming access_requests attribute from Teleport to a custom
+  # teleport_access_requests attribute in GCP.
+  attribute.teleport_access_requests: assertion.attributes.access_requests.join(",")
+```
+
+### Audit log correlation
+
+When a user signs in to the GCP console by authenticating with Teleport SAML IdP, 
+Teleport emits the audit log for the sign-in event, including resource ID of Access Requests assumed by the user:
+```json
+{
+  "access_requests": [
+    "01a15a0b-e058-7802-bc9e-2c0ca41781c0"
+  ],
+  "cluster_name": "example.teleport.sh",
+  "code": "TSI000I",
+  "ei": 0,
+  "event": "saml.idp.auth",
+  "service_provider_entity_id": "https://iam.googleapis.com/locations/global/workforcePools/pool_id/providers/pool_provider_id",
+  "sid": "",
+  "success": true,
+  "time": "2026-10-20T15:04:40.268Z",
+  "uid": "3edff5f5-ce08-48a2-9662-610a8c1de260",
+  "user": "alice@example.com"
+}
+```
+
+Similarly, GCP logs the user's `WebSignIn` event with attributes mapped from the SAML response.
+Note: Some log fields are omitted for brevity.
+```json
+{
+  "protoPayload": {
+    "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+    "authenticationInfo": {
+      "principalSubject": "alice@example.com"
+    },
+    "serviceName": "sts.googleapis.com",
+    "methodName": "google.identity.sts.SecurityTokenService.WebSignIn",
+    "resourceName": "locations/global/workforcePools/pool_id/providers/pool_provider_id",
+    "request": {
+      "@type": "type.googleapis.com/google.identity.sts.SecurityTokenService.WebSignInRequest",
+      "provider": "//iam.googleapis.com/locations/global/workforcePools/pool_id/providers/pool_provider_id",
+    },
+    "metadata": {
+      "mappedPrincipal": "principal://iam.googleapis.com/locations/global/workforcePools/pool_id/subject/alice@example.com",
+      "mappedAttributes": {
+        "attribute.teleport_access_requests": "01a15a0b-e058-7802-bc9e-2c0ca41781c0",
+        "google.groups": "[access, requester]",
+        "google.subject": "alice@example.com"
+      }
+    }
+  },
+  "resource": {
+    "type": "audited_resource",
+    "labels": {
+      "method": "google.identity.sts.SecurityTokenService.WebSignIn",
+      "service": "sts.googleapis.com"
+    }
+  },
+  "timestamp": "2026-10-20T16:02:27.590296Z",
+  "severity": "INFO",
+}
+```
+
+To view user activities in a particular authenticated session, list both the `WebSignIn` and `WebSignOut` events.
+
+Example GCP Logs Explorer query:
+```text
+protoPayload.authenticationInfo.principalSubject = "alice@example.com" AND
+(
+  protoPayload.methodName = "google.identity.sts.SecurityTokenService.WebSignIn" OR
+  protoPayload.methodName = "google.identity.sts.SecurityTokenService.WebSignOut"
+)
+```
+
+Once the events are listed, first, select the `WebSignIn` event and copy the event `timestamp`
+and `protoPayload.metadata.mappedPrincipal` values.
+Next, select the `WebSignOut` event and copy the `timestamp` value. 
+
+Now, use the copied timestamps and mapped principal value to find user activities during the
+corresponding time window.
+
+Example GCP Logs Explorer query:
+```text
+protoPayload.authenticationInfo.principalSubject:"principal://iam.googleapis.com/locations/global/workforcePools/pool_id/subject/alice@example.com" AND 
+timestamp >= "2026-08-25T02:26:18.876622Z" AND 
+timestamp <= "2026-08-25T03:27:41.598950Z"
+```
+
+<Admonition type="warning" title="session window">
+The example above shows an approximate user session window and can include events emitted from other concurrent sessions of the same user.
+</Admonition>
+
 
 ## Manual integration
 
