@@ -47,7 +47,7 @@ const updateConfigFileEnvVar = "TELEPORT_UPDATE_CONFIG_FILE"
 // The binary is considered managed if it lives under /opt/teleport, but not within the package
 // path at /opt/teleport/system.
 func IsManagedByUpdater() (bool, error) {
-	systemd, err := hasSystemD()
+	systemd, err := hasServiceManager()
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

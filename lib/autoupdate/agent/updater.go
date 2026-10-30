@@ -53,9 +53,6 @@ import (
 )
 
 const (
-	// BinaryName specifies the name of the updater binary.
-	BinaryName = "teleport-update"
-
 	// SetupVersionEnvVar specifies the Teleport version.
 	SetupVersionEnvVar = "TELEPORT_UPDATE_SETUP_VERSION"
 	// SetupFlagsEnvVar specifies Teleport version flags.
@@ -150,19 +147,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		DefaultProxyAddr:   ns.defaultProxyAddr,
 		DefaultPathDir:     ns.defaultPathDir,
 		Installer: &LocalInstaller{
-			InstallDir: filepath.Join(ns.Dir(), versionsDirName),
-			TargetServices: []ServiceFile{
-				{
-					Path:        ns.teleportServiceFile,
-					Binary:      "teleport",
-					ExampleName: teleportServiceName,
-					ExampleFunc: ns.ReplaceTeleportService, // required for TryLinkSystem
-				},
-				{
-					Path:   ns.tbotServiceFile,
-					Binary: "tbot",
-				},
-			},
+			InstallDir:                 filepath.Join(ns.Dir(), versionsDirName),
+			TargetServices:             targetServices(ns),
 			SystemBinDir:               filepath.Join(cfg.SystemDir, "bin"),
 			SystemServiceDir:           filepath.Join(cfg.SystemDir, serviceDir),
 			HTTP:                       client,
@@ -173,19 +159,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			Template:                   autoupdate.DefaultCDNURITemplate,
 			ArtifactSignatureVerifiers: cfg.ArtifactSignatureVerifiers,
 		},
-		TeleportProcess: &SystemdService{
-			ServiceName: filepath.Base(ns.teleportServiceFile),
-			PIDFile:     ns.teleportPIDFile,
-			Ready:       teleportDebugClient,
-			Log:         cfg.Log,
-		},
-		TbotProcess: &SystemdService{
-			ServiceName:  filepath.Base(ns.tbotServiceFile),
-			PIDFile:      ns.tbotPIDFile,
-			Ready:        tbotDebugClient,
-			Log:          cfg.Log,
-			ForceRestart: true,
-		},
+		TeleportProcess:      createTeleportProcess(ns, teleportDebugClient, cfg.Log),
+		TbotProcess:          createTbotProcess(ns, tbotDebugClient, cfg.Log),
 		WriteTeleportService: ns.WriteTeleportService,
 		WriteTbotService:     ns.WriteTbotService,
 		HasCustomTbot:        ns.HasCustomTbot,
@@ -705,7 +680,7 @@ func (u *Updater) readID(ctx context.Context) string {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		u.Log.WarnContext(ctx, "Failed to read Teleport host ID.", "path", u.TeleportIDFile, errorKey, err)
 	}
-	mid, err := os.ReadFile(u.MachineIDFile)
+	mid, err := u.readMachineID()
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		u.Log.WarnContext(ctx, "Failed to read systemd machine ID.", "path", u.MachineIDFile, errorKey, err)
 	}
@@ -1088,7 +1063,9 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	}
 
 	ignoreTbot := false
-	if customTbot, err := u.HasCustomTbot(ctx); err != nil {
+	if runtime.GOOS == "windows" {
+		ignoreTbot = true
+	} else if customTbot, err := u.HasCustomTbot(ctx); err != nil {
 		u.Log.ErrorContext(ctx, "Failed to determine if a custom tbot service is installed.", errorKey, err)
 		u.Log.ErrorContext(ctx, "Tbot will not be managed by the updater.")
 		ignoreTbot = true
