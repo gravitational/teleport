@@ -18,6 +18,8 @@ package hardwarekey
 import (
 	"context"
 	"crypto"
+	"crypto/ecdh"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
@@ -35,6 +37,14 @@ type Service interface {
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
 	Sign(ctx context.Context, ref *PrivateKeyRef, keyInfo ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
+}
+
+// KeyExchangerService is an optional interface of a [Service] that holds
+// encryption keys.
+type KeyExchangerService interface {
+	// ECDH performs an ECDH key exchange between the referenced private key
+	// and remote, returning the raw shared secret.
+	ECDH(ctx context.Context, ref *PrivateKeyRef, remote *ecdh.PublicKey) (sharedSecret []byte, err error)
 }
 
 // Signer is a hardware key implementation of [crypto.Signer].
@@ -95,12 +105,12 @@ func (h *Signer) WarmupHardwareKey(ctx context.Context) error {
 
 // EncodeSigner encodes the hardware key signer a format understood by other Teleport clients.
 func EncodeSigner(p *Signer) ([]byte, error) {
-	return p.Ref.encode()
+	return p.Ref.Encode()
 }
 
 // DecodeSigner decodes an encoded hardware key signer for the given service.
 func DecodeSigner(encodedKey []byte, s Service, keyInfo ContextualKeyInfo) (*Signer, error) {
-	ref, err := decodeKeyRef(encodedKey, s)
+	ref, err := DecodeKeyRef(encodedKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,8 +135,8 @@ type PrivateKeyRef struct {
 	PINCacheTTL time.Duration `json:"pin_cache_ttl"`
 }
 
-// encode encodes a [PrivateKeyRef] to JSON.
-func (r *PrivateKeyRef) encode() ([]byte, error) {
+// Encode encodes a [PrivateKeyRef] to JSON.
+func (r *PrivateKeyRef) Encode() ([]byte, error) {
 	// Ensure that all required fields are provided to encode.
 	if err := r.Validate(); err != nil {
 		return nil, trace.Wrap(err)
@@ -139,8 +149,8 @@ func (r *PrivateKeyRef) encode() ([]byte, error) {
 	return keyRefBytes, nil
 }
 
-// decodeKeyRef decodes a [PrivateKeyRef] from JSON.
-func decodeKeyRef(encodedKeyRef []byte, s Service) (*PrivateKeyRef, error) {
+// DecodeKeyRef decodes a [PrivateKeyRef] from JSON.
+func DecodeKeyRef(encodedKeyRef []byte) (*PrivateKeyRef, error) {
 	ref := &PrivateKeyRef{}
 	if err := json.Unmarshal(encodedKeyRef, ref); err != nil {
 		return nil, trace.Wrap(err)
@@ -268,3 +278,61 @@ const (
 	SignatureAlgorithmEd25519
 	SignatureAlgorithmRSA2048
 )
+
+// KeyExchanger adapts a hardware key agent's KeyExchangerService to the
+// standard library's ecdh.KeyExchanger interface, for use with HPKE.
+type KeyExchanger struct {
+	ctx     context.Context
+	service KeyExchangerService
+	pub     *ecdh.PublicKey
+	ref     *PrivateKeyRef
+}
+
+// NewKeyExchanger returns a [KeyExchanger] for ref and service.
+func NewKeyExchanger(ref *PrivateKeyRef, service KeyExchangerService) (*KeyExchanger, error) {
+	if service == nil {
+		return nil, trace.BadParameter("key exchanger service must not be nil")
+	}
+	ecdsaPub, ok := ref.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, trace.BadParameter("encryption key reference must have an ECDSA public key, got %T", ref.PublicKey)
+	}
+	pub, err := ecdsaPub.ECDH()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &KeyExchanger{
+		ctx:     context.TODO(),
+		service: service,
+		pub:     pub,
+		ref:     ref,
+	}, nil
+}
+
+// Encode encodes the key exchanger's reference for storage.
+func (a *KeyExchanger) Encode() ([]byte, error) {
+	return a.ref.Encode()
+}
+
+// WithContext returns a copy of the key exchanger that uses ctx for ECDH
+// operations, instead of context.TODO().
+func (a *KeyExchanger) WithContext(ctx context.Context) *KeyExchanger {
+	clone := *a
+	clone.ctx = ctx
+	return &clone
+}
+
+// PublicKey implements ecdh.KeyExchanger.
+func (a *KeyExchanger) PublicKey() *ecdh.PublicKey {
+	return a.pub
+}
+
+// Curve implements ecdh.KeyExchanger.
+func (a *KeyExchanger) Curve() ecdh.Curve {
+	return ecdh.P256()
+}
+
+// ECDH implements ecdh.KeyExchanger.
+func (a *KeyExchanger) ECDH(remote *ecdh.PublicKey) ([]byte, error) {
+	return a.service.ECDH(a.ctx, a.ref, remote)
+}

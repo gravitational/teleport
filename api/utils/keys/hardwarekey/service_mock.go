@@ -17,6 +17,7 @@ package hardwarekey
 import (
 	"context"
 	"crypto"
+	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -225,4 +226,57 @@ func (s *MockHardwareKeyService) Reset() {
 	s.fakeHardwarePrivateKeysMux.Lock()
 	defer s.fakeHardwarePrivateKeysMux.Unlock()
 	s.fakeHardwarePrivateKeys = map[hardwareKeySlot]*fakeHardwarePrivateKey{}
+}
+
+// MockHardwareKeyServiceWithECDH is a MockHardwareKeyService that also
+// supports ECDH KeyExchanger.
+type MockHardwareKeyServiceWithECDH struct {
+	*MockHardwareKeyService
+	// Ref references the key registered for ECDH.
+	Ref *PrivateKeyRef
+}
+
+// NewMockHardwareKeyServiceWithECDH returns a MockHardwareKeyService that
+// also supports ECDH key exchange, using key registered under slotKey.
+func NewMockHardwareKeyServiceWithECDH(prompt Prompt, slotKey PIVSlotKey, key *ecdsa.PrivateKey) *MockHardwareKeyServiceWithECDH {
+	s := NewMockHardwareKeyService(prompt)
+	ref := &PrivateKeyRef{
+		SerialNumber:         serialNumber,
+		SlotKey:              slotKey,
+		PublicKey:            &key.PublicKey,
+		AttestationStatement: &AttestationStatement{},
+	}
+	s.fakeHardwarePrivateKeys[hardwareKeySlot{serialNumber: serialNumber, slot: slotKey}] = &fakeHardwarePrivateKey{
+		Signer: key,
+		ref:    ref,
+	}
+	return &MockHardwareKeyServiceWithECDH{MockHardwareKeyService: s, Ref: ref}
+}
+
+// ECDH performs an ECDH key exchange between the referenced private key and
+// remote, returning the raw shared secret.
+func (s *MockHardwareKeyServiceWithECDH) ECDH(ctx context.Context, ref *PrivateKeyRef, remote *ecdh.PublicKey) ([]byte, error) {
+	// KeyExchanger starts with context.TODO() but WithContext should swap the
+	// context to a real one.
+	if ctx == context.TODO() {
+		return nil, trace.BadParameter("expected a real context, got context.TODO()")
+	}
+
+	s.fakeHardwarePrivateKeysMux.Lock()
+	defer s.fakeHardwarePrivateKeysMux.Unlock()
+
+	priv, ok := s.fakeHardwarePrivateKeys[hardwareKeySlot{serialNumber: serialNumber, slot: ref.SlotKey}]
+	if !ok {
+		return nil, trace.NotFound("key not found in slot 0x%x", ref.SlotKey)
+	}
+
+	ecdsaPriv, ok := priv.Signer.(*ecdsa.PrivateKey)
+	if !ok {
+		return nil, trace.BadParameter("key exchange requires an ECDSA key, got %T", priv.Signer)
+	}
+	ecdhPriv, err := ecdsaPriv.ECDH()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ecdhPriv.ECDH(remote)
 }

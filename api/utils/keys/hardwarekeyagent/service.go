@@ -17,6 +17,7 @@ package hardwarekeyagent
 import (
 	"context"
 	"crypto"
+	"crypto/ecdh"
 	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
@@ -156,4 +157,28 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 	}
 
 	return resp.Signature, nil
+}
+
+// ECDH performs an ECDH key exchange between the referenced private key and remote.
+func (s *Service) ECDH(ctx context.Context, ref *hardwarekey.PrivateKeyRef, remote *ecdh.PublicKey) ([]byte, error) {
+	slotKey, err := hardwarekey.PIVSlotKeyToProto(ref.SlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	publicKeyDER, err := x509.MarshalPKIXPublicKey(ref.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := s.agentClient.ECDH(ctx, &hardwarekeyagentv1.ECDHRequest{
+		KeyRef: &hardwarekeyagentv1.KeyRef{
+			SerialNumber: ref.SerialNumber,
+			SlotKey:      slotKey,
+			PublicKeyDer: publicKeyDER,
+		},
+		RemotePublicKey: remote.Bytes(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetSharedSecret(), nil
 }

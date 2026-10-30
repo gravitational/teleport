@@ -757,6 +757,159 @@ func (b0 KeyInfo_builder) Build() *KeyInfo {
 	return m0
 }
 
+// ECDHRequest is a request to perform an ECDH key exchange.
+type ECDHRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// KeyRef references the hardware private key used in the key exchange.
+	KeyRef *KeyRef `protobuf:"bytes,1,opt,name=key_ref,json=keyRef,proto3" json:"key_ref,omitempty"`
+	// RemotePublicKey is the peer's uncompressed EC point.
+	RemotePublicKey []byte `protobuf:"bytes,2,opt,name=remote_public_key,json=remotePublicKey,proto3" json:"remote_public_key,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ECDHRequest) Reset() {
+	*x = ECDHRequest{}
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ECDHRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ECDHRequest) ProtoMessage() {}
+
+func (x *ECDHRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ECDHRequest) GetKeyRef() *KeyRef {
+	if x != nil {
+		return x.KeyRef
+	}
+	return nil
+}
+
+func (x *ECDHRequest) GetRemotePublicKey() []byte {
+	if x != nil {
+		return x.RemotePublicKey
+	}
+	return nil
+}
+
+func (x *ECDHRequest) SetKeyRef(v *KeyRef) {
+	x.KeyRef = v
+}
+
+func (x *ECDHRequest) SetRemotePublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.RemotePublicKey = v
+}
+
+func (x *ECDHRequest) HasKeyRef() bool {
+	if x == nil {
+		return false
+	}
+	return x.KeyRef != nil
+}
+
+func (x *ECDHRequest) ClearKeyRef() {
+	x.KeyRef = nil
+}
+
+type ECDHRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// KeyRef references the hardware private key used in the key exchange.
+	KeyRef *KeyRef
+	// RemotePublicKey is the peer's uncompressed EC point.
+	RemotePublicKey []byte
+}
+
+func (b0 ECDHRequest_builder) Build() *ECDHRequest {
+	m0 := &ECDHRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.KeyRef = b.KeyRef
+	x.RemotePublicKey = b.RemotePublicKey
+	return m0
+}
+
+// ECDHResponse is the response of ECDH.
+type ECDHResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// SharedSecret is the raw ECDH shared secret.
+	SharedSecret  []byte `protobuf:"bytes,1,opt,name=shared_secret,json=sharedSecret,proto3" json:"shared_secret,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ECDHResponse) Reset() {
+	*x = ECDHResponse{}
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ECDHResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ECDHResponse) ProtoMessage() {}
+
+func (x *ECDHResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ECDHResponse) GetSharedSecret() []byte {
+	if x != nil {
+		return x.SharedSecret
+	}
+	return nil
+}
+
+func (x *ECDHResponse) SetSharedSecret(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SharedSecret = v
+}
+
+type ECDHResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SharedSecret is the raw ECDH shared secret.
+	SharedSecret []byte
+}
+
+func (b0 ECDHResponse_builder) Build() *ECDHResponse {
+	m0 := &ECDHResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SharedSecret = b.SharedSecret
+	return m0
+}
+
 var File_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto protoreflect.FileDescriptor
 
 const file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc = "" +
@@ -786,7 +939,12 @@ const file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc =
 	"proxy_host\x18\x03 \x01(\tR\tproxyHost\x12\x1a\n" +
 	"\busername\x18\x04 \x01(\tR\busername\x12!\n" +
 	"\fcluster_name\x18\x05 \x01(\tR\vclusterName\x12=\n" +
-	"\rpin_cache_ttl\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vpinCacheTtl*~\n" +
+	"\rpin_cache_ttl\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vpinCacheTtl\"x\n" +
+	"\vECDHRequest\x12=\n" +
+	"\akey_ref\x18\x01 \x01(\v2$.teleport.hardwarekeyagent.v1.KeyRefR\x06keyRef\x12*\n" +
+	"\x11remote_public_key\x18\x02 \x01(\fR\x0fremotePublicKey\"3\n" +
+	"\fECDHResponse\x12#\n" +
+	"\rshared_secret\x18\x01 \x01(\fR\fsharedSecret*~\n" +
 	"\n" +
 	"PIVSlotKey\x12\x1c\n" +
 	"\x18PIV_SLOT_KEY_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -798,13 +956,14 @@ const file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc =
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tHASH_NONE\x10\x01\x12\x0f\n" +
 	"\vHASH_SHA256\x10\x02\x12\x0f\n" +
-	"\vHASH_SHA512\x10\x032\xd8\x01\n" +
+	"\vHASH_SHA512\x10\x032\xb9\x02\n" +
 	"\x17HardwareKeyAgentService\x12_\n" +
 	"\x04Ping\x12).teleport.hardwarekeyagent.v1.PingRequest\x1a*.teleport.hardwarekeyagent.v1.PingResponse\"\x00\x12\\\n" +
-	"\x04Sign\x12).teleport.hardwarekeyagent.v1.SignRequest\x1a'.teleport.hardwarekeyagent.v1.Signature\"\x00BdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1;hardwarekeyagentv1b\x06proto3"
+	"\x04Sign\x12).teleport.hardwarekeyagent.v1.SignRequest\x1a'.teleport.hardwarekeyagent.v1.Signature\"\x00\x12_\n" +
+	"\x04ECDH\x12).teleport.hardwarekeyagent.v1.ECDHRequest\x1a*.teleport.hardwarekeyagent.v1.ECDHResponse\"\x00BdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1;hardwarekeyagentv1b\x06proto3"
 
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_goTypes = []any{
 	(PIVSlotKey)(0),             // 0: teleport.hardwarekeyagent.v1.PIVSlotKey
 	(Hash)(0),                   // 1: teleport.hardwarekeyagent.v1.Hash
@@ -814,23 +973,28 @@ var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_goTypes = [
 	(*Signature)(nil),           // 5: teleport.hardwarekeyagent.v1.Signature
 	(*KeyRef)(nil),              // 6: teleport.hardwarekeyagent.v1.KeyRef
 	(*KeyInfo)(nil),             // 7: teleport.hardwarekeyagent.v1.KeyInfo
-	(*durationpb.Duration)(nil), // 8: google.protobuf.Duration
+	(*ECDHRequest)(nil),         // 8: teleport.hardwarekeyagent.v1.ECDHRequest
+	(*ECDHResponse)(nil),        // 9: teleport.hardwarekeyagent.v1.ECDHResponse
+	(*durationpb.Duration)(nil), // 10: google.protobuf.Duration
 }
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_depIdxs = []int32{
-	1, // 0: teleport.hardwarekeyagent.v1.SignRequest.hash:type_name -> teleport.hardwarekeyagent.v1.Hash
-	6, // 1: teleport.hardwarekeyagent.v1.SignRequest.key_ref:type_name -> teleport.hardwarekeyagent.v1.KeyRef
-	7, // 2: teleport.hardwarekeyagent.v1.SignRequest.key_info:type_name -> teleport.hardwarekeyagent.v1.KeyInfo
-	0, // 3: teleport.hardwarekeyagent.v1.KeyRef.slot_key:type_name -> teleport.hardwarekeyagent.v1.PIVSlotKey
-	8, // 4: teleport.hardwarekeyagent.v1.KeyInfo.pin_cache_ttl:type_name -> google.protobuf.Duration
-	2, // 5: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:input_type -> teleport.hardwarekeyagent.v1.PingRequest
-	4, // 6: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:input_type -> teleport.hardwarekeyagent.v1.SignRequest
-	3, // 7: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:output_type -> teleport.hardwarekeyagent.v1.PingResponse
-	5, // 8: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:output_type -> teleport.hardwarekeyagent.v1.Signature
-	7, // [7:9] is the sub-list for method output_type
-	5, // [5:7] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	1,  // 0: teleport.hardwarekeyagent.v1.SignRequest.hash:type_name -> teleport.hardwarekeyagent.v1.Hash
+	6,  // 1: teleport.hardwarekeyagent.v1.SignRequest.key_ref:type_name -> teleport.hardwarekeyagent.v1.KeyRef
+	7,  // 2: teleport.hardwarekeyagent.v1.SignRequest.key_info:type_name -> teleport.hardwarekeyagent.v1.KeyInfo
+	0,  // 3: teleport.hardwarekeyagent.v1.KeyRef.slot_key:type_name -> teleport.hardwarekeyagent.v1.PIVSlotKey
+	10, // 4: teleport.hardwarekeyagent.v1.KeyInfo.pin_cache_ttl:type_name -> google.protobuf.Duration
+	6,  // 5: teleport.hardwarekeyagent.v1.ECDHRequest.key_ref:type_name -> teleport.hardwarekeyagent.v1.KeyRef
+	2,  // 6: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:input_type -> teleport.hardwarekeyagent.v1.PingRequest
+	4,  // 7: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:input_type -> teleport.hardwarekeyagent.v1.SignRequest
+	8,  // 8: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.ECDH:input_type -> teleport.hardwarekeyagent.v1.ECDHRequest
+	3,  // 9: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:output_type -> teleport.hardwarekeyagent.v1.PingResponse
+	5,  // 10: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:output_type -> teleport.hardwarekeyagent.v1.Signature
+	9,  // 11: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.ECDH:output_type -> teleport.hardwarekeyagent.v1.ECDHResponse
+	9,  // [9:12] is the sub-list for method output_type
+	6,  // [6:9] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_init() }
@@ -844,7 +1008,7 @@ func file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc), len(file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

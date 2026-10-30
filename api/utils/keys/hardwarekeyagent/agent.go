@@ -18,6 +18,7 @@ package hardwarekeyagent
 import (
 	"context"
 	"crypto"
+	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -175,5 +176,59 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 func (s *agentService) Ping(ctx context.Context, req *hardwarekeyagentv1.PingRequest) (*hardwarekeyagentv1.PingResponse, error) {
 	return &hardwarekeyagentv1.PingResponse{
 		Pid: uint32(os.Getpid()),
+	}, nil
+}
+
+// ECDH performs an ECDH key exchange, if the hardware key service supports it.
+func (s *agentService) ECDH(ctx context.Context, req *hardwarekeyagentv1.ECDHRequest) (*hardwarekeyagentv1.ECDHResponse, error) {
+	exchangerService, ok := s.s.(hardwarekey.KeyExchangerService)
+	if !ok {
+		return nil, trace.NotImplemented("ECDH is not supported by this hardware key agent")
+	}
+	// TODO(greedy52) no policy yet for encryption.
+	keyRef, err := keyRefFromProto(req.KeyRef)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(greedy52) ECDHRequest carries no ContextualKeyInfo, so callers that
+	// need one (e.g. the real hardware key service) can't be used here yet.
+	knownKey, err := s.knownKeyFn(keyRef, hardwarekey.ContextualKeyInfo{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !knownKey {
+		return nil, trace.AccessDenied("refusing ECDH for unknown key (serial_number=%d, piv_slot=0x%x)", keyRef.SerialNumber, keyRef.SlotKey)
+	}
+
+	remote, err := ecdh.P256().NewPublicKey(req.GetRemotePublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sharedSecret, err := exchangerService.ECDH(ctx, keyRef, remote)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &hardwarekeyagentv1.ECDHResponse{
+		SharedSecret: sharedSecret,
+	}, nil
+}
+
+func keyRefFromProto(keyRef *hardwarekeyagentv1.KeyRef) (*hardwarekey.PrivateKeyRef, error) {
+	if keyRef == nil {
+		return nil, trace.BadParameter("missing key_ref")
+	}
+	slotKey, err := hardwarekey.PIVSlotKeyFromProto(keyRef.SlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pub, err := x509.ParsePKIXPublicKey(keyRef.PublicKeyDer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &hardwarekey.PrivateKeyRef{
+		SerialNumber: keyRef.SerialNumber,
+		SlotKey:      slotKey,
+		PublicKey:    pub,
 	}, nil
 }

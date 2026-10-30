@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	HardwareKeyAgentService_Ping_FullMethodName = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/Ping"
 	HardwareKeyAgentService_Sign_FullMethodName = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/Sign"
+	HardwareKeyAgentService_ECDH_FullMethodName = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/ECDH"
 )
 
 // HardwareKeyAgentServiceClient is the client API for HardwareKeyAgentService service.
@@ -52,6 +53,9 @@ type HardwareKeyAgentServiceClient interface {
 	//
 	// This rpc implements Go's crypto.Signer interface.
 	Sign(ctx context.Context, in *SignRequest, opts ...grpc.CallOption) (*Signature, error)
+	// ECDH performs an ECDH key exchange with the specified private key. Used for
+	// hpke encryption.
+	ECDH(ctx context.Context, in *ECDHRequest, opts ...grpc.CallOption) (*ECDHResponse, error)
 }
 
 type hardwareKeyAgentServiceClient struct {
@@ -82,6 +86,16 @@ func (c *hardwareKeyAgentServiceClient) Sign(ctx context.Context, in *SignReques
 	return out, nil
 }
 
+func (c *hardwareKeyAgentServiceClient) ECDH(ctx context.Context, in *ECDHRequest, opts ...grpc.CallOption) (*ECDHResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ECDHResponse)
+	err := c.cc.Invoke(ctx, HardwareKeyAgentService_ECDH_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HardwareKeyAgentServiceServer is the server API for HardwareKeyAgentService service.
 // All implementations must embed UnimplementedHardwareKeyAgentServiceServer
 // for forward compatibility.
@@ -97,6 +111,9 @@ type HardwareKeyAgentServiceServer interface {
 	//
 	// This rpc implements Go's crypto.Signer interface.
 	Sign(context.Context, *SignRequest) (*Signature, error)
+	// ECDH performs an ECDH key exchange with the specified private key. Used for
+	// hpke encryption.
+	ECDH(context.Context, *ECDHRequest) (*ECDHResponse, error)
 	mustEmbedUnimplementedHardwareKeyAgentServiceServer()
 }
 
@@ -112,6 +129,9 @@ func (UnimplementedHardwareKeyAgentServiceServer) Ping(context.Context, *PingReq
 }
 func (UnimplementedHardwareKeyAgentServiceServer) Sign(context.Context, *SignRequest) (*Signature, error) {
 	return nil, status.Error(codes.Unimplemented, "method Sign not implemented")
+}
+func (UnimplementedHardwareKeyAgentServiceServer) ECDH(context.Context, *ECDHRequest) (*ECDHResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ECDH not implemented")
 }
 func (UnimplementedHardwareKeyAgentServiceServer) mustEmbedUnimplementedHardwareKeyAgentServiceServer() {
 }
@@ -171,6 +191,24 @@ func _HardwareKeyAgentService_Sign_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HardwareKeyAgentService_ECDH_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ECDHRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HardwareKeyAgentServiceServer).ECDH(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HardwareKeyAgentService_ECDH_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HardwareKeyAgentServiceServer).ECDH(ctx, req.(*ECDHRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HardwareKeyAgentService_ServiceDesc is the grpc.ServiceDesc for HardwareKeyAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -185,6 +223,10 @@ var HardwareKeyAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Sign",
 			Handler:    _HardwareKeyAgentService_Sign_Handler,
+		},
+		{
+			MethodName: "ECDH",
+			Handler:    _HardwareKeyAgentService_ECDH_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

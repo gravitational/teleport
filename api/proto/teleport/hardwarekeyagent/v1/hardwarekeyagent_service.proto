@@ -31,6 +31,9 @@ service HardwareKeyAgentService {
   //
   // This rpc implements Go's crypto.Signer interface.
   rpc Sign(SignRequest) returns (Signature) {}
+  // ECDH performs an ECDH key exchange with the specified private key. Used for
+  // hpke encryption.
+  rpc ECDH(ECDHRequest) returns (ECDHResponse) {}
 }
 
 // PingRequest is a request to Ping.
@@ -129,4 +132,18 @@ enum Hash {
   HASH_NONE = 1;
   HASH_SHA256 = 2;
   HASH_SHA512 = 3;
+}
+
+// ECDHRequest is a request to perform an ECDH key exchange.
+message ECDHRequest {
+  // KeyRef references the hardware private key used in the key exchange.
+  KeyRef key_ref = 1;
+  // RemotePublicKey is the peer's uncompressed EC point.
+  bytes remote_public_key = 2;
+}
+
+// ECDHResponse is the response of ECDH.
+message ECDHResponse {
+  // SharedSecret is the raw ECDH shared secret.
+  bytes shared_secret = 1;
 }
