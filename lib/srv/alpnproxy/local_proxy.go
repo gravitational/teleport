@@ -21,8 +21,10 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
 	"io"
 	"log/slog"
 	"net"
@@ -55,6 +57,33 @@ type LocalProxy struct {
 	context context.Context
 	cancel  context.CancelFunc
 	certMu  sync.RWMutex
+
+	// reverseProxies holds one upstream connection pool, per distinct upstream identity.
+	// Without it a fresh transport is built for every request and no connection is ever reused,
+	// so every request costs a TLS handshake and, for a hardware-backed client key, a hardware signature.
+	reverseProxies map[reverseProxyKey]*pooledReverseProxy
+	reverseProxyMu sync.Mutex
+}
+
+// reverseProxyKey identifies an upstream connection pool.
+// It carries exactly what varies per request and changes who the upstream talks to.
+type reverseProxyKey struct {
+	// serverName is the SNI the middleware selected for this request.
+	serverName string
+	// certSum fingerprints the client certs, as done by [certsFingerprint].
+	// Keying on the certs rather than on a cluster name means a reissued cert yields a new pool by construction,
+	// so a pooled connection can never outlive the identity it was opened with.
+	certSum string
+}
+
+// pooledReverseProxy is a cached reverse proxy and the transport that owns its connection pool.
+type pooledReverseProxy struct {
+	proxy *httputil.ReverseProxy
+	// baseTransport is held separately because a middleware may wrap the RoundTripper,
+	// and the RoundTripper interface doesn't expose CloseIdleConnections.
+	baseTransport *http.Transport
+	// lastUsed is when a request last selected this pool. Guarded by reverseProxyMu.
+	lastUsed time.Time
 }
 
 // LocalProxyConfig is configuration for LocalProxy.
@@ -170,9 +199,10 @@ func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalPro
 
 	ctx, cancel := context.WithCancel(cfg.ParentContext)
 	return &LocalProxy{
-		cfg:     cfg,
-		context: ctx,
-		cancel:  cancel,
+		cfg:            cfg,
+		context:        ctx,
+		cancel:         cancel,
+		reverseProxies: make(map[reverseProxyKey]*pooledReverseProxy),
 	}, nil
 }
 
@@ -301,6 +331,7 @@ func dialALPNMaybePing(ctx context.Context, addr string, cfg client.ALPNDialerCo
 
 func (l *LocalProxy) Close() error {
 	l.cancel()
+	l.RetireConnectionPools()
 	if l.cfg.Listener != nil {
 		if err := l.cfg.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			return trace.Wrap(err)
@@ -309,7 +340,7 @@ func (l *LocalProxy) Close() error {
 	return nil
 }
 
-func (l *LocalProxy) getALPNDialerConfig(serverName string, certs ...tls.Certificate) client.ALPNDialerConfig {
+func (l *LocalProxy) getALPNDialerConfig(serverName string, cert tls.Certificate) client.ALPNDialerConfig {
 	return client.ALPNDialerConfig{
 		DialTimeout:             l.cfg.DialTimeout,
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
@@ -317,16 +348,21 @@ func (l *LocalProxy) getALPNDialerConfig(serverName string, certs ...tls.Certifi
 			NextProtos:         common.ProtocolsToString(l.cfg.Protocols),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 			ServerName:         serverName,
-			Certificates:       certs,
+			Certificates:       []tls.Certificate{cert},
 			RootCAs:            l.cfg.RootCAs,
 		},
 	}
 }
 
-func (l *LocalProxy) makeHTTPReverseProxy(serverName string, certs ...tls.Certificate) *httputil.ReverseProxy {
-	var transport http.RoundTripper = &http.Transport{
-		DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(serverName, certs...)).DialContext,
+func (l *LocalProxy) makeHTTPReverseProxy(serverName string, cert tls.Certificate) *pooledReverseProxy {
+	baseTransport := &http.Transport{
+		DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(serverName, cert)).DialContext,
+		// Go's default MaxIdleConnsPerHost is 2, which would close
+		// most of a burst's connections and make the next burst handshake again.
+		MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
+		IdleConnTimeout:     defaults.HTTPIdleTimeout,
 	}
+	var transport http.RoundTripper = baseTransport
 	if middleware, ok := l.cfg.HTTPMiddleware.(LocalProxyHTTPTransportMiddleware); ok {
 		transport = middleware.WrapRoundTripper(transport)
 	}
@@ -335,7 +371,7 @@ func (l *LocalProxy) makeHTTPReverseProxy(serverName string, certs ...tls.Certif
 		Scheme: "https",
 		Host:   l.cfg.RemoteProxyAddr,
 	}
-	return &httputil.ReverseProxy{
+	proxy := &httputil.ReverseProxy{
 		Rewrite: func(proxyReq *httputil.ProxyRequest) {
 			proxyReq.SetURL(target)
 			proxyReq.Out.Host = proxyReq.In.Host
@@ -371,6 +407,7 @@ func (l *LocalProxy) makeHTTPReverseProxy(serverName string, certs ...tls.Certif
 		},
 		Transport: transport,
 	}
+	return &pooledReverseProxy{proxy: proxy, baseTransport: baseTransport}
 }
 
 // startHTTPAccessProxy starts the local HTTP access proxy.
@@ -441,17 +478,63 @@ func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request) (*httputil.Rev
 		serverName = l.cfg.SNI
 	}
 
-	certs, ok, err := l.cfg.HTTPMiddleware.GetClientCerts(req)
+	cert, ok, err := l.cfg.HTTPMiddleware.GetClientCert(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if ok {
-		l.cfg.Log.DebugContext(req.Context(), "got certs from middleware")
+		l.cfg.Log.DebugContext(req.Context(), "got cert from middleware")
 	} else {
-		certs = []tls.Certificate{l.getCert()}
+		cert = l.getCert()
 	}
 
-	return l.makeHTTPReverseProxy(serverName, certs...), nil
+	return l.getOrCreateReverseProxy(reverseProxyKey{
+		serverName: serverName,
+		certSum:    certFingerprint(cert),
+	}, cert), nil
+}
+
+// getOrCreateReverseProxy returns the reverse proxy pooled under key, building it on first use.
+func (l *LocalProxy) getOrCreateReverseProxy(key reverseProxyKey, cert tls.Certificate) *httputil.ReverseProxy {
+	l.reverseProxyMu.Lock()
+
+	now := l.cfg.Clock.Now()
+	if pooled, ok := l.reverseProxies[key]; ok {
+		pooled.lastUsed = now
+		l.reverseProxyMu.Unlock()
+		return pooled.proxy
+	}
+
+	// Reap pools nothing has selected for longer than the transport holds a connection idle,
+	// so a cert reissue does not leave one behind for the life of the process.
+	// Upgraded connections survive this: the transport stops tracking them once they switch protocols.
+	for staleKey, pooled := range l.reverseProxies {
+		if now.Sub(pooled.lastUsed) > defaults.HTTPIdleTimeout {
+			delete(l.reverseProxies, staleKey)
+			// Closing a TLS connection can block, so it does not hold the lock.
+			go pooled.baseTransport.CloseIdleConnections()
+		}
+	}
+
+	pooled := l.makeHTTPReverseProxy(key.serverName, cert)
+	pooled.lastUsed = now
+	l.reverseProxies[key] = pooled
+	l.reverseProxyMu.Unlock()
+	return pooled.proxy
+}
+
+// RetireConnectionPools drops every pooled reverse proxy.
+// Idle connections are closed, and a busy one once its request finishes.
+// The next request builds a fresh pool.
+func (l *LocalProxy) RetireConnectionPools() {
+	l.reverseProxyMu.Lock()
+	retired := l.reverseProxies
+	l.reverseProxies = make(map[reverseProxyKey]*pooledReverseProxy)
+	l.reverseProxyMu.Unlock()
+
+	for _, pooled := range retired {
+		pooled.baseTransport.CloseIdleConnections()
+	}
 }
 
 // getCert returns the local proxy's configured TLS certificate.
@@ -612,4 +695,16 @@ func peekPostgresStartupMessage(conn net.Conn) (pgproto3.FrontendMessage, net.Co
 		return nil, nil, trace.Wrap(err)
 	}
 	return startupMessage, newBufferedConn(conn, buff), nil
+}
+
+// certFingerprint hashes a cert chain so it can key a connection pool.
+func certFingerprint(cert tls.Certificate) string {
+	h := sha256.New()
+	// The DER lengths are prefixed, so chains differing only in where one cert ends
+	// and the next begins cannot hash alike.
+	for _, der := range cert.Certificate {
+		h.Write(binary.BigEndian.AppendUint64(nil, uint64(len(der))))
+		h.Write(der)
+	}
+	return string(h.Sum(nil))
 }

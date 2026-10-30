@@ -33,7 +33,7 @@ on a hardware device and are impossible to export.
 With hardware-based private keys, a login session is only functional if there's also access to the
 hardware device where the key was generated and stored.
 
-Additionally, you can configure this feature to require a touch for every Teleport request, including non-session requests
+Additionally, you can configure this feature to require a touch whenever a client uses the key, including for non-session requests
 like `tctl edit`. With touch required, hardware key support provides better security than per-session MFA.
 
 <Admonition type="note" title="touch caching">
@@ -97,10 +97,10 @@ Hardware key support is not required by default.
 
 There are four primary options for hardware key support:
   - `hardware_key`: User keys are stored on their hardware key without touch/PIN protection. When set on a role, `hardware_key` also requires a separate MFA check for sessions and other MFA-reliant features, like moderated sessions. When set cluster-wide with `human_private_key_policy`, this MFA check is only required if you also set `require_session_mfa: true`.
-  - `hardware_key_touch`: User keys are stored on their hardware key with touch protection. On each request, users must touch their hardware key.
-  - `hardware_key_pin`: User keys are stored on their hardware key with PIN protection. On each request, users must enter their PIV pin.
+  - `hardware_key_touch`: User keys are stored on their hardware key with touch protection. Users must touch their hardware key whenever it signs, which happens when a client opens a new connection.
+  - `hardware_key_pin`: User keys are stored on their hardware key with PIN protection. Users must enter their PIV pin whenever the key signs, on the same basis as touch above. See [PIN Caching](#pin-caching).
     - Users who have not set a PIV code are prompted to set it during login.
-  - `hardware_key_touch_and_pin`: User keys will be stored on their hardware key with touch and PIN protection. On each request, users must touch their hardware key and enter their PIV pin.
+  - `hardware_key_touch_and_pin`: User keys will be stored on their hardware key with touch and PIN protection. Users must both touch their hardware key and enter their PIV pin, with the frequency described above.
     - Users who have not set a PIV code are prompted to set it during login.
 
 You can enforce hardware key support for specific roles, as shown here:

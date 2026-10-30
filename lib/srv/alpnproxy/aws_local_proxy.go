@@ -270,25 +270,25 @@ func (m *AWSAccessMiddleware) handleSTSResponse(response *http.Response) error {
 	return nil
 }
 
-// GetClientCerts returns the certificate for the AWS route selected for req.
-func (m *AWSAccessMiddleware) GetClientCerts(req *http.Request) ([]tls.Certificate, bool, error) {
+// GetClientCert returns the certificate for the AWS route selected for req.
+func (m *AWSAccessMiddleware) GetClientCert(req *http.Request) (tls.Certificate, bool, error) {
 	awsRoute, found := getAWSRequestRouteFromRequestContext(req)
 	if !found {
-		return nil, false, trace.Errorf("no AWS route found on request")
+		return tls.Certificate{}, false, trace.Errorf("no AWS route found on request")
 	}
 
 	// The aws route has no specific GetClientCertificate, so we let the proxy proceed
 	// with its default behavior
 	if awsRoute.GetClientCertificate == nil {
-		return nil, false, nil
+		return tls.Certificate{}, false, nil
 	}
 
 	cert, err := awsRoute.GetClientCertificate(req.Context())
 	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return tls.Certificate{}, false, trace.Wrap(err)
 	}
 
-	return []tls.Certificate{cert}, true, nil
+	return cert, true, nil
 }
 
 func unmarshalAssumeRoleResponse(body []byte) (*sts.AssumeRoleOutput, error) {

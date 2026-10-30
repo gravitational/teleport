@@ -294,13 +294,13 @@ func (m *KubeMiddleware) getCertForRequest(req *http.Request) (tls.Certificate, 
 	return cert, trace.Wrap(err)
 }
 
-// GetClientCerts implements [LocalProxyHTTPMiddleware].
-func (m *KubeMiddleware) GetClientCerts(req *http.Request) ([]tls.Certificate, bool, error) {
+// GetClientCert implements [LocalProxyHTTPMiddleware].
+func (m *KubeMiddleware) GetClientCert(req *http.Request) (tls.Certificate, bool, error) {
 	cert, err := m.getCertForRequest(req)
 	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return tls.Certificate{}, false, trace.Wrap(err)
 	}
-	return []tls.Certificate{cert}, true, nil
+	return cert, true, nil
 }
 
 // ErrUserInputRequired returned when user's input required to relogin and/or reissue new certificate.
