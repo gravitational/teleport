@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -113,8 +114,11 @@ func BuildAnthropicURL(log *slog.Logger, app types.Application) *url.URL {
 //
 // Responses API: https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
 // Chat completions API: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html
-func BuildOpenAIURL(log *slog.Logger, app types.Application, isResponses bool) *url.URL {
-	if isResponses {
+func BuildOpenAIURL(log *slog.Logger, app types.Application, model string, isResponses bool) *url.URL {
+	// Responses API is only available with `/openai` prefix, and closed weight
+	// models (using Responses or Chat completions) always use the `/openai`
+	// prefix.
+	if isResponses || isClosedWeightModel(model) {
 		return &url.URL{
 			Scheme: "https",
 			Host:   buildMantleEndpoint(log, app),
@@ -126,6 +130,36 @@ func BuildOpenAIURL(log *slog.Logger, app types.Application, isResponses bool) *
 		Scheme: "https",
 		Host:   buildMantleEndpoint(log, app),
 		Path:   "/v1",
+	}
+}
+
+// isClosedWeightModel returns true if the requested model is closed weights or
+// not.
+//
+// Note that this function is a best effort to keep track of different behaviors
+// for closed weight models, and not a 1:1 mapping with Bedrocks currently
+// supported models. This means that only the necessary exceptions will be added
+// here as we expect majority of models to behave the same (like an open-weight
+// model).
+func isClosedWeightModel(model string) bool {
+	// Following the Bedrock pattern, the model name includes a prefix to
+	// identify the AI lab, followed by the model name.
+	aiLab, modelName, found := strings.Cut(model, ".")
+	if !found {
+		return false
+	}
+
+	switch strings.ToLower(aiLab) {
+	case "openai":
+		// So far open weight models from OpenAI included the `gpt-oss` prefix,
+		// so we rely on that to disinguish it from closed weight models.
+		//
+		// https://huggingface.co/collections/openai/gpt-oss
+		return !strings.HasPrefix(strings.ToLower(modelName), "gpt-oss")
+	case "xai":
+		return true
+	default:
+		return false
 	}
 }
 

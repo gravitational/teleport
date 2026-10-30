@@ -106,18 +106,6 @@ func NewRequest(cfg *llmrequest.Config) (*llmrequest.Request, error) {
 		return res, trace.NotFound("unsupported endpoint")
 	}
 
-	switch llm.Provider {
-	case types.LLMProviderOpenAI:
-		// OpenAI API requires only `Authorization` header carrying the API key.
-		//
-		// https://developers.openai.com/api/reference/overview#authentication
-		providerHeaders.Set("Authorization", "Bearer "+cfg.GetAPIKeyFunc())
-	case types.LLMProviderAWSBedrock:
-		cfg.ProviderURL = bedrock.BuildOpenAIURL(cfg.Logger, cfg.App, info.endpointType == endpointTypeResponses)
-	default:
-		return res, trace.NotImplemented("provider %q is not supported", llm.Provider)
-	}
-
 	body, err := utils.ReadAtMost(cfg.DownstreamRequest.Body, teleport.MaxHTTPRequestSize)
 	if closeErr := cfg.DownstreamRequest.Body.Close(); closeErr != nil {
 		cfg.Logger.WarnContext(cfg.DownstreamRequest.Context(), "failed to close downstream body", "error", closeErr)
@@ -153,6 +141,18 @@ func NewRequest(cfg *llmrequest.Config) (*llmrequest.Request, error) {
 	req.SetModel(providerModel)
 	req.EnableReportUsage()
 	req.DisableDataRetention()
+
+	switch llm.Provider {
+	case types.LLMProviderOpenAI:
+		// OpenAI API requires only `Authorization` header carrying the API key.
+		//
+		// https://developers.openai.com/api/reference/overview#authentication
+		providerHeaders.Set("Authorization", "Bearer "+cfg.GetAPIKeyFunc())
+	case types.LLMProviderAWSBedrock:
+		cfg.ProviderURL = bedrock.BuildOpenAIURL(cfg.Logger, cfg.App, info.providerModel, info.endpointType == endpointTypeResponses)
+	default:
+		return res, trace.NotImplemented("provider %q is not supported", llm.Provider)
+	}
 
 	// OpenAI endpoints do not require max output tokens to be specified.
 	reserveReq := llmlimiter.ReserveRequest{App: cfg.App}
