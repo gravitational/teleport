@@ -21,7 +21,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -305,23 +304,20 @@ func checkSessionEncryptionKey(profile *client.ProfileStatus) error {
 // getUserDecryptedAccessToken returns the GitHub access token of the session
 // for the git server, decrypted with the session's encryption key.
 func (c *gitContext) getUserDecryptedAccessToken() (string, error) {
-	keyRing, err := c.tc.LocalAgent().GetKeyRing(c.tc.SiteName)
+	encryptionKey, err := c.tc.SessionEncryptionKey()
 	if err != nil {
 		return "", trace.Wrap(err)
-	}
-	if keyRing.EncryptionPrivateKey == nil {
-		return "", trace.BadParameter("the current session does not support Git over HTTPS. Run 'tsh login' again, or contact your Teleport administrator if the problem persists.")
 	}
 
 	credential, err := c.getUserGitCredentialWithFallbacks(
 		c.getUserGitCredentialFromCache,
-		c.getUserGitCredentialFromBackendWithRefresh(keyRing.EncryptionPrivateKey),
+		c.getUserGitCredentialFromBackendWithRefresh(encryptionKey),
 		c.getUserGitCredentialFromOAuth,
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	authEncrypted, err := credentialencryption.Decrypt(keyRing.EncryptionPrivateKey, credential.GetOauth().GetAccessTokenBlob())
+	authEncrypted, err := encryptionKey.Decrypt(c.Context, credential.GetOauth().GetAccessTokenBlob())
 	if err != nil {
 		return "", trace.Wrap(err, "decrypting GitHub credentials")
 	}
@@ -332,7 +328,7 @@ func (c *gitContext) getUserDecryptedAccessToken() (string, error) {
 	return base64.StdEncoding.EncodeToString(authEncrypted), nil
 }
 
-func (c *gitContext) getUserGitCredentialFromBackendWithRefresh(encryptionKey *ecdsa.PrivateKey) func() (*usercredpb.Credential, error) {
+func (c *gitContext) getUserGitCredentialFromBackendWithRefresh(encryptionKey *credentialencryption.PrivateKey) func() (*usercredpb.Credential, error) {
 	return func() (*usercredpb.Credential, error) {
 		latest, err := c.getUserGitCredentialFromBackend()
 		if err != nil {
@@ -350,7 +346,7 @@ func (c *gitContext) getUserGitCredentialFromBackendWithRefresh(encryptionKey *e
 			return nil, trace.NotFound("GitHub credentials for organization %[1]q cannot be refreshed, run 'tsh git login --github-org %[1]s --force'",
 				c.gitServer.GetGitHub().Organization)
 		}
-		authEncrypted, err := credentialencryption.Decrypt(encryptionKey, latest.GetOauth().GetRefreshTokenBlob())
+		authEncrypted, err := encryptionKey.Decrypt(c.Context, latest.GetOauth().GetRefreshTokenBlob())
 		if err != nil {
 			return nil, trace.Wrap(err, "decrypting GitHub refresh token")
 		}
@@ -419,9 +415,10 @@ func (c *gitContext) getUserGitCredentialFromOAuth() (*usercredpb.Credential, er
 				nextStep = "run 'tsh login --force' and this command again"
 			}
 		}
+		// TODO(greedy52) point the user at the root delegator once #2713 lands.
 		return nil, trace.NotFound("GitHub credentials for organization %q not found. "+
-			"Open this link in a browser logged in to Teleport as %s, then %s:\n\n  %s\n",
-			github.Organization, c.tc.Username, nextStep, c.gitServerAuthorizeOnWebURL())
+			"Open this link in a browser logged in to Teleport, then %s:\n\n  %s\n",
+			github.Organization, nextStep, c.gitServerAuthorizeOnWebURL())
 	}
 	fmt.Fprintf(c.Stderr(), "Authorizing GitHub organization %q for Git over HTTPS.\n", github.Organization)
 	if err := c.doOAuthFlow(c.CLIConf, github.Organization); err != nil {

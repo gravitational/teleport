@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client/credentialencryption"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -160,7 +161,7 @@ type KeyRing struct {
 	TrustedCerts []authclient.TrustedCerts
 	// EncryptionPrivateKey is the user-session-owned ECIES P-256 encryption
 	// private key.
-	EncryptionPrivateKey *ecdsa.PrivateKey
+	EncryptionPrivateKey *credentialencryption.PrivateKey
 }
 
 // Copy returns a shallow copy of k, or nil if k is nil.
@@ -765,11 +766,16 @@ func (k *KeyRing) EqualPrivateKey(other *KeyRing) bool {
 		equalEncryptionKey(k.EncryptionPrivateKey, other.EncryptionPrivateKey)
 }
 
-func equalEncryptionKey(a, b *ecdsa.PrivateKey) bool {
+func equalEncryptionKey(a, b *credentialencryption.PrivateKey) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return a.Equal(b)
+	aPEM, aErr := credentialencryption.MarshalPrivateKey(a)
+	bPEM, bErr := credentialencryption.MarshalPrivateKey(b)
+	if aErr != nil || bErr != nil {
+		return false
+	}
+	return subtle.ConstantTimeCompare(aPEM, bPEM) == 1
 }
 
 // GitTLSCert returns the tls.Certificate for authentication against a named git

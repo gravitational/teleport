@@ -20,6 +20,7 @@ package identity
 
 import (
 	"bytes"
+	"crypto/x509"
 	"slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -155,6 +156,24 @@ var artifacts = []Artifact{
 		},
 		FromBytes: func(c *proto.Certs, p *LoadIdentityParams, b []byte) {
 			// nothing to do
+		},
+		Optional: true,
+	},
+	{
+		Key:  EncryptionKeyKey,
+		Kind: KindBotInternal,
+		ToBytes: func(i *Identity) []byte {
+			if i.EncryptionPrivateKey == nil {
+				return []byte{}
+			}
+			der, err := x509.MarshalPKCS8PrivateKey(i.EncryptionPrivateKey)
+			if err != nil {
+				return []byte{}
+			}
+			return der
+		},
+		FromBytes: func(c *proto.Certs, p *LoadIdentityParams, b []byte) {
+			p.EncryptionKeyBytes = b
 		},
 		Optional: true,
 	},

@@ -129,14 +129,15 @@ func (b0 LoginRequest_builder) Build() *LoginRequest {
 
 // LoginResponse contains the result of Login.
 type LoginResponse struct {
-	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Username    string                 `protobuf:"bytes,1,opt,name=username,proto3"`
-	xxx_hidden_SshCert     []byte                 `protobuf:"bytes,2,opt,name=ssh_cert,json=sshCert,proto3"`
-	xxx_hidden_TlsCert     []byte                 `protobuf:"bytes,3,opt,name=tls_cert,json=tlsCert,proto3"`
-	xxx_hidden_PrivateKey  []byte                 `protobuf:"bytes,4,opt,name=private_key,json=privateKey,proto3"`
-	xxx_hidden_HostSigners *[]*TrustedCerts       `protobuf:"bytes,5,rep,name=host_signers,json=hostSigners,proto3"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Username      string                 `protobuf:"bytes,1,opt,name=username,proto3"`
+	xxx_hidden_SshCert       []byte                 `protobuf:"bytes,2,opt,name=ssh_cert,json=sshCert,proto3"`
+	xxx_hidden_TlsCert       []byte                 `protobuf:"bytes,3,opt,name=tls_cert,json=tlsCert,proto3"`
+	xxx_hidden_PrivateKey    []byte                 `protobuf:"bytes,4,opt,name=private_key,json=privateKey,proto3"`
+	xxx_hidden_HostSigners   *[]*TrustedCerts       `protobuf:"bytes,5,rep,name=host_signers,json=hostSigners,proto3"`
+	xxx_hidden_EncryptionKey []byte                 `protobuf:"bytes,6,opt,name=encryption_key,json=encryptionKey,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *LoginResponse) Reset() {
@@ -201,6 +202,13 @@ func (x *LoginResponse) GetHostSigners() []*TrustedCerts {
 	return nil
 }
 
+func (x *LoginResponse) GetEncryptionKey() []byte {
+	if x != nil {
+		return x.xxx_hidden_EncryptionKey
+	}
+	return nil
+}
+
 func (x *LoginResponse) SetUsername(v string) {
 	x.xxx_hidden_Username = v
 }
@@ -230,6 +238,13 @@ func (x *LoginResponse) SetHostSigners(v []*TrustedCerts) {
 	x.xxx_hidden_HostSigners = &v
 }
 
+func (x *LoginResponse) SetEncryptionKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_EncryptionKey = v
+}
+
 type LoginResponse_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -245,6 +260,10 @@ type LoginResponse_builder struct {
 	PrivateKey []byte
 	// HostSigners is a list of signing host public keys trusted by proxy.
 	HostSigners []*TrustedCerts
+	// EncryptionKey contains the PEM-encoded session encryption key reference,
+	// usable for decryption via the Hardware Key Agent API, on the same
+	// socket. Absent if no session encryption key.
+	EncryptionKey []byte
 }
 
 func (b0 LoginResponse_builder) Build() *LoginResponse {
@@ -256,6 +275,7 @@ func (b0 LoginResponse_builder) Build() *LoginResponse {
 	x.xxx_hidden_TlsCert = b.TlsCert
 	x.xxx_hidden_PrivateKey = b.PrivateKey
 	x.xxx_hidden_HostSigners = &b.HostSigners
+	x.xxx_hidden_EncryptionKey = b.EncryptionKey
 	return m0
 }
 
@@ -361,14 +381,15 @@ const file_teleport_loginagent_v1_login_agent_proto_rawDesc = "" +
 	"\fLoginRequest\x12(\n" +
 	"\x10route_to_cluster\x18\x01 \x01(\tR\x0erouteToCluster\x12-\n" +
 	"\x12kubernetes_cluster\x18\x02 \x01(\tR\x11kubernetesCluster\x12\x14\n" +
-	"\x05scope\x18\x03 \x01(\tR\x05scope\"\xcb\x01\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"\xf2\x01\n" +
 	"\rLoginResponse\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x19\n" +
 	"\bssh_cert\x18\x02 \x01(\fR\asshCert\x12\x19\n" +
 	"\btls_cert\x18\x03 \x01(\fR\atlsCert\x12\x1f\n" +
 	"\vprivate_key\x18\x04 \x01(\fR\n" +
 	"privateKey\x12G\n" +
-	"\fhost_signers\x18\x05 \x03(\v2$.teleport.loginagent.v1.TrustedCertsR\vhostSigners\"\x83\x01\n" +
+	"\fhost_signers\x18\x05 \x03(\v2$.teleport.loginagent.v1.TrustedCertsR\vhostSigners\x12%\n" +
+	"\x0eencryption_key\x18\x06 \x01(\fR\rencryptionKey\"\x83\x01\n" +
 	"\fTrustedCerts\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12.\n" +
 	"\x13ssh_authorized_keys\x18\x02 \x03(\fR\x11sshAuthorizedKeys\x12 \n" +

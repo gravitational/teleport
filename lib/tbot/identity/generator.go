@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto"
+	"crypto/x509"
 	"log/slog"
 	"sync"
 	"time"
@@ -451,9 +452,20 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		return nil, trace.Wrap(err)
 	}
 
+	// Generated certs should carry the same EncryptionKeyID so propagate the
+	// encryption private key if present.
+	var encryptionKeyBytes []byte
+	if o.currentIdentity.EncryptionPrivateKey != nil {
+		encryptionKeyBytes, err = x509.MarshalPKCS8PrivateKey(o.currentIdentity.EncryptionPrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	newIdentity, err := ReadIdentityFromStore(&LoadIdentityParams{
-		PrivateKeyBytes: privateKeyPEM,
-		PublicKeyBytes:  req.SSHPublicKey,
+		PrivateKeyBytes:    privateKeyPEM,
+		PublicKeyBytes:     req.SSHPublicKey,
+		EncryptionKeyBytes: encryptionKeyBytes,
 	}, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)

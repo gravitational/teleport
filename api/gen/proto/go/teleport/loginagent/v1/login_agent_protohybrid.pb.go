@@ -146,7 +146,11 @@ type LoginResponse struct {
 	// Agent API, on the same socket.
 	PrivateKey []byte `protobuf:"bytes,4,opt,name=private_key,json=privateKey,proto3" json:"private_key,omitempty"`
 	// HostSigners is a list of signing host public keys trusted by proxy.
-	HostSigners   []*TrustedCerts `protobuf:"bytes,5,rep,name=host_signers,json=hostSigners,proto3" json:"host_signers,omitempty"`
+	HostSigners []*TrustedCerts `protobuf:"bytes,5,rep,name=host_signers,json=hostSigners,proto3" json:"host_signers,omitempty"`
+	// EncryptionKey contains the PEM-encoded session encryption key reference,
+	// usable for decryption via the Hardware Key Agent API, on the same
+	// socket. Absent if no session encryption key.
+	EncryptionKey []byte `protobuf:"bytes,6,opt,name=encryption_key,json=encryptionKey,proto3" json:"encryption_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -211,6 +215,13 @@ func (x *LoginResponse) GetHostSigners() []*TrustedCerts {
 	return nil
 }
 
+func (x *LoginResponse) GetEncryptionKey() []byte {
+	if x != nil {
+		return x.EncryptionKey
+	}
+	return nil
+}
+
 func (x *LoginResponse) SetUsername(v string) {
 	x.Username = v
 }
@@ -240,6 +251,13 @@ func (x *LoginResponse) SetHostSigners(v []*TrustedCerts) {
 	x.HostSigners = v
 }
 
+func (x *LoginResponse) SetEncryptionKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.EncryptionKey = v
+}
+
 type LoginResponse_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -255,6 +273,10 @@ type LoginResponse_builder struct {
 	PrivateKey []byte
 	// HostSigners is a list of signing host public keys trusted by proxy.
 	HostSigners []*TrustedCerts
+	// EncryptionKey contains the PEM-encoded session encryption key reference,
+	// usable for decryption via the Hardware Key Agent API, on the same
+	// socket. Absent if no session encryption key.
+	EncryptionKey []byte
 }
 
 func (b0 LoginResponse_builder) Build() *LoginResponse {
@@ -266,6 +288,7 @@ func (b0 LoginResponse_builder) Build() *LoginResponse {
 	x.TlsCert = b.TlsCert
 	x.PrivateKey = b.PrivateKey
 	x.HostSigners = b.HostSigners
+	x.EncryptionKey = b.EncryptionKey
 	return m0
 }
 
@@ -378,14 +401,15 @@ const file_teleport_loginagent_v1_login_agent_proto_rawDesc = "" +
 	"\fLoginRequest\x12(\n" +
 	"\x10route_to_cluster\x18\x01 \x01(\tR\x0erouteToCluster\x12-\n" +
 	"\x12kubernetes_cluster\x18\x02 \x01(\tR\x11kubernetesCluster\x12\x14\n" +
-	"\x05scope\x18\x03 \x01(\tR\x05scope\"\xcb\x01\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"\xf2\x01\n" +
 	"\rLoginResponse\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x19\n" +
 	"\bssh_cert\x18\x02 \x01(\fR\asshCert\x12\x19\n" +
 	"\btls_cert\x18\x03 \x01(\fR\atlsCert\x12\x1f\n" +
 	"\vprivate_key\x18\x04 \x01(\fR\n" +
 	"privateKey\x12G\n" +
-	"\fhost_signers\x18\x05 \x03(\v2$.teleport.loginagent.v1.TrustedCertsR\vhostSigners\"\x83\x01\n" +
+	"\fhost_signers\x18\x05 \x03(\v2$.teleport.loginagent.v1.TrustedCertsR\vhostSigners\x12%\n" +
+	"\x0eencryption_key\x18\x06 \x01(\fR\rencryptionKey\"\x83\x01\n" +
 	"\fTrustedCerts\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12.\n" +
 	"\x13ssh_authorized_keys\x18\x02 \x03(\fR\x11sshAuthorizedKeys\x12 \n" +

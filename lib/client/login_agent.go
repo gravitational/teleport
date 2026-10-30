@@ -24,6 +24,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginagent/v1"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client/credentialencryption"
 	"github.com/gravitational/teleport/lib/ipc"
 )
 
@@ -71,6 +72,18 @@ func (tc *TeleportClient) loginWithMachineIDAgent(agentDir string) SSHLoginFunc 
 		}
 		keyRing.SSHPrivateKey = privKey
 		keyRing.TLSPrivateKey = privKey
+
+		// Set EncryptionPrivateKey to nil if nothing from login response.
+		keyRing.EncryptionPrivateKey = nil
+		if encryptionKeyPEM := rsp.GetEncryptionKey(); len(encryptionKeyPEM) > 0 {
+			keyRing.EncryptionPrivateKey, err = credentialencryption.ParsePrivateKey(
+				encryptionKeyPEM,
+				credentialencryption.WithHardwareKeyService(tc.ClientStore.HardwareKeyService),
+			)
+			if err != nil {
+				return nil, trace.Wrap(err, "parsing session encryption key")
+			}
+		}
 
 		hostSigners := make([]authclient.TrustedCerts, len(rsp.GetHostSigners()))
 		for idx, hs := range rsp.GetHostSigners() {

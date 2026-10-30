@@ -21,7 +21,6 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	iofs "io/fs"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/client/credentialencryption"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -322,7 +322,7 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	}
 
 	if keyRing.EncryptionPrivateKey != nil {
-		encKeyPEM, err := keys.MarshalPrivateKey(keyRing.EncryptionPrivateKey)
+		encKeyPEM, err := credentialencryption.MarshalPrivateKey(keyRing.EncryptionPrivateKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -354,6 +354,20 @@ func (fs *FSKeyStore) readAccessGraphTLSCert(idx KeyRingIndex) ([]byte, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	return cert, nil
+}
+
+// readEncryptionKey reads the session encryption key for idx, parsing it
+// with hwks. Returns a nil key if none is stored.
+func (fs *FSKeyStore) readEncryptionKey(idx KeyRingIndex, hwks hardwarekey.Service) (*credentialencryption.PrivateKey, error) {
+	keyPEM, err := os.ReadFile(fs.encryptionKeyPath(idx))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, trace.ConvertSystemError(err)
+	}
+	key, err := credentialencryption.ParsePrivateKey(keyPEM, credentialencryption.WithHardwareKeyService(hwks))
+	return key, trace.Wrap(err)
 }
 
 // writeAccessGraphTLSCert writes the Access Graph TLS cert under a write
@@ -746,13 +760,8 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 	// so this is a no-op for keyrings without an Access Graph cert.
 	keyRing.AccessGraphTLSCert = accessGraphTLSCert
 
-	if parsed, err := keys.LoadPrivateKey(fs.encryptionKeyPath(idx)); err == nil {
-		ecKey, ok := parsed.Signer.(*ecdsa.PrivateKey)
-		if !ok {
-			return nil, trace.BadParameter("encryption key is not an ECDSA key")
-		}
-		keyRing.EncryptionPrivateKey = ecKey
-	} else if !trace.IsNotFound(err) {
+	keyRing.EncryptionPrivateKey, err = fs.readEncryptionKey(idx, hwks)
+	if err != nil {
 		return nil, trace.Wrap(err, "loading encryption key")
 	}
 

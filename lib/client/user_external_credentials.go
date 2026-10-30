@@ -119,12 +119,12 @@ func deleteUserExternalCredentialsCache(ctx context.Context, path string) error 
 // ReencryptUserExternalCredentials returns the credentials (e.g. GitHub tokens)
 // of ownCreds, decrypted with ownKey and encrypted with targetKey. It is
 // expected to be called when ownCreds has credentials.
-func ReencryptUserExternalCredentials(ctx context.Context, ownCreds *usercredpb.UserExternalCredentials, ownKey *ecdsa.PrivateKey, targetKey *ecdsa.PublicKey) ([]*usercredpb.Credential, error) {
+func ReencryptUserExternalCredentials(ctx context.Context, ownCreds *usercredpb.UserExternalCredentials, ownKey *credentialencryption.PrivateKey, targetKey *ecdsa.PublicKey) ([]*usercredpb.Credential, error) {
 	credentials := make([]*usercredpb.Credential, 0, len(ownCreds.GetSpec().GetCredentials()))
 	for _, credential := range ownCreds.GetSpec().GetCredentials() {
 		switch {
 		case credential.GetOauth() != nil:
-			reencrypted, err := reencryptOAuthCredential(credential, ownKey, targetKey)
+			reencrypted, err := reencryptOAuthCredential(ctx, credential, ownKey, targetKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -141,9 +141,9 @@ func ReencryptUserExternalCredentials(ctx context.Context, ownCreds *usercredpb.
 	return credentials, nil
 }
 
-func reencryptOAuthCredential(credential *usercredpb.Credential, ownKey *ecdsa.PrivateKey, targetKey *ecdsa.PublicKey) (*usercredpb.Credential, error) {
+func reencryptOAuthCredential(ctx context.Context, credential *usercredpb.Credential, ownKey *credentialencryption.PrivateKey, targetKey *ecdsa.PublicKey) (*usercredpb.Credential, error) {
 	reencrypt := func(ciphertext []byte) ([]byte, error) {
-		plaintext, err := credentialencryption.Decrypt(ownKey, ciphertext)
+		plaintext, err := ownKey.Decrypt(ctx, ciphertext)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -169,4 +169,24 @@ func reencryptOAuthCredential(credential *usercredpb.Credential, ownKey *ecdsa.P
 		ResourceName: credential.GetResourceName(),
 		Oauth:        tokens.Build(),
 	}.Build(), nil
+}
+
+// SessionEncryptionKey returns the session encryption key from the local keyring.
+func (tc *TeleportClient) SessionEncryptionKey() (*credentialencryption.PrivateKey, error) {
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if profile.EncryptionKeyID == "" {
+		return nil, trace.BadParameter("the current session does not support decrypting user external credentials. Run 'tsh login' again, or contact your Teleport administrator if the problem persists.")
+	}
+
+	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if keyRing.EncryptionPrivateKey == nil {
+		return nil, trace.BadParameter("the session encryption key is not available (this is a bug)")
+	}
+	return keyRing.EncryptionPrivateKey, nil
 }

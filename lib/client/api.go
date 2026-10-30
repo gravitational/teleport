@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client/credentialencryption"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -4186,7 +4187,9 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 
 		// Use a single hardware key for both protocols.
 		keyRing = NewKeyRing(priv, priv)
-		keyRing.EncryptionPrivateKey = encryptionPriv
+		if keyRing.EncryptionPrivateKey, err = credentialencryption.NewSoftwarePrivateKey(encryptionPriv); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return keyRing, nil
 	}
 
@@ -4223,7 +4226,9 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		return nil, trace.Wrap(err)
 	}
 	keyRing = NewKeyRing(sshPriv, tlsPriv)
-	keyRing.EncryptionPrivateKey = encryptionPriv
+	if keyRing.EncryptionPrivateKey, err = credentialencryption.NewSoftwarePrivateKey(encryptionPriv); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return keyRing, nil
 }
 
@@ -4235,7 +4240,7 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 	}
 	var encryptionPub []byte
 	if keyRing.EncryptionPrivateKey != nil {
-		if encryptionPub, err = x509.MarshalPKIXPublicKey(&keyRing.EncryptionPrivateKey.PublicKey); err != nil {
+		if encryptionPub, err = keyRing.EncryptionPrivateKey.PublicKey(); err != nil {
 			return SSHLogin{}, trace.Wrap(err, "marshaling encryption public key")
 		}
 	}

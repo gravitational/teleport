@@ -20,10 +20,13 @@ import (
 	"cmp"
 	"context"
 	"crypto"
+	"crypto/ecdh"
+	"crypto/ecdsa"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -35,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
+	"github.com/gravitational/teleport/lib/client/credentialencryption"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/ipc"
 	"github.com/gravitational/teleport/lib/services"
@@ -53,6 +57,10 @@ const (
 	// pivSlotKey is the PIV slot used in the fake hardware key reference we
 	// return from the login agent service.
 	pivSlotKey = hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A
+
+	// encryptionPivSlotKey is the PIV slot used in the fake hardware key
+	// reference for the session encryption key.
+	encryptionPivSlotKey = hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9D
 )
 
 // AgentServiceBuilder returns a builder for the login agent service.
@@ -97,6 +105,10 @@ type AgentService struct {
 
 	clusterName string
 	privateKey  crypto.Signer
+
+	// encryptionKey holds the bot's current session encryption key for use
+	// by ECDH, kept up to date on every Login call.
+	encryptionKey atomic.Pointer[ecdsa.PrivateKey]
 }
 
 // String satisfies fmt.Stringer.
@@ -173,13 +185,6 @@ func (s *AgentService) Run(ctx context.Context) error {
 		return trace.Wrap(err, "generating private key")
 	}
 
-	knownKey := func(ref *hardwarekey.PrivateKeyRef, _ hardwarekey.ContextualKeyInfo) (bool, error) {
-		slotKey, err := hardwarekey.PIVSlotKeyFromProto(pivSlotKey)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		return ref.SerialNumber == pivSerialNumber && ref.SlotKey == slotKey, nil
-	}
 	hardwarekeyagent.RegisterServer(server, s, knownKey)
 
 	s.statusReporter.Report(readyz.Healthy)
@@ -252,13 +257,45 @@ func (s *AgentService) Login(ctx context.Context, req *loginagentv1.LoginRequest
 		return nil, trace.Wrap(err, "encoding private key reference")
 	}
 
+	s.encryptionKey.Store(identity.EncryptionPrivateKey)
+	var encryptionKeyPEM []byte
+	if identity.EncryptionPrivateKey != nil && identity.TLSIdentity.EncryptionKeyID != "" {
+		encryptionKeyPEM, err = s.marshalEncryptionKeyRef(identity.EncryptionPrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "encoding session encryption key reference")
+		}
+	}
+
 	return loginagentv1.LoginResponse_builder{
-		Username:    identity.TLSIdentity.Username,
-		SshCert:     identity.CertBytes,
-		TlsCert:     identity.TLSCertBytes,
-		PrivateKey:  privateKey,
-		HostSigners: trustedCerts,
+		Username:      identity.TLSIdentity.Username,
+		SshCert:       identity.CertBytes,
+		TlsCert:       identity.TLSCertBytes,
+		PrivateKey:    privateKey,
+		HostSigners:   trustedCerts,
+		EncryptionKey: encryptionKeyPEM,
 	}.Build(), nil
+}
+
+func (s *AgentService) marshalEncryptionKeyRef(key *ecdsa.PrivateKey) ([]byte, error) {
+	encryptionSlotKey, err := hardwarekey.PIVSlotKeyFromProto(encryptionPivSlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	exchanger, err := hardwarekey.NewKeyExchanger(&hardwarekey.PrivateKeyRef{
+		SerialNumber:         pivSerialNumber,
+		SlotKey:              encryptionSlotKey,
+		PublicKey:            &key.PublicKey,
+		Policy:               hardwarekey.PromptPolicyNone,
+		AttestationStatement: &hardwarekey.AttestationStatement{},
+	}, s)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	encryptionKey, err := credentialencryption.NewPrivateKey(exchanger)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return credentialencryption.MarshalPrivateKey(encryptionKey)
 }
 
 // Sign satisfies hardwarekey.Service.
@@ -295,4 +332,40 @@ func (*AgentService) NewPrivateKey(context.Context, hardwarekey.PrivateKeyConfig
 func (*AgentService) GetFullKeyRef(uint32, hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	// This method is marked for deletion in v19.
 	return nil, trace.NotImplemented("GetFullKeyRef is not implemented")
+}
+
+// ECDH satisfies hardwarekey.KeyExchangerService.
+func (s *AgentService) ECDH(_ context.Context, ref *hardwarekey.PrivateKeyRef, remote *ecdh.PublicKey) ([]byte, error) {
+	key := s.encryptionKey.Load()
+	if key == nil || !key.PublicKey.Equal(ref.PublicKey) {
+		return nil, trace.NotFound("unknown session encryption key")
+	}
+	ecdhKey, err := key.ECDH()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sharedSecret, err := ecdhKey.ECDH(remote)
+	return sharedSecret, trace.Wrap(err)
+}
+
+// knownKey satisfies hardwarekeyagent.KnownHardwareKeyFn, recognizing both
+// the fake signing key ref and the session encryption key ref.
+func knownKey(ref *hardwarekey.PrivateKeyRef, _ hardwarekey.ContextualKeyInfo) (bool, error) {
+	if ref.SerialNumber != pivSerialNumber {
+		return false, nil
+	}
+
+	slotKey, err := hardwarekey.PIVSlotKeyFromProto(pivSlotKey)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if ref.SlotKey == slotKey {
+		return true, nil
+	}
+
+	encryptionSlotKey, err := hardwarekey.PIVSlotKeyFromProto(encryptionPivSlotKey)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return ref.SlotKey == encryptionSlotKey, nil
 }

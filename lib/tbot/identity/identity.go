@@ -20,6 +20,7 @@ package identity
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -67,6 +68,14 @@ const (
 	// WriteTestKey is the key for a file used to check that the destination is
 	// writable.
 	WriteTestKey = ".write-test"
+
+	// EncryptionKeyKey is the key of session encryption private key that is
+	// attached to the TLS identity.
+	EncryptionKeyKey = "encryption_key"
+
+	// DurableEncryptionKeyKey is a persisted encryption key that is only generated
+	// once.
+	DurableEncryptionKeyKey = "durable_encryption_key"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
@@ -112,14 +121,17 @@ type Identity struct {
 	ClusterName string
 	// TLSIdentity is the parsed TLS identity based on the X509 certificate.
 	TLSIdentity *tlsca.Identity
+	// EncryptionPrivateKey is the optional session encryption private key.
+	EncryptionPrivateKey *ecdsa.PrivateKey
 }
 
 // LoadIdentityParams contains parameters beyond proto.Certs needed to load a
 // stored identity.
 type LoadIdentityParams struct {
-	PrivateKeyBytes []byte
-	PublicKeyBytes  []byte
-	TokenHashBytes  []byte
+	PrivateKeyBytes    []byte
+	PublicKeyBytes     []byte
+	TokenHashBytes     []byte
+	EncryptionKeyBytes []byte
 }
 
 // String returns user-friendly representation of the identity.
@@ -174,6 +186,11 @@ func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs) (*Ide
 		return nil, trace.Wrap(err, "parsing tls identity")
 	}
 
+	encryptionPrivateKey, err := readEncryptionPrivateKey(tlsIdent, params.EncryptionKeyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Identity{
 		PublicKeyBytes:  params.PublicKeyBytes,
 		PrivateKeyBytes: params.PrivateKeyBytes,
@@ -184,15 +201,16 @@ func ReadIdentityFromStore(params *LoadIdentityParams, certs *proto.Certs) (*Ide
 		TokenHashBytes:  params.TokenHashBytes,
 
 		// These fields are "computed"
-		ClusterName:     clusterName,
-		CertSigner:      keySigner,
-		PrivateKey:      privateKey,
-		SSHCert:         sshCert,
-		SSHHostCheckers: sshHostCheckers,
-		X509Cert:        x509Cert,
-		TLSCert:         tlsCert,
-		TLSCAPool:       tlsCAPool,
-		TLSIdentity:     tlsIdent,
+		ClusterName:          clusterName,
+		CertSigner:           keySigner,
+		PrivateKey:           privateKey,
+		SSHCert:              sshCert,
+		SSHHostCheckers:      sshHostCheckers,
+		X509Cert:             x509Cert,
+		TLSCert:              tlsCert,
+		TLSCAPool:            tlsCAPool,
+		TLSIdentity:          tlsIdent,
+		EncryptionPrivateKey: encryptionPrivateKey,
 	}, nil
 }
 
@@ -332,7 +350,10 @@ func LoadIdentity(ctx context.Context, d destination.Destination, kinds ...Artif
 
 		data, err := d.Read(ctx, artifact.Key)
 		if err != nil {
-			return nil, trace.Wrap(err, "could not read artifact %q from destination %s", artifact.Key, d)
+			if !artifact.Optional || !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err, "could not read artifact %q from destination %s", artifact.Key, d)
+			}
+			data = nil
 		}
 
 		// Attempt to load from an old key if there was no data in the current
@@ -430,3 +451,23 @@ func (i *Identity) LogValue() slog.Value {
 }
 
 var _ slog.LogValuer = (*Identity)(nil)
+
+func readEncryptionPrivateKey(tlsIdent *tlsca.Identity, encryptionKeyBytes []byte) (*ecdsa.PrivateKey, error) {
+	// TLS identity has no encryption key ID set so skip encryption.
+	if tlsIdent.EncryptionKeyID == "" {
+		return nil, nil
+	}
+	if len(encryptionKeyBytes) == 0 {
+		return nil, trace.BadParameter("missing encryption key where TLS identity has encryption key ID set (this is a bug)")
+	}
+
+	key, err := x509.ParsePKCS8PrivateKey(encryptionKeyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing session encryption key")
+	}
+	ecdsaKey, ok := key.(*ecdsa.PrivateKey)
+	if !ok {
+		return nil, trace.BadParameter("session encryption key is not an ECDSA key")
+	}
+	return ecdsaKey, nil
+}

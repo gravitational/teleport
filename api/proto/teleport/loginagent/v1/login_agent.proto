@@ -58,6 +58,11 @@ message LoginResponse {
 
   // HostSigners is a list of signing host public keys trusted by proxy.
   repeated TrustedCerts host_signers = 5;
+
+  // EncryptionKey contains the PEM-encoded session encryption key reference,
+  // usable for decryption via the Hardware Key Agent API, on the same
+  // socket. Absent if no session encryption key.
+  bytes encryption_key = 6;
 }
 
 // TrustedCerts contains HOST CA certificates. It's a protobuf copy of the

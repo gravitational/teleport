@@ -21,9 +21,12 @@ package identity
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -36,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/join"
@@ -58,6 +62,11 @@ import (
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/internal/identity")
+
+var runningInBeam = sync.OnceValue(func() bool {
+	v, _ := apiutils.ParseBool(os.Getenv(teleport.BeamsRuntimeEnvVar))
+	return v
+})
 
 // Config contains configuration and dependencies for the bot identity service.
 type Config struct {
@@ -758,6 +767,11 @@ func botIdentityFromToken(
 		cipherSuites = defaults.FIPSCipherSuites
 	}
 
+	encryptionPrivateKey, encryptionPublicKey, err := getOrCreateDurableEncryptionKey(ctx, log, cfg.Destination, runningInBeam())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	expires := time.Now().Add(cfg.TTL)
 	params := joinclient.JoinParams{
 		Token: token,
@@ -776,6 +790,7 @@ func botIdentityFromToken(
 			// return nil as join is always allowed on version mismatch
 			return nil
 		},
+		EncryptionPublicKey: encryptionPublicKey,
 		// Below options are effectively ignored if AuthClient is not-nil
 		Insecure:           cfg.Connection.Insecure,
 		CAPins:             cfg.Onboarding.CAPins,
@@ -867,9 +882,10 @@ func botIdentityFromToken(
 	sha := sha256.Sum256([]byte(params.Token))
 	tokenHash := hex.EncodeToString(sha[:])
 	ident, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: privateKeyPEM,
-		PublicKeyBytes:  ssh.MarshalAuthorizedKey(sshPub),
-		TokenHashBytes:  []byte(tokenHash),
+		PrivateKeyBytes:    privateKeyPEM,
+		PublicKeyBytes:     ssh.MarshalAuthorizedKey(sshPub),
+		TokenHashBytes:     []byte(tokenHash),
+		EncryptionKeyBytes: encryptionPrivateKey,
 	}, result.Certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -959,4 +975,50 @@ func checkScopeCorrectness(tlsIdent *tlsca.Identity, scoped bool) (string, error
 		)
 	}
 	return identScope, nil
+}
+
+func getOrCreateDurableEncryptionKey(ctx context.Context, log *slog.Logger, dest destination.Destination, runningInBeam bool) (privateKeyDER []byte, publicKeyDER []byte, err error) {
+	// TODO(greedy52) extend support outside of beams.
+	if !runningInBeam {
+		return nil, nil, nil
+	}
+
+	data, err := dest.Read(ctx, identity.DurableEncryptionKeyKey)
+	switch {
+	case trace.IsNotFound(err):
+		key, err := cryptosuites.GenerateUserEncryptionKey()
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		privateKeyDER, err = x509.MarshalPKCS8PrivateKey(key)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if err := dest.Write(ctx, identity.DurableEncryptionKeyKey, privateKeyDER); err != nil {
+			return nil, nil, trace.Wrap(err, "persisting session encryption key")
+		}
+		publicKeyDER, err = x509.MarshalPKIXPublicKey(&key.PublicKey)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		log.DebugContext(ctx, "Generated and persisted a new session encryption key")
+		return privateKeyDER, publicKeyDER, nil
+	case err != nil:
+		return nil, nil, trace.Wrap(err)
+	default:
+		key, err := x509.ParsePKCS8PrivateKey(data)
+		if err != nil {
+			return nil, nil, trace.Wrap(err, "parsing persisted session encryption key")
+		}
+		ecdsaKey, ok := key.(*ecdsa.PrivateKey)
+		if !ok {
+			return nil, nil, trace.BadParameter("persisted session encryption key is not an ECDSA key")
+		}
+		publicKeyDER, err := x509.MarshalPKIXPublicKey(&ecdsaKey.PublicKey)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		log.DebugContext(ctx, "Loaded persisted session encryption key")
+		return data, publicKeyDER, nil
+	}
 }
