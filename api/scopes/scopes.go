@@ -85,21 +85,21 @@ func StrongValidate(scope string) error {
 	}
 
 	if !strings.HasPrefix(scope, separator) {
-		return trace.BadParameter("scope %q is missing required prefix %q", scope, separator)
+		return trace.BadParameter("scope %q is missing required prefix %q", truncateForError(scope), separator)
 	}
 
 	if scope != separator && strings.HasSuffix(scope, separator) {
-		return trace.BadParameter("scope %q has dangling separator %q", scope, separator)
+		return trace.BadParameter("scope %q has dangling separator %q", truncateForError(scope), separator)
 	}
 
 	for segment := range DescendingSegments(scope) {
 		if err := StrongValidateSegment(segment); err != nil {
-			return trace.BadParameter("scope %q is invalid: %v", scope, err)
+			return trace.BadParameter("scope %q is invalid: %v", truncateForError(scope), err)
 		}
 	}
 
 	if len(scope) > maxScopeSize {
-		return trace.BadParameter("scope %q is too long (max characters %d)", scope, maxScopeSize)
+		return trace.BadParameter("scope %q is too long (max characters %d)", truncateForError(scope), maxScopeSize)
 	}
 
 	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
@@ -124,7 +124,7 @@ func WeakValidate(scope string) error {
 
 	for segment := range DescendingSegments(scope) {
 		if err := WeakValidateSegment(segment); err != nil {
-			return trace.BadParameter("scope %q is invalid: %v", scope, err)
+			return trace.BadParameter("scope %q is invalid: %v", truncateForError(scope), err)
 		}
 	}
 
@@ -150,10 +150,18 @@ func StrongValidateSegment(segment string) error {
 	}
 
 	if len(segment) > maxSegmentSize {
-		return trace.BadParameter("segment %q is too long (max characters %d)", segment, maxSegmentSize)
+		return trace.BadParameter("segment %q is too long (max characters %d)", truncateForError(segment), maxSegmentSize)
 	}
 
 	return nil
+}
+
+// truncateForError bounds a value included in an error without changing validation.
+func truncateForError(value string) string {
+	if len(value) <= 2*maxScopeSize {
+		return value
+	}
+	return value[:maxScopeSize] + "..."
 }
 
 // strongValidateFormat applies the strong formatting checks to value, describing it as noun
@@ -166,12 +174,12 @@ func strongValidateFormat(noun, value string, shape *regexp.Regexp) error {
 	// UX to call out uppercase characters specifically since its a common mistake.
 	for _, r := range value {
 		if unicode.IsUpper(r) {
-			return trace.BadParameter("%s %q contains uppercase character(s)", noun, value)
+			return trace.BadParameter("%s %q contains uppercase character(s)", noun, truncateForError(value))
 		}
 	}
 
 	if !shape.MatchString(value) {
-		return trace.BadParameter("%s %q is malformed", noun, value)
+		return trace.BadParameter("%s %q is malformed", noun, truncateForError(value))
 	}
 
 	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
