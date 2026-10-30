@@ -88,6 +88,8 @@ type mcpOAuthLoginConfig struct {
 	Stderr            io.Writer
 	// Automatic is set when expired stored credentials triggered this login.
 	Automatic bool
+	// Stdin lets the user paste the redirect URL back when running headless.
+	Stdin prompt.Reader
 }
 
 type mcpLoginCommand struct {
@@ -161,6 +163,7 @@ func (c *mcpLoginCommand) run() error {
 		Browser:         c.cf.Browser,
 		Stdout:          c.cf.Stdout(),
 		Stderr:          c.cf.Stderr(),
+		Stdin:           prompt.Stdin(),
 	}))
 }
 
@@ -378,6 +381,13 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 		fmt.Fprintf(cfg.Stderr, "Failed to open a browser: %v\n", err)
 	}
 
+	if cfg.Stdin != nil {
+		pasteCtx, cancelPaste := context.WithCancel(ctx)
+		defer cancelPaste()
+		fmt.Fprintln(cfg.Stdout, "If the browser cannot reach this machine, paste the URL it was redirected to:")
+		go readMCPOAuthPastedRedirect(pasteCtx, cfg.Stdin, cfg.Stdout, state, callbackCh)
+	}
+
 	var query url.Values
 	select {
 	case query = <-callbackCh:
@@ -439,6 +449,33 @@ func mcpOAuthCallbackHandler(state string, callbackCh chan<- url.Values) http.Ha
 		default:
 			fmt.Fprintln(w, "An authorization response has already been received. Return to the terminal to check the login result.")
 		}
+	}
+}
+
+// readMCPOAuthPastedRedirect lets a headless user finish the login by pasting
+// the URL the browser was redirected to, such as
+// http://127.0.0.1:3118/callback?code=...&state=...
+// Like mcpOAuthCallbackHandler, it only accepts a URL with the expected state.
+func readMCPOAuthPastedRedirect(ctx context.Context, in prompt.Reader, out io.Writer, state string, callbackCh chan<- url.Values) {
+	for {
+		line, err := in.ReadContext(ctx)
+		if err != nil {
+			return
+		}
+		pasted := strings.TrimSpace(string(line))
+		if pasted == "" {
+			continue
+		}
+		pastedURL, err := url.Parse(pasted)
+		if err != nil || pastedURL.Query().Get("state") != state {
+			fmt.Fprintln(out, "That URL does not match this login. Paste the URL the browser was redirected to:")
+			continue
+		}
+		select {
+		case callbackCh <- pastedURL.Query():
+		default:
+		}
+		return
 	}
 }
 
