@@ -3778,6 +3778,14 @@ func (a *ServerWithRoles) createAccessRequestAdmin(ctx context.Context, req type
 // as we would risk introducing a new one and forget to check.
 // The long term fix is to introduce a new proto message only containing what the user wants.
 func (a *ServerWithRoles) createAccessRequestUser(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	// Request creation from delegated idenitities is rate limited. Dry-run
+	// requests (which are not persisted) do not contribute to the limit.
+	if !req.GetDryRun() {
+		if err := a.authServer.delegatedAccessRequestLimiter.check(a.context.Identity.GetIdentity()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// There's a niche use-case where a user with `user:create` permissions can send access requests as other users.
 	// It's unclear if this is ever used, but in this case we want to run MFA checks.
 	// We'll potentially want to remove this later.

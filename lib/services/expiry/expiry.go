@@ -40,7 +40,7 @@ const (
 	semaphoreExpiration = time.Minute * 5
 
 	// scanInterval is the interval at which the expiry checker scans for access requests.
-	scanInterval = time.Minute * 5
+	scanInterval = time.Minute
 
 	// pendingRequestGracePeriod is the grace period used when checking a pending request's expiry
 	// as the expiry time may be extended on approval.
@@ -187,7 +187,7 @@ func (s *Service) processRequests(ctx context.Context) {
 
 	requestsExpired := 0
 	readTime := time.Now()
-	for expiredAccessRequest, err := range clientutils.Resources(ctx, s.AccessPoint.ListExpiredAccessRequests) {
+	for expiredAccessRequest, err := range clientutils.ResourcesWithPageSize(ctx, s.AccessPoint.ListExpiredAccessRequests, maxExpiresPerCycle) {
 		if err != nil {
 			s.Log.ErrorContext(ctx, "Error listing expired access requests.", "error", err)
 			return

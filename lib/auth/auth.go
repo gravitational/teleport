@@ -1060,6 +1060,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	as.delegatedAccessRequestLimiter, err = newDelegatedAccessRequestLimiter(as.clock)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating delegated access request rate limiter")
+	}
+
 	if _, ok := as.getCache(); !ok {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
 	}
@@ -1453,6 +1458,10 @@ type Server struct {
 
 	// limiter limits the number of active connections per client IP.
 	limiter *limiter.ConnectionsLimiter
+
+	// delegatedAccessRequestLimiter limits access requests from each delegated
+	// identity. It is process-local and shared by all request handlers.
+	delegatedAccessRequestLimiter *delegatedAccessRequestLimiter
 
 	// Emitter is events emitter, used to submit discrete events
 	emitter apievents.Emitter
