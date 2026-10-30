@@ -89,6 +89,11 @@ type Config struct {
 
 	// AD indicates whether the desktop is part of an Active Directory domain.
 	AD bool
+
+	// OnActivated is an optional callback that is invoked after we receive the
+	// connection activated PDU from the server, indicating that the server
+	// accepted our credentials and established the session.
+	OnActivated func()
 }
 
 //nolint:unused // used in client.go that is behind desktop_access_rdp build flag
@@ -104,6 +109,9 @@ func (c *Config) checkAndSetDefaults() error {
 	}
 	if c.Encoder == nil {
 		c.Encoder = tdp.PNGEncoder()
+	}
+	if c.OnActivated == nil {
+		c.OnActivated = func() {}
 	}
 	c.Logger = c.Logger.With("rdp_addr", c.Addr)
 	return nil

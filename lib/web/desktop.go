@@ -400,6 +400,8 @@ func (h *Handler) createDesktopConnection(
 	defer ws.Close()
 	ctx := r.Context()
 
+	metricRecorder := newDesktopMetricRecorder(h.clock, desktopMetricsFor(certUsage))
+
 	clusterName := cluster.GetName()
 
 	// Client may speak TDP or TDPB. We'll know based on the existence of the 'tdpb' query parameter.
@@ -413,6 +415,7 @@ func (h *Handler) createDesktopConnection(
 	// translate on its behalf if needed.
 	clientProtocol, err := readClientProtocol(r)
 	if err != nil {
+		metricRecorder.failure()
 		log.ErrorContext(ctx, "Error reading client desktop protocol", "error", err)
 		return trace.Wrap(err)
 	}
@@ -423,40 +426,51 @@ func (h *Handler) createDesktopConnection(
 	// Client Hello message.
 	err = handshaker.performInitialHandshake(ctx, log)
 	if err != nil {
+		metricRecorder.failure()
 		return handshaker.sendError(ctx, log, err)
 	}
 
 	username, err := readUsername(r)
 	if err != nil {
+		metricRecorder.failure()
 		return handshaker.sendError(ctx, log, err)
 	}
 
 	// Parse the private key of the user from the session context.
 	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
+		metricRecorder.failure()
 		return handshaker.sendError(ctx, log, err)
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
 	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username, certUsage)
 	if err != nil {
+		metricRecorder.failure()
 		return handshaker.sendError(ctx, log, err)
 	}
 
 	// Issue certificate for the user/desktop combination and perform MFA ceremony if required.
 	certs, err := h.issueCerts(ctx, sctx, mfaRequired, certsReq, handshaker.getPromptBuilder(log))
 	if err != nil {
+		metricRecorder.failure()
 		return handshaker.sendError(ctx, log, err)
 	}
+
+	// Connect latency is measured from here
+	// (to avoid including the MFA ceremony)
+	metricRecorder.startLatency()
 
 	// Create a TLS config for connecting to the Windows Desktop Service.
 	tlsConfig, err := h.createDesktopTLSConfig(ctx, sctx, desktopName, pk, certs)
 	if err != nil {
+		metricRecorder.failure()
 		return handshaker.sendError(ctx, log, err)
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
+		metricRecorder.failure()
 		return handshaker.sendError(ctx, log, err)
 	}
 
@@ -472,13 +486,17 @@ func (h *Handler) createDesktopConnection(
 		ClusterName:    clusterName,
 	})
 	if err != nil {
+		metricRecorder.failure()
 		return handshaker.sendError(ctx, log, trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
 	defer serviceConn.Close()
 
+	metricRecorder.agentDialed()
+
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
 	if err := serviceConnTLS.HandshakeContext(ctx); err != nil {
+		metricRecorder.failure()
 		return handshaker.sendError(ctx, log, err)
 	}
 
@@ -501,18 +519,23 @@ func (h *Handler) createDesktopConnection(
 	log.InfoContext(ctx, "Connected to agent", "protocol", serverProtocol)
 
 	if err != nil {
+		metricRecorder.failure()
 		return handshaker.sendError(ctx, log, err)
 	}
+
+	// The proxy has done its part of the login.
+	metricRecorder.success()
+
 	// this blocks until the connection is closed
 	handleDesktopWebsocketProxyErr(
 		ctx,
 		desktopWebsocketProxy{
-			ws,
-			serviceConnTLS,
-			version,
-			clientProtocol,
-			serverProtocol,
-			log,
+			ws:             ws,
+			wds:            serviceConnTLS,
+			version:        version,
+			clientProtocol: clientProtocol,
+			serverProtocol: serverProtocol,
+			log:            log,
 		}.run(ctx),
 		log,
 	)
@@ -878,7 +901,7 @@ func (p desktopWebsocketProxy) run(ctx context.Context) error {
 		} else {
 			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDP, "client_dialect", tdpb.ProtocolName)
 			// Agent speaks TDP
-			// Translate to TDPB when reading from this connection.
+			// Translate to TDP (legacy) when writing to the server.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToLegacy)
 			// The client speaks TDPB
 			// Translate to TDPB (modern) when writing to this connection

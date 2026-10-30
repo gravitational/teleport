@@ -1093,6 +1093,8 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
 		return C.ErrCodeFailure
 	}
+
+	c.cfg.OnActivated()
 	return C.ErrCodeSuccess
 }
 

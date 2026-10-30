@@ -314,6 +314,8 @@ type linuxSession struct {
 	sessionStarted bool
 	username       string
 	allowClipboard bool
+
+	loginMetrics *metricRecorder
 }
 
 func (sess *linuxSession) handleClipboardData(data []byte) {
@@ -356,8 +358,11 @@ func (s *LinuxService) Serve(plainLis net.Listener) error {
 func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
 
+	login := newLinuxMetricRecorder(s.cfg.Clock, s.cfg.Heartbeat.HostUUID)
+
 	// Ensure TLS handshake is complete so that we can the read ALPN result.
 	if err := proxyConn.Handshake(); err != nil {
+		login.failure()
 		log.ErrorContext(context.Background(), "Failed to complete TLS handshake")
 		return
 	}
@@ -377,6 +382,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
+		login.failure()
 		log.ErrorContext(ctx, "Failed to get cluster networking config", "error", err)
 		sendTDPError("Failed to get cluster networking config")
 		return
@@ -385,6 +391,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	// Check connection limits.
 	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
+		login.failure()
 		log.ErrorContext(ctx, "Could not parse client IP", "addr", proxyConn.RemoteAddr().String(), "error", err)
 		sendTDPError("Internal error.")
 		return
@@ -395,6 +402,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	log = log.With("session_id", sessionID)
 
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
+		login.failure()
 		log.WarnContext(ctx, "Connection limit exceeded, rejecting connection")
 		sendTDPError("Connection limit exceeded.")
 		return
@@ -404,6 +412,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	// Authenticate the client.
 	ctx, err = s.middleware.WrapContextWithUser(ctx, proxyConn)
 	if err != nil {
+		login.failure()
 		log.WarnContext(ctx, "mTLS authentication failed for incoming connection", "error", err)
 		sendTDPError("Connection authentication failed.")
 		return
@@ -412,6 +421,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 
 	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
+		login.failure()
 		log.WarnContext(ctx, "authorization failed for Linux desktop connection", "error", err)
 		sendTDPError("Connection authorization failed.")
 		return
@@ -419,6 +429,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 
 	authPref, err := s.cfg.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
+		login.failure()
 		log.ErrorContext(ctx, "failed to get auth preference", "error", err)
 		sendTDPError("Failed to get auth preference.")
 		return
@@ -426,6 +437,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 
 	desktop, err := s.cfg.AccessPoint.GetLinuxDesktop(ctx, s.cfg.Heartbeat.HostUUID)
 	if err != nil {
+		login.failure()
 		log.ErrorContext(ctx, "failed to get linux desktop", "error", err)
 		sendTDPError("Failed to get Linux desktop.")
 		return
@@ -447,12 +459,15 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		netConfig:      netConfig,
 		authPref:       authPref,
 		allowClipboard: authCtx.Checker.DesktopClipboard(),
+		loginMetrics:   login,
 	}
 
 	errGroup.Go(sess.run)
 
 	err = errGroup.Wait()
 	if err != nil {
+		// A no-op if the session was already recorded as a success.
+		login.failure()
 		sendTDPError(err.Error())
 		if !utils.IsOKNetworkError(err) && !trace.IsConnectionProblem(err) {
 			log.ErrorContext(ctx, "linux desktop session ended with error", "error", err)
@@ -517,7 +532,11 @@ func (sess *linuxSession) run() error {
 	delay := timer()
 	sendInterceptor := asInterceptor(makeTDPSendAuditor(sess.ctx, s, s.cfg.Clock, s.cfg.Logger, sess.recorder, delay, sess.audit))
 	receiveInterceptor := asInterceptor(makeTDPReceiveAuditor(sess.ctx, s, s.cfg.Clock, s.cfg.Logger, sess.recorder, delay, sess.audit))
-	sess.auditedConn = tdp.NewReadWriteInterceptor(sess.tdpConn, receiveInterceptor, sendInterceptor)
+	auditedConn := tdp.NewReadWriteInterceptor(sess.tdpConn, receiveInterceptor, sendInterceptor)
+
+	// Watch for the first screen fragment sent back to the proxy in order to
+	// record the connect latency.
+	sess.auditedConn = tdp.NewReadWriteInterceptor(auditedConn, nil /* No read handler needed */, sess.loginMetrics.intercept)
 
 	sess.track = tracker{clock: s.cfg.Clock}
 	sess.track.UpdateClientActivity()
@@ -732,6 +751,7 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 	}); err != nil {
 		return trace.Wrap(err)
 	}
+	sess.loginMetrics.success()
 	sess.errGroup.Go(sess.processScreenChanges)
 	sess.errGroup.Go(func() error {
 		// Simulate activity to prevent lock screen from activating
@@ -788,6 +808,11 @@ func (sess *linuxSession) handleSessionSelection(m *tdpbv1.SessionSelection) err
 	if !ok {
 		return trace.NotFound("xsession %s not found", sessionName)
 	}
+
+	// Connect latency is measured from here
+	// (after the user has selected which X session to run)
+	sess.loginMetrics.startLatency()
+
 	cmd, err := x11.StartTeleportExecXSession(sess.ctx, &x11.XSessionConfig{
 		Logger:         sess.log,
 		Command:        xsession,

@@ -155,6 +155,12 @@ OpenAI-compatible proxies.
 | `teleport_proxy_db_attempted_servers_total`            | histogram | Teleport Proxy | Number of servers processed during connection attempt to the DB service from Proxy service.                                              |
 | `teleport_proxy_db_connection_tls_config_time_seconds` | histogram | Teleport Proxy | Time to fetch TLS configuration for the connection to DB service from Proxy service.                                                     |
 | `teleport_proxy_db_active_connections_total`           | gauge     | Teleport Proxy | Number of currently active connections to DB service from Proxy service.                                                                 |
+| `teleport_proxy_linux_desktop_login_attempts_total`    | counter   | Teleport Proxy | Number of Linux desktop logins attempted through this Proxy Service instance.                                                             |
+| `teleport_proxy_linux_desktop_login_errors_total`      | counter   | Teleport Proxy | Number of Linux desktop logins that failed before the Proxy Service started forwarding traffic to the agent.                              |
+| `teleport_proxy_linux_desktop_connect_latency_seconds` | histogram | Teleport Proxy | Time from the user's certificates being issued until the Proxy Service has connected to a Linux Desktop Service instance.                 |
+| `teleport_proxy_windows_desktop_login_attempts_total`  | counter   | Teleport Proxy | Number of Windows desktop logins attempted through this Proxy Service instance.                                                           |
+| `teleport_proxy_windows_desktop_login_errors_total`    | counter   | Teleport Proxy | Number of Windows desktop logins that failed before the Proxy Service started forwarding traffic to the agent.                            |
+| `teleport_proxy_windows_desktop_connect_latency_seconds` | histogram | Teleport Proxy | Time from the user's certificates being issued until the Proxy Service has connected to a Windows Desktop Service instance.             |
 | `trusted_clusters`                                     | gauge     | Teleport Proxy | Number of outbound connections to leaf clusters.                                                                                         |
 
 ### Kubernetes
@@ -223,6 +229,36 @@ from clients (`tsh`, `kubectl`) to a Teleport Proxy.
 |------|------|-----------|-------------|
 | `teleport_app_active_sessions` | gauge | Teleport Application Service | Number of active HTTP app sessions on this agent, labeled by `app` name. Does not include TCP or MCP sessions. |
 
+## Linux Desktop Service
+
+| Name | Type | Component | Description |
+| - | - | - | - |
+| `teleport_linux_desktop_login_attempts_total` | counter | Teleport Linux Desktop Service | Number of Linux desktop logins attempted through this agent. |
+| `teleport_linux_desktop_login_errors_total` | counter | Teleport Linux Desktop Service | Number of Linux desktop logins that failed before the desktop session was started. |
+| `teleport_linux_desktop_connect_latency_seconds` | histogram | Teleport Linux Desktop Service | Time from the user selecting an X session until the first screen fragment of the desktop is sent back to the Proxy Service. |
+
+The `linux_desktop_service` label on these metrics holds the host ID of the
+Linux Desktop Service instance. This label only exists for the agent's metrics,
+the equivalent `teleport_proxy_linux_desktop_*` metrics reported by the Proxy
+Service are cluster-wide aggregates.
+
+Note: `teleport_linux_desktop_connect_latency_seconds` does not measure the same
+span as its Windows equivalent. A Linux desktop login asks the user which X
+session to start, so the measurement only begins once they have chosen one.
+
+## Windows Desktop Service
+
+| Name | Type | Component | Description |
+| - | - | - | - |
+| `teleport_windows_desktop_login_attempts_total` | counter | Teleport Windows Desktop Service | Number of Windows desktop logins attempted through this agent. |
+| `teleport_windows_desktop_login_errors_total` | counter | Teleport Windows Desktop Service | Number of Windows desktop logins that failed before the RDP session was established. |
+| `teleport_windows_desktop_connect_latency_seconds` | histogram | Teleport Windows Desktop Service | Time from a Proxy Service connection arriving at this agent until the first screen fragment of the desktop is sent back to the Proxy Service. |
+
+The `windows_desktop_service` label on these metrics holds the host ID of the
+Windows Desktop Service instance. This label only exists for the agent's
+metrics, the equivalent `teleport_proxy_windows_desktop_*` metrics reported by
+the Proxy Service are cluster-wide aggregates.
+
 ## Teleport SSH Service
 
 | Name | Type | Component | Description |
@@ -273,13 +309,13 @@ clients/Teleport proxies to the Teleport `kubernetes_service`.
 
 ## Integrations
 
-The following metrics are emitted by Teleport hosted plugins and integrations. 
+The following metrics are emitted by Teleport hosted plugins and integrations.
 
 ### Microsoft Entra ID integration
 
-The following metrics are emitted by the [Teleport Microsoft Entra ID integration service](../identity-governance/integrations/entra-id/entra-id.mdx). 
+The following metrics are emitted by the [Teleport Microsoft Entra ID integration service](../identity-governance/integrations/entra-id/entra-id.mdx).
 
-#### Resource discovery 
+#### Resource discovery
 
 | Name                                                        | Type  | Component     | Description                                                                  |
 |-------------------------------------------------------------|-------|---------------|------------------------------------------------------------------------------|

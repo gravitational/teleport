@@ -650,8 +650,12 @@ func newErrorSender(protocol string, conn *tdp.Conn, logger *slog.Logger) func(s
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
 
+	loginMetrics := newWindowsMetricRecorder(s.cfg.Clock, s.cfg.Heartbeat.HostUUID)
+	loginMetrics.startLatency()
+
 	// Ensure TLS handshake is complete so that we can the read ALPN result.
 	if err := proxyConn.Handshake(); err != nil {
+		loginMetrics.failure()
 		log.ErrorContext(context.Background(), "Failed to complete TLS handshake")
 		return
 	}
@@ -666,6 +670,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		clientProtocol = legacy.ProtocolName
 		tdpConn = tdp.NewConn(proxyConn, legacy.Decode, legacy.WarningConstructor)
 	default:
+		loginMetrics.failure()
 		log.ErrorContext(context.Background(), "Unknown client protocol selection", "protocol", clientProtocol)
 		return
 	}
@@ -677,12 +682,14 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// Check connection limits.
 	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
+		loginMetrics.failure()
 		log.ErrorContext(context.Background(), "Could not parse client IP", "addr", proxyConn.RemoteAddr().String(), "error", err)
 		sendError("Internal error.")
 		return
 	}
 	log = log.With("client_ip", remoteAddr)
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
+		loginMetrics.failure()
 		log.WarnContext(context.Background(), "Connection limit exceeded, rejecting connection")
 		sendError("Connection limit exceeded.")
 		return
@@ -692,6 +699,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	// Authenticate the client.
 	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, proxyConn)
 	if err != nil {
+		loginMetrics.failure()
 		log.WarnContext(ctx, "mTLS authentication failed for incoming connection", "error", err)
 		sendError("Connection authentication failed.")
 		return
@@ -700,6 +708,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
+		loginMetrics.failure()
 		log.WarnContext(ctx, "authorization failed for Windows desktop connection", "error", err)
 		sendError("Connection authorization failed.")
 		return
@@ -723,11 +732,13 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 			return resp.Desktops, resp.NextKey, nil
 		}))
 	if err != nil {
+		loginMetrics.failure()
 		log.WarnContext(ctx, "Failed to fetch desktop by name", "error", err)
 		sendError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
 	if len(desktops) == 0 {
+		loginMetrics.failure()
 		log.ErrorContext(ctx, "desktop not found", "host_uuid", s.cfg.Heartbeat.HostUUID, "name", desktopName)
 		sendError(fmt.Sprintf("Could not find desktop %v.", desktopName))
 		return
@@ -738,7 +749,9 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log.DebugContext(ctx, "Connecting to Windows desktop")
 	defer log.DebugContext(ctx, "Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext, clientProtocol); err != nil {
+	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext, clientProtocol, loginMetrics); err != nil {
+		// A no-op if the session was already recorded as a success.
+		loginMetrics.failure()
 		log.ErrorContext(context.Background(), "RDP connection failed", "error", err)
 		msg := "RDP connection failed."
 		var um trace.UserMessager
@@ -750,7 +763,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context, clientProtocol string) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context, clientProtocol string, login *metricRecorder) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	log = log.With("teleport_user", identity.Username, "desktop_addr", desktop.GetAddr(), "ad", !desktop.NonAD())
@@ -909,8 +922,12 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	// interceptors they will be able to properly interpret inbound/outbound messages for audit.
 	auditedConn := tdp.NewReadWriteInterceptor(sharedDirectoryResponseModernizer, receiveInterceptor, sendInterceptor)
 
+	// Watch for the first screen fragment sent back to the proxy in order to
+	// record the connect latency.
+	observedConn := tdp.NewReadWriteInterceptor(auditedConn, nil /* read handler */, login.intercept)
+
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
-	rdpc, err := rdpclient.New(auditedConn, hello, rdpclient.Config{
+	rdpc, err := rdpclient.New(observedConn, hello, rdpclient.Config{
 		LicenseStore:          s.cfg.LicenseStore,
 		HostID:                s.cfg.Heartbeat.HostUUID,
 		Logger:                log,
@@ -925,6 +942,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Height:                height,
 		AD:                    !desktop.NonAD(),
 		NLA:                   nla,
+		OnActivated:           login.success,
 	})
 	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username
