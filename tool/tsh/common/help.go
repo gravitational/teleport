@@ -141,8 +141,14 @@ Examples:
   Create a Phase and open an interactive build console:
   $ tsh phase add dev-tools
 
+  Start an interactive build without connecting, and return its build_beam ID:
+  $ tsh phase add dev-tools --no-console --format=json
+
   Build a Phase from a raw command file:
   $ tsh phase add dev-tools --commands-file=build.yaml
+
+  Start a command build and return after provisioning:
+  $ tsh phase add dev-tools --commands-file=build.yaml --no-console
 
   Copy local files outside /home into a new Phase:
   $ tsh phase add app-files --copy=/opt/app/config:./config --copy=/etc/app.conf:./app.conf
@@ -160,6 +166,9 @@ Examples:
 Examples:
   Create or update every stage, in order, streaming command logs:
   $ tsh phase apply -f phase.yaml
+
+  Finish every stage without streaming command logs:
+  $ tsh phase apply -f phase.yaml --no-console
 
   Reapply after changing local files or commands. Existing stages keep their
   parent and cannot switch between files and commands. If a stage fails,
@@ -196,6 +205,9 @@ Full format reference, service options, and examples:
 Examples:
   Open a build console to edit a Phase's saved interactive files:
   $ tsh phase edit dev-tools
+
+  Start editing without opening a console:
+  $ tsh phase edit dev-tools --no-console
 
   Replace the raw command file:
   $ tsh phase edit dev-tools --commands-file=build.yaml

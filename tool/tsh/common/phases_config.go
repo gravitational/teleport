@@ -68,6 +68,7 @@ type phaseApplyCommand struct {
 	configFile string
 	region     string
 	format     string
+	console    bool
 }
 
 func newPhaseApplyCommand(parent *kingpin.CmdClause) *phaseApplyCommand {
@@ -75,6 +76,9 @@ func newPhaseApplyCommand(parent *kingpin.CmdClause) *phaseApplyCommand {
 		CmdClause: parent.Command("apply", "Create or update Phases from a multi-document YAML configuration."),
 	}
 	cmd.Alias(phaseApplyHelp)
+	cmd.Flag("console", "Stream command logs while applying. All stages still finish before returning.").
+		Default("true").
+		BoolVar(&cmd.console)
 	cmd.Flag("file", "Path to a multi-document YAML Phase configuration.").
 		Short('f').
 		Required().
@@ -414,6 +418,7 @@ func (c *phaseApplyCommand) run(cf *CLIConf) error {
 		proxyRegion: proxyRegion,
 		region:      c.region,
 		stages:      len(docs),
+		console:     c.console,
 	}
 	phases, err := applyPhaseDocuments(cf.Context, docs, runner)
 	if err != nil {
@@ -495,6 +500,7 @@ type phaseDocumentClient struct {
 	region      string
 	stage       int
 	stages      int
+	console     bool
 }
 
 func (runner *phaseDocumentClient) get(ctx context.Context, name string) (*beamsv1.Phase, error) {
@@ -539,7 +545,7 @@ func (runner *phaseDocumentClient) apply(
 		Replace:          existing != nil,
 		ProxyRegion:      runner.proxyRegion,
 		OverrideRegion:   runner.region,
-		StreamBuildLogs:  doc.Commands != nil,
+		StreamBuildLogs:  doc.Commands != nil && runner.console,
 		SuppressRebuilds: suppress,
 	}.Build()
 	var progress *spinner.Spinner
@@ -592,10 +598,16 @@ func (runner *phaseDocumentClient) apply(
 	if err := runner.build(ctx, doc, beam, phase); err != nil {
 		return nil, trace.Wrap(err, "build Beam %q. Check tsh phase ls for the operation's result", beam.GetMetadata().GetName())
 	}
-	// Build logs or snapshotting have finished. Bound the remaining wait for
-	// Auth to record the result and remove the build Beam.
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
+	if doc.Commands == nil || runner.console {
+		// Build logs or snapshotting have finished. Bound the remaining wait
+		// for Auth to record the result and remove the build Beam.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 2*time.Minute)
+		defer cancel()
+	} else if utils.IsTerminal(runner.cf.Stderr()) {
+		progress := spinner.New(runner.cf.Stderr(), "Waiting for build to finish...")
+		defer progress.Stop()
+	}
 	return waitForPhaseOperation(ctx, phase, func(ctx context.Context) (*beamsv1.Phase, error) {
 		return runner.get(ctx, doc.Metadata.Name)
 	}, true)
@@ -621,6 +633,9 @@ func (runner *phaseDocumentClient) exec(beam *beamsv1.Beam, r io.Reader, w io.Wr
 
 func (runner *phaseDocumentClient) build(ctx context.Context, doc phaseDocument, beam *beamsv1.Beam, phase *beamsv1.Phase) error {
 	if doc.Commands != nil {
+		if !runner.console {
+			return nil
+		}
 		return runner.exec(beam, strings.NewReader(""), runner.cf.Stderr(), "/usr/local/bin/beam-logs")
 	}
 	var progress *spinner.Spinner

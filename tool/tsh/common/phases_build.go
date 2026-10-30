@@ -66,6 +66,7 @@ type phaseBuildOptions struct {
 	files        []phaseConfigFile
 	region       string
 	format       string
+	console      bool
 }
 
 func newPhaseAddCommand(parent *kingpin.CmdClause) *phaseAddCommand {
@@ -95,6 +96,11 @@ func newPhaseEditCommand(parent *kingpin.CmdClause) *phaseEditCommand {
 }
 
 func (c *phaseBuildOptions) registerBuildFlags(cmd *kingpin.CmdClause) *kingpin.FlagClause {
+	cmd.Flag("console",
+		"Open an interactive shell or stream command logs. "+
+			"Disable to return after provisioning. Copies still finish before returning.").
+		Default("true").
+		BoolVar(&c.console)
 	cmd.Flag("commands-file", "Path to a YAML file in the raw command format. Omit for an interactive build.").
 		ExistingFileVar(&c.commandsFile)
 	cmd.Flag("copy", "Copy files outside /home using absolute-destination:local-source. Repeat for more paths.").
@@ -145,7 +151,7 @@ func (c *phaseBuildOptions) buildRequest(name string) (*beamsv1.CreatePhaseReque
 		Name:            name,
 		BuildType:       beamsv1.PhaseBuildType_PHASE_BUILD_TYPE_SNAPSHOT,
 		OverrideRegion:  c.region,
-		StreamBuildLogs: c.commandsFile != "",
+		StreamBuildLogs: c.commandsFile != "" && c.console,
 	}.Build()
 	if c.commandsFile != "" {
 		contents, err := readPhaseBuildConfig(c.commandsFile)
@@ -156,11 +162,12 @@ func (c *phaseBuildOptions) buildRequest(name string) (*beamsv1.CreatePhaseReque
 		req.SetBuildType(beamsv1.PhaseBuildType_PHASE_BUILD_TYPE_REBUILD)
 	} else if len(c.files) != 0 {
 		req.SetBuildType(beamsv1.PhaseBuildType_PHASE_BUILD_TYPE_COPY)
-	} else {
+	} else if c.console {
 		switch strings.ToLower(c.format) {
 		case teleport.JSON, teleport.YAML:
 			return nil, trace.BadParameter(
-				"--format=%s cannot be used with interactive builds. Specify --commands-file or --copy, or use text format",
+				"--format=%s cannot be used with interactive builds. "+
+					"Specify --no-console, --commands-file or --copy, or use text format",
 				c.format,
 			)
 		}
@@ -249,9 +256,9 @@ func (c *phaseBuildOptions) runBuild(cf *CLIConf, req *beamsv1.CreatePhaseReques
 	}
 	phase := rsp.GetPhase()
 	name := phase.GetMetadata().GetName()
-	automated := req.GetStreamBuildLogs() || len(c.files) != 0
-	if beam := rsp.GetBuildBeam(); beam != nil && automated {
-		if len(c.files) != 0 {
+	copyBuild := req.GetBuildType() == beamsv1.PhaseBuildType_PHASE_BUILD_TYPE_COPY
+	if beam := rsp.GetBuildBeam(); beam != nil && (copyBuild || req.GetStreamBuildLogs()) {
+		if copyBuild {
 			doc := phaseDocument{Files: &c.files}
 			doc.Metadata.Name = name
 			runner := phaseDocumentClient{
@@ -293,7 +300,7 @@ func (c *phaseBuildOptions) runBuild(cf *CLIConf, req *beamsv1.CreatePhaseReques
 			phase, err = waitForPhaseOperation(ctx, rsp.GetPhase(), func(ctx context.Context) (*beamsv1.Phase, error) {
 				response, err := rootClient.PhaseServiceClient().GetPhase(ctx, beamsv1.GetPhaseRequest_builder{Name: name}.Build())
 				return response.GetPhase(), trace.Wrap(err)
-			}, len(c.files) != 0)
+			}, copyBuild)
 			return trace.Wrap(err, "waiting for Phase %q build result. Check tsh phase ls", name)
 		})
 		if err != nil {
@@ -301,38 +308,75 @@ func (c *phaseBuildOptions) runBuild(cf *CLIConf, req *beamsv1.CreatePhaseReques
 		}
 	}
 
+	if err := c.printResult(cf.Stdout(), req, phase, rsp.GetBuildBeam()); err != nil {
+		return trace.Wrap(err)
+	}
+	if c.console &&
+		req.GetBuildType() == beamsv1.PhaseBuildType_PHASE_BUILD_TYPE_SNAPSHOT &&
+		rsp.GetBuildBeam() != nil {
+		return trace.Wrap(sshBeam(cf, tc, rsp.GetBuildBeam(), nil))
+	}
+	return nil
+}
+
+func (c *phaseBuildOptions) printResult(
+	w io.Writer,
+	req *beamsv1.CreatePhaseRequest,
+	phase *beamsv1.Phase,
+	beam *beamsv1.Beam,
+) error {
+	formatted := formatPhase(phase)
+	if !c.console && beam != nil &&
+		phase.GetStatus().GetState() == beamsv1.PhaseBuildState_PHASE_BUILD_STATE_BUILDING {
+		formatted.BuildBeam = beam.GetMetadata().GetName()
+	}
 	switch strings.ToLower(c.format) {
 	case teleport.JSON:
-		return trace.Wrap(toolcommon.PrintJSONIndent(cf.Stdout(), formatPhase(phase)))
+		return trace.Wrap(toolcommon.PrintJSONIndent(w, formatted))
 	case teleport.YAML:
-		return trace.Wrap(toolcommon.PrintYAML(cf.Stdout(), formatPhase(phase)))
+		return trace.Wrap(toolcommon.PrintYAML(w, formatted))
 	default:
+		name := phase.GetMetadata().GetName()
+		interactive := req.GetBuildType() == beamsv1.PhaseBuildType_PHASE_BUILD_TYPE_SNAPSHOT
+		if !c.console &&
+			phase.GetStatus().GetState() == beamsv1.PhaseBuildState_PHASE_BUILD_STATE_BUILDING {
+			if _, err := fmt.Fprintf(w, "Phase %q build started.\n", name); err != nil {
+				return trace.Wrap(err)
+			}
+			if beam != nil {
+				if _, err := fmt.Fprintf(w, "Build Beam: %s\n", beam.GetMetadata().GetName()); err != nil {
+					return trace.Wrap(err)
+				}
+				if interactive {
+					_, err := fmt.Fprintf(w, "Connect to continue this build: tsh beams ssh %s\n", beam.GetMetadata().GetName())
+					return trace.Wrap(err)
+				}
+			}
+			_, err := fmt.Fprintln(w, "Check build status: tsh phases ls")
+			return trace.Wrap(err)
+		}
 		action := "created"
 		if req.GetReplace() {
 			action = "edit started"
-			if automated {
+			if !interactive {
 				action = "updated"
 			}
 		}
-		if _, err := fmt.Fprintf(cf.Stdout(), "Phase %q %s.\n", name, action); err != nil {
+		if _, err := fmt.Fprintf(w, "Phase %q %s.\n", name, action); err != nil {
 			return trace.Wrap(err)
 		}
-		if beam := rsp.GetBuildBeam(); beam != nil && !automated {
-			if _, err := fmt.Fprintln(cf.Stdout(),
+		if beam != nil && interactive {
+			_, err := fmt.Fprintln(w,
 				"Save your work at any time with \"tsh phase snapshot\".\n"+
-					"Use \"tsh phase snapshot --final\" to save and end this build."); err != nil {
-				return trace.Wrap(err)
-			}
-			if err := sshBeam(cf, tc, beam, nil); err != nil {
-				return trace.Wrap(err)
-			}
-			return nil
+					"Use \"tsh phase snapshot --final\" to save and end this build.")
+			return trace.Wrap(err)
 		}
 		if phase.GetStatus().GetState() == beamsv1.PhaseBuildState_PHASE_BUILD_STATE_BLOCKED {
-			_, err := fmt.Fprintf(cf.Stdout(), "Phase %q was built and is blocked by upstream Phase %q.\n", name, phase.GetSpec().GetParent())
+			_, err := fmt.Fprintf(w, "Phase %q was built and is blocked by upstream Phase %q.\n",
+				name, phase.GetSpec().GetParent())
 			return trace.Wrap(err)
 		}
-		_, err := fmt.Fprintf(cf.Stdout(), "Phase %q is ready.\n", name)
+		_, err := fmt.Fprintf(w, "Phase %q is ready.\n", name)
 		return trace.Wrap(err)
 	}
 }

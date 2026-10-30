@@ -55,6 +55,7 @@ type formattedPhase struct {
 	Strategy     string                 `json:"strategy"`
 	Parent       string                 `json:"parent,omitempty"`
 	State        string                 `json:"state"`
+	BuildBeam    string                 `json:"build_beam,omitempty"`
 	ImageDigest  string                 `json:"image_digest,omitempty"`
 	Region       string                 `json:"region,omitempty"`
 	PublishedAt  *time.Time             `json:"published_at,omitempty"`

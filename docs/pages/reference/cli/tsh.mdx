@@ -1391,6 +1391,7 @@ Flags:
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--fork-from`|*no default*|Fork a Phase name or parent@sha256:digest. Copy and rebuild Phases cannot be forked.|
 |`--from`|*no default*|Upstream Phase image to use as the base image.|
+|`--[no-]console`|`true`|Open an interactive shell or stream command logs. Disable to return after provisioning. Copies still finish before returning.|
 |`--[no-]fork`|`false`|Capture the current build Beam's filesystem and start a new Phase from it.|
 |`--region`|*no default*|Region in which to build the Phase.|
 
@@ -1416,6 +1417,7 @@ Flags:
 |---|---|---|
 |`-f`, `--file`|*no default*|Path to a multi-document YAML Phase configuration.|
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--[no-]console`|`true`|Stream command logs while applying. All stages still finish before returning.|
 |`--region`|*no default*|Region in which to build the Phases.|
 
 ## tsh phase edit
@@ -1436,6 +1438,7 @@ Flags:
 |`--copy`|*no default*|Copy files outside /home using absolute-destination:local-source. Repeat for more paths.|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--from`|*no default*|Snapshot source: Phase name or parent@sha256:digest. Copy targets require --copy.|
+|`--[no-]console`|`true`|Open an interactive shell or stream command logs. Disable to return after provisioning. Copies still finish before returning.|
 |`--region`|*no default*|Region in which to build the Phase.|
 
 Arguments:
