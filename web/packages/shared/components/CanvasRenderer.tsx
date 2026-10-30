@@ -127,6 +127,23 @@ export const CanvasRenderer = forwardRef<
     };
   }, []);
 
+  // Track the canvas's previous known size. We'll use this to skip
+  // unnecessary resize calls, particularly those that occur right after
+  // initializing the ResizeObserver.
+  const previousSize = useRef<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
+
+  useEffect(() => {
+    // Set the canvas's initial size and track it as `previousSize`.
+    const rect = canvasRef.current.getBoundingClientRect();
+    logger.debug(
+      `setting initial canvas dimensions ${rect.width} x ${rect.height}`
+    );
+    previousSize.current = { width: rect.width, height: rect.height };
+  }, []);
+
   useEffect(() => {
     if (
       !onResize ||
@@ -139,6 +156,20 @@ export const CanvasRenderer = forwardRef<
     const debouncedOnResize = debounce(onResize, 250, { trailing: true });
     const observer = new ResizeObserver(([entry]) => {
       if (entry && entry.contentRect.height !== 0) {
+        const { width: previousWidth, height: previousHeight } =
+          previousSize.current;
+        const { width: updateWidth, height: updateHeight } = entry.contentRect;
+        if (updateWidth == previousWidth && updateHeight == previousHeight) {
+          // Skip resize when no effectual resize occurs. This should typically only
+          // happen once right after the component mounts because the ResizeObserver
+          // invokes the callback once after creation. We specifically *don't* want
+          // to forward that resize event because it causes us to send an unnecessary
+          // clientScreenSpec event to the server.
+          logger.debug('Skipping observed resized due to no change');
+          return;
+        }
+
+        previousSize.current = { width: updateWidth, height: updateHeight };
         debouncedOnResize({
           height: Math.round(entry.contentRect.height),
           width: Math.round(entry.contentRect.width),
