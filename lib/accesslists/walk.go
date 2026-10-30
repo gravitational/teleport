@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -276,26 +277,32 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 
 				// Try to walk the leg.
 				leg = accessLeg{member: member, list: nestedList}
-				if err := walkFn(append(path, leg)); err != nil {
+				// Clone path so sibling paths never share a backing array:
+				// a plain append(path, leg) could reuse path's spare capacity
+				// and overwrite paths already pushed on the stack or retained
+				// by walkFn.
+				nextPath := append(slices.Clone(path), leg)
+				if err := walkFn(nextPath); err != nil {
 					if err == skipLeg { //nolint:errorlint // error can't be wrapped
 						continue
 					} else if err == skipAll { //nolint:errorlint // error can't be wrapped
 						return nil
 					}
-					return trace.Wrap(err, "calling walk function for list %q at %q", name, append(path, leg))
+					return trace.Wrap(err, "calling walk function for list %q at %q", name, nextPath)
 				}
 
 				// We got a valid path, and it's the first time seeing this list: marking it as seen.
 				seen[name] = struct{}{}
 
-				stack = append(stack, append(path, leg))
+				stack = append(stack, nextPath)
 				continue
 			}
 
 			leg = accessLeg{member: member}
 			// This is not a nested list but an individual member.
 			// Check if the member passes the walkFn.
-			if err := walkFn(append(path, leg)); err != nil {
+			nextPath := append(slices.Clone(path), leg)
+			if err := walkFn(nextPath); err != nil {
 				if err == skipLeg { //nolint:errorlint // error can't be wrapped
 					// Although skipLeg doesn't make sense for a user, some of the checks from
 					// the walkFunc can be common for list and user members (e.g. expiry).
@@ -304,7 +311,7 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 				} else if err == skipAll { //nolint:errorlint // error can't be wrapped
 					return nil
 				}
-				return trace.Wrap(err, "calling walk function for member %q at %q", member.GetName(), append(path, leg))
+				return trace.Wrap(err, "calling walk function for member %q at %q", member.GetName(), nextPath)
 			}
 		}
 	}
