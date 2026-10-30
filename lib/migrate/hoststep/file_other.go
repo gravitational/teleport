@@ -19,7 +19,9 @@
 package hoststep
 
 import (
+	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
@@ -37,4 +39,24 @@ func writePrivate(p string, body []byte) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(f.CloseAtomicallyReplace())
+}
+
+// pathsOnSameDevice reports whether a and b are on the same device. A
+// directory on a different device from its parent is a mount point, which is
+// what isMountPoint uses it for.
+func pathsOnSameDevice(a, b string) (bool, error) {
+	infoA, err := os.Stat(a)
+	if err != nil {
+		return false, trace.ConvertSystemError(err)
+	}
+	infoB, err := os.Stat(b)
+	if err != nil {
+		return false, trace.ConvertSystemError(err)
+	}
+	statA, okA := infoA.Sys().(*syscall.Stat_t)
+	statB, okB := infoB.Sys().(*syscall.Stat_t)
+	if !okA || !okB {
+		return false, trace.NotImplemented("cannot read the devices of %q and %q", a, b)
+	}
+	return statA.Dev == statB.Dev, nil
 }

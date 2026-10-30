@@ -52,6 +52,10 @@ const Install = "install"
 // Uninstall is the host step that removes the scoped agent's install.
 const Uninstall = "uninstall"
 
+// Retire is the host step that permanently removes the source agent once
+// the scoped agent can stand alone.
+const Retire = "retire"
+
 // scopedInstallSuffix is the install suffix of the scoped agent.
 const scopedInstallSuffix = "migrated"
 
@@ -66,7 +70,16 @@ const scopedConfigPath = "/etc/teleport_" + scopedInstallSuffix + ".yaml"
 const scopedPIDFileName = "teleport_" + scopedInstallSuffix + ".pid"
 
 // scopedInstallDir is the scoped agent's install directory.
-const scopedInstallDir = "/opt/teleport/" + scopedInstallSuffix
+const scopedInstallDir = updaterDir + "/" + scopedInstallSuffix
+
+// updaterDir is teleport-update's default install dir, which the tool assumes
+// throughout: apply installs the scoped agent under it, and retire removes the
+// source agent's default install from it.
+const updaterDir = "/opt/teleport"
+
+// sourceInstallDir is the source agent's install under updaterDir, the default
+// namespace teleport-update manages.
+const sourceInstallDir = updaterDir + "/default"
 
 // scopedUnit is the scoped agent's systemd unit.
 const scopedUnit = "teleport_" + scopedInstallSuffix + ".service"
@@ -89,6 +102,8 @@ func RunHostStep(ctx context.Context, step string, in io.Reader, out io.Writer) 
 		return runStep(ctx, in, out, h.install)
 	case Uninstall:
 		return runStep(ctx, in, out, h.uninstall)
+	case Retire:
+		return runStep(ctx, in, out, h.retire)
 	}
 	return trace.BadParameter("unknown host step %q", step)
 }
@@ -322,9 +337,56 @@ func isExecutable(p string) bool {
 	return err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0
 }
 
-// unitActive reports whether systemd says unit is active.
-func unitActive(ctx context.Context, unit string) bool {
-	return exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unit).Run() == nil
+// unitProperty returns one systemd property of unit, as systemd reports it for
+// a unit that is not loaded: ActiveState=inactive, UnitFileState empty. show
+// exits 0 for a unit that does not exist, so a failure here is systemd itself,
+// which the callers must not read as a state: is-active and is-enabled cannot
+// tell the two apart.
+func unitProperty(ctx context.Context, unit, property string) (string, error) {
+	out, err := exec.CommandContext(ctx, "systemctl", "show", "-p", property, unit).Output()
+	if err != nil {
+		// systemctl says why on stderr, a host without systemd among the reasons.
+		reason := err.Error()
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && len(bytes.TrimSpace(exitErr.Stderr)) > 0 {
+			reason = string(bytes.TrimSpace(exitErr.Stderr))
+		}
+		return "", trace.NotFound("asking systemd for %s of %s failed: %s; handle this host by hand", property, unit, reason)
+	}
+	// systemd 219 has no --value, so the output is <property>=<state>.
+	state, ok := strings.CutPrefix(strings.TrimSpace(string(out)), property+"=")
+	if !ok {
+		return "", trace.BadParameter("asking systemd for %s of %s: unexpected output %.80q", property, unit, out)
+	}
+	return state, nil
+}
+
+// unitActive reports whether systemd says unit is active. reloading and
+// refreshing are not active here, though is-active exits 0 for them; a unit
+// caught mid-reload is refused and the step retried.
+func unitActive(ctx context.Context, unit string) (bool, error) {
+	state, err := unitProperty(ctx, unit, "ActiveState")
+	return state == "active", trace.Wrap(err)
+}
+
+// unitStopped reports whether systemd says unit has stopped, and the state it
+// is in. Only inactive and failed mean the process is gone; activating,
+// deactivating and reloading are transitions, and the callers go on to delete
+// what the unit was running from.
+func unitStopped(ctx context.Context, unit string) (bool, string, error) {
+	state, err := unitProperty(ctx, unit, "ActiveState")
+	if err != nil {
+		return false, "", trace.Wrap(err)
+	}
+	return state == "inactive" || state == "failed", state, nil
+}
+
+// unitEnabled reports whether systemd says unit is enabled, the one state that
+// starts it at boot without a runtime-only link. enabled-runtime and static,
+// which do not survive a reboot, are not enabled here, though is-enabled exits
+// 0 for them.
+func unitEnabled(ctx context.Context, unit string) (bool, error) {
+	state, err := unitProperty(ctx, unit, "UnitFileState")
+	return state == "enabled", trace.Wrap(err)
 }
 
 // Correlation labels: the labels a migrated scoped agent carries, so plan can

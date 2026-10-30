@@ -92,7 +92,7 @@ type clusterAPI interface {
 	// Nodes streams every SSH node in every scope.
 	Nodes(ctx context.Context) iter.Seq2[node, error]
 	// DeleteNode deletes the SSH node id in scope, as tctl rm node
-	// <scope>::<id> does.
+	// <scope>::<id> does; scope is empty for an unscoped node.
 	DeleteNode(ctx context.Context, scope, id string) error
 }
 
@@ -155,7 +155,8 @@ func (c *clusterClient) Nodes(ctx context.Context) iter.Seq2[node, error] {
 	return stream.Map(servers, newNode)
 }
 
-// DeleteNode deletes the SSH node id in scope.
+// DeleteNode deletes the SSH node id in scope; scope is empty for an
+// unscoped node.
 func (c *clusterClient) DeleteNode(ctx context.Context, scope, id string) error {
 	return trace.Wrap(c.clt.DeleteSSHServer(ctx, presencepb.DeleteSSHServerRequest_builder{Name: id, Scope: scope}.Build()))
 }

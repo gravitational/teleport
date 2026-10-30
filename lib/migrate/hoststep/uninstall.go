@@ -73,9 +73,9 @@ func (h hostEnv) uninstall(ctx context.Context, req UninstallRequest) (struct{},
 		if !h.exists(path.Join("/etc/systemd/system", unit)) {
 			continue
 		}
-		// A failed stop is refused here, not left to the is-active check: the
-		// updater service is a oneshot, which is-active does not report as
-		// active while an update runs.
+		// A failed stop is refused here, not left to the active check below: the
+		// updater service is a oneshot, which systemd reports as activating, not
+		// active, while an update runs.
 		if err := runCommand(ctx, "systemctl", "stop", unit); err != nil {
 			return struct{}{}, trace.Wrap(err, "stopping %s; stop it, then roll back", unit)
 		}
@@ -83,9 +83,15 @@ func (h hostEnv) uninstall(ctx context.Context, req UninstallRequest) (struct{},
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
 	}
+	// The removal below is recursive, so these must be stopped, not just not
+	// active: a start queued behind the stop reports activating.
 	for _, unit := range units {
-		if unitActive(ctx, unit) {
-			return struct{}{}, trace.CompareFailed("%s is still active; stop it and retry", unit)
+		stopped, state, err := unitStopped(ctx, unit)
+		if err != nil {
+			return struct{}{}, trace.Wrap(err, "the scoped units are stopped and disabled and nothing was removed; enable and start %s and %s to keep the scoped agent", scopedUnit, scopedUpdaterTimer)
+		}
+		if !stopped {
+			return struct{}{}, trace.CompareFailed("%s is %s, not stopped; stop it and retry", unit, state)
 		}
 	}
 	if h.exists(scopedInstallDir) {

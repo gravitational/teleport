@@ -502,6 +502,9 @@ Examples:
 	migrateApplyCmd.Flag("resource", "Migrate only this host: node/<uuid> or node/<hostname>.").StringVar(&migrateFlags.resource)
 	migrateRollbackCmd := migrateCmd.Command("rollback", "Remove the scoped agent from migrated and failed hosts and from the target, leaving the source agent untouched.").Hidden()
 	migrateRollbackCmd.Flag("resource", "Roll back only this host: node/<uuid> or node/<hostname>.").StringVar(&migrateFlags.resource)
+	migrateRetireCmd := migrateCmd.Command("retire", "Remove the source agent from migrated hosts and from the source cluster.").Hidden()
+	migrateRetireCmd.Flag("confirm", "Confirm that retire removes the source agent and cannot be undone.").BoolVar(&migrateFlags.confirm)
+	migrateRetireCmd.Flag("resource", "Retire only this host: node/<uuid> or node/<hostname>.").StringVar(&migrateFlags.resource)
 	migrateHostCmd := migrateCmd.Command("host", "Run one migration step on this host, reading the request on stdin.").Hidden()
 	migrateHostCmd.Arg("step", "The step to run.").Required().StringVar(&migrateFlags.hostStep)
 
@@ -845,6 +848,8 @@ Examples:
 		err = onMigrateApply(ctx, &migrateFlags)
 	case migrateRollbackCmd.FullCommand():
 		err = onMigrateRollback(ctx, &migrateFlags)
+	case migrateRetireCmd.FullCommand():
+		err = onMigrateRetire(ctx, &migrateFlags)
 	case migrateHostCmd.FullCommand():
 		err = onMigrateHost(ctx, &migrateFlags)
 	case dumpNodeConfigure.FullCommand():

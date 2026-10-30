@@ -50,8 +50,8 @@ const targetWait = 5 * time.Minute
 // pollInterval is how often a wait on the target checks again.
 const pollInterval = 5 * time.Second
 
-// cleanupTimeout bounds the cluster cleanup a rollback runs after its host
-// step, detached from the host's timeout.
+// cleanupTimeout bounds the cluster cleanup a rollback or retire runs after
+// its host step, detached from the host's timeout.
 const cleanupTimeout = 30 * time.Second
 
 // Options tune a Migrator.
@@ -79,14 +79,16 @@ type Migrator struct {
 	target     targetClusterAPI
 	// sourceHosts runs commands on the source cluster's hosts.
 	sourceHosts hostRunner
+	// targetHosts runs commands on the target cluster's hosts.
+	targetHosts hostRunner
 	closers     []io.Closer
 	// binary is how hosts get this build of teleport.
 	binary oneoff.OneOffScriptParams
 }
 
 // NewMigrator validates opts, opens the state file and dials the source
-// cluster's API and hosts, then the target cluster's API. Close releases them.
-// cfg must come from LoadConfig. Hosts download teleport from
+// cluster's API and hosts, then the target cluster's API and hosts. Close
+// releases them. cfg must come from LoadConfig. Hosts download teleport from
 // TELEPORT_CDN_BASE_URL, or from Teleport's CDN when it is unset.
 func NewMigrator(ctx context.Context, cfg *Config, opts Options) (*Migrator, error) {
 	if err := opts.CheckAndSetDefaults(); err != nil {
@@ -113,8 +115,8 @@ func NewMigrator(ctx context.Context, cfg *Config, opts Options) (*Migrator, err
 	return m, nil
 }
 
-// dial connects to the source and then the target cluster, and refuses a pair
-// that are the same cluster.
+// dial connects to the source and then the target cluster and their hosts,
+// and refuses a pair that are the same cluster.
 func (m *Migrator) dial(ctx context.Context) error {
 	source, err := dialCluster(ctx, m.config.Source)
 	if err != nil {
@@ -136,7 +138,16 @@ func (m *Migrator) dial(ctx context.Context) error {
 	m.target = target
 	m.closers = append(m.closers, target)
 
-	return trace.Wrap(refuseSameCluster(m.source, m.target))
+	if err := refuseSameCluster(m.source, m.target); err != nil {
+		return trace.Wrap(err)
+	}
+
+	targetHosts, err := dialHosts(ctx, m.config.Target)
+	if err != nil {
+		return trace.Wrap(err, "connecting to the target cluster's hosts")
+	}
+	m.targetHosts, m.closers = targetHosts, append(m.closers, targetHosts)
+	return nil
 }
 
 // refuseSameCluster refuses a source and target that are the same cluster:

@@ -22,3 +22,8 @@ import "github.com/gravitational/trace"
 func writePrivate(p string, body []byte) error {
 	return trace.NotImplemented("writing host files is not supported on Windows")
 }
+
+// pathsOnSameDevice is not supported on Windows.
+func pathsOnSameDevice(a, b string) (bool, error) {
+	return false, trace.NotImplemented("comparing devices is not supported on Windows")
+}

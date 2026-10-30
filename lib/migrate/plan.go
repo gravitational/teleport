@@ -176,7 +176,7 @@ func isSameScope(a, b string) bool { return scopes.Compare(a, b) == scopes.Equiv
 //     one, or a new unstarted one, with the node's current hostname and labels
 //     and the mapping's target scope.
 //   - A previous record whose node has left the source is kept unchanged if
-//     it is migrated; any other is dropped.
+//     it is migrated or retired; any other is dropped.
 //   - A previous record whose node is still in the source but no mapping
 //     selects it any more is dropped.
 func (m *Migrator) selectHosts(previous map[string]*host, source sourceInventory, now time.Time) map[string]*host {
@@ -207,8 +207,9 @@ func (m *Migrator) selectHosts(previous map[string]*host, source sourceInventory
 		if _, present := source.nodesByID[id]; present {
 			continue
 		}
-		// A down host with nothing done to it is not worth tracking.
-		if old.State == stateMigrated {
+		// A down host with nothing done to it is not worth tracking. Retire
+		// deletes the source node, so a retired host is always here.
+		if old.State == stateMigrated || old.State == stateRetired {
 			kept := *old
 			kept.Labels = maps.Clone(kept.Labels)
 			hosts[id] = &kept
@@ -462,14 +463,24 @@ func parseTokenName(name string) (scopes.QualifiedName, error) {
 // agents in a migration scope that no host claims, which plan reports as agents
 // the migration did not put there. It returns each host's outcome keyed by host
 // UUID and the unclaimed agents sorted by ID. Hosts are visited in ID order, so
-// a target two hosts point at goes to the lower ID and blocks the other. It does
-// not change hosts.
+// a target two hosts point at goes to the lower ID and blocks the other. A
+// retired host gets no outcome: its agent is its only one, so it keeps its
+// pairing, and no other host can claim that agent. It does not change hosts.
 func (m *Migrator) pairHosts(hosts map[string]*host, target targetInventory) (outcomes map[string]outcome, unmatched []targetAgent) {
 	outcomes = make(map[string]outcome, len(hosts))
 	// claimedBy maps a target agent ID to the host paired with it.
 	claimedBy := make(map[string]string)
-	for _, id := range slices.Sorted(maps.Keys(hosts)) {
+	ids := slices.Sorted(maps.Keys(hosts))
+	for _, id := range ids {
+		if h := hosts[id]; h.State == stateRetired && h.TargetID != "" {
+			claimedBy[h.TargetID] = id
+		}
+	}
+	for _, id := range ids {
 		h := hosts[id]
+		if h.State == stateRetired {
+			continue
+		}
 		result := pairHost(h, target)
 		// A pairing does not settle which scope the host belongs in. It is
 		// kept, so the pairing stays visible, but the host is blocked until
@@ -536,7 +547,7 @@ type PlanOptions struct {
 	Check bool
 	// Optional: empty preflights every eligible host. Otherwise, node/<uuid> or
 	// node/<hostname> preflights only that host, even when it has a preflight
-	// or is migrated.
+	// or is migrated; a retired host is refused.
 	Resource string
 }
 
@@ -601,10 +612,11 @@ func (m *Migrator) summarize() *Summary {
 	return summary
 }
 
-// needsPreflight reports whether plan preflights h: when it has no preflight
-// yet, or when check is set.
+// needsPreflight reports whether plan preflights h: never when it is retired,
+// since its source agent is gone; otherwise when it has no preflight yet, or
+// when check is set.
 func needsPreflight(h *host, check bool) bool {
-	return h.Preflight == nil || check
+	return h.State != stateRetired && (h.Preflight == nil || check)
 }
 
 // preflightProgressEvery is how many preflights finish between progress lines.
@@ -625,6 +637,9 @@ func (m *Migrator) preflightHosts(ctx context.Context, opts PlanOptions) error {
 		h, err := current.findHost(name)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if h.State == stateRetired {
+			return trace.NotFound("%q is %s; plan does not preflight retired hosts", opts.Resource, h.State)
 		}
 		hosts = []*host{h}
 	} else {

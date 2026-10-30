@@ -48,12 +48,13 @@ const (
 	stateBlocked   = "blocked"
 	stateFailed    = "failed"
 	stateMigrated  = "migrated"
+	stateRetired   = "retired"
 )
 
 // states returns every host state in display order. It is a function, not a
 // package-level slice, so no caller can reorder or extend the set.
 func states() []string {
-	return []string{stateUnstarted, stateBlocked, stateFailed, stateMigrated}
+	return []string{stateUnstarted, stateBlocked, stateFailed, stateMigrated, stateRetired}
 }
 
 // host is one source host the migration tracks.

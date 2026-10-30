@@ -33,7 +33,7 @@ import (
 // (clusters, state directory, mappings) is described only by --config.
 type migrateFlags struct {
 	configPath, format, subset, hostStep, resource string
-	check                                          bool
+	check, confirm                                 bool
 }
 
 // withMigrator loads the --config file, opens the migrator and runs fn with
@@ -92,6 +92,18 @@ func onMigrateApply(ctx context.Context, f *migrateFlags) error {
 func onMigrateRollback(ctx context.Context, f *migrateFlags) error {
 	return withMigrator(ctx, f, func(ctx context.Context, m *migrate.Migrator) error {
 		return reportOutcome(m.Rollback(ctx, migrate.RollbackOptions{Resource: f.resource}))
+	})
+}
+
+// onMigrateRetire runs `teleport migrate retire`. It refuses without
+// --confirm before it dials or locks anything. Hosts that failed are listed in
+// the report and make the command exit non-zero.
+func onMigrateRetire(ctx context.Context, f *migrateFlags) error {
+	if !f.confirm {
+		return trace.BadParameter("retire removes the source agent from the host and the source cluster; pass --confirm")
+	}
+	return withMigrator(ctx, f, func(ctx context.Context, m *migrate.Migrator) error {
+		return reportOutcome(m.Retire(ctx, migrate.RetireOptions{Resource: f.resource}))
 	})
 }
 
