@@ -304,6 +304,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		Log:               cfg.Logger.With(teleport.ComponentKey, teleport.ComponentLLM),
 		AWSConfigProvider: awsConfigProvider,
 		RecordingEnabled:  appllm.BeamLLMRecordingEnabled(os.Getenv),
+		UsageReporter:     cfg.AuthClient.LLMUsageClient(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -558,6 +559,12 @@ func (c *ConnectionsHandler) Close(ctx context.Context) []error {
 	// background goroutines. We must wait for sessions to finish closing
 	// before proceeding any further.
 	c.cacheCloseWg.Wait()
+
+	if c.llmHandler != nil {
+		if err := c.llmHandler.Close(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
 
 	return errs
 }

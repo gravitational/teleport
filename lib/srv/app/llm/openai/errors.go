@@ -28,7 +28,7 @@ import (
 
 // WriteError writes an error in OpenAI format.
 func WriteError(w http.ResponseWriter, err error) error {
-	w.WriteHeader(llmerrors.StatusCodeFromErr(err))
+	llmerrors.WriteErrorHeaders(w, err)
 	_, werr := w.Write(marshalError(newErrorEnvelope(err)))
 	return trace.Wrap(werr)
 }
@@ -107,7 +107,9 @@ func newErrorMessage(err error) errorMessage {
 		Message: err.Error(),
 	}
 	switch {
-	case errors.Is(err, llmerrors.ErrRejected), errors.Is(err, llmerrors.ErrLimitExceeded):
+	case errors.Is(err, llmerrors.ErrRejected),
+		errors.Is(err, llmerrors.ErrLimitExceeded),
+		errors.Is(err, llmerrors.ErrNotReady):
 		msg.Type = errorTypeRateLimitExceeded
 	case errors.Is(err, llmerrors.ErrBadRequest),
 		errors.Is(err, llmerrors.ErrUnauthorized),

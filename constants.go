@@ -308,6 +308,9 @@ const (
 	// ComponentLLM represents LLM related services.
 	ComponentLLM = "llm"
 
+	// ComponentLLMLimiter represents LLM limiter related services.
+	ComponentLLMLimiter = "llm:limiter"
+
 	// ComponentRecordingEncryption represents recording encryption
 	ComponentRecordingEncryption = "recording-encryption"
 

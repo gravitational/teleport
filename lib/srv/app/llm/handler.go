@@ -74,6 +74,8 @@ type HandlerConfig struct {
 	// (see [BeamLLMRecordingEnabled]) and is only enabled for app servers serving
 	// a beam sandbox with LLM recording turned on.
 	RecordingEnabled bool
+	// UsageReporter used by tokens limiter to report tokens usage.
+	UsageReporter llmlimiter.UsageReporter
 }
 
 // CheckAndSetDefaults validates required dependencies and sets defaults.
@@ -99,28 +101,16 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 		c.Transport = tr
 	}
 	if c.Limiter == nil {
-		// Attempt to initialize the in-memory limiter which acts on the entire
-		// server instance.
-		inputRaw := os.Getenv(inputTokensQuotaEnvVar)
-		outputRaw := os.Getenv(outputTokensQuotaEnvVar)
-		if inputRaw != "" || outputRaw != "" {
-			if inputRaw == "" || outputRaw == "" {
-				return trace.BadParameter("both %q and %q environment variables must be set to enable the in-memory limiter", inputTokensQuotaEnvVar, outputTokensQuotaEnvVar)
-			}
+		if c.UsageReporter == nil {
+			return trace.BadParameter("usage reporter is required when using distributed limiter")
+		}
 
-			input, err := strconv.ParseUint(inputRaw, 10, 64)
-			if err != nil {
-				return trace.Wrap(err, "failed to parse input limit set on %q environment variable", inputTokensQuotaEnvVar)
-			}
-			output, err := strconv.ParseUint(outputRaw, 10, 64)
-			if err != nil {
-				return trace.Wrap(err, "failed to parse output limit set on %q environment variable", outputTokensQuotaEnvVar)
-			}
-			c.Limiter = llmlimiter.NewInMemory(uint(input), uint(output))
-			c.Log.InfoContext(context.Background(), "using in-memory limiter", "input", input, "output", output)
-		} else {
-			// No settings, default to no limiter.
-			c.Limiter = &noopLimiter{}
+		var err error
+		c.Limiter, err = llmlimiter.NewDistributed(llmlimiter.DistributedConfig{
+			Reporter: c.UsageReporter,
+		})
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 	return nil
@@ -167,7 +157,13 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 		h.cfg.Log.InfoContext(ctx, "using openai provider address from environment", "host", h.openAIProviderURL.Host)
 	}
 
+	go h.cfg.Limiter.Run(ctx)
 	return h, nil
+}
+
+// Close closes the handler and clean up resources.
+func (h *Handler) Close(ctx context.Context) error {
+	return trace.Wrap(h.cfg.Limiter.Close(ctx))
 }
 
 // RecordingEnabled reports whether the handler records LLM traffic into the
@@ -499,17 +495,8 @@ func (h *Handler) handleRequest(
 // Limiter defines the interface of tokens limiter.
 type Limiter interface {
 	Reserve(context.Context, llmlimiter.ReserveRequest) (llmlimiter.ReserveInfo, llmlimiter.SettleFunc, error)
-}
-
-// noopLimiter implements a noop tokens limiter.
-type noopLimiter struct{}
-
-// Reserve implements [Limiter].
-func (n *noopLimiter) Reserve(_ context.Context, req llmlimiter.ReserveRequest) (llmlimiter.ReserveInfo, llmlimiter.SettleFunc, error) {
-	return llmlimiter.ReserveInfo{
-		// This should skip all APIs from limits.
-		NotApplicable: true,
-	}, llmlimiter.EmptySettleFunc, nil
+	Run(context.Context) error
+	Close(context.Context) error
 }
 
 const (
@@ -529,11 +516,4 @@ const (
 	// openAIAPIKeyEnvVarName is the OpenAI's environment variable used to
 	// set API keys.
 	openAIAPIKeyEnvVarName = "OPENAI_API_KEY"
-
-	// inputTokensQuotaEnvVar is the name of the environment variable used to
-	// set the input tokens quota.
-	inputTokensQuotaEnvVar = "TELEPORT_BEAMS_BETA_INPUT_TOKENS_QUOTA"
-	// outputTokensQuotaEnvVar is the name of the environment variable used to
-	// set the output tokens quota.
-	outputTokensQuotaEnvVar = "TELEPORT_BEAMS_BETA_OUTPUT_TOKENS_QUOTA"
 )

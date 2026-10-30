@@ -78,6 +78,25 @@ func (s *SyncMap[K, V]) LoadAndDelete(key K) (value V, ok bool) {
 	return value, ok
 }
 
+// LoadOrStore returns the existing value for the key if present. Otherwise, it
+// stores and returns the given value. The loaded result is true if the value
+// was loaded, false if stored.
+func (s *SyncMap[K, V]) LoadOrStore(key K, value V) (actual V, loaded bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.values == nil {
+		s.values = make(map[K]V)
+	}
+
+	if val, ok := s.values[key]; ok {
+		return val, true
+	}
+
+	s.values[key] = value
+	return value, false
+}
+
 // Range calls a function sequentially for each key and value in the map.
 // Caution: The map is ony locked while creating a copy of the map values to
 // iterate over; it is *not* locked during the actual iteration over that copy,

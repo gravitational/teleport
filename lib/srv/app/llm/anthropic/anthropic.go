@@ -203,7 +203,7 @@ func NewRequest(cfg *llmrequest.Config) (*llmrequest.Request, error) {
 
 // WriteError writes an error in Anthropic format.
 func WriteError(w http.ResponseWriter, err error) error {
-	w.WriteHeader(llmerrors.StatusCodeFromErr(err))
+	llmerrors.WriteErrorHeaders(w, err)
 	_, werr := w.Write(marshalError(newErrorMessage(err)))
 	return trace.Wrap(werr)
 }
@@ -239,7 +239,9 @@ func newErrorMessage(err error) *errorEnvelope {
 		r.Error.Type = errorTypeInvalidRequestError
 	case errors.Is(err, llmerrors.ErrUnauthorized):
 		r.Error.Type = errorTypeAuthenticationError
-	case errors.Is(err, llmerrors.ErrRejected), errors.Is(err, llmerrors.ErrLimitExceeded):
+	case errors.Is(err, llmerrors.ErrRejected),
+		errors.Is(err, llmerrors.ErrLimitExceeded),
+		errors.Is(err, llmerrors.ErrNotReady):
 		r.Error.Type = errorTypeRateLimitError
 	case errors.Is(err, llmerrors.ErrUnsupported), trace.IsNotFound(err):
 		r.Error.Type = errorTypeNotFoundError

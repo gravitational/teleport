@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -47,6 +49,8 @@ var (
 	ErrInternal = errors.New("unable to serve the request due to an internal error. Contact your Teleport administrator")
 	// ErrLimitExceeded returned when Teleport rejects the request due to limit exceeded.
 	ErrLimitExceeded = errors.New("tokens quota exceeded. Contact your Teleport administrator")
+	// ErrNotReady returned when Teleport is not ready to serve the request.
+	ErrNotReady = errors.New("teleport is not ready to serve the request, try again later")
 	// ErrUnknown returned when the handler could not identify the error.
 	ErrUnknown = errors.New("the inference provider returned an unexpected error. Contact your Teleport administrator")
 )
@@ -92,7 +96,7 @@ func StatusCodeFromErr(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, ErrUnauthorized):
 		return http.StatusUnauthorized
-	case errors.Is(err, ErrRejected), errors.Is(err, ErrLimitExceeded):
+	case errors.Is(err, ErrRejected), errors.Is(err, ErrLimitExceeded), errors.Is(err, ErrNotReady):
 		return http.StatusTooManyRequests
 	case errors.Is(err, ErrUnsupported):
 		return http.StatusNotFound
@@ -118,3 +122,17 @@ func MarshalMessage(err error) string {
 
 	return `""`
 }
+
+// WriteErrorHeaders writes HTTP headers when there is an error.
+func WriteErrorHeaders(w http.ResponseWriter, err error) {
+	if errors.Is(err, ErrNotReady) {
+		// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After#delay-seconds
+		w.Header().Set("Retry-After", strconv.Itoa(int(DefaultRetryAfter.Seconds())))
+	}
+
+	w.WriteHeader(StatusCodeFromErr(err))
+}
+
+// DefaultRetryAfter is the duration which clients must wait until retrying a
+// request.
+const DefaultRetryAfter = time.Minute

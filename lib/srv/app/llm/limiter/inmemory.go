@@ -124,6 +124,16 @@ func (i *InMemory) Reserve(ctx context.Context, req ReserveRequest) (ReserveInfo
 	}, nil
 }
 
+// Close closes the limiter.
+func (i *InMemory) Close(context.Context) error {
+	return nil
+}
+
+// Run executes the limiter.
+func (i *InMemory) Run(context.Context) error {
+	return nil
+}
+
 // Consumption retrieves the current app limit consumption.
 func (i *InMemory) Consumption(app types.Application) llmquota.Usage {
 	i.mu.Lock()
