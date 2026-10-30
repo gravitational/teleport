@@ -77,6 +77,11 @@ message CreatePhaseRequest {
   // BuildType selects command execution, an interactive console, or file
   // copying for this build. It does not select the saved image's strategy.
   PhaseBuildType build_type = 10;
+  // Delegation optionally selects roles for the new Phase's builds. Omission
+  // inherits the caller's delegation restrictions, or uses the root user or
+  // bot's delegatable standing roles. An explicit selection can only narrow those
+  // permissions. Replacements must omit this field and keep the stored selection.
+  DelegationSpec delegation = 11;
 }
 
 // CreatePhaseResponse contains the created Phase and its initial build Beam.

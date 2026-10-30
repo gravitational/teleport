@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
@@ -88,6 +89,10 @@ func (c *phaseLSCommand) run(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 			users = []string{user.GetName()}
+			owners := user.GetTraits()[types.PhaseOwnerLabel]
+			if len(owners) == 1 && owners[0] != "" {
+				users = owners
+			}
 		}
 		phases, err = stream.Collect(clientutils.Resources(cf.Context, func(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Phase, string, error) {
 			resp, err := rootClient.PhaseServiceClient().ListPhases(ctx, beamsv1.ListPhasesRequest_builder{
@@ -148,7 +153,7 @@ func (c *phaseLSCommand) printInLocation(w io.Writer, phases []*beamsv1.Phase, l
 }
 
 func printPhaseTableInLocation(w io.Writer, phases []formattedPhase, all bool, loc *time.Location) error {
-	headings := []string{"Name", "Upstream", "Strategy", "Status", "Region", "Digest", "Last Published"}
+	headings := []string{"Name", "Upstream", "Strategy", "Status", "Region", "Roles", "Digest", "Last Published"}
 	if all {
 		headings = append(headings, "Owner")
 	}
@@ -158,12 +163,17 @@ func printPhaseTableInLocation(w io.Writer, phases []formattedPhase, all bool, l
 		if phase.PublishedAt != nil {
 			publishedAt = phase.PublishedAt.In(loc).Format("2006-01-02 15:04")
 		}
+		roles := "-"
+		if len(phase.Roles) != 0 {
+			roles = strings.Join(phase.Roles, ", ")
+		}
 		row := []string{
 			phase.Name,
 			phase.Parent,
 			phase.Strategy,
 			phase.State,
 			phase.Region,
+			roles,
 			shortPhaseDigest(phase.ImageDigest),
 			publishedAt,
 		}

@@ -65,6 +65,7 @@ type phaseBuildOptions struct {
 	copies       []string
 	files        []phaseConfigFile
 	region       string
+	roles        string
 	format       string
 	console      bool
 }
@@ -75,6 +76,8 @@ func newPhaseAddCommand(parent *kingpin.CmdClause) *phaseAddCommand {
 	cmd.Arg("name", "Optional Phase name. If omitted, a name is generated.").StringVar(&cmd.name)
 	cmd.Flag("from", "Upstream Phase image to use as the base image.").IsSetByUser(&cmd.fromSet).StringVar(&cmd.parent)
 	cmd.Flag("fork", "Capture the current build Beam's filesystem and start a new Phase from it.").BoolVar(&cmd.forkLocal)
+	cmd.Flag("roles", "Comma-separated roles to delegate to Phase builds. Omit to inherit your delegation permissions.").
+		StringVar(&cmd.roles)
 	cmd.Flag("fork-from", "Fork a Phase name or parent@sha256:digest. Copy and rebuild Phases cannot be forked.").
 		IsSetByUser(&cmd.forkFromSet).
 		StringVar(&cmd.forkSource)
@@ -153,6 +156,12 @@ func (c *phaseBuildOptions) buildRequest(name string) (*beamsv1.CreatePhaseReque
 		OverrideRegion:  c.region,
 		StreamBuildLogs: c.commandsFile != "" && c.console,
 	}.Build()
+	if c.roles != "" {
+		req.SetDelegation(beamsv1.DelegationSpec_builder{
+			Mode:  beamsv1.DelegationMode_DELEGATION_MODE_SELECTED_ROLES,
+			Roles: utils.SplitIdentifiers(c.roles),
+		}.Build())
+	}
 	if c.commandsFile != "" {
 		contents, err := readPhaseBuildConfig(c.commandsFile)
 		if err != nil {

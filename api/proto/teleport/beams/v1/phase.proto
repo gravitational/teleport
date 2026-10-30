@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.beams.v1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/beams/v1/beam.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
@@ -81,8 +82,10 @@ enum PhaseStrategy {
 
 // PhaseStatus contains Auth-maintained build state.
 message PhaseStatus {
-  // User identifies the owner whose standing permissions are used for builds.
-  // Caller access is checked separately against resource rules and labels.
+  // User identifies the Teleport username of the root user or bot who owns the
+  // Phase, even when it was created from a delegated Beam. Delegation limits
+  // the permissions used for builds. Caller access is checked separately
+  // against resource rules and labels.
   string user = 1;
   // Strategy controls how Auth refreshes this Phase. A Phase with a build
   // configuration uses REBUILD. An interactive build starts as STATIC and can
@@ -122,6 +125,10 @@ message PhaseStatus {
   // ID when the Phase is created. Snapshot metadata includes it so a deleted
   // Phase name cannot be used to access snapshots from an older Phase.
   string id = 13;
+  // Delegation limits which of the owner's current standing roles builds can
+  // use. Auth preserves inherited restrictions when creating from a Beam.
+  // Replacing the Phase does not change this selection.
+  DelegationSpec delegation = 14;
 }
 
 // PhasePublishedImage is the latest successful image retained for new Beams.

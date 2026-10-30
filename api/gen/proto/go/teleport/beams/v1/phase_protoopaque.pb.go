@@ -476,6 +476,7 @@ type PhaseStatus struct {
 	xxx_hidden_FailedBuilds                    *[]*FailedPhaseBuild     `protobuf:"bytes,11,rep,name=failed_builds,json=failedBuilds,proto3"`
 	xxx_hidden_RetiredSnapshots                *[]*PhaseSnapshotTag     `protobuf:"bytes,12,rep,name=retired_snapshots,json=retiredSnapshots,proto3"`
 	xxx_hidden_Id                              string                   `protobuf:"bytes,13,opt,name=id,proto3"`
+	xxx_hidden_Delegation                      *DelegationSpec          `protobuf:"bytes,14,opt,name=delegation,proto3"`
 	unknownFields                              protoimpl.UnknownFields
 	sizeCache                                  protoimpl.SizeCache
 }
@@ -600,6 +601,13 @@ func (x *PhaseStatus) GetId() string {
 	return ""
 }
 
+func (x *PhaseStatus) GetDelegation() *DelegationSpec {
+	if x != nil {
+		return x.xxx_hidden_Delegation
+	}
+	return nil
+}
+
 func (x *PhaseStatus) SetUser(v string) {
 	x.xxx_hidden_User = v
 }
@@ -652,6 +660,10 @@ func (x *PhaseStatus) SetId(v string) {
 	x.xxx_hidden_Id = v
 }
 
+func (x *PhaseStatus) SetDelegation(v *DelegationSpec) {
+	x.xxx_hidden_Delegation = v
+}
+
 func (x *PhaseStatus) HasPublished() bool {
 	if x == nil {
 		return false
@@ -680,6 +692,13 @@ func (x *PhaseStatus) HasNextBuildAt() bool {
 	return x.xxx_hidden_NextBuildAt != nil
 }
 
+func (x *PhaseStatus) HasDelegation() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Delegation != nil
+}
+
 func (x *PhaseStatus) ClearPublished() {
 	x.xxx_hidden_Published = nil
 }
@@ -696,11 +715,17 @@ func (x *PhaseStatus) ClearNextBuildAt() {
 	x.xxx_hidden_NextBuildAt = nil
 }
 
+func (x *PhaseStatus) ClearDelegation() {
+	x.xxx_hidden_Delegation = nil
+}
+
 type PhaseStatus_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// User identifies the owner whose standing permissions are used for builds.
-	// Caller access is checked separately against resource rules and labels.
+	// User identifies the Teleport username of the root user or bot who owns the
+	// Phase, even when it was created from a delegated Beam. Delegation limits
+	// the permissions used for builds. Caller access is checked separately
+	// against resource rules and labels.
 	User string
 	// Strategy controls how Auth refreshes this Phase. A Phase with a build
 	// configuration uses REBUILD. An interactive build starts as STATIC and can
@@ -740,6 +765,10 @@ type PhaseStatus_builder struct {
 	// ID when the Phase is created. Snapshot metadata includes it so a deleted
 	// Phase name cannot be used to access snapshots from an older Phase.
 	Id string
+	// Delegation limits which of the owner's current standing roles builds can
+	// use. Auth preserves inherited restrictions when creating from a Beam.
+	// Replacing the Phase does not change this selection.
+	Delegation *DelegationSpec
 }
 
 func (b0 PhaseStatus_builder) Build() *PhaseStatus {
@@ -759,6 +788,7 @@ func (b0 PhaseStatus_builder) Build() *PhaseStatus {
 	x.xxx_hidden_FailedBuilds = &b.FailedBuilds
 	x.xxx_hidden_RetiredSnapshots = &b.RetiredSnapshots
 	x.xxx_hidden_Id = b.Id
+	x.xxx_hidden_Delegation = b.Delegation
 	return m0
 }
 
@@ -1541,7 +1571,7 @@ var File_teleport_beams_v1_phase_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_phase_proto_rawDesc = "" +
 	"\n" +
-	"\x1dteleport/beams/v1/phase.proto\x12\x11teleport.beams.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xf4\x01\n" +
+	"\x1dteleport/beams/v1/phase.proto\x12\x11teleport.beams.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a!teleport/header/v1/metadata.proto\"\xf4\x01\n" +
 	"\x05Phase\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -1551,7 +1581,7 @@ const file_teleport_beams_v1_phase_proto_rawDesc = "" +
 	"\x06status\x18\x06 \x01(\v2\x1e.teleport.beams.v1.PhaseStatusR\x06status\"F\n" +
 	"\tPhaseSpec\x12!\n" +
 	"\fbuild_config\x18\x01 \x01(\tR\vbuildConfig\x12\x16\n" +
-	"\x06parent\x18\x02 \x01(\tR\x06parent\"\xdb\x05\n" +
+	"\x06parent\x18\x02 \x01(\tR\x06parent\"\x9e\x06\n" +
 	"\vPhaseStatus\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12<\n" +
 	"\bstrategy\x18\x02 \x01(\x0e2 .teleport.beams.v1.PhaseStrategyR\bstrategy\x128\n" +
@@ -1567,7 +1597,10 @@ const file_teleport_beams_v1_phase_proto_rawDesc = "" +
 	" \x01(\tR\tlastError\x12H\n" +
 	"\rfailed_builds\x18\v \x03(\v2#.teleport.beams.v1.FailedPhaseBuildR\ffailedBuilds\x12P\n" +
 	"\x11retired_snapshots\x18\f \x03(\v2#.teleport.beams.v1.PhaseSnapshotTagR\x10retiredSnapshots\x12\x0e\n" +
-	"\x02id\x18\r \x01(\tR\x02id\"\x8d\x02\n" +
+	"\x02id\x18\r \x01(\tR\x02id\x12A\n" +
+	"\n" +
+	"delegation\x18\x0e \x01(\v2!.teleport.beams.v1.DelegationSpecR\n" +
+	"delegation\"\x8d\x02\n" +
 	"\x13PhasePublishedImage\x12\x16\n" +
 	"\x06digest\x18\x01 \x01(\tR\x06digest\x12\x1e\n" +
 	"\n" +
@@ -1649,6 +1682,7 @@ var file_teleport_beams_v1_phase_proto_goTypes = []any{
 	(*PhaseSnapshotTag)(nil),        // 10: teleport.beams.v1.PhaseSnapshotTag
 	(*v1.Metadata)(nil),             // 11: teleport.header.v1.Metadata
 	(*timestamppb.Timestamp)(nil),   // 12: google.protobuf.Timestamp
+	(*DelegationSpec)(nil),          // 13: teleport.beams.v1.DelegationSpec
 }
 var file_teleport_beams_v1_phase_proto_depIdxs = []int32{
 	11, // 0: teleport.beams.v1.Phase.metadata:type_name -> teleport.header.v1.Metadata
@@ -1662,18 +1696,19 @@ var file_teleport_beams_v1_phase_proto_depIdxs = []int32{
 	12, // 8: teleport.beams.v1.PhaseStatus.next_build_at:type_name -> google.protobuf.Timestamp
 	9,  // 9: teleport.beams.v1.PhaseStatus.failed_builds:type_name -> teleport.beams.v1.FailedPhaseBuild
 	10, // 10: teleport.beams.v1.PhaseStatus.retired_snapshots:type_name -> teleport.beams.v1.PhaseSnapshotTag
-	12, // 11: teleport.beams.v1.PhasePublishedImage.published_at:type_name -> google.protobuf.Timestamp
-	12, // 12: teleport.beams.v1.PhaseBuildOperation.started_at:type_name -> google.protobuf.Timestamp
-	12, // 13: teleport.beams.v1.PhaseBuildOperation.provision_expires:type_name -> google.protobuf.Timestamp
-	1,  // 14: teleport.beams.v1.PhaseBuildOperation.build_type:type_name -> teleport.beams.v1.PhaseBuildType
-	12, // 15: teleport.beams.v1.FailedPhaseBuild.timestamp:type_name -> google.protobuf.Timestamp
-	12, // 16: teleport.beams.v1.FailedPhaseBuild.expiration:type_name -> google.protobuf.Timestamp
-	12, // 17: teleport.beams.v1.PhaseSnapshotTag.delete_after:type_name -> google.protobuf.Timestamp
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	13, // 11: teleport.beams.v1.PhaseStatus.delegation:type_name -> teleport.beams.v1.DelegationSpec
+	12, // 12: teleport.beams.v1.PhasePublishedImage.published_at:type_name -> google.protobuf.Timestamp
+	12, // 13: teleport.beams.v1.PhaseBuildOperation.started_at:type_name -> google.protobuf.Timestamp
+	12, // 14: teleport.beams.v1.PhaseBuildOperation.provision_expires:type_name -> google.protobuf.Timestamp
+	1,  // 15: teleport.beams.v1.PhaseBuildOperation.build_type:type_name -> teleport.beams.v1.PhaseBuildType
+	12, // 16: teleport.beams.v1.FailedPhaseBuild.timestamp:type_name -> google.protobuf.Timestamp
+	12, // 17: teleport.beams.v1.FailedPhaseBuild.expiration:type_name -> google.protobuf.Timestamp
+	12, // 18: teleport.beams.v1.PhaseSnapshotTag.delete_after:type_name -> google.protobuf.Timestamp
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_phase_proto_init() }
@@ -1681,6 +1716,7 @@ func file_teleport_beams_v1_phase_proto_init() {
 	if File_teleport_beams_v1_phase_proto != nil {
 		return
 	}
+	file_teleport_beams_v1_beam_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

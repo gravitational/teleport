@@ -50,6 +50,7 @@ type CreatePhaseRequest struct {
 	xxx_hidden_OverrideRegion   string                 `protobuf:"bytes,8,opt,name=override_region,json=overrideRegion,proto3"`
 	xxx_hidden_SuppressRebuilds []string               `protobuf:"bytes,9,rep,name=suppress_rebuilds,json=suppressRebuilds,proto3"`
 	xxx_hidden_BuildType        PhaseBuildType         `protobuf:"varint,10,opt,name=build_type,json=buildType,proto3,enum=teleport.beams.v1.PhaseBuildType"`
+	xxx_hidden_Delegation       *DelegationSpec        `protobuf:"bytes,11,opt,name=delegation,proto3"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -149,6 +150,13 @@ func (x *CreatePhaseRequest) GetBuildType() PhaseBuildType {
 	return PhaseBuildType_PHASE_BUILD_TYPE_UNSPECIFIED
 }
 
+func (x *CreatePhaseRequest) GetDelegation() *DelegationSpec {
+	if x != nil {
+		return x.xxx_hidden_Delegation
+	}
+	return nil
+}
+
 func (x *CreatePhaseRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
@@ -189,6 +197,21 @@ func (x *CreatePhaseRequest) SetBuildType(v PhaseBuildType) {
 	x.xxx_hidden_BuildType = v
 }
 
+func (x *CreatePhaseRequest) SetDelegation(v *DelegationSpec) {
+	x.xxx_hidden_Delegation = v
+}
+
+func (x *CreatePhaseRequest) HasDelegation() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Delegation != nil
+}
+
+func (x *CreatePhaseRequest) ClearDelegation() {
+	x.xxx_hidden_Delegation = nil
+}
+
 type CreatePhaseRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -225,6 +248,11 @@ type CreatePhaseRequest_builder struct {
 	// BuildType selects command execution, an interactive console, or file
 	// copying for this build. It does not select the saved image's strategy.
 	BuildType PhaseBuildType
+	// Delegation optionally selects roles for the new Phase's builds. Omission
+	// inherits the caller's delegation restrictions, or uses the root user or
+	// bot's delegatable standing roles. An explicit selection can only narrow those
+	// permissions. Replacements must omit this field and keep the stored selection.
+	Delegation *DelegationSpec
 }
 
 func (b0 CreatePhaseRequest_builder) Build() *CreatePhaseRequest {
@@ -241,6 +269,7 @@ func (b0 CreatePhaseRequest_builder) Build() *CreatePhaseRequest {
 	x.xxx_hidden_OverrideRegion = b.OverrideRegion
 	x.xxx_hidden_SuppressRebuilds = b.SuppressRebuilds
 	x.xxx_hidden_BuildType = b.BuildType
+	x.xxx_hidden_Delegation = b.Delegation
 	return m0
 }
 
@@ -864,7 +893,7 @@ var File_teleport_beams_v1_phase_service_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_phase_service_proto_rawDesc = "" +
 	"\n" +
-	"%teleport/beams/v1/phase_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a\x1dteleport/beams/v1/phase.proto\"\x8b\x03\n" +
+	"%teleport/beams/v1/phase_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a\x1dteleport/beams/v1/phase.proto\"\xce\x03\n" +
 	"\x12CreatePhaseRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fbuild_config\x18\x02 \x01(\tR\vbuildConfig\x12\x16\n" +
@@ -877,7 +906,10 @@ const file_teleport_beams_v1_phase_service_proto_rawDesc = "" +
 	"\x11suppress_rebuilds\x18\t \x03(\tR\x10suppressRebuilds\x12@\n" +
 	"\n" +
 	"build_type\x18\n" +
-	" \x01(\x0e2!.teleport.beams.v1.PhaseBuildTypeR\tbuildType\"}\n" +
+	" \x01(\x0e2!.teleport.beams.v1.PhaseBuildTypeR\tbuildType\x12A\n" +
+	"\n" +
+	"delegation\x18\v \x01(\v2!.teleport.beams.v1.DelegationSpecR\n" +
+	"delegation\"}\n" +
 	"\x13CreatePhaseResponse\x12.\n" +
 	"\x05phase\x18\x01 \x01(\v2\x18.teleport.beams.v1.PhaseR\x05phase\x126\n" +
 	"\n" +
@@ -923,32 +955,34 @@ var file_teleport_beams_v1_phase_service_proto_goTypes = []any{
 	(*PublishPhaseRequest)(nil),  // 7: teleport.beams.v1.PublishPhaseRequest
 	(*PublishPhaseResponse)(nil), // 8: teleport.beams.v1.PublishPhaseResponse
 	(PhaseBuildType)(0),          // 9: teleport.beams.v1.PhaseBuildType
-	(*Phase)(nil),                // 10: teleport.beams.v1.Phase
-	(*Beam)(nil),                 // 11: teleport.beams.v1.Beam
-	(*emptypb.Empty)(nil),        // 12: google.protobuf.Empty
+	(*DelegationSpec)(nil),       // 10: teleport.beams.v1.DelegationSpec
+	(*Phase)(nil),                // 11: teleport.beams.v1.Phase
+	(*Beam)(nil),                 // 12: teleport.beams.v1.Beam
+	(*emptypb.Empty)(nil),        // 13: google.protobuf.Empty
 }
 var file_teleport_beams_v1_phase_service_proto_depIdxs = []int32{
 	9,  // 0: teleport.beams.v1.CreatePhaseRequest.build_type:type_name -> teleport.beams.v1.PhaseBuildType
-	10, // 1: teleport.beams.v1.CreatePhaseResponse.phase:type_name -> teleport.beams.v1.Phase
-	11, // 2: teleport.beams.v1.CreatePhaseResponse.build_beam:type_name -> teleport.beams.v1.Beam
-	10, // 3: teleport.beams.v1.GetPhaseResponse.phase:type_name -> teleport.beams.v1.Phase
-	10, // 4: teleport.beams.v1.ListPhasesResponse.phases:type_name -> teleport.beams.v1.Phase
-	10, // 5: teleport.beams.v1.PublishPhaseResponse.phase:type_name -> teleport.beams.v1.Phase
-	0,  // 6: teleport.beams.v1.PhaseService.CreatePhase:input_type -> teleport.beams.v1.CreatePhaseRequest
-	7,  // 7: teleport.beams.v1.PhaseService.PublishPhase:input_type -> teleport.beams.v1.PublishPhaseRequest
-	2,  // 8: teleport.beams.v1.PhaseService.GetPhase:input_type -> teleport.beams.v1.GetPhaseRequest
-	4,  // 9: teleport.beams.v1.PhaseService.ListPhases:input_type -> teleport.beams.v1.ListPhasesRequest
-	6,  // 10: teleport.beams.v1.PhaseService.DeletePhase:input_type -> teleport.beams.v1.DeletePhaseRequest
-	1,  // 11: teleport.beams.v1.PhaseService.CreatePhase:output_type -> teleport.beams.v1.CreatePhaseResponse
-	8,  // 12: teleport.beams.v1.PhaseService.PublishPhase:output_type -> teleport.beams.v1.PublishPhaseResponse
-	3,  // 13: teleport.beams.v1.PhaseService.GetPhase:output_type -> teleport.beams.v1.GetPhaseResponse
-	5,  // 14: teleport.beams.v1.PhaseService.ListPhases:output_type -> teleport.beams.v1.ListPhasesResponse
-	12, // 15: teleport.beams.v1.PhaseService.DeletePhase:output_type -> google.protobuf.Empty
-	11, // [11:16] is the sub-list for method output_type
-	6,  // [6:11] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	10, // 1: teleport.beams.v1.CreatePhaseRequest.delegation:type_name -> teleport.beams.v1.DelegationSpec
+	11, // 2: teleport.beams.v1.CreatePhaseResponse.phase:type_name -> teleport.beams.v1.Phase
+	12, // 3: teleport.beams.v1.CreatePhaseResponse.build_beam:type_name -> teleport.beams.v1.Beam
+	11, // 4: teleport.beams.v1.GetPhaseResponse.phase:type_name -> teleport.beams.v1.Phase
+	11, // 5: teleport.beams.v1.ListPhasesResponse.phases:type_name -> teleport.beams.v1.Phase
+	11, // 6: teleport.beams.v1.PublishPhaseResponse.phase:type_name -> teleport.beams.v1.Phase
+	0,  // 7: teleport.beams.v1.PhaseService.CreatePhase:input_type -> teleport.beams.v1.CreatePhaseRequest
+	7,  // 8: teleport.beams.v1.PhaseService.PublishPhase:input_type -> teleport.beams.v1.PublishPhaseRequest
+	2,  // 9: teleport.beams.v1.PhaseService.GetPhase:input_type -> teleport.beams.v1.GetPhaseRequest
+	4,  // 10: teleport.beams.v1.PhaseService.ListPhases:input_type -> teleport.beams.v1.ListPhasesRequest
+	6,  // 11: teleport.beams.v1.PhaseService.DeletePhase:input_type -> teleport.beams.v1.DeletePhaseRequest
+	1,  // 12: teleport.beams.v1.PhaseService.CreatePhase:output_type -> teleport.beams.v1.CreatePhaseResponse
+	8,  // 13: teleport.beams.v1.PhaseService.PublishPhase:output_type -> teleport.beams.v1.PublishPhaseResponse
+	3,  // 14: teleport.beams.v1.PhaseService.GetPhase:output_type -> teleport.beams.v1.GetPhaseResponse
+	5,  // 15: teleport.beams.v1.PhaseService.ListPhases:output_type -> teleport.beams.v1.ListPhasesResponse
+	13, // 16: teleport.beams.v1.PhaseService.DeletePhase:output_type -> google.protobuf.Empty
+	12, // [12:17] is the sub-list for method output_type
+	7,  // [7:12] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_phase_service_proto_init() }

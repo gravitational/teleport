@@ -58,6 +58,7 @@ type formattedPhase struct {
 	BuildBeam    string                 `json:"build_beam,omitempty"`
 	ImageDigest  string                 `json:"image_digest,omitempty"`
 	Region       string                 `json:"region,omitempty"`
+	Roles        []string               `json:"roles,omitempty"`
 	PublishedAt  *time.Time             `json:"published_at,omitempty"`
 	NextBuild    *time.Time             `json:"next_build,omitempty"`
 	LastError    string                 `json:"last_error,omitempty"`
@@ -79,6 +80,7 @@ func formatPhase(phase *beamsv1.Phase) formattedPhase {
 		State:       phaseStateString(phase.GetStatus().GetState()),
 		ImageDigest: phase.GetStatus().GetPublished().GetDigest(),
 		Region:      phase.GetStatus().GetRegion(),
+		Roles:       phase.GetStatus().GetDelegation().GetRoles(),
 		LastError:   phase.GetStatus().GetLastError(),
 	}
 	if value := phase.GetStatus().GetPublished().GetPublishedAt(); value != nil {

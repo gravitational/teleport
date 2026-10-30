@@ -141,6 +141,9 @@ Examples:
   Create a Phase and open an interactive build console:
   $ tsh phase add dev-tools
 
+  Limit the roles available to this Phase's builds:
+  $ tsh phase add dev-tools --roles=developer,database-access
+
   Start an interactive build without connecting, and return its build_beam ID:
   $ tsh phase add dev-tools --no-console --format=json
 
