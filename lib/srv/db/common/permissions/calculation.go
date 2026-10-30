@@ -40,7 +40,7 @@ type GetDatabasePermissions interface {
 }
 
 func databasePermissionMatch(perm types.DatabasePermission, obj *dbobjectv1.DatabaseObject) bool {
-	ok, _, _ := services.MatchLabels(perm.Match, obj.Metadata.Labels)
+	ok, _ := services.MatchLabels(perm.Match, obj.GetMetadata().GetLabels())
 	return ok
 }
 

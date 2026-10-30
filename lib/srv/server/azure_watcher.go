@@ -321,7 +321,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 		if !slices.Contains(f.Regions, vm.Location) && !allowAllLocations {
 			continue
 		}
-		if match, _, _ := services.MatchLabels(f.Labels, vm.Tags); !match {
+		if match, _ := services.MatchLabels(f.Labels, vm.Tags); !match {
 			continue
 		}
 

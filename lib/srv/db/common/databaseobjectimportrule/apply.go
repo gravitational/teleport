@@ -127,7 +127,7 @@ func filterRulesForDatabase(rules []*dbobjectimportrulev1.DatabaseObjectImportRu
 			dbLabels[k] = v
 		}
 
-		if ok, _, _ := services.MatchLabels(dbLabels, database.GetAllLabels()); ok {
+		if ok, _ := services.MatchLabels(dbLabels, database.GetAllLabels()); ok {
 			out = append(out, rule)
 		}
 	}

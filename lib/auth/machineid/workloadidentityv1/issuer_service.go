@@ -1169,8 +1169,9 @@ func (s *IssuanceService) matchingAndAuthorizedWorkloadIdentities(
 			}
 
 			// Filter out WI that do not match the label selector.
+			const debugFalse = false
 			match, _, err := services.MatchLabelGetter(
-				labels, types.Resource153ToResourceWithLabels(wid),
+				labels, types.Resource153ToResourceWithLabels(wid), debugFalse,
 			)
 			if err != nil {
 				// Maybe log and skip rather than returning an error?

@@ -150,7 +150,7 @@ func (s *Server) reconcileAccessGraph(
 			for _, tag := range cluster.Tags {
 				clusterTags[tag.GetKey()] = tag.GetValue().GetValue()
 			}
-			match, _, _ := services.MatchLabels(fetcher.EKSAuditLogs.Tags, clusterTags)
+			match, _ := services.MatchLabels(fetcher.EKSAuditLogs.Tags, clusterTags)
 			if match {
 				auditLogClusters = append(auditLogClusters, eksAuditLogCluster{fetcher, cluster})
 			}

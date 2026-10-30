@@ -215,6 +215,13 @@ func (c *ScopedAccessCheckerContext) riskyUnpinnedCheckersForResourceScope(ctx c
 	return c.checkersForResourceScope(ctx, scope, enforcePinFalse)
 }
 
+var errPinDoesNotApply = &trace.AccessDeniedError{
+	Message: "the session's pinned scope does not allow manipulating the resource due to its scope",
+}
+var errPinNotCompatible = &trace.AccessDeniedError{
+	Message: "the session's scope and the resource's scope are orthogonal, so the resource cannot be manipulated",
+}
+
 func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Context, scope string, enforcePin bool) stream.Stream[*ScopedAccessChecker] {
 	return func(yield func(*ScopedAccessChecker, error) bool) {
 		// deny immediately if the resource scope is not subject to the pinned scope. note that this denial isn't just an
@@ -225,12 +232,12 @@ func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Contex
 		// access to only resources subject to /foo/bar.
 		if enforcePin {
 			if !pinning.PinAppliesToResourceScope(c.pin, scope) {
-				yield(nil, trace.AccessDenied("scope pin %q does not apply to resource scope %q", c.pin.GetScope(), scope))
+				yield(nil, errPinDoesNotApply)
 				return
 			}
 		} else if !pinning.PinCompatibleWithPolicyScope(c.pin, scope) {
 			// Unpinned reads should still not allow orthogonal reads.
-			yield(nil, trace.AccessDenied("scope pin %q is orthogonal to resource scope %q", c.pin.GetScope(), scope))
+			yield(nil, errPinNotCompatible)
 			return
 		}
 
@@ -361,6 +368,8 @@ func (c *ScopedAccessCheckerContext) Decision(ctx context.Context, scope string,
 	return c.decision(ctx, c.CheckersForResourceScope(ctx, scope), fn)
 }
 
+var errDecisionAccessDenied = &trace.AccessDeniedError{Message: "access denied (decision)"}
+
 func (c *ScopedAccessCheckerContext) decision(ctx context.Context, checkers stream.Stream[*ScopedAccessChecker], fn func(*ScopedAccessChecker) error) (*ScopedAccessChecker, error) {
 	// inclusiveChecker is used for aggregation in the event we hit an inclusive allow decision, in which
 	// case we will continue to process checkers and aggregate them into this variable.
@@ -375,14 +384,14 @@ func (c *ScopedAccessCheckerContext) decision(ctx context.Context, checkers stre
 				)
 				break
 			}
-			return nil, trace.Wrap(err)
+			return nil, err
 		}
 
 		if !c.isScoped() {
 			// unscoped case is always a single-element stream and unscoped errors are always returned
 			// unmodified. remaining logic gets simpler if we short-circuit here.
 			if err := fn(checker); err != nil {
-				return nil, trace.Wrap(err)
+				return nil, err
 			}
 			return checker, nil
 		}
@@ -441,7 +450,7 @@ func (c *ScopedAccessCheckerContext) decision(ctx context.Context, checkers stre
 				"scope_of_effect", checker.scopeOfEffect,
 				"error", err,
 			)
-			return nil, trace.Wrap(err)
+			return nil, err
 		default:
 			// implicit deny, continue to the next check
 		}
@@ -452,7 +461,7 @@ func (c *ScopedAccessCheckerContext) decision(ctx context.Context, checkers stre
 	if inclusiveChecker != nil {
 		return inclusiveChecker, nil
 	}
-	return nil, trace.AccessDenied("access denied (decision)")
+	return nil, errDecisionAccessDenied
 }
 
 // AccessStateFromSSHIdentity builds an AccessState from an SSH identity, abstracting over scoped and

@@ -179,7 +179,7 @@ func (a *gkeFetcher) getMatchingKubeCluster(gkeCluster gcp.GKECluster) (types.Ku
 		return nil, trace.WrapWithMessage(err, "Unable to create types.KubernetesClusterV3 cluster from gcp.GKECluster.")
 	}
 
-	if match, reason, err := services.MatchLabels(a.FilterLabels, cluster.GetAllLabels()); err != nil {
+	if match, reason, err := services.MatchLabelsWithReason(a.FilterLabels, cluster.GetAllLabels()); err != nil {
 		return nil, trace.WrapWithMessage(err, "Unable to match GKE cluster labels against match labels.")
 	} else if !match {
 		return nil, trace.CompareFailed("GKE cluster %q labels does not match the selector: %s", gkeCluster.Name, reason)
