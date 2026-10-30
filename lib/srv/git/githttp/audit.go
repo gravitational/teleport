@@ -19,6 +19,7 @@
 package githttp
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -91,6 +92,41 @@ func (h *Handler) emitAuditEvent(event apievents.AuditEvent) {
 	}
 }
 
+// recordAccess emits git.access for authorized access to gitServer, deduplicated per git session.
+func (h *Handler) recordAccess(r *http.Request, identity *tlsca.Identity, gitServer types.Server) {
+	ctx := r.Context()
+	sessionID := identity.RouteToGit.SessionID
+	if sessionID == "" {
+		h.cfg.Logger.WarnContext(ctx, "Failed to emit git access audit event: identity is missing a git session ID (this is a bug)")
+		return
+	}
+	if _, err := h.accessEmitted.Get(ctx, sessionID, func(emitCtx context.Context) (struct{}, error) {
+		return struct{}{}, trace.Wrap(h.cfg.Emitter.EmitAuditEvent(emitCtx, h.makeGitAccessEvent(r, identity, gitServer)))
+	}); err != nil && ctx.Err() == nil {
+		h.cfg.Logger.DebugContext(ctx, "Failed to emit git access audit event", "git_server", gitServer.GetName(), "error", err)
+	}
+}
+
+func (h *Handler) makeGitAccessEvent(r *http.Request, identity *tlsca.Identity, gitServer types.Server) *apievents.GitAccess {
+	return &apievents.GitAccess{
+		Metadata: apievents.Metadata{
+			Type:        events.GitAccessEvent,
+			Code:        events.GitAccessCode,
+			ClusterName: h.cfg.ClusterName,
+		},
+		UserMetadata: identity.GetUserMetadata(),
+		// The session ID is unset. Use git_session_id to correlate events.
+		SessionMetadata: apievents.SessionMetadata{
+			WithMFA:          identity.MFAVerified,
+			PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
+		},
+		ServerMetadata:     makeServerMetadata(h.cfg.HostID),
+		ConnectionMetadata: apievents.ConnectionMetadata{RemoteAddr: r.RemoteAddr},
+		GitMetadata:        makeGitMetadata(gitServer),
+		GitSessionId:       identity.RouteToGit.SessionID,
+	}
+}
+
 func (h *Handler) makeGitCommandEvent(r *http.Request, identity *tlsca.Identity, gitServer types.Server, cmd gitcommon.Command) *apievents.GitCommand {
 	return &apievents.GitCommand{
 		Metadata: apievents.Metadata{
@@ -124,11 +160,12 @@ func (h *Handler) completeGitCommandEvent(event *apievents.GitCommand, cmdRecord
 		event.CommandMetadata.Error = http.StatusText(statusCode)
 	}
 
-	actions, err := cmdRecorder.GetActions()
+	actions, truncated, err := cmdRecorder.GetActions()
 	if err != nil {
 		h.cfg.Logger.WarnContext(h.closeContext, "Failed to get actions from git command recorder", "error", err)
 	}
 	event.Actions = actions
+	event.ActionsTruncated = truncated
 }
 
 // graphQLQueryForAudit returns the query of a GitHub GraphQL request body for

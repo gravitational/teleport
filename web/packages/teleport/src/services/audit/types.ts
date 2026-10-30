@@ -336,7 +336,7 @@ export const eventCodes = {
   GIT_COMMAND_FAILURE: 'TGIT001E',
   GIT_LOGIN: 'TGIT002I',
   GIT_LOGIN_FAILURE: 'TGIT002E',
-  GIT_SESSION_START: 'TGIT003I',
+  GIT_ACCESS: 'TGIT003I',
   GIT_SESSION_CHUNK: 'TGIT004I',
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
   AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
@@ -2190,14 +2190,14 @@ export type RawEvents = {
       git_integration?: string;
     }
   >;
-  [eventCodes.GIT_SESSION_START]: RawEvent<
-    typeof eventCodes.GIT_SESSION_START,
+  [eventCodes.GIT_ACCESS]: RawEvent<
+    typeof eventCodes.GIT_ACCESS,
     {
       git_service_type: string;
       git_server_name: string;
       git_organization: string;
       git_protocol: string;
-      sid: string;
+      git_session_id: string;
     }
   >;
   [eventCodes.GIT_SESSION_CHUNK]: RawEvent<

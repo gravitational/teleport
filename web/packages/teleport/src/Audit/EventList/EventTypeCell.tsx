@@ -334,7 +334,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.GIT_COMMAND_FAILURE]: Icons.GitHub,
   [eventCodes.GIT_LOGIN]: Icons.GitHub,
   [eventCodes.GIT_LOGIN_FAILURE]: Icons.GitHub,
-  [eventCodes.GIT_SESSION_START]: Icons.GitHub,
+  [eventCodes.GIT_ACCESS]: Icons.GitHub,
   [eventCodes.GIT_SESSION_CHUNK]: Icons.GitHub,
   [eventCodes.STABLE_UNIX_USER_CREATE]: Icons.Info,
   [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: Icons.AmazonAws,

@@ -21,6 +21,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -72,9 +73,10 @@ type CommandRecorder interface {
 
 	// GetCommand returns basic info of the command.
 	GetCommand() Command
-	// GetActions returns the action details of the command. The actions may
-	// be incomplete when an error is returned.
-	GetActions() ([]*apievents.GitCommandAction, error)
+	// GetActions returns the action details of the command, whether the list
+	// is known to be truncated, and an error if decoding failed. The actions
+	// may be incomplete when truncated is true or an error is returned.
+	GetActions() (actions []*apievents.GitCommandAction, truncated bool, err error)
 }
 
 // NewCommandRecorder returns a new Git command recorder.
@@ -111,8 +113,8 @@ func newNoopRecorder(command Command) *noopRecorder {
 func (r *noopRecorder) GetCommand() Command {
 	return r.Command
 }
-func (r *noopRecorder) GetActions() ([]*apievents.GitCommandAction, error) {
-	return nil, nil
+func (r *noopRecorder) GetActions() ([]*apievents.GitCommandAction, bool, error) {
+	return nil, false, nil
 }
 func (r *noopRecorder) Write(p []byte) (int, error) {
 	return len(p), nil
@@ -166,13 +168,13 @@ func (r *pushCommandRecorder) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (r *pushCommandRecorder) GetActions() ([]*apievents.GitCommandAction, error) {
+func (r *pushCommandRecorder) GetActions() ([]*apievents.GitCommandAction, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	// Noop push (e.g. "Everything up-to-date")
 	if bytes.Equal(r.payload, pktline.FlushPkt) {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	// The payload is the start of the reference update request: the
@@ -187,12 +189,11 @@ func (r *pushCommandRecorder) GetActions() ([]*apievents.GitCommandAction, error
 	//   treats a clean end of data as the end of the command-list, so
 	//   unexpectedEOFReader is chained here to make reading the next pkt-line
 	//   fail instead.
-	// For a partial capture, both the partial list and an error are returned.
-	//
-	// TODO(greedy52) add actions_truncated to git.command events to indicate a
-	// partial list of actions.
+	// Cut inside a pkt-line surfaces as io.ErrUnexpectedEOF. Cut between pkt-lines surfaces as
+	// pktline.ErrInvalidPktLen. Either one is what truncated means here.
 	request := packp.NewReferenceUpdateRequest()
 	decodeErr := request.Decode(io.MultiReader(bytes.NewReader(r.payload), unexpectedEOFReader{}))
+	truncated := errors.Is(decodeErr, io.ErrUnexpectedEOF) || errors.Is(decodeErr, pktline.ErrInvalidPktLen)
 
 	var actions []*apievents.GitCommandAction
 	for _, command := range request.Commands {
@@ -203,7 +204,7 @@ func (r *pushCommandRecorder) GetActions() ([]*apievents.GitCommandAction, error
 			New:       command.New.String(),
 		})
 	}
-	return actions, trace.Wrap(decodeErr)
+	return actions, truncated, trace.Wrap(decodeErr)
 }
 
 type unexpectedEOFReader struct{}

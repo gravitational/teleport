@@ -4185,11 +4185,11 @@ export const events = [
   },
   {
     code: 'TGIT003I',
-    event: 'git.session.start',
+    event: 'git.access',
     time: '2024-12-07T11:11:11.115Z',
     uid: '7699b806-e717-4821-85a5-d2f41acbe376',
     user: 'Linus.Torvalds',
-    sid: 'session-001',
+    git_session_id: 'session-001',
     git_service_type: 'github',
     git_server_name: 'github-my-org',
     git_organization: 'my-org',

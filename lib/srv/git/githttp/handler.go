@@ -159,6 +159,8 @@ type Handler struct {
 	// sessionChunkLimiter limits the rate of new session chunks per user to
 	// limit memory usage.
 	sessionChunkLimiter *limiter.RateLimiter
+	// accessEmitted deduplicates git.access emissions per git session.
+	accessEmitted *utils.FnCache
 
 	// newSessionRecorderFn creates a session recorder. Defaults to
 	// newSessionRecorder.
@@ -194,6 +196,19 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	accessEmitted, err := utils.NewFnCache(utils.FnCacheConfig{
+		// TTL is how long one git.access emission suppresses another for the same git session, matching
+		// app.access's dedup period.
+		TTL:         time.Hour,
+		Clock:       cfg.Clock,
+		Context:     closeContext,
+		ReloadOnErr: false,
+	})
+	if err != nil {
+		closeCancel()
+		return nil, trace.Wrap(err)
+	}
+
 	h := &Handler{
 		cfg: cfg,
 		authMiddleware: &authz.Middleware{
@@ -204,6 +219,7 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 		closeContext:        closeContext,
 		closeCancel:         closeCancel,
 		sessionChunkLimiter: sessionChunkLimiter,
+		accessEmitted:       accessEmitted,
 	}
 	h.newSessionRecorderFn = h.newSessionRecorder
 
@@ -243,6 +259,7 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 			case <-cleanup.Next():
 				sessionChunks.RemoveExpired()
 				upstreamAuth.removeExpiredCache()
+				accessEmitted.RemoveExpired()
 			case <-closeContext.Done():
 				return
 			}
@@ -318,10 +335,9 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		w, r = trackClientActivity(tracker, w, r)
 	}
 
-	// TODO(greedy52) to align with RFD 0341, rename git.session.start to
-	// git.access and emit it here.
-
 	r = r.WithContext(ctx)
+	h.recordAccess(r, &identity, gitServer)
+
 	switch gitServer.GetSubKind() {
 	case types.SubKindGitHub:
 		return h.handleGitHub(ctx, logger, w, r, &identity, gitServer)

@@ -2394,13 +2394,12 @@ export const formatters: Formatters = {
         : `User [${user}] failed to log in to ${service} integration`;
     },
   },
-  [eventCodes.GIT_SESSION_START]: {
-    type: 'git.session.start',
-    desc: 'Git Session Started',
-    format: ({ user, git_service_type, git_organization, git_protocol }) => {
+  [eventCodes.GIT_ACCESS]: {
+    type: 'git.access',
+    desc: 'Git Accessed',
+    format: ({ user, git_service_type, git_organization }) => {
       const service = formatGitServiceType(git_service_type);
-      const protocol = formatGitProtocol(git_protocol);
-      return `User [${user}] has started a ${service} ${protocol} session on org [${git_organization}]`;
+      return `User [${user}] accessed a ${service} org [${git_organization}]`;
     },
   },
   [eventCodes.GIT_SESSION_CHUNK]: {

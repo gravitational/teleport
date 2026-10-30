@@ -906,9 +906,9 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_GitLogin{
 			GitLogin: e,
 		}
-	case *GitSessionStart:
-		out.Event = &OneOf_GitSessionStart{
-			GitSessionStart: e,
+	case *GitAccess:
+		out.Event = &OneOf_GitAccess{
+			GitAccess: e,
 		}
 	case *GitSessionChunk:
 		out.Event = &OneOf_GitSessionChunk{

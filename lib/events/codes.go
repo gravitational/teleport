@@ -826,8 +826,8 @@ const (
 	GitLoginCode = "TGIT002I"
 	// GitLoginFailureCode is the git login failure event code.
 	GitLoginFailureCode = "TGIT002E"
-	// GitSessionStartCode is the git session start event code.
-	GitSessionStartCode = "TGIT003I"
+	// GitAccessCode is the git access event code.
+	GitAccessCode = "TGIT003I"
 	// GitSessionChunkCode is the git session chunk event code.
 	GitSessionChunkCode = "TGIT004I"
 	// GitHTTPRequestCode is the git HTTP request event code.

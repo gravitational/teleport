@@ -459,8 +459,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.GitCommand{}
 	case GitLoginEvent:
 		e = &events.GitLogin{}
-	case GitSessionStartEvent:
-		e = &events.GitSessionStart{}
+	case GitAccessEvent:
+		e = &events.GitAccess{}
 	case GitSessionChunkEvent:
 		e = &events.GitSessionChunk{}
 	case GitHTTPRequestEvent:

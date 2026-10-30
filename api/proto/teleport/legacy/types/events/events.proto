@@ -5664,9 +5664,10 @@ message PluginMetadata {
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
   // Event is one of the audit events
-  reserved 185, 186, 187, 228, 229, 230, 231;
+  reserved 185, 186, 187, 228, 229, 230, 231, 277;
   reserved "AutoUpdateAgentPlanCreate", "AutoUpdateAgentPlanUpdate", "AutoUpdateAgentPlanDelete";
   reserved "AppAuthConfigCreate", "AppAuthConfigUpdate", "AppAuthConfigDelete", "AppAuthConfigVerify";
+  reserved "GitSessionStart";
   oneof Event {
     events.UserLogin UserLogin = 1;
     events.UserCreate UserCreate = 2;
@@ -5936,7 +5937,6 @@ message OneOf {
     events.AppSessionRequestAllowed AppSessionRequestAllowed = 274;
     events.UserReset UserReset = 275;
     events.GitLogin GitLogin = 276;
-    events.GitSessionStart GitSessionStart = 277;
     events.GitSessionChunk GitSessionChunk = 278;
     events.GitHTTPRequest GitHTTPRequest = 279;
     events.BeamDestroyed BeamDestroyed = 280;
@@ -5946,6 +5946,7 @@ message OneOf {
     events.OAuthProxyRefresh OAuthProxyRefresh = 284;
     events.OAuthProxyAccess OAuthProxyAccess = 285;
     events.AWSRolesAnywhereCredentialsGenerated AWSRolesAnywhereCredentialsGenerated = 286;
+    events.GitAccess GitAccess = 287;
   }
 }
 
@@ -9591,6 +9592,10 @@ message GitCommand {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ActionsTruncated indicates actions were cut off because the push
+  // command exceeded the buffering cap.
+  bool actions_truncated = 12;
 }
 
 // GitMetadata contains common Git server information for audit events.
@@ -9649,8 +9654,9 @@ message GitLogin {
   bool credentials_stored = 8 [(gogoproto.jsontag) = "credentials_stored,omitempty"];
 }
 
-// GitSessionStart is emitted when a git integration session is started.
-message GitSessionStart {
+// GitAccess is emitted when a Teleport service authorizes a git integration
+// session.
+message GitAccess {
   // Metadata is a common event metadata.
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -9663,7 +9669,7 @@ message GitSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-  // Session is a common event session metadata.
+  // The session ID is unset. Use git_session_id to correlate events.
   SessionMetadata Session = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
@@ -9681,18 +9687,15 @@ message GitSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-  // Status indicates whether the session start was successful.
-  Status Status = 6 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
   // Git contains git metadata.
-  GitMetadata Git = 7 [
+  GitMetadata Git = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // GitSessionId is the session ID from the identity's git route. It
+  // correlates this event with other events for the same git session.
+  string git_session_id = 7;
 }
 
 // GitSessionChunk is emitted at the start of each git integration session

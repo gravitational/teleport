@@ -982,8 +982,8 @@ const (
 	GitCommandEvent = "git.command"
 	// GitLoginEvent is emitted when a user links their external identity to a git integration.
 	GitLoginEvent = "git.login"
-	// GitSessionStartEvent is emitted when a git integration session starts.
-	GitSessionStartEvent = "git.session.start"
+	// GitAccessEvent is emitted when a git integration session is authorized.
+	GitAccessEvent = "git.access"
 	// GitSessionChunkEvent is emitted when a git integration session recording chunk starts.
 	GitSessionChunkEvent = "git.session.chunk"
 	// GitHTTPRequestEvent is a recording event for each HTTP request within a git integration session.

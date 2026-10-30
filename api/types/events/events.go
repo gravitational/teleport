@@ -2614,7 +2614,7 @@ func (m *GitLogin) TrimToMaxSize(maxSize int) AuditEvent {
 	})
 }
 
-func (m *GitSessionStart) TrimToMaxSize(_ int) AuditEvent {
+func (m *GitAccess) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 

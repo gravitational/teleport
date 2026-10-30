@@ -610,11 +610,12 @@ func (s *ForwardServer) makeGitCommandEventWithExecResult(sctx *sessionContext, 
 	event.Path = string(recorder.GetCommand().Repository)
 	event.Service = recorder.GetCommand().Service
 
-	actions, err := recorder.GetActions()
+	actions, truncated, err := recorder.GetActions()
 	if err != nil {
 		s.logger.WarnContext(s.cfg.ParentContext, "Failed to get actions from Git command recorder", "error", err)
 	}
 	event.Actions = actions
+	event.ActionsTruncated = truncated
 	return event
 }
 
