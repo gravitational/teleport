@@ -1420,6 +1420,11 @@ const (
 	// belongs to.
 	BeamOwnerLabel = BeamsInternalLabelPrefix + "owner"
 
+	// PhaseOwnerLabel identifies the root user or bot on Phase resources and in
+	// Beam bot traits. It lets delegated roles match that owner's Phases without
+	// granting access to the owner's other Beams.
+	PhaseOwnerLabel = BeamsInternalLabelPrefix + "phase-owner"
+
 	// BeamAliasLabel is the label used to track the alias of the Beam a
 	// resource belongs to.
 	BeamAliasLabel = BeamsInternalLabelPrefix + "alias"

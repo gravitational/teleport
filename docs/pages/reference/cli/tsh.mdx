@@ -282,6 +282,7 @@ Flags:
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--[no-]console`|`true`|Connect to the beam via SSH after creation.|
 |`--[no-]share-connected-accounts`|`true`|Share your connected accounts (such as GitHub) with the beam. Defaults to true.|
+|`--phase`|*no default*|Phase name or name@sha256:digest snapshot to use for the beam.|
 |`--region`|*no default*|Region where the beam should live. If not specified, the closest region is selected.|
 |`--roles`|*no default*|Comma-separated list of roles that will be delegated to the beam.|
 
@@ -1370,6 +1371,157 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |name|*no default* (required)|Name or ID of the MFA device to remove.|
+
+## tsh phase add
+
+Create and build a Phase image.
+
+Usage:
+
+```code
+$ tsh phase add [<flags>] [<name>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--commands-file`|*no default*|Path to a YAML file in the raw command format. Omit for an interactive build.|
+|`--copy`|*no default*|Copy files outside /home using absolute-destination:local-source. Repeat for more paths.|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--fork-from`|*no default*|Fork a Phase name or parent@sha256:digest. Copy and rebuild Phases cannot be forked.|
+|`--from`|*no default*|Upstream Phase image to use as the base image.|
+|`--[no-]console`|`true`|Open an interactive shell or stream command logs. Disable to return after provisioning. Copies still finish before returning.|
+|`--[no-]fork`|`false`|Capture the current build Beam's filesystem and start a new Phase from it.|
+|`--region`|*no default*|Region in which to build the Phase.|
+|`--roles`|*no default*|Comma-separated roles to delegate to Phase builds. Omit to inherit your delegation permissions.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|*no default* (optional)|Optional Phase name. If omitted, a name is generated.|
+
+## tsh phase apply
+
+Create or update Phases from a multi-document YAML configuration.
+
+Usage:
+
+```code
+$ tsh phase apply --file=FILE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--file`|*no default*|Path to a multi-document YAML Phase configuration.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--[no-]console`|`true`|Stream command logs while applying. All stages still finish before returning.|
+|`--region`|*no default*|Region in which to build the Phases.|
+
+## tsh phase edit
+
+Edit an existing Phase in a build console or replace its build instructions.
+
+Usage:
+
+```code
+$ tsh phase edit [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--commands-file`|*no default*|Path to a YAML file in the raw command format. Omit for an interactive build.|
+|`--copy`|*no default*|Copy files outside /home using absolute-destination:local-source. Repeat for more paths.|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--from`|*no default*|Snapshot source: Phase name or parent@sha256:digest. Copy targets require --copy.|
+|`--[no-]console`|`true`|Open an interactive shell or stream command logs. Disable to return after provisioning. Copies still finish before returning.|
+|`--region`|*no default*|Region in which to build the Phase.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|*no default* (required)|Existing Phase to edit.|
+
+## tsh phase ls
+
+List Phase images.
+
+Usage:
+
+```code
+$ tsh phase ls [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--[no-]all`|`false`|List all authorized Phases instead of only your own.|
+
+## tsh phase ls-failed
+
+List failed Phase build snapshots.
+
+Usage:
+
+```code
+$ tsh phase ls-failed [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--[no-]all`|`false`|List all authorized Phases instead of only your own.|
+
+## tsh phase rm
+
+Delete a Phase image.
+
+Usage:
+
+```code
+$ tsh phase rm <name>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|*no default* (required)|Name of the Phase to delete.|
+
+## tsh phase snapshot
+
+Save a snapshot to its existing Phase.
+
+Usage:
+
+```code
+$ tsh phase snapshot [<flags>] [<name>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format: text, json, or yaml.|
+|`--from`|*no default*|Snapshot source: this Phase's name or parent@sha256:digest. Omit to capture the local build Beam.|
+|`--[no-]final`|`false`|Save the local snapshot and end this build. Changes after the snapshot are discarded.|
+|`--[no-]force`|`false`|Exclude changes outside /home and home paths reserved for rebuilds. Files in the running Beam are unchanged.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|*no default* (optional)|Existing Phase to save the snapshot to. Defaults to the local build Beam's Phase.|
 
 ## tsh piv agent
 

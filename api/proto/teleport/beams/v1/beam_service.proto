@@ -70,6 +70,12 @@ message CreateBeamRequest {
   // Delegation determines how the beam owner's privileges will be delegated to
   // the beam.
   DelegationSpec delegation = 5;
+
+  // Phase is a Phase name or name@sha256:digest selecting a published snapshot.
+  // Digests require access to their annotated source Phase and a matching
+  // Phase ID. The name must identify that source Phase or its parent.
+  // If empty or "default:v1", the standard Beam image is used.
+  string phase = 6;
 }
 
 // CreateBeamResponse contains the results of the CreateBeam RPC.

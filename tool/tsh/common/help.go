@@ -136,6 +136,105 @@ Examples:
   $ BEAM_ID=$(tsh beams add -f json | jq -r '.id')
   $ tsh beams exec $BEAM_ID -- ls examples`
 
+	phaseAddHelp = `
+Examples:
+  Create a Phase and open an interactive build console:
+  $ tsh phase add dev-tools
+
+  Limit the roles available to this Phase's builds:
+  $ tsh phase add dev-tools --roles=developer,database-access
+
+  Start an interactive build without connecting, and return its build_beam ID:
+  $ tsh phase add dev-tools --no-console --format=json
+
+  Build a Phase from a raw command file:
+  $ tsh phase add dev-tools --commands-file=build.yaml
+
+  Start a command build and return after provisioning:
+  $ tsh phase add dev-tools --commands-file=build.yaml --no-console
+
+  Copy local files outside /home into a new Phase:
+  $ tsh phase add app-files --copy=/opt/app/config:./config --copy=/etc/app.conf:./app.conf
+
+  Use another Phase as the base image:
+  $ tsh phase add project-tools --from=dev-tools
+
+  From inside a build Beam, fork the current filesystem:
+  $ tsh phase add my-fork --fork
+
+  Fork another Phase's last saved interactive filesystem:
+  $ tsh phase add my-fork --fork-from=dev-tools`
+
+	phaseApplyHelp = `
+Examples:
+  Create or update every stage, in order, streaming command logs:
+  $ tsh phase apply -f phase.yaml
+
+  Finish every stage without streaming command logs:
+  $ tsh phase apply -f phase.yaml --no-console
+
+  Reapply after changing local files or commands. Existing stages keep their
+  parent and cannot switch between files and commands. If a stage fails,
+  completed stages remain saved.
+
+Example phase.yaml:
+version: v1
+metadata:
+  name: app-files                  # Unique within this file and the cluster.
+                                   # Omit from here to use the default base image.
+files:                             # Use files or commands, never both.
+  - from: ./config                 # Local path, relative to this YAML file.
+    to: /opt/app-config             # Required absolute destination outside /home.
+                                   # Directories merge into the destination.
+---                                # Separate stages with a YAML document separator.
+version: v1
+metadata:
+  name: app
+  from: app-files                   # Every later stage names the preceding stage.
+commands:                          # Nonempty list, run in order as root outside /home.
+  - comment: Install tools         # Displayed in build logs as >> Install tools.
+    shell: apt-get update && apt-get install -y git curl
+                                   # Or use command with an optional args list.
+services:
+  - name: prepare-config           # Replaces any inherited service with this name.
+    type: pre-start
+    context: user                  # Default: interactive builds and ordinary Beams.
+    shell: cp /opt/app-config/app.json /home/beams/app.json
+
+Full format reference, service options, and examples:
+  https://goteleport.com/docs/beams/beams/#yaml-configuration-reference`
+
+	phaseEditHelp = `
+Examples:
+  Open a build console to edit a Phase's saved interactive files:
+  $ tsh phase edit dev-tools
+
+  Start editing without opening a console:
+  $ tsh phase edit dev-tools --no-console
+
+  Replace the raw command file:
+  $ tsh phase edit dev-tools --commands-file=build.yaml
+
+  Replace a Phase's copied files using current local files:
+  $ tsh phase edit app-files --copy=/opt/app/config:./config
+
+  Edit using another Phase's snapshot with the same parent:
+  $ tsh phase edit dev-tools --from=other-tools`
+
+	phaseSnapshotHelp = `
+Examples:
+  Save changes from the current build console and keep working:
+  $ tsh phase snapshot
+
+  Save changes and end the current build:
+  $ tsh phase snapshot --final
+
+  Exclude changes outside /home and home paths reserved for rebuilds:
+  $ tsh phase snapshot --force
+
+  Save an existing snapshot to its Phase:
+  $ tsh phase snapshot dev-tools --from='parent@sha256:<digest>'`
+
 	ghHelp = `
 Examples:
   Show the GitHub user:

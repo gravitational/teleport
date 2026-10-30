@@ -154,7 +154,12 @@ type CreateBeamRequest struct {
 	OverrideRegion string `protobuf:"bytes,4,opt,name=override_region,json=overrideRegion,proto3" json:"override_region,omitempty"`
 	// Delegation determines how the beam owner's privileges will be delegated to
 	// the beam.
-	Delegation    *DelegationSpec `protobuf:"bytes,5,opt,name=delegation,proto3" json:"delegation,omitempty"`
+	Delegation *DelegationSpec `protobuf:"bytes,5,opt,name=delegation,proto3" json:"delegation,omitempty"`
+	// Phase is a Phase name or name@sha256:digest selecting a published snapshot.
+	// Digests require access to their annotated source Phase and a matching
+	// Phase ID. The name must identify that source Phase or its parent.
+	// If empty or "default:v1", the standard Beam image is used.
+	Phase         string `protobuf:"bytes,6,opt,name=phase,proto3" json:"phase,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -219,6 +224,13 @@ func (x *CreateBeamRequest) GetDelegation() *DelegationSpec {
 	return nil
 }
 
+func (x *CreateBeamRequest) GetPhase() string {
+	if x != nil {
+		return x.Phase
+	}
+	return ""
+}
+
 func (x *CreateBeamRequest) SetEgress(v EgressMode) {
 	x.Egress = v
 }
@@ -237,6 +249,10 @@ func (x *CreateBeamRequest) SetOverrideRegion(v string) {
 
 func (x *CreateBeamRequest) SetDelegation(v *DelegationSpec) {
 	x.Delegation = v
+}
+
+func (x *CreateBeamRequest) SetPhase(v string) {
+	x.Phase = v
 }
 
 func (x *CreateBeamRequest) HasDelegation() bool {
@@ -266,6 +282,11 @@ type CreateBeamRequest_builder struct {
 	// Delegation determines how the beam owner's privileges will be delegated to
 	// the beam.
 	Delegation *DelegationSpec
+	// Phase is a Phase name or name@sha256:digest selecting a published snapshot.
+	// Digests require access to their annotated source Phase and a matching
+	// Phase ID. The name must identify that source Phase or its parent.
+	// If empty or "default:v1", the standard Beam image is used.
+	Phase string
 }
 
 func (b0 CreateBeamRequest_builder) Build() *CreateBeamRequest {
@@ -277,6 +298,7 @@ func (b0 CreateBeamRequest_builder) Build() *CreateBeamRequest {
 	x.ProxyRegion = b.ProxyRegion
 	x.OverrideRegion = b.OverrideRegion
 	x.Delegation = b.Delegation
+	x.Phase = b.Phase
 	return m0
 }
 
@@ -1091,7 +1113,7 @@ var File_teleport_beams_v1_beam_service_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\n" +
-	"$teleport/beams/v1/beam_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\"\x82\x02\n" +
+	"$teleport/beams/v1/beam_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cteleport/beams/v1/beam.proto\"\x98\x02\n" +
 	"\x11CreateBeamRequest\x125\n" +
 	"\x06egress\x18\x01 \x01(\x0e2\x1d.teleport.beams.v1.EgressModeR\x06egress\x12'\n" +
 	"\x0fallowed_domains\x18\x02 \x03(\tR\x0eallowedDomains\x12!\n" +
@@ -1099,7 +1121,8 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\x0foverride_region\x18\x04 \x01(\tR\x0eoverrideRegion\x12A\n" +
 	"\n" +
 	"delegation\x18\x05 \x01(\v2!.teleport.beams.v1.DelegationSpecR\n" +
-	"delegation\"A\n" +
+	"delegation\x12\x14\n" +
+	"\x05phase\x18\x06 \x01(\tR\x05phase\"A\n" +
 	"\x12CreateBeamResponse\x12+\n" +
 	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"@\n" +
 	"\x11UpdateBeamRequest\x12+\n" +

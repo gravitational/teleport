@@ -1930,6 +1930,9 @@ type ClientI interface {
 	// service.
 	SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient
 
+	// PhaseServiceClient returns a client for the Phase service.
+	PhaseServiceClient() beamsv1.PhaseServiceClient
+
 	// UserExternalCredentialClient returns a client for the user external
 	// credential service.
 	UserExternalCredentialClient() usercredpb.UserExternalCredentialServiceClient

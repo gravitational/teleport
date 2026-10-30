@@ -1,0 +1,142 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.beams.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/beams/v1/beam.proto";
+import "teleport/beams/v1/phase.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
+
+// PhaseService creates and manages reusable Beam images.
+service PhaseService {
+  // CreatePhase creates a Phase and returns after Auth provisions its build
+  // Beam. Auth observes the build result asynchronously.
+  rpc CreatePhase(CreatePhaseRequest) returns (CreatePhaseResponse);
+
+  // PublishPhase accepts a snapshot produced for an existing commandless Phase.
+  // It updates the Phase without provisioning or completing a build Beam.
+  rpc PublishPhase(PublishPhaseRequest) returns (PublishPhaseResponse);
+
+  // GetPhase returns a Phase by name.
+  rpc GetPhase(GetPhaseRequest) returns (GetPhaseResponse);
+
+  // ListPhases returns an authorized page of Phases.
+  rpc ListPhases(ListPhasesRequest) returns (ListPhasesResponse);
+
+  // DeletePhase deletes a Phase and any active build Beam.
+  rpc DeletePhase(DeletePhaseRequest) returns (google.protobuf.Empty);
+}
+
+// CreatePhaseRequest contains Phase creation parameters.
+message CreatePhaseRequest {
+  // Name is optional. Auth generates one when omitted.
+  string name = 1;
+  // BuildConfig is stored in the Phase and passed unchanged to the build Beam.
+  // Teleport does not interpret its contents. It is required for rebuilds
+  // and must be empty for snapshot and copy builds.
+  string build_config = 2;
+  // Parent is the base Phase. An empty value uses "default:v1" when creating a
+  // Phase and keeps the existing parent when replacing one.
+  string parent = 3;
+  // WorkingDigest is a canonical sha256 image digest in the tenant snapshot
+  // repository. Auth uses it to initialize an interactive build. It cannot be
+  // combined with BuildConfig.
+  string working_digest = 4;
+  // Replace updates an existing named Phase and keeps its parent. The request
+  // must provide BuildConfig or WorkingDigest, except that a COPY Phase can
+  // start fresh from its parent with neither. Auth rejects a missing target
+  // and a target that is already being changed.
+  bool replace = 5;
+  // StreamBuildLogs asks the build Beam to keep command output available for
+  // SSH log collection. The client streams the logs after CreatePhase returns.
+  bool stream_build_logs = 6;
+  // ProxyRegion is the closest proxy region found by the client.
+  string proxy_region = 7;
+  // OverrideRegion is an optional region selected by the user for the build
+  // Beam.
+  string override_region = 8;
+  // SuppressRebuilds lists up to 100 child Phase IDs that should not automatically
+  // adopt this operation's published generation. Clients applying a file use this
+  // to replace those children explicitly with their updated configuration.
+  repeated string suppress_rebuilds = 9;
+  // BuildType selects command execution, an interactive console, or file
+  // copying for this build. It does not select the saved image's strategy.
+  PhaseBuildType build_type = 10;
+  // Delegation optionally selects roles for the new Phase's builds. Omission
+  // inherits the caller's delegation restrictions, or uses the root user or
+  // bot's delegatable standing roles. An explicit selection can only narrow those
+  // permissions. Replacements must omit this field and keep the stored selection.
+  DelegationSpec delegation = 11;
+}
+
+// CreatePhaseResponse contains the created Phase and its initial build Beam.
+message CreatePhaseResponse {
+  // Phase is the created resource with its initial build in progress.
+  Phase phase = 1;
+
+  // BuildBeam is the provisioned build Beam. Clients use it to open an
+  // interactive console or collect build logs while Auth tracks completion.
+  Beam build_beam = 2;
+}
+
+// GetPhaseRequest selects a Phase by name.
+message GetPhaseRequest {
+  string name = 1;
+}
+
+// GetPhaseResponse contains the requested Phase.
+message GetPhaseResponse {
+  Phase phase = 1;
+}
+
+// ListPhasesRequest contains pagination and owner filtering.
+message ListPhasesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+
+  // Users filters results to the given owners.
+  repeated string users = 3;
+}
+
+// ListPhasesResponse contains an authorized page of Phases.
+message ListPhasesResponse {
+  repeated Phase phases = 1;
+  string next_page_token = 2;
+}
+
+// DeletePhaseRequest selects a Phase to delete.
+message DeletePhaseRequest {
+  string name = 1;
+}
+
+// PublishPhaseRequest updates an existing commandless Phase from its own snapshot.
+message PublishPhaseRequest {
+  string name = 1;
+  // Parent must match both the snapshot provenance and the target Phase parent.
+  string parent = 2;
+  // ImageDigest identifies the snapshot to publish.
+  string image_digest = 3;
+  // ExpectedRevision is the target Phase revision read when the request was
+  // prepared. Auth rejects the request if the Phase changed since then.
+  string expected_revision = 4;
+}
+
+// PublishPhaseResponse contains the Phase after retaining the snapshot.
+message PublishPhaseResponse {
+  Phase phase = 1;
+}

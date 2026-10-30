@@ -70,6 +70,7 @@ func formatBeam(beam *beamsv1.Beam, proxyAddr string) formattedBeam {
 		RequestedRegion: beam.GetSpec().GetRequestedRegion(),
 		Region:          beam.GetStatus().GetRegion(),
 		Roles:           beam.GetStatus().GetDelegation().GetRoles(),
+		Phase:           beam.GetSpec().GetPhase(),
 	}
 }
 
@@ -98,14 +99,12 @@ func beamPublishURL(beam *beamsv1.Beam, proxyAddr string) string {
 	}
 }
 
-// formattedBeam contains only the useful parts of the beam resource for scripting
-// or automating with an AI Agent.
+// formattedBeam contains the Beam fields used by scripts and automation.
 type formattedBeam struct {
 	// ID is the human-friendly name of the beam (taken from `status.alias`).
 	//
-	// As there is a limited number of possible word pairs, eventual reuse is
-	// likely but it will uniquely point to this beam for as long as the beam
-	// is alive.
+	// The alias can eventually be reused, but it uniquely identifies this Beam
+	// while the Beam is alive.
 	ID string `json:"id"`
 
 	// UUID is the stable/globally-unique identifier for the beam (taken from
@@ -134,9 +133,11 @@ type formattedBeam struct {
 
 	// Region is the region the Beam was provisioned in.
 	Region string `json:"region,omitempty"`
-
 	// Roles that have been delegated to the beam.
 	Roles []string `json:"roles,omitempty"`
+
+	// Phase is the reusable base image selected when the Beam was created.
+	Phase string `json:"phase,omitempty"`
 }
 
 // getBeam reads a beam by UUID or human-friendly name depending on the format

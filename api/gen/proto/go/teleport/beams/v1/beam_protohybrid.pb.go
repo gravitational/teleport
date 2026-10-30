@@ -38,6 +38,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// BeamResourcePurpose identifies the workflow for which a Beam resource was
+// created. Its distinct name avoids colliding with the compute API enum.
+type BeamResourcePurpose int32
+
+const (
+	// BEAM_RESOURCE_PURPOSE_UNSPECIFIED is treated as USER.
+	BeamResourcePurpose_BEAM_RESOURCE_PURPOSE_UNSPECIFIED BeamResourcePurpose = 0
+	// BEAM_RESOURCE_PURPOSE_USER is an ordinary interactive Beam.
+	BeamResourcePurpose_BEAM_RESOURCE_PURPOSE_USER BeamResourcePurpose = 1
+	// BEAM_RESOURCE_PURPOSE_BUILD produces an image for a Phase.
+	BeamResourcePurpose_BEAM_RESOURCE_PURPOSE_BUILD BeamResourcePurpose = 2
+)
+
+// Enum value maps for BeamResourcePurpose.
+var (
+	BeamResourcePurpose_name = map[int32]string{
+		0: "BEAM_RESOURCE_PURPOSE_UNSPECIFIED",
+		1: "BEAM_RESOURCE_PURPOSE_USER",
+		2: "BEAM_RESOURCE_PURPOSE_BUILD",
+	}
+	BeamResourcePurpose_value = map[string]int32{
+		"BEAM_RESOURCE_PURPOSE_UNSPECIFIED": 0,
+		"BEAM_RESOURCE_PURPOSE_USER":        1,
+		"BEAM_RESOURCE_PURPOSE_BUILD":       2,
+	}
+)
+
+func (x BeamResourcePurpose) Enum() *BeamResourcePurpose {
+	p := new(BeamResourcePurpose)
+	*p = x
+	return p
+}
+
+func (x BeamResourcePurpose) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BeamResourcePurpose) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_beams_v1_beam_proto_enumTypes[0].Descriptor()
+}
+
+func (BeamResourcePurpose) Type() protoreflect.EnumType {
+	return &file_teleport_beams_v1_beam_proto_enumTypes[0]
+}
+
+func (x BeamResourcePurpose) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 // EgressMode configures outgoing network connectivity from the beam.
 type EgressMode int32
 
@@ -79,11 +128,11 @@ func (x EgressMode) String() string {
 }
 
 func (EgressMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_beams_v1_beam_proto_enumTypes[0].Descriptor()
+	return file_teleport_beams_v1_beam_proto_enumTypes[1].Descriptor()
 }
 
 func (EgressMode) Type() protoreflect.EnumType {
-	return &file_teleport_beams_v1_beam_proto_enumTypes[0]
+	return &file_teleport_beams_v1_beam_proto_enumTypes[1]
 }
 
 func (x EgressMode) Number() protoreflect.EnumNumber {
@@ -127,11 +176,11 @@ func (x Protocol) String() string {
 }
 
 func (Protocol) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_beams_v1_beam_proto_enumTypes[1].Descriptor()
+	return file_teleport_beams_v1_beam_proto_enumTypes[2].Descriptor()
 }
 
 func (Protocol) Type() protoreflect.EnumType {
-	return &file_teleport_beams_v1_beam_proto_enumTypes[1]
+	return &file_teleport_beams_v1_beam_proto_enumTypes[2]
 }
 
 func (x Protocol) Number() protoreflect.EnumNumber {
@@ -177,11 +226,11 @@ func (x ComputeStatus) String() string {
 }
 
 func (ComputeStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_beams_v1_beam_proto_enumTypes[2].Descriptor()
+	return file_teleport_beams_v1_beam_proto_enumTypes[3].Descriptor()
 }
 
 func (ComputeStatus) Type() protoreflect.EnumType {
-	return &file_teleport_beams_v1_beam_proto_enumTypes[2]
+	return &file_teleport_beams_v1_beam_proto_enumTypes[3]
 }
 
 func (x ComputeStatus) Number() protoreflect.EnumNumber {
@@ -229,11 +278,11 @@ func (x DelegationMode) String() string {
 }
 
 func (DelegationMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_beams_v1_beam_proto_enumTypes[3].Descriptor()
+	return file_teleport_beams_v1_beam_proto_enumTypes[4].Descriptor()
 }
 
 func (DelegationMode) Type() protoreflect.EnumType {
-	return &file_teleport_beams_v1_beam_proto_enumTypes[3]
+	return &file_teleport_beams_v1_beam_proto_enumTypes[4]
 }
 
 func (x DelegationMode) Number() protoreflect.EnumNumber {
@@ -435,8 +484,15 @@ type BeamSpec struct {
 	// This field may differ from the actual resolved region in BeamStatus.Region,
 	// in the case that the RequestedRegion was unable to fulfill the request.
 	RequestedRegion string `protobuf:"bytes,5,opt,name=requested_region,json=requestedRegion,proto3" json:"requested_region,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Phase is the name of the Phase base image selected when a Beam was
+	// created. The reserved value "default:v1" selects the standard Beam image.
+	// build Beams reference their upstream Phase. Immutable after creation.
+	Phase string `protobuf:"bytes,6,opt,name=phase,proto3" json:"phase,omitempty"`
+	// Purpose identifies whether this is a user Beam or an internal image build
+	// Beam. This field is immutable after creation.
+	Purpose       BeamResourcePurpose `protobuf:"varint,7,opt,name=purpose,proto3,enum=teleport.beams.v1.BeamResourcePurpose" json:"purpose,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BeamSpec) Reset() {
@@ -499,6 +555,20 @@ func (x *BeamSpec) GetRequestedRegion() string {
 	return ""
 }
 
+func (x *BeamSpec) GetPhase() string {
+	if x != nil {
+		return x.Phase
+	}
+	return ""
+}
+
+func (x *BeamSpec) GetPurpose() BeamResourcePurpose {
+	if x != nil {
+		return x.Purpose
+	}
+	return BeamResourcePurpose_BEAM_RESOURCE_PURPOSE_UNSPECIFIED
+}
+
 func (x *BeamSpec) SetEgress(v EgressMode) {
 	x.Egress = v
 }
@@ -517,6 +587,14 @@ func (x *BeamSpec) SetExpires(v *timestamppb.Timestamp) {
 
 func (x *BeamSpec) SetRequestedRegion(v string) {
 	x.RequestedRegion = v
+}
+
+func (x *BeamSpec) SetPhase(v string) {
+	x.Phase = v
+}
+
+func (x *BeamSpec) SetPurpose(v BeamResourcePurpose) {
+	x.Purpose = v
 }
 
 func (x *BeamSpec) HasPublish() bool {
@@ -561,6 +639,13 @@ type BeamSpec_builder struct {
 	// This field may differ from the actual resolved region in BeamStatus.Region,
 	// in the case that the RequestedRegion was unable to fulfill the request.
 	RequestedRegion string
+	// Phase is the name of the Phase base image selected when a Beam was
+	// created. The reserved value "default:v1" selects the standard Beam image.
+	// build Beams reference their upstream Phase. Immutable after creation.
+	Phase string
+	// Purpose identifies whether this is a user Beam or an internal image build
+	// Beam. This field is immutable after creation.
+	Purpose BeamResourcePurpose
 }
 
 func (b0 BeamSpec_builder) Build() *BeamSpec {
@@ -572,6 +657,8 @@ func (b0 BeamSpec_builder) Build() *BeamSpec {
 	x.Publish = b.Publish
 	x.Expires = b.Expires
 	x.RequestedRegion = b.RequestedRegion
+	x.Phase = b.Phase
+	x.Purpose = b.Purpose
 	return m0
 }
 
@@ -668,7 +755,8 @@ type BeamStatus struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// User to which this beam belongs.
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
-	// Alias is the human-friendly identifier for the beam.
+	// Alias is the human-friendly identifier for the beam. build aliases are
+	// <target-phase>-<8 lowercase hex characters>. The target name is preserved.
 	Alias string `protobuf:"bytes,2,opt,name=alias,proto3" json:"alias,omitempty"`
 	// NodeID is the UUID that identifies the node that can be used to SSH into
 	// the beam.
@@ -700,9 +788,15 @@ type BeamStatus struct {
 	// Region is the Cloud region where the Beam was created.
 	Region string `protobuf:"bytes,13,opt,name=region,proto3" json:"region,omitempty"`
 	// Delegation determines how the beam owner's privleges are delegated to the beam.
-	Delegation    *DelegationSpec `protobuf:"bytes,14,opt,name=delegation,proto3" json:"delegation,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Delegation *DelegationSpec `protobuf:"bytes,14,opt,name=delegation,proto3" json:"delegation,omitempty"`
+	// SnapshotInputs lists the input images used by a build Beam. Each entry
+	// records the image digest and the registry tag that keeps that image
+	// available while the Beam is running. Auth persists these entries before
+	// creating the tags and uses them to resume tag cleanup if the Beam is
+	// interrupted or deleted.
+	SnapshotInputs []*BeamSnapshotInput `protobuf:"bytes,17,rep,name=snapshot_inputs,json=snapshotInputs,proto3" json:"snapshot_inputs,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *BeamStatus) Reset() {
@@ -828,6 +922,13 @@ func (x *BeamStatus) GetDelegation() *DelegationSpec {
 	return nil
 }
 
+func (x *BeamStatus) GetSnapshotInputs() []*BeamSnapshotInput {
+	if x != nil {
+		return x.SnapshotInputs
+	}
+	return nil
+}
+
 func (x *BeamStatus) SetUser(v string) {
 	x.User = v
 }
@@ -884,6 +985,10 @@ func (x *BeamStatus) SetDelegation(v *DelegationSpec) {
 	x.Delegation = v
 }
 
+func (x *BeamStatus) SetSnapshotInputs(v []*BeamSnapshotInput) {
+	x.SnapshotInputs = v
+}
+
 func (x *BeamStatus) HasDelegation() bool {
 	if x == nil {
 		return false
@@ -900,7 +1005,8 @@ type BeamStatus_builder struct {
 
 	// User to which this beam belongs.
 	User string
-	// Alias is the human-friendly identifier for the beam.
+	// Alias is the human-friendly identifier for the beam. build aliases are
+	// <target-phase>-<8 lowercase hex characters>. The target name is preserved.
 	Alias string
 	// NodeID is the UUID that identifies the node that can be used to SSH into
 	// the beam.
@@ -933,6 +1039,12 @@ type BeamStatus_builder struct {
 	Region string
 	// Delegation determines how the beam owner's privleges are delegated to the beam.
 	Delegation *DelegationSpec
+	// SnapshotInputs lists the input images used by a build Beam. Each entry
+	// records the image digest and the registry tag that keeps that image
+	// available while the Beam is running. Auth persists these entries before
+	// creating the tags and uses them to resume tag cleanup if the Beam is
+	// interrupted or deleted.
+	SnapshotInputs []*BeamSnapshotInput
 }
 
 func (b0 BeamStatus_builder) Build() *BeamStatus {
@@ -953,6 +1065,88 @@ func (b0 BeamStatus_builder) Build() *BeamStatus {
 	x.ComputeStatus = b.ComputeStatus
 	x.Region = b.Region
 	x.Delegation = b.Delegation
+	x.SnapshotInputs = b.SnapshotInputs
+	return m0
+}
+
+// BeamSnapshotInput identifies one build input image and the registry tag
+// created to keep that image available until Beam cleanup finishes.
+type BeamSnapshotInput struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Digest identifies the immutable input image in the snapshot repository.
+	Digest string `protobuf:"bytes,1,opt,name=digest,proto3" json:"digest,omitempty"`
+	// RetentionTag is the unique tag created for this Beam's input image.
+	// Cleanup deletes this tag after the Beam's compute resources are destroyed.
+	// The tag is never reassigned to another Beam.
+	RetentionTag  string `protobuf:"bytes,2,opt,name=retention_tag,json=retentionTag,proto3" json:"retention_tag,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BeamSnapshotInput) Reset() {
+	*x = BeamSnapshotInput{}
+	mi := &file_teleport_beams_v1_beam_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BeamSnapshotInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BeamSnapshotInput) ProtoMessage() {}
+
+func (x *BeamSnapshotInput) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *BeamSnapshotInput) GetDigest() string {
+	if x != nil {
+		return x.Digest
+	}
+	return ""
+}
+
+func (x *BeamSnapshotInput) GetRetentionTag() string {
+	if x != nil {
+		return x.RetentionTag
+	}
+	return ""
+}
+
+func (x *BeamSnapshotInput) SetDigest(v string) {
+	x.Digest = v
+}
+
+func (x *BeamSnapshotInput) SetRetentionTag(v string) {
+	x.RetentionTag = v
+}
+
+type BeamSnapshotInput_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Digest identifies the immutable input image in the snapshot repository.
+	Digest string
+	// RetentionTag is the unique tag created for this Beam's input image.
+	// Cleanup deletes this tag after the Beam's compute resources are destroyed.
+	// The tag is never reassigned to another Beam.
+	RetentionTag string
+}
+
+func (b0 BeamSnapshotInput_builder) Build() *BeamSnapshotInput {
+	m0 := &BeamSnapshotInput{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Digest = b.Digest
+	x.RetentionTag = b.RetentionTag
 	return m0
 }
 
@@ -971,7 +1165,7 @@ type DelegationSpec struct {
 
 func (x *DelegationSpec) Reset() {
 	*x = DelegationSpec{}
-	mi := &file_teleport_beams_v1_beam_proto_msgTypes[4]
+	mi := &file_teleport_beams_v1_beam_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -983,7 +1177,7 @@ func (x *DelegationSpec) String() string {
 func (*DelegationSpec) ProtoMessage() {}
 
 func (x *DelegationSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beam_proto_msgTypes[4]
+	mi := &file_teleport_beams_v1_beam_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1046,16 +1240,18 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12/\n" +
 	"\x04spec\x18\x05 \x01(\v2\x1b.teleport.beams.v1.BeamSpecR\x04spec\x125\n" +
-	"\x06status\x18\x06 \x01(\v2\x1d.teleport.beams.v1.BeamStatusR\x06status\"\x85\x02\n" +
+	"\x06status\x18\x06 \x01(\v2\x1d.teleport.beams.v1.BeamStatusR\x06status\"\xdd\x02\n" +
 	"\bBeamSpec\x125\n" +
 	"\x06egress\x18\x01 \x01(\x0e2\x1d.teleport.beams.v1.EgressModeR\x06egress\x12'\n" +
 	"\x0fallowed_domains\x18\x02 \x03(\tR\x0eallowedDomains\x128\n" +
 	"\apublish\x18\x03 \x01(\v2\x1e.teleport.beams.v1.PublishSpecR\apublish\x124\n" +
 	"\aexpires\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\x12)\n" +
-	"\x10requested_region\x18\x05 \x01(\tR\x0frequestedRegion\"Z\n" +
+	"\x10requested_region\x18\x05 \x01(\tR\x0frequestedRegion\x12\x14\n" +
+	"\x05phase\x18\x06 \x01(\tR\x05phase\x12@\n" +
+	"\apurpose\x18\a \x01(\x0e2&.teleport.beams.v1.BeamResourcePurposeR\apurpose\"Z\n" +
 	"\vPublishSpec\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x127\n" +
-	"\bprotocol\x18\x02 \x01(\x0e2\x1b.teleport.beams.v1.ProtocolR\bprotocol\"\x9c\x04\n" +
+	"\bprotocol\x18\x02 \x01(\x0e2\x1b.teleport.beams.v1.ProtocolR\bprotocol\"\xeb\x04\n" +
 	"\n" +
 	"BeamStatus\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x14\n" +
@@ -1075,10 +1271,18 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\x06region\x18\r \x01(\tR\x06region\x12A\n" +
 	"\n" +
 	"delegation\x18\x0e \x01(\v2!.teleport.beams.v1.DelegationSpecR\n" +
-	"delegation\"]\n" +
+	"delegation\x12M\n" +
+	"\x0fsnapshot_inputs\x18\x11 \x03(\v2$.teleport.beams.v1.BeamSnapshotInputR\x0esnapshotInputs\"P\n" +
+	"\x11BeamSnapshotInput\x12\x16\n" +
+	"\x06digest\x18\x01 \x01(\tR\x06digest\x12#\n" +
+	"\rretention_tag\x18\x02 \x01(\tR\fretentionTag\"]\n" +
 	"\x0eDelegationSpec\x125\n" +
 	"\x04mode\x18\x01 \x01(\x0e2!.teleport.beams.v1.DelegationModeR\x04mode\x12\x14\n" +
-	"\x05roles\x18\x02 \x03(\tR\x05roles*c\n" +
+	"\x05roles\x18\x02 \x03(\tR\x05roles*}\n" +
+	"\x13BeamResourcePurpose\x12%\n" +
+	"!BEAM_RESOURCE_PURPOSE_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aBEAM_RESOURCE_PURPOSE_USER\x10\x01\x12\x1f\n" +
+	"\x1bBEAM_RESOURCE_PURPOSE_BUILD\x10\x02*c\n" +
 	"\n" +
 	"EgressMode\x12\x1b\n" +
 	"\x17EGRESS_MODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
@@ -1097,37 +1301,41 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"$DELEGATION_MODE_OWNER_STANDING_ROLES\x10\x01\x12\"\n" +
 	"\x1eDELEGATION_MODE_SELECTED_ROLES\x10\x02BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
-var file_teleport_beams_v1_beam_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_teleport_beams_v1_beam_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_beams_v1_beam_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_teleport_beams_v1_beam_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_beams_v1_beam_proto_goTypes = []any{
-	(EgressMode)(0),               // 0: teleport.beams.v1.EgressMode
-	(Protocol)(0),                 // 1: teleport.beams.v1.Protocol
-	(ComputeStatus)(0),            // 2: teleport.beams.v1.ComputeStatus
-	(DelegationMode)(0),           // 3: teleport.beams.v1.DelegationMode
-	(*Beam)(nil),                  // 4: teleport.beams.v1.Beam
-	(*BeamSpec)(nil),              // 5: teleport.beams.v1.BeamSpec
-	(*PublishSpec)(nil),           // 6: teleport.beams.v1.PublishSpec
-	(*BeamStatus)(nil),            // 7: teleport.beams.v1.BeamStatus
-	(*DelegationSpec)(nil),        // 8: teleport.beams.v1.DelegationSpec
-	(*v1.Metadata)(nil),           // 9: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(BeamResourcePurpose)(0),      // 0: teleport.beams.v1.BeamResourcePurpose
+	(EgressMode)(0),               // 1: teleport.beams.v1.EgressMode
+	(Protocol)(0),                 // 2: teleport.beams.v1.Protocol
+	(ComputeStatus)(0),            // 3: teleport.beams.v1.ComputeStatus
+	(DelegationMode)(0),           // 4: teleport.beams.v1.DelegationMode
+	(*Beam)(nil),                  // 5: teleport.beams.v1.Beam
+	(*BeamSpec)(nil),              // 6: teleport.beams.v1.BeamSpec
+	(*PublishSpec)(nil),           // 7: teleport.beams.v1.PublishSpec
+	(*BeamStatus)(nil),            // 8: teleport.beams.v1.BeamStatus
+	(*BeamSnapshotInput)(nil),     // 9: teleport.beams.v1.BeamSnapshotInput
+	(*DelegationSpec)(nil),        // 10: teleport.beams.v1.DelegationSpec
+	(*v1.Metadata)(nil),           // 11: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
 }
 var file_teleport_beams_v1_beam_proto_depIdxs = []int32{
-	9,  // 0: teleport.beams.v1.Beam.metadata:type_name -> teleport.header.v1.Metadata
-	5,  // 1: teleport.beams.v1.Beam.spec:type_name -> teleport.beams.v1.BeamSpec
-	7,  // 2: teleport.beams.v1.Beam.status:type_name -> teleport.beams.v1.BeamStatus
-	0,  // 3: teleport.beams.v1.BeamSpec.egress:type_name -> teleport.beams.v1.EgressMode
-	6,  // 4: teleport.beams.v1.BeamSpec.publish:type_name -> teleport.beams.v1.PublishSpec
-	10, // 5: teleport.beams.v1.BeamSpec.expires:type_name -> google.protobuf.Timestamp
-	1,  // 6: teleport.beams.v1.PublishSpec.protocol:type_name -> teleport.beams.v1.Protocol
-	2,  // 7: teleport.beams.v1.BeamStatus.compute_status:type_name -> teleport.beams.v1.ComputeStatus
-	8,  // 8: teleport.beams.v1.BeamStatus.delegation:type_name -> teleport.beams.v1.DelegationSpec
-	3,  // 9: teleport.beams.v1.DelegationSpec.mode:type_name -> teleport.beams.v1.DelegationMode
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	11, // 0: teleport.beams.v1.Beam.metadata:type_name -> teleport.header.v1.Metadata
+	6,  // 1: teleport.beams.v1.Beam.spec:type_name -> teleport.beams.v1.BeamSpec
+	8,  // 2: teleport.beams.v1.Beam.status:type_name -> teleport.beams.v1.BeamStatus
+	1,  // 3: teleport.beams.v1.BeamSpec.egress:type_name -> teleport.beams.v1.EgressMode
+	7,  // 4: teleport.beams.v1.BeamSpec.publish:type_name -> teleport.beams.v1.PublishSpec
+	12, // 5: teleport.beams.v1.BeamSpec.expires:type_name -> google.protobuf.Timestamp
+	0,  // 6: teleport.beams.v1.BeamSpec.purpose:type_name -> teleport.beams.v1.BeamResourcePurpose
+	2,  // 7: teleport.beams.v1.PublishSpec.protocol:type_name -> teleport.beams.v1.Protocol
+	3,  // 8: teleport.beams.v1.BeamStatus.compute_status:type_name -> teleport.beams.v1.ComputeStatus
+	10, // 9: teleport.beams.v1.BeamStatus.delegation:type_name -> teleport.beams.v1.DelegationSpec
+	9,  // 10: teleport.beams.v1.BeamStatus.snapshot_inputs:type_name -> teleport.beams.v1.BeamSnapshotInput
+	4,  // 11: teleport.beams.v1.DelegationSpec.mode:type_name -> teleport.beams.v1.DelegationMode
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_beam_proto_init() }
@@ -1140,8 +1348,8 @@ func file_teleport_beams_v1_beam_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_proto_rawDesc), len(file_teleport_beams_v1_beam_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   5,
+			NumEnums:      5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -50,6 +50,7 @@ type beamsAddCommand struct {
 	format              string
 	region              string
 	roles               string
+	phase               string
 	isTerminalOverwrite func(io.Writer) bool
 	// userCredentialClientOverride replaces the root cluster connection in
 	// tests.
@@ -64,6 +65,7 @@ func newBeamsAddCommand(parent *kingpin.CmdClause) *beamsAddCommand {
 	cmd.Flag("console", "Connect to the beam via SSH after creation.").Default("true").BoolVar(&cmd.console)
 	cmd.Flag("region", "Region where the beam should live. If not specified, the closest region is selected.").StringVar(&cmd.region)
 	cmd.Flag("roles", "Comma-separated list of roles that will be delegated to the beam.").StringVar(&cmd.roles)
+	cmd.Flag("phase", "Phase name or name@sha256:digest snapshot to use for the beam.").StringVar(&cmd.phase)
 	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
 		Short('f').
 		Default(teleport.Text).
@@ -80,12 +82,13 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	proxyRegion, err := c.discoverProxyRegion(ctx, tc)
+	proxyRegion, err := discoverProxyRegion(ctx, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var beam *beamsv1.Beam
+	var phase *beamsv1.Phase
 	err = client.RetryWithRelogin(ctx, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(ctx)
 		if err != nil {
@@ -113,6 +116,24 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 			delegation.Roles = strings.Split(c.roles, ",")
 		}
 
+		phaseName := c.phase
+		hasSnapshot := strings.Contains(phaseName, "@")
+		if hasSnapshot {
+			phaseName, _, err = services.ParsePhaseSnapshot(phaseName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		// Snapshot references are authorized from their immutable metadata by Auth.
+		// A Phase lookup is only needed for the advisory static-build warning.
+		if phaseName != "" && !hasSnapshot && !strings.Contains(phaseName, ":") {
+			rsp, err := rootClient.PhaseServiceClient().GetPhase(ctx, beamsv1.GetPhaseRequest_builder{Name: phaseName}.Build())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			phase = rsp.GetPhase()
+		}
+
 		// Create the beam.
 		rsp, err := rootClient.
 			BeamServiceClient().
@@ -121,6 +142,7 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 				ProxyRegion:    proxyRegion,
 				OverrideRegion: c.region,
 				Delegation:     delegation.Build(),
+				Phase:          c.phase,
 			}.Build())
 		if err != nil {
 			return trace.Wrap(err)
@@ -133,8 +155,12 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// formatBeams uses the proxy address to derive the Publish URL but we given
-	// the beam won't be published yet, there's no need to actually fetch it.
+	if err := printStaticPhaseWarning(cf.Stderr(), phase); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// formatBeam can derive a publish URL from the proxy address. This Beam is
+	// not published yet, so there is no need to fetch the proxy address.
 	const proxyAddr = ""
 
 	switch strings.ToLower(c.format) {
@@ -287,7 +313,7 @@ func (c *beamsAddCommand) connectUserCredentialClient(ctx context.Context, tc *c
 	}, nil
 }
 
-func (c *beamsAddCommand) discoverProxyRegion(ctx context.Context, tc *client.TeleportClient) (string, error) {
+func discoverProxyRegion(ctx context.Context, tc *client.TeleportClient) (string, error) {
 	resp, err := webclient.Find(&webclient.Config{
 		Context:      ctx,
 		ProxyAddr:    tc.WebProxyAddr,
@@ -333,4 +359,12 @@ func (c *beamsAddCommand) shouldShowSpinner(w io.Writer, format string) bool {
 		}
 		return utils.IsTerminal(w)
 	}
+}
+
+func printStaticPhaseWarning(w io.Writer, phase *beamsv1.Phase) error {
+	if phase.GetStatus().GetStrategy() != beamsv1.PhaseStrategy_PHASE_STRATEGY_STATIC {
+		return nil
+	}
+	_, err := fmt.Fprintf(w, "WARNING: Phase %q is static. Static Phases are insecure: they are never automatically rebuilt and do not receive automatic security updates.\nNew Phases cannot be created from static parents.\n", phase.GetMetadata().GetName())
+	return trace.Wrap(err)
 }
