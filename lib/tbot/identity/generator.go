@@ -131,6 +131,7 @@ type generateOpts struct {
 	kubernetesCluster    *string
 	routeToCluster       *string
 	reissuable           *bool
+	accessRequests       []string
 }
 
 // GenerateOption allows you to customize aspects of the generated identity.
@@ -143,6 +144,13 @@ func WithDelegation(sessionID string) GenerateOption {
 	return func(opts *generateOpts) {
 		opts.delegationSessionID = sessionID
 	}
+}
+
+// WithLegacyDelegationSessionID uses the given delegation session ID to
+// generate certificates associated with a human user and delegation session.
+// Scoped bots do not support delegation.
+func WithLegacyDelegationSessionID(sessionID string) GenerateOption {
+	return WithDelegation(sessionID)
 }
 
 // WithLifetime sets the requested time-to-live of the certificate, along with
@@ -235,6 +243,15 @@ func WithPrivateKey(key crypto.Signer) GenerateOption {
 	}
 }
 
+// WithAccessRequest requests that the generated certificates assume the given
+// access request.
+// Scoped bots do not support access requests.
+func WithAccessRequest(accessRequest string) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.accessRequests = append(opts.accessRequests, accessRequest)
+	}
+}
+
 // GenerateFacade calls Generate and wraps the resulting Identity in a Facade
 // for easy use in API clients, etc.
 func (g *Generator) GenerateFacade(ctx context.Context, opts ...GenerateOption) (*Facade, error) {
@@ -297,6 +314,7 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		Expires:        time.Now().Add(o.ttl),
 		RoleRequests:   roles,
 		RouteToCluster: o.currentIdentity.ClusterName,
+		AccessRequests: o.accessRequests,
 
 		// Make sure to specify this is an impersonated cert request. If unset,
 		// auth cannot differentiate renewable vs impersonated requests when
@@ -508,6 +526,9 @@ func (g *Generator) botDefaultRoles(ctx context.Context) ([]string, error) {
 }
 
 func (g *Generator) generateDelegationCertificates(ctx context.Context, req proto.UserCertsRequest, o *generateOpts) (*proto.Certs, error) {
+	if len(o.accessRequests) != 0 {
+		return nil, trace.BadParameter("delegation sessions do not support access requests")
+	}
 	certReq := delegationv1.GenerateCertsRequest_builder{
 		DelegationSessionId: o.delegationSessionID,
 		SshPublicKey:        req.SSHPublicKey,
@@ -574,6 +595,8 @@ func (o *generateOpts) scopedCertsRequest(clusterName string) (*issuancev1pb.Iss
 		return nil, trace.BadParameter("database routing is not supported for scoped bots")
 	case o.kubernetesCluster != nil:
 		return nil, trace.BadParameter("kubernetes routing is not supported for scoped bots")
+	case len(o.accessRequests) != 0:
+		return nil, trace.BadParameter("access requests are not supported for scoped bots")
 	}
 
 	req := issuancev1pb.IssueScopedBotCertsRequest_builder{

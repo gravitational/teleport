@@ -128,7 +128,7 @@ func (s *Service) generate(ctx context.Context) error {
 		identity.WithLogger(s.log),
 	}
 	if s.cfg.DelegationSessionID != "" {
-		opts = append(opts, identity.WithDelegation(s.cfg.DelegationSessionID))
+		opts = append(opts, identity.WithLegacyDelegationSessionID(s.cfg.DelegationSessionID))
 	}
 	id, err := s.identityGenerator.Generate(ctx, opts...)
 	if err != nil {

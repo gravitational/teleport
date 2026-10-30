@@ -158,7 +158,7 @@ func (s *OutputService) generateUnscopedIdentity(ctx context.Context) (*identity
 		identity.WithLogger(s.log),
 	}
 	if s.cfg.DelegationSessionID != "" {
-		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
+		identityOpts = append(identityOpts, identity.WithLegacyDelegationSessionID(s.cfg.DelegationSessionID))
 	}
 	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {

@@ -159,7 +159,7 @@ func (s *OutputV2Service) generate(ctx context.Context) error {
 	}
 
 	if s.cfg.DelegationSessionID != "" {
-		opts = append(opts, identity.WithDelegation(s.cfg.DelegationSessionID))
+		opts = append(opts, identity.WithLegacyDelegationSessionID(s.cfg.DelegationSessionID))
 	}
 
 	id, err := s.identityGenerator.GenerateFacade(ctx, opts...)

@@ -26,11 +26,13 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -43,6 +45,7 @@ import (
 	tbotclient "github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
+	"github.com/gravitational/teleport/lib/tbot/services/beams/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
@@ -113,8 +116,9 @@ type VNetService struct {
 	// TODO(boxofrad): Wrapping the clientcredentials service is a little awkward
 	// consider if we should move its automatic renewal behavior into the identity
 	// package.
-	identity *clientcredentials.UnstableConfig
-	insecure bool
+	identity        *clientcredentials.UnstableConfig
+	insecure        bool
+	accessRequestCh chan<- types.AccessRequest
 }
 
 // String satisfies the bot.Service interface.
@@ -153,11 +157,30 @@ func (s *VNetService) Run(ctx context.Context) error {
 	}
 	defer client.Close()
 
+	// When using Delegation V2 (i.e. no DelegationSessionID), create an access
+	// request watcher so we can automatically assume requests.
+	//
+	// TODO(boxofrad): Remove this once Delegation V1 is no longer supported.
+	var reqTracker accessRequestTracker = noopAccessRequestTracker{}
+	if s.cfg.DelegationSessionID == "" {
+		reqTracker, err = internal.NewAccessRequestTracker(internal.AccessRequestTrackerConfig{
+			Client:                    client,
+			User:                      facade.Get().TLSIdentity.Username,
+			Logger:                    s.logger,
+			ClusterName:               facade.Get().ClusterName,
+			ApprovedAccessRequestChan: s.accessRequestCh,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	applicationService, err := newVNetApplicationService(
 		client,
 		s.identityGenerator,
 		facade.Get().PrivateKey.Signer,
 		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime),
+		reqTracker,
 		s.cfg.DelegationSessionID,
 		s.insecure,
 		s.logger,
@@ -197,7 +220,37 @@ func (s *VNetService) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "creating embedded VNet")
 	}
-	return trace.Wrap(net.Run(ctx))
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.Go(func() error { return net.Run(groupCtx) })
+
+	// TODO(boxofrad): Remove this once Delegation V1 is no longer supported.
+	if rw, ok := reqTracker.(interface {
+		RunWatcher(context.Context) error
+	}); ok {
+		group.Go(func() error {
+			err := rw.RunWatcher(groupCtx)
+			if groupCtx.Err() != nil {
+				return nil
+			}
+			return err
+		})
+	}
+
+	return trace.Wrap(group.Wait())
+}
+
+type accessRequestTracker interface {
+	ApprovedRequest(kind, name string) (types.AccessRequest, error)
+	HasApprovedRequestWithKind(kind string) bool
+}
+
+// TODO(boxofrad): Remove this once Delegation V1 is no longer supported
+type noopAccessRequestTracker struct{}
+
+func (noopAccessRequestTracker) HasApprovedRequestWithKind(string) bool { return false }
+func (noopAccessRequestTracker) ApprovedRequest(string, string) (types.AccessRequest, error) {
+	return nil, internal.ErrNoAccessRequest
 }
 
 func newVNetApplicationService(
@@ -205,6 +258,7 @@ func newVNetApplicationService(
 	identityGenerator *identity.Generator,
 	privateKey crypto.Signer,
 	credentialLifetime bot.CredentialLifetime,
+	accessRequestTracker accessRequestTracker,
 	delegationSessionID string,
 	insecure bool,
 	logger *slog.Logger,
@@ -214,28 +268,30 @@ func newVNetApplicationService(
 		return nil, trace.Wrap(err)
 	}
 	return &vnetApplicationService{
-		client:              client,
-		identityGenerator:   identityGenerator,
-		privateKey:          privateKey,
-		credentialLifetime:  credentialLifetime,
-		delegationSessionID: delegationSessionID,
-		insecure:            insecure,
-		cache:               cache,
-		logger:              logger,
+		client:               client,
+		identityGenerator:    identityGenerator,
+		privateKey:           privateKey,
+		credentialLifetime:   credentialLifetime,
+		accessRequestTracker: accessRequestTracker,
+		delegationSessionID:  delegationSessionID,
+		insecure:             insecure,
+		cache:                cache,
+		logger:               logger,
 	}, nil
 }
 
 type vnetApplicationService struct {
 	vnet.EmbeddedApplicationService
 
-	client              *client.Client
-	cache               *utils.FnCache
-	identityGenerator   *identity.Generator
-	privateKey          crypto.Signer
-	credentialLifetime  bot.CredentialLifetime
-	delegationSessionID string
-	insecure            bool
-	logger              *slog.Logger
+	client               *client.Client
+	cache                *utils.FnCache
+	identityGenerator    *identity.Generator
+	privateKey           crypto.Signer
+	credentialLifetime   bot.CredentialLifetime
+	accessRequestTracker accessRequestTracker
+	delegationSessionID  string
+	insecure             bool
+	logger               *slog.Logger
 }
 
 func (v *vnetApplicationService) GetTargetOSConfiguration(ctx context.Context) (*vnetv1.TargetOSConfiguration, error) {
@@ -362,11 +418,14 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 		fqdn,
 		strings.TrimSuffix(fqdn, "."),
 	)
-	rsp, err := client.GetResourcePage[types.AppServer](ctx, v.client, &proto.ListResourcesRequest{
-		ResourceType:        types.KindAppServer,
-		PredicateExpression: expr,
-		Limit:               1,
-	})
+	resources, err := resolveResources[types.AppServer](
+		ctx,
+		v.client,
+		types.KindAppServer,
+		expr,
+		v.accessRequestTracker,
+		1, /* limit */
+	)
 	if err != nil {
 		v.logger.ErrorContext(ctx, "Failed to list application servers",
 			"fqdn", fqdn,
@@ -375,14 +434,14 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 		)
 		return nil, trace.Wrap(err, "listing application servers")
 	}
-	if len(rsp.Resources) == 0 {
+	if len(resources) == 0 {
 		v.logger.DebugContext(ctx, "No matching apps for FQDN", "fqdn", fqdn)
 		return &vnetv1.ResolveFQDNResponse{}, nil
 	}
 
-	app, ok := rsp.Resources[0].GetApp().(*types.AppV3)
+	app, ok := resources[0].GetApp().(*types.AppV3)
 	if !ok {
-		return nil, trace.BadParameter("expected *types.AppV3, got %T", rsp.Resources[0].GetApp())
+		return nil, trace.BadParameter("expected *types.AppV3, got %T", resources[0].GetApp())
 	}
 
 	ca, err := v.clusterAccess(osConfig)
@@ -430,12 +489,20 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 
 // GetAppCert issues a TLS certificate for the given application.
 func (v *vnetApplicationService) GetAppCert(ctx context.Context, key *vnetv1.AppInfo, port uint16) (*tls.Certificate, error) {
-	identity, err := v.identityGenerator.Generate(ctx,
+	generateOpts := []identity.GenerateOption{
 		identity.WithPrivateKey(v.privateKey),
 		identity.WithRouteToApp(*vnet.RouteToApp(key, port)),
 		identity.WithLifetime(v.credentialLifetime.TTL, v.credentialLifetime.RenewalInterval),
-		identity.WithDelegation(v.delegationSessionID),
-	)
+		identity.WithLegacyDelegationSessionID(v.delegationSessionID),
+	}
+
+	// If there's an approved access request for this resource, assume it.
+	accessRequest, err := v.accessRequestTracker.ApprovedRequest(types.KindApp, key.GetApp().GetName())
+	if err == nil {
+		generateOpts = append(generateOpts, identity.WithAccessRequest(accessRequest.GetName()))
+	}
+
+	identity, err := v.identityGenerator.Generate(ctx, generateOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -467,7 +534,14 @@ func (v *vnetApplicationService) resolveDatabaseFQDN(
 	}
 
 	log := v.logger.With("fqdn", fqdn, "identifier", identifier)
-	servers, err := db.ListServers(ctx, v.client, identifier)
+	servers, err := resolveResources[types.DatabaseServer](
+		ctx,
+		v.client,
+		types.KindDatabaseServer,
+		db.MatchExpr(identifier),
+		v.accessRequestTracker,
+		0, /* limit - unlimited to allow db.PickMatch to pick one */
+	)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to list database servers", "error", err)
 		return nil, trace.Wrap(err, "listing database servers")
@@ -502,12 +576,20 @@ func (v *vnetApplicationService) resolveDatabaseFQDN(
 // identity generator, using the bot-bound private key and the configured
 // delegation session.
 func (v *vnetApplicationService) GetDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (*tls.Certificate, error) {
-	id, err := v.identityGenerator.Generate(ctx,
+	generateOpts := []identity.GenerateOption{
 		identity.WithPrivateKey(v.privateKey),
 		identity.WithRouteToDatabase(*vnet.RouteToDatabase(dbInfo)),
 		identity.WithLifetime(v.credentialLifetime.TTL, v.credentialLifetime.RenewalInterval),
-		identity.WithDelegation(v.delegationSessionID),
-	)
+		identity.WithLegacyDelegationSessionID(v.delegationSessionID),
+	}
+
+	// If there's an approved access request for this resource, assume it.
+	accessRequest, err := v.accessRequestTracker.ApprovedRequest(types.KindDatabase, dbInfo.GetDatabaseKey().GetName())
+	if err == nil {
+		generateOpts = append(generateOpts, identity.WithAccessRequest(accessRequest.GetName()))
+	}
+
+	id, err := v.identityGenerator.Generate(ctx, generateOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -518,6 +600,53 @@ func (v *vnetApplicationService) GetDBCert(ctx context.Context, dbInfo *vnetv1.D
 // across all VNet-issued database certificates in this service.
 func (v *vnetApplicationService) GetDBSigner(context.Context, *vnetv1.DatabaseKey) (crypto.Signer, error) {
 	return v.privateKey, nil
+}
+
+// resolveResources finds resources matching the given predicate expression.
+//
+// If none match, it re-runs the list query with `UseSearchAsRoles = true` and
+// filters the list to only include those for which we have an approved access
+// request.
+func resolveResources[T types.ResourceWithLabels](
+	ctx context.Context,
+	clt client.GetResourcesClient,
+	resourceType string,
+	expr string,
+	reqTrack accessRequestTracker,
+	limit int32,
+) ([]T, error) {
+	rsp, err := client.GetResourcePage[T](ctx, clt, &proto.ListResourcesRequest{
+		ResourceType:        resourceType,
+		PredicateExpression: expr,
+		Limit:               limit,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(rsp.Resources) != 0 {
+		return rsp.Resources, nil
+	}
+
+	// Don't waste time trying to find the resource with "search as roles" if
+	// there isn't an approved access request.
+	if !reqTrack.HasApprovedRequestWithKind(resourceType) {
+		return rsp.Resources, nil
+	}
+
+	rsp, err = client.GetResourcePage[T](ctx, clt, &proto.ListResourcesRequest{
+		ResourceType:        resourceType,
+		PredicateExpression: expr,
+		UseSearchAsRoles:    true,
+		Limit:               limit,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resources := slices.DeleteFunc(rsp.Resources, func(t T) bool {
+		_, err := reqTrack.ApprovedRequest(t.GetKind(), t.GetName())
+		return err != nil
+	})
+	return resources, nil
 }
 
 func isDescendantSubdomain(fqdn, zone string) bool {

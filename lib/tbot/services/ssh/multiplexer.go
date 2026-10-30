@@ -400,7 +400,7 @@ func (s *MultiplexerService) generateIdentity(ctx context.Context) (*identity.Fa
 		identity.WithLogger(s.log),
 	}
 	if s.cfg.DelegationSessionID != "" {
-		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
+		identityOpts = append(identityOpts, identity.WithLegacyDelegationSessionID(s.cfg.DelegationSessionID))
 	}
 	facade, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {

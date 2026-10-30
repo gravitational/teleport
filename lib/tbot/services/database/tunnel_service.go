@@ -300,7 +300,7 @@ func (s *TunnelService) getRouteToDatabaseWithImpersonation(ctx context.Context)
 		identity.WithLogger(s.log),
 	}
 	if s.cfg.DelegationSessionID != "" {
-		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
+		identityOpts = append(identityOpts, identity.WithLegacyDelegationSessionID(s.cfg.DelegationSessionID))
 	}
 	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
@@ -335,7 +335,7 @@ func (s *TunnelService) issueCert(
 		identity.WithRouteToDatabase(route),
 	}
 	if s.cfg.DelegationSessionID != "" {
-		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
+		identityOpts = append(identityOpts, identity.WithLegacyDelegationSessionID(s.cfg.DelegationSessionID))
 	}
 	ident, err := s.identityGenerator.Generate(ctx, identityOpts...)
 	if err != nil {

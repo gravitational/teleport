@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/vnet"
 )
@@ -41,6 +42,8 @@ type VNetServiceConfig struct {
 	// DelegationSessionID identifies the delegation session the generated
 	// credentials will be associated with, enabling the bot to act on a (human)
 	// user's behalf.
+	//
+	// TODO(boxofrad): Remove this once Delegation V2 is fully implemented.
 	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 
 	// UpstreamNameservers allows you to override the upstream nameservers that
@@ -57,9 +60,6 @@ func (VNetServiceConfig) Type() string { return VNetServiceType }
 func (c *VNetServiceConfig) CheckAndSetDefaults(scoped bool) error {
 	if scoped {
 		return trace.BadParameter("service type %q is not supported in scoped mode", VNetServiceType)
-	}
-	if c.DelegationSessionID == "" {
-		return trace.BadParameter("delegation_session_id: is required")
 	}
 	for idx, ns := range c.UpstreamNameservers {
 		if _, err := netip.ParseAddrPort(ns); err != nil {
@@ -118,6 +118,17 @@ func WithConfigureHost(fn vnet.EmbeddedConfigureHostFunc) VNetServiceOpt {
 		svc.configureHost = func(ctx context.Context, _ vnet.TUNDevice, cfg *vnet.EmbeddedVNetHostConfig) error {
 			return fn(ctx, cfg)
 		}
+	}
+}
+
+// WithApprovedAccessRequestChan provides a channel to which the bot/user's
+// approved access requests will be sent when they are received and will be
+// assumed by the VNet service. This is useful for synchronization in tests.
+// Sends to this channel are blocking, so it's the callers responsibility to
+// either provide a buffered channel or drain it regularly.
+func WithApprovedAccessRequestChan(ch chan<- types.AccessRequest) VNetServiceOpt {
+	return func(svc *VNetService) {
+		svc.accessRequestCh = ch
 	}
 }
 
