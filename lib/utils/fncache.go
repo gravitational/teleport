@@ -64,7 +64,9 @@ type FnCacheConfig struct {
 	// Clock is the clock used to determine the current time.
 	Clock clockwork.Clock
 	// Context is the context used to cancel the cache. All loadfns
-	// will be provided with this context.
+	// will be provided with this context and must finish promptly when it
+	// is canceled. When OnExpiry is configured, Shutdown waits for in-flight
+	// loads to complete before evicting their results.
 	Context context.Context
 	// ReloadOnErr causes entries to be reloaded immediately if
 	// the currently loaded value is an error. Note that all concurrent
@@ -78,9 +80,9 @@ type FnCacheConfig struct {
 	CleanupInterval time.Duration
 	// OnExpiry is an optional callback that will be executed any time an
 	// item is expired and removed from the cache, or replaced by a reload
-	// in get() when the entry's TTL has elapsed. The callback must not call
-	// any method on the same FnCache instance because the cache mutex may
-	// be held when the callback is invoked.
+	// in get() when the entry's TTL has elapsed, or when Shutdown closes the
+	// cache. The callback must not call any method on the same FnCache
+	// instance because the cache mutex may be held when the callback is invoked.
 	OnExpiry func(ctx context.Context, key any, value any)
 }
 
@@ -131,9 +133,18 @@ type fnCacheEntry struct {
 	loaded chan struct{}
 }
 
-// Shutdown expires all items in the cache. If the OnExpiry
-// callback was set in the FnCacheConfig it will be called once
-// per item in the cache.
+// Shutdown closes the cache and cancels its loaders. If OnExpiry is configured,
+// it waits for in-flight loads to complete and invokes OnExpiry once for each
+// successfully loaded entry. Otherwise, it returns without waiting for loaders.
+//
+// Loaders must finish promptly when their cache context is canceled. When
+// OnExpiry is configured, entries are processed sequentially in unspecified
+// order, waiting for each load and its eviction callback to finish before
+// processing the next entry. A blocked loader delays eviction of later entries.
+//
+// The provided context is passed to OnExpiry to control its cleanup budget.
+// Shutdown does not use the context to stop waiting for loads, so cancellation
+// cannot abandon their results.
 func (c *FnCache) Shutdown(ctx context.Context) {
 	c.mu.Lock()
 	c.cancel()
@@ -142,33 +153,15 @@ func (c *FnCache) Shutdown(ctx context.Context) {
 	c.entries = make(map[any]*fnCacheEntry)
 	c.mu.Unlock()
 
-	// non-blocking eviction
-	for key, entry := range entries {
-		select {
-		case <-entry.loaded:
-			if c.cfg.OnExpiry != nil && entry.e == nil {
-				c.cfg.OnExpiry(ctx, key, entry.v)
-			}
-
-			delete(entries, key)
-		case <-ctx.Done():
-			return
-		default:
-			// entry is still being loaded
-		}
+	// Only wait for results when an eviction callback needs them.
+	if c.cfg.OnExpiry == nil {
+		return
 	}
 
-	// blocking eviction
 	for key, entry := range entries {
-		select {
-		case <-entry.loaded:
-			if c.cfg.OnExpiry != nil && entry.e == nil {
-				c.cfg.OnExpiry(ctx, key, entry.v)
-			}
-
-			delete(entries, key)
-		case <-ctx.Done():
-			return
+		<-entry.loaded
+		if entry.e == nil {
+			c.cfg.OnExpiry(ctx, key, entry.v)
 		}
 	}
 }

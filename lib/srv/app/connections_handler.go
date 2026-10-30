@@ -452,9 +452,7 @@ func (c *ConnectionsHandler) Close(ctx context.Context) []error {
 		errs = append(errs, err)
 	}
 
-	// Close the session cache and its remaining sessions, even if the process
-	// context has already been canceled by an immediate shutdown.
-	c.cache.Shutdown(context.WithoutCancel(c.closeContext))
+	c.cache.Shutdown(ctx)
 	// Any sessions still in the cache during shutdown are closed in
 	// background goroutines. We must wait for sessions to finish closing
 	// before proceeding any further.
