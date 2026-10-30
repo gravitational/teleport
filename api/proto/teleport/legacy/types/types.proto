@@ -3785,6 +3785,10 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "timing,omitempty"
   ];
+
+  // Delegation describes the relationship between the requester and the
+  // identity who delegated their access to them.
+  AccessRequestDelegation delegation = 30;
 }
 
 // AccessRequestTiming contains requester-controlled timing configuration. The
@@ -3811,6 +3815,15 @@ message AccessRequestScheduledTiming {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "duration"
   ];
+}
+
+// AccessRequestDelegation contains information about the identity (the
+// "delegator") on whose behalf the requester (the "delegate") is acting.
+message AccessRequestDelegation {
+  // Chain of delegation. The first element contains the original delegator,
+  // with each successive element containing the identity to which the previous
+  // one sub-delegated. The last element is the requester.
+  repeated DelegationChainLink chain = 1;
 }
 
 // AccessRequestKind represents the kind of Access Request being made (short/long-term).

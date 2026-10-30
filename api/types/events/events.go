@@ -170,6 +170,9 @@ func (m *Status) trimToMaxFieldSize(maxFieldSize int) Status {
 }
 
 func (m *Struct) nonEmptyStrs() int {
+	if m == nil {
+		return 0
+	}
 	var toTrim int
 	for _, v := range m.Fields {
 		toTrim++
@@ -193,7 +196,7 @@ func (m *Struct) nonEmptyStrs() int {
 }
 
 func (m *Struct) trimToMaxFieldSize(maxFieldSize int) *Struct {
-	if len(m.Fields) == 0 {
+	if m == nil || len(m.Fields) == 0 {
 		return m
 	}
 
@@ -478,31 +481,15 @@ func (m *UserPasswordChange) TrimToMaxSize(maxSize int) AuditEvent {
 }
 
 func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
-	size := m.Size()
-	if size <= maxSize {
-		return m
-	}
-
-	out := utils.CloneProtoMsg(m)
-	out.Roles = nil
-	out.Reason = ""
-	out.Annotations = nil
-	out.SubmittedBy = ""
-
-	maxSize = adjustedMaxSize(out, maxSize)
-
-	customFieldsCount := nonEmptyStrsInSlice(m.Roles) +
-		nonEmptyStrs(m.Reason) +
-		m.Annotations.nonEmptyStrs() +
-		nonEmptyStrs(m.SubmittedBy)
-	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
-
-	out.Roles = trimStrSlice(m.Roles, maxFieldsSize)
-	out.Reason = trimStr(m.Reason, maxFieldsSize)
-	out.Annotations = m.Annotations.trimToMaxFieldSize(maxFieldsSize)
-	out.SubmittedBy = trimStr(m.SubmittedBy, maxFieldsSize)
-
-	return out
+	return trimEventToMaxSize(m, maxSize, func(m, out *AccessRequestCreate) fieldTrimmer {
+		return fieldTrimmers{
+			newStrSliceTrimmer(m.Roles, &out.Roles),
+			newStrTrimmer(m.Reason, &out.Reason),
+			newStructTrimmer(m.Annotations, &out.Annotations),
+			newStrTrimmer(m.SubmittedBy, &out.SubmittedBy),
+			newDelegationTrimmer(m.Delegation, &out.Delegation),
+		}
+	})
 }
 
 func (m *AccessRequestExpire) TrimToMaxSize(maxSize int) AuditEvent {

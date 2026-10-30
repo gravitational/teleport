@@ -164,6 +164,10 @@ type AccessRequest interface {
 	GetTiming() *AccessRequestTiming
 	// SetTiming sets the timing context.
 	SetTiming(*AccessRequestTiming)
+	// GetDelegation gets the delegation information for this request.
+	GetDelegation() *AccessRequestDelegation
+	// SetDelegation sets the delegation information for this request.
+	SetDelegation(*AccessRequestDelegation)
 	// IsEqual determines if two access requests are equivalent to one another.
 	IsEqual(AccessRequest) bool
 }
@@ -844,6 +848,19 @@ func (r *AccessRequestV3) SetTiming(timing *AccessRequestTiming) {
 // String returns a text representation of this AccessRequest
 func (r *AccessRequestV3) String() string {
 	return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
+}
+
+// GetDelegation returns the delegation information for this request.
+func (r *AccessRequestV3) GetDelegation() *AccessRequestDelegation {
+	if r == nil {
+		return nil
+	}
+	return r.Spec.Delegation
+}
+
+// SetDelegation sets the delegation information for this request.
+func (r *AccessRequestV3) SetDelegation(delegation *AccessRequestDelegation) {
+	r.Spec.Delegation = delegation
 }
 
 func (c AccessReviewConditions) IsZero() bool {

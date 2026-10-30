@@ -17,6 +17,7 @@ package events
 import (
 	"google.golang.org/protobuf/protoadapt"
 
+	apiTypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -120,6 +121,14 @@ func newStrSliceTrimmer(source []string, target *[]string) fieldTrimmer {
 	)
 }
 
+func newStructTrimmer(source *Struct, target **Struct) fieldTrimmer {
+	return newBaseTrimmer(source, target, func(source *Struct) int {
+		return source.nonEmptyStrs()
+	}, func(source *Struct, maxFieldSize int) *Struct {
+		return source.trimToMaxFieldSize(maxFieldSize)
+	})
+}
+
 func newBytesTrimmer(source []byte, target *[]byte) fieldTrimmer {
 	return newBaseTrimmer(source, target, nonEmptyStr, trimStr)
 }
@@ -134,6 +143,13 @@ func newHTTPHeadersTrimmer(source []*HTTPHeader, target *[]*HTTPHeader) fieldTri
 
 func newAppSessionDenyHintsTrimmer(source []*AppSessionDenyHint, target *[]*AppSessionDenyHint) fieldTrimmer {
 	return newBaseTrimmer(source, target, nonEmptyAppSessionDenyHints, trimAppSessionDenyHints)
+}
+
+func newDelegationTrimmer(source *apiTypes.AccessRequestDelegation, target **apiTypes.AccessRequestDelegation) fieldTrimmer {
+	return &delegationTrimmer{
+		source: source,
+		target: target,
+	}
 }
 
 // nonEmptyHTTPHeaders counts the non-empty name and value strings across the
@@ -194,6 +210,77 @@ func trimAppSessionDenyHints(hints []*AppSessionDenyHint, maxFieldSize int) []*A
 			Code:   trimStr(h.Code, maxFieldSize),
 			Reason: trimStr(h.Reason, maxFieldSize),
 		}
+	}
+	return trimmed
+}
+
+// delegationTrimmer is a custom trimmer for delegation messages. User and bot
+// names are never trimmed, as this would impact their usefulness. Instead
+// `Bot.Beam` is discarded entirely when trimming.
+type delegationTrimmer struct {
+	source *apiTypes.AccessRequestDelegation
+	target **apiTypes.AccessRequestDelegation
+}
+
+func (t *delegationTrimmer) emptyTarget() {
+	*t.target = trimDelegation(t.source, 0)
+}
+
+func (t *delegationTrimmer) nonEmptyStrs() int {
+	return nonEmptyDelegationStrs(t.source)
+}
+
+func (t *delegationTrimmer) trimToMaxFieldSize(maxFieldSize int) {
+	*t.target = trimDelegation(t.source, maxFieldSize)
+}
+
+// nonEmptyDelegationStrs counts the non-empty strings in a delegation chain
+// so each gets its share of the per-field trim budget. User.Name and Bot.Name
+// are not trimmable, and Bot.Beam is removed entirely when trimmed.
+func nonEmptyDelegationStrs(delegation *apiTypes.AccessRequestDelegation) int {
+	if delegation == nil {
+		return 0
+	}
+	var count int
+	for _, link := range delegation.Chain {
+		if link == nil {
+			continue
+		}
+		if link.Bot != nil {
+			count += nonEmptyStr(link.Bot.Scope)
+		}
+	}
+	return count
+}
+
+// trimDelegation returns a copy of delegation with each string trimmed to
+// maxFieldSize.
+func trimDelegation(delegation *apiTypes.AccessRequestDelegation, maxFieldSize int) *apiTypes.AccessRequestDelegation {
+	if delegation == nil {
+		return nil
+	}
+	trimmed := &apiTypes.AccessRequestDelegation{
+		Chain: make([]*apiTypes.DelegationChainLink, len(delegation.Chain)),
+	}
+	for i, link := range delegation.Chain {
+		if link == nil {
+			continue
+		}
+
+		trimmedLink := &apiTypes.DelegationChainLink{}
+		if link.User != nil {
+			trimmedLink.User = &apiTypes.UserDelegator{
+				Name: link.User.Name, // Non-trimmable
+			}
+		}
+		if link.Bot != nil {
+			trimmedLink.Bot = &apiTypes.BotDelegator{
+				Name:  link.Bot.Name, // Non-trimmable
+				Scope: trimStr(link.Bot.Scope, maxFieldSize),
+			}
+			trimmedLink.Bot.Beam = nil // Cleared when trimming
+		}
+		trimmed.Chain[i] = trimmedLink
 	}
 	return trimmed
 }

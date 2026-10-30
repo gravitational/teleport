@@ -1737,6 +1737,10 @@ message AccessRequestCreate {
   // TimingMode identifies the timing semantics used for this operation.
   // Values are "legacy" and "scheduled"; absent means unknown.
   string timing_mode = 20;
+
+  // Delegation describes the relationship between the requester and the
+  // identity who delegated their access to them.
+  types.AccessRequestDelegation delegation = 21;
 }
 
 // AccessRequestExpire is emitted when access request has expired.

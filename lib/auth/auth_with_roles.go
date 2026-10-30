@@ -3767,6 +3767,9 @@ func (a *ServerWithRoles) createAccessRequestAdmin(ctx context.Context, req type
 	// ensure request ID is set server-side
 	req.SetName(uuid.Must(uuid.NewV7()).String())
 
+	// Delegation is server-controlled and must not be provided by the caller.
+	req.SetDelegation(nil)
+
 	resp, err := a.authServer.CreateAccessRequestV2(ctx, req, a.context.Identity.GetIdentity())
 	return resp, trace.Wrap(err)
 }
