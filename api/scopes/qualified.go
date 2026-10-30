@@ -78,11 +78,11 @@ func (q *QualifiedName) Set(val string) error {
 // logic that may run agent-side.
 func (q QualifiedName) StrongValidate() error {
 	if err := StrongValidate(q.Scope); err != nil {
-		return trace.BadParameter("scope-qualified name %q has invalid scope: %v", q, err)
+		return trace.BadParameter("scope-qualified name %q has invalid scope: %v", truncateForError(q.String()), err)
 	}
 
 	if err := StrongValidateResourceName(q.Name); err != nil {
-		return trace.BadParameter("scope-qualified name %q has invalid name: %v", q, err)
+		return trace.BadParameter("scope-qualified name %q has invalid name: %v", truncateForError(q.String()), err)
 	}
 
 	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
@@ -138,15 +138,15 @@ func ParseOptionallyQualifiedName(s string) (QualifiedName, error) {
 func ParseQualifiedName(sqn string) (QualifiedName, error) {
 	scope, name, ok := strings.Cut(sqn, qualifiedNameSeparator)
 	if !ok {
-		return QualifiedName{}, trace.BadParameter("scope-qualified name %q missing %q separator", sqn, qualifiedNameSeparator)
+		return QualifiedName{}, trace.BadParameter("scope-qualified name %q missing %q separator", truncateForError(sqn), qualifiedNameSeparator)
 	}
 
 	if scope == "" {
-		return QualifiedName{}, trace.BadParameter("scope-qualified name %q has empty scope component", sqn)
+		return QualifiedName{}, trace.BadParameter("scope-qualified name %q has empty scope component", truncateForError(sqn))
 	}
 
 	if name == "" {
-		return QualifiedName{}, trace.BadParameter("scope-qualified name %q has empty name component", sqn)
+		return QualifiedName{}, trace.BadParameter("scope-qualified name %q has empty name component", truncateForError(sqn))
 	}
 
 	return QualifiedName{Scope: scope, Name: name}, nil
