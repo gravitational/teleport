@@ -54,6 +54,12 @@ func (k *kube) ClearCerts() {
 	if k.middleware != nil {
 		k.middleware.ClearCerts()
 	}
+	// Retire the pooled upstream connections too.
+	// Reissuing changes the pool key, so the pool built on the cleared certs is already unreachable.
+	// This closes its connections now rather than leaving them idle until IdleConnTimeout.
+	if k.localProxy != nil {
+		k.localProxy.RetireConnectionPools()
+	}
 }
 
 // KubeconfigPath returns the kubeconfig path that can be used for clients to

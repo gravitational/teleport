@@ -34,11 +34,11 @@ type LocalProxyHTTPMiddleware interface {
 	// HandleResponse processes the server response before sending it to the client.
 	HandleResponse(resp *http.Response) error
 
-	// GetClientCerts optionally returns client certs that should be used for
+	// GetClientCert optionally returns the client cert that should be used for
 	// the connection to the upstream server for the given request. The method
 	// can return a false bool to signal that the [LocalProxy] should use the
 	// client cert from its own config.
-	GetClientCerts(req *http.Request) ([]tls.Certificate, bool, error)
+	GetClientCert(req *http.Request) (tls.Certificate, bool, error)
 
 	// OverwriteServerName optionally returns a SNI that should be used for the
 	// connection to the upstream server for the given request, or a false bool
@@ -52,6 +52,9 @@ type LocalProxyHTTPMiddleware interface {
 
 // LocalProxyHTTPTransportMiddleware wraps the upstream HTTP transport.
 type LocalProxyHTTPTransportMiddleware interface {
+	// WrapRoundTripper is called once per upstream connection pool, not once per request.
+	// The returned RoundTripper is shared by every request that pool serves and must be safe for concurrent use.
+	// Per-request state belongs on the request, not on the wrapper.
 	WrapRoundTripper(base http.RoundTripper) http.RoundTripper
 }
 
@@ -75,9 +78,9 @@ func (DefaultLocalProxyHTTPMiddleware) HandleResponse(resp *http.Response) error
 	return nil
 }
 
-// GetClientCerts implements [LocalProxyHTTPMiddleware].
-func (DefaultLocalProxyHTTPMiddleware) GetClientCerts(req *http.Request) ([]tls.Certificate, bool, error) {
-	return nil, false, nil
+// GetClientCert implements [LocalProxyHTTPMiddleware].
+func (DefaultLocalProxyHTTPMiddleware) GetClientCert(req *http.Request) (tls.Certificate, bool, error) {
+	return tls.Certificate{}, false, nil
 }
 
 // GetServerName implements [LocalProxyHTTPMiddleware].
