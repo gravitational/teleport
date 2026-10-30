@@ -310,7 +310,7 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 		expires = time.Time{}
 	default:
 		// Set expires time to default node join token TTL.
-		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
+		expires = h.clock.Now().UTC().Add(defaults.NodeJoinTokenTTL)
 	}
 
 	name := req.Name
