@@ -146,10 +146,11 @@ type sshConfigurator struct {
 }
 
 type sshConfiguratorConfig struct {
-	clientApplication ClientApplication
-	leafClusterCache  *leafClusterCache
-	homePath          string
-	clock             clockwork.Clock
+	clientApplication  ClientApplication
+	clusterConfigCache *ClusterConfigCache
+	leafClusterCache   *leafClusterCache
+	homePath           string
+	clock              clockwork.Clock
 }
 
 func newSSHConfigurator(cfg sshConfiguratorConfig) *sshConfigurator {
@@ -196,19 +197,19 @@ func (c *sshConfigurator) updateSSHConfiguration(ctx context.Context) error {
 	// Build a set of unique cluster names for all active clusters.
 	clusterNames := make(map[string]struct{})
 	for _, profileName := range profileNames {
-		rootClient, err := c.cfg.clientApplication.GetCachedClient(ctx, profileName, "" /*leafClusterName*/)
+		rootConfig, err := c.cfg.clusterConfigCache.GetClusterConfig(ctx, ClusterConfigKey{ProfileName: profileName}, c.cfg.clientApplication)
 		if err != nil {
 			log.WarnContext(ctx,
-				"Failed to get root cluster client from cache, profile may be expired, not configuring VNet SSH for this cluster",
+				"Failed to get root cluster config, profile may be expired, not configuring VNet SSH for this cluster",
 				"profile", profileName, "error", err)
 			continue
 		}
-		clusterNames[rootClient.RootClusterName()] = struct{}{}
-		leafClusters, err := c.cfg.leafClusterCache.getLeafClusters(ctx, rootClient)
+		clusterNames[rootConfig.RootClusterName] = struct{}{}
+		leafClusters, err := c.cfg.leafClusterCache.getLeafClusters(ctx, profileName, c.cfg.clientApplication)
 		if err != nil {
 			log.WarnContext(ctx,
 				"Failed to list leaf clusters, not configuring VNet SSH for leaf clusters of this cluster",
-				"root_cluster", rootClient.ClusterName(), "error", err)
+				"root_cluster", rootConfig.ClusterName, "error", err)
 			continue
 		}
 		for _, leafCluster := range leafClusters {

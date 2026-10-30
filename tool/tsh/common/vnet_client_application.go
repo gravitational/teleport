@@ -23,7 +23,9 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -56,8 +58,7 @@ func newVnetClientApplication(cf *CLIConf) (*vnetClientApplication, error) {
 	}
 
 	clientCache, err := clientcache.New(clientcache.Config{
-		NewClientFunc:        clientcache.NewClientFunc(p.newTeleportClient),
-		RetryWithReloginFunc: clientcache.RetryWithReloginFunc(p.retryWithRelogin),
+		NewClientFunc: p.newTeleportClient,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating client cache")
@@ -73,10 +74,81 @@ func (p *vnetClientApplication) ListProfiles() ([]string, error) {
 	return p.clientStore.ListProfiles()
 }
 
-// GetCachedClient returns a cached [*client.ClusterClient] for the given profile and leaf cluster.
+// checkProfiles checks which profiles have unexpired credentials. If there is only
+// one saved profile, it is unambiguous which profile the user wants to use, so
+// checkProfiles attempts to log in to it. With multiple profiles it avoids triggering
+// a series of browser or MFA ceremonies and reports which profiles will remain
+// unavailable instead.
+func (p *vnetClientApplication) checkProfiles(ctx context.Context) error {
+	profileNames, err := p.ListProfiles()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var inactiveProfiles []string
+	for _, profileName := range profileNames {
+		status, err := p.clientStore.ReadProfileStatus(profileName)
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to read profile status", "profile", profileName, "error", err)
+			inactiveProfiles = append(inactiveProfiles, profileName)
+			continue
+		}
+		if status.IsExpired(time.Now()) {
+			inactiveProfiles = append(inactiveProfiles, profileName)
+		}
+	}
+
+	if len(profileNames) == 1 && len(inactiveProfiles) == 1 {
+		profileName := profileNames[0]
+		tc, err := p.newTeleportClient(ctx, profileName, "")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = p.retryWithRelogin(ctx, tc, func() error {
+			_, release, err := p.AcquireCachedClient(ctx, profileName, "")
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(release())
+		})
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return trace.Wrap(ctx.Err(), "login canceled")
+		}
+		slog.WarnContext(ctx, "Failed to log in while starting VNet", "profile", profileName, "error", err)
+	}
+
+	switch len(inactiveProfiles) {
+	case 0:
+	case 1:
+		fmt.Printf("Resources from the profile %q will not be accessible until you log in.\n", inactiveProfiles[0])
+	default:
+		quotedProfiles := make([]string, 0, len(inactiveProfiles))
+		for _, profileName := range inactiveProfiles {
+			quotedProfiles = append(quotedProfiles, strconv.Quote(profileName))
+		}
+		fmt.Printf("Resources from the following profiles will not be accessible until you log in: %s.\n", strings.Join(quotedProfiles, ", "))
+	}
+	return nil
+}
+
+// WithCachedClient runs fn with a client for the given profile and leaf cluster.
 // [leafClusterName] may be empty when requesting a client for the root cluster.
-func (p *vnetClientApplication) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, error) {
-	return p.clientCache.Get(ctx, profileName, leafClusterName)
+func (p *vnetClientApplication) WithCachedClient(ctx context.Context, profileName, leafClusterName string, fn func(vnet.ClusterClient) error) error {
+	return trace.Wrap(p.clientCache.Do(ctx, profileName, leafClusterName, func(clusterClient *client.ClusterClient) error {
+		return fn(clusterClient)
+	}))
+}
+
+// AcquireCachedClient acquires a client that the caller must release when finished.
+func (p *vnetClientApplication) AcquireCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, func() error, error) {
+	lease, err := p.clientCache.Acquire(ctx, profileName, leafClusterName)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return lease.Client(), lease.Release, nil
 }
 
 // ReissueAppCert returns a new app certificate for the given app in the named profile and leaf cluster.
@@ -179,14 +251,13 @@ func (p *vnetClientApplication) reissueDBCert(ctx context.Context, tc *client.Te
 		RequesterName:   proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
 	}
 
-	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err, "getting cached cluster client")
-	}
-
-	result, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err, "issuing database cert")
+	var result *client.IssueUserCertsWithMFAResult
+	if err := p.clientCache.Do(ctx, profileName, leafClusterName, func(clusterClient *client.ClusterClient) error {
+		var err error
+		result, err = clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
+		return trace.Wrap(err, "issuing database cert")
+	}); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
 	dbCert, err := result.KeyRing.DBTLSCert(routeToDatabase.ServiceName)
@@ -284,14 +355,18 @@ func (p *vnetClientApplication) reissueAppCert(ctx context.Context, tc *client.T
 	// leafClusterName cannot be replaced with routeToApp.ClusterName here. That's because when
 	// routeToApp points to an app in the root cluster, routeToApp.ClusterName uses the actual root
 	// cluster name which is not necessarily equal to profileName.
-	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)
+	clusterLease, err := p.clientCache.Acquire(ctx, profileName, leafClusterName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting cached cluster client")
 	}
-	rootClient, err := p.clientCache.Get(ctx, profileName, "")
+	defer clusterLease.Release()
+	clusterClient := clusterLease.Client()
+	rootLease, err := p.clientCache.Acquire(ctx, profileName, "")
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting cached root client")
 	}
+	defer rootLease.Release()
+	rootClient := rootLease.Client()
 
 	keyRing, err := appLogin(ctx, clusterClient, rootClient.AuthClient, appCertParams)
 	if err != nil {
@@ -313,6 +388,9 @@ func (p *vnetClientApplication) newTeleportClient(ctx context.Context, profileNa
 	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, trace.Wrap(err, "loading client profile")
 	}
+	// FIXME(gzdunek): An empty leafClusterName preserves the profile's SiteName,
+	// which can be changed via "tsh login <leaf>".
+	// As a result, we may mistakenly get a leaf client instead of a root client.
 	if leafClusterName != "" {
 		cfg.SiteName = leafClusterName
 	}

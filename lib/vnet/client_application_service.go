@@ -313,10 +313,16 @@ func (s *clientApplicationService) SignForUserTLS(ctx context.Context, req *vnet
 
 // SessionSSHConfig returns user SSH configuration values for an SSH session.
 func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vnetv1.SessionSSHConfigRequest) (*vnetv1.SessionSSHConfigResponse, error) {
-	clusterClient, err := s.cfg.clientApplication.GetCachedClient(ctx, req.GetProfile(), req.GetLeafCluster())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var response *vnetv1.SessionSSHConfigResponse
+	err := s.cfg.clientApplication.WithCachedClient(ctx, req.GetProfile(), req.GetLeafCluster(), func(clusterClient ClusterClient) error {
+		var err error
+		response, err = s.sessionSSHConfigWithClient(ctx, req, clusterClient)
+		return err
+	})
+	return response, trace.Wrap(err)
+}
+
+func (s *clientApplicationService) sessionSSHConfigWithClient(ctx context.Context, req *vnetv1.SessionSSHConfigRequest, clusterClient ClusterClient) (*vnetv1.SessionSSHConfigResponse, error) {
 	// If req.LeafCluster is not empty the node is in the leaf cluster, else it
 	// is in the root cluster.
 	targetCluster := cmp.Or(req.GetLeafCluster(), req.GetRootCluster())
@@ -349,10 +355,6 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 		// for the leaf cluster. Luckily if MFA was not required, the root
 		// cluster cert should work.
 		log.DebugContext(ctx, "Leaf cluster KeyRing had no SSH cert, using root cluster KeyRing")
-		rootClusterClient, err := s.cfg.clientApplication.GetCachedClient(ctx, req.GetProfile(), "")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		// Set the target cluster to the root cluster and disable the MFA check
 		// so that SessionSSHKeyRing will just return the base root cluster
 		// keyring.
@@ -361,7 +363,11 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 			Required:    false,
 			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
 		}
-		keyRing, _, err = rootClusterClient.SessionSSHKeyRing(ctx, req.GetUser(), target)
+		err := s.cfg.clientApplication.WithCachedClient(ctx, req.GetProfile(), "", func(rootClusterClient ClusterClient) error {
+			var err error
+			keyRing, _, err = rootClusterClient.SessionSSHKeyRing(ctx, req.GetUser(), target)
+			return err
+		})
 		if err != nil {
 			return nil, trace.Wrap(err, "getting root cluster KeyRing for SSH session")
 		}
@@ -472,12 +478,12 @@ func (s *clientApplicationService) PerformSessionMFACeremony(
 		return nil, trace.BadParameter("SSH session ID must not be empty")
 	}
 
-	clusterClient, err := s.cfg.clientApplication.GetCachedClient(ctx, req.GetProfile(), req.GetLeafCluster())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	challengeName, err := clusterClient.PerformSessionMFACeremony(ctx, req.GetSshSessionId())
+	var challengeName string
+	err := s.cfg.clientApplication.WithCachedClient(ctx, req.GetProfile(), req.GetLeafCluster(), func(clusterClient ClusterClient) error {
+		var err error
+		challengeName, err = clusterClient.PerformSessionMFACeremony(ctx, req.GetSshSessionId())
+		return err
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

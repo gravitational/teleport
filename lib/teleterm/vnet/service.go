@@ -31,6 +31,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -449,14 +450,20 @@ func (p *clientApplication) ListProfiles() ([]string, error) {
 	return profiles, trace.Wrap(err)
 }
 
-func (p *clientApplication) GetCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, error) {
-	return p.getCachedClient(ctx, profileName, leafClusterName)
+func (p *clientApplication) WithCachedClient(ctx context.Context, profileName, leafClusterName string, fn func(vnet.ClusterClient) error) error {
+	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+	return trace.Wrap(p.daemonService.WithCachedClient(ctx, uri, func(clusterClient *client.ClusterClient) error {
+		return fn(clusterClient)
+	}))
 }
 
-func (p *clientApplication) getCachedClient(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
-	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
-	client, err := p.daemonService.GetCachedClient(ctx, uri)
-	return client, trace.Wrap(err)
+// AcquireCachedClient acquires a client that the caller must release when finished.
+func (p *clientApplication) AcquireCachedClient(ctx context.Context, profileName, leafClusterName string) (vnet.ClusterClient, func() error, error) {
+	lease, err := p.daemonService.AcquireCachedClient(ctx, uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return lease.Client(), lease.Release, nil
 }
 
 func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error) {
@@ -489,12 +496,10 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 			return trace.Wrap(err)
 		}
 
-		client, err := p.daemonService.GetCachedClient(ctx, clusterURI)
-		if err != nil {
+		err = p.daemonService.WithCachedClient(ctx, clusterURI, func(clusterClient *client.ClusterClient) error {
+			cert, err = cluster.ReissueAppCert(ctx, clusterClient, *routeToApp)
 			return trace.Wrap(err)
-		}
-
-		cert, err = cluster.ReissueAppCert(ctx, client, *routeToApp)
+		})
 		return trace.Wrap(err)
 	}
 
@@ -535,13 +540,14 @@ func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1
 func (p *clientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
 	// We don't have easy access to the user TLS cert from here, the only way
 	// I've found is to reach through the ProxyClient as this does below.
-	clusterClient, err := p.getCachedClient(ctx, profileName, "")
+	var clientConfig apiclient.Config
+	err := p.daemonService.WithCachedClient(ctx, uri.NewClusterURI(profileName), func(clusterClient *client.ClusterClient) error {
+		var err error
+		clientConfig, err = clusterClient.ProxyClient.ClientConfig(ctx, "")
+		return trace.Wrap(err, "getting user client config")
+	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
-	}
-	clientConfig, err := clusterClient.ProxyClient.ClientConfig(ctx, "")
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err, "getting user client config")
 	}
 	if len(clientConfig.Credentials) < 1 {
 		return tls.Certificate{}, trace.Errorf("user client config has no credentials")
@@ -692,7 +698,7 @@ type daemonUsageReporter struct {
 }
 
 type clientCache interface {
-	GetCachedClient(context.Context, uri.ResourceURI) (*client.ClusterClient, error)
+	WithCachedClient(context.Context, uri.ResourceURI, func(*client.ClusterClient) error) error
 	ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
 }
 
@@ -813,11 +819,14 @@ func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
 	}()
 
 	rootClusterURI := appURI.GetRootClusterURI()
-	client, err := r.cfg.ClientCache.GetCachedClient(ctx, appURI)
+	var rootClusterName string
+	err := r.cfg.ClientCache.WithCachedClient(ctx, appURI, func(clusterClient *client.ClusterClient) error {
+		rootClusterName = clusterClient.RootClusterName()
+		return nil
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	rootClusterName := client.RootClusterName()
 	_, tc, err := r.cfg.ClientCache.ResolveClusterURI(appURI)
 	if err != nil {
 		return trace.Wrap(err)

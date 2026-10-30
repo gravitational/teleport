@@ -40,10 +40,15 @@ type ClientApplication interface {
 	// ListProfiles lists the names of all profiles saved for the user.
 	ListProfiles() ([]string, error)
 
-	// GetCachedClient returns a [*client.ClusterClient] for the given profile and leaf cluster.
-	// [leafClusterName] may be empty when requesting a client for the root cluster. Returned clients are
-	// expected to be cached, as this may be called frequently.
-	GetCachedClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error)
+	// WithCachedClient runs fn with a client for the given profile and leaf
+	// cluster. The client is leased only for the duration of fn and must not be
+	// retained after it returns.
+	WithCachedClient(ctx context.Context, profileName, leafClusterName string, fn func(ClusterClient) error) error
+
+	// AcquireCachedClient acquires a client for the given profile and leaf
+	// cluster. The caller must call release when finished and must not retain
+	// the client afterward.
+	AcquireCachedClient(ctx context.Context, profileName, leafClusterName string) (clusterClient ClusterClient, release func() error, err error)
 
 	// ReissueAppCert issues a new cert for the target app.
 	ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error)
@@ -146,8 +151,9 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 
 	processManager, processCtx := newProcessManager()
 	sshConfigurator := newSSHConfigurator(sshConfiguratorConfig{
-		clientApplication: clientApplication,
-		leafClusterCache:  leafClusterCache,
+		clientApplication:  clientApplication,
+		clusterConfigCache: clusterConfigCache,
+		leafClusterCache:   leafClusterCache,
 	})
 	processManager.AddCriticalBackgroundTask("SSH configuration loop", func() error {
 		return trace.Wrap(sshConfigurator.runConfigurationLoop(processCtx))

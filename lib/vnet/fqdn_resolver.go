@@ -76,24 +76,18 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 
 	var matchedClusters []clusterResolutionCandidate
 	for candidate := range r.clusterResolutionCandidates(ctx, profileNames, fqdn) {
-		// First check if there's a matching app in this cluster.
-		result, err := r.resolveAppInfoForCluster(ctx, candidate, fqdn)
+		// Check if there's a matching app or database in this cluster.
+		result, err := r.resolveResourceInfoForCluster(ctx, candidate, fqdn)
 		switch {
 		case err == nil:
-			// Found a matching app, return it immediately.
+			// Found a matching app or database, return it immediately.
 			return result, nil
-		case !errors.Is(err, errNoMatch):
-			return nil, err
-		}
-
-		// Check if there's a matching database in this cluster.
-		result, err = r.resolveDBInfoForCluster(ctx, candidate, fqdn)
-		switch {
-		case err == nil:
-			// Found a matching database, return it immediately.
-			return result, nil
-		case !errors.Is(err, errNoMatch):
-			return nil, err
+		case errors.Is(err, errNoMatch):
+			// Continue to SSH matching if no app or database matched, or if
+			// acquiring the client failed (expired cert, network error, etc.).
+			// SSH matching only needs the cached cluster name and does not require an authenticated client.
+		default:
+			return nil, trace.Wrap(err)
 		}
 
 		// SSH servers match at any subdomain of the cluster name. For example,
@@ -126,7 +120,6 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 var errNoMatch = errors.New("no match for queried FQDN")
 
 type clusterResolutionCandidate struct {
-	client          ClusterClient
 	profileName     string
 	rootClusterName string
 	leafClusterName string
@@ -135,9 +128,10 @@ type clusterResolutionCandidate struct {
 
 // clusterResolutionCandidates yields all clusterResolutionCandidates for a
 // queried FQDN. A clusterResolutionCandidate essentially identifies a specific
-// Teleport cluster, and includes a client for the cluster and some metadata
-// that may be helpful for deciding if the queried FQDN should really resolve
-// to a match in that cluster.
+// Teleport cluster, and includes some metadata that may be helpful for
+// deciding if the queried FQDN should really resolve to a match in that
+// cluster. It does not hold a client for the cluster, callers acquire one via
+// [ClientApplication.AcquireCachedClient] when they need to query it.
 //
 // It does a first-pass filter to avoid yielding any clusters that definitely
 // won't match for the queried FQDN, using only cached information without
@@ -185,11 +179,11 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 			}
 
 			if isDescendantSubdomain(fqdn, candidate.clusterName) {
-				// This may match an SSH server, must yield the client.
+				// This may match an SSH server, must yield the candidate.
 				return true
 			}
 
-			clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, candidate.client)
+			clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, ClusterConfigKey{ProfileName: profileName, LeafClusterName: candidate.leafClusterName}, r.cfg.clientApplication)
 			if err != nil {
 				log.ErrorContext(ctx, "Failed to get VNet config, apps in this cluster may not be resolved.", "profile", profileName, "leaf_cluster", candidate.leafClusterName, "error", err)
 				return false
@@ -203,14 +197,14 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 			return false
 		}
 
-		rootClient, err := r.cfg.clientApplication.GetCachedClient(ctx, profileName, "")
+		rootConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, ClusterConfigKey{ProfileName: profileName}, r.cfg.clientApplication)
 		if err != nil {
-			log.ErrorContext(ctx, "Failed to get root cluster client, resources in this cluster will not be resolved.", "profile", profileName, "error", err)
+			log.ErrorContext(ctx, "Failed to get root cluster config, resources in this cluster will not be resolved.", "profile", profileName, "error", err)
 			return
 		}
-		rootClusterName := rootClient.ClusterName()
+		rootClusterName := rootConfig.ClusterName
 
-		leafClusters, err := r.cfg.leafClusterCache.getLeafClusters(ctx, rootClient)
+		leafClusters, err := r.cfg.leafClusterCache.getLeafClusters(ctx, profileName, r.cfg.clientApplication)
 		if err != nil {
 			// Good chance we're here because the user is not logged in to the profile.
 			log.ErrorContext(ctx, "Failed to list leaf clusters, resources in leaves of this cluster will not be resolved.", "profile", profileName, "error", err)
@@ -220,22 +214,18 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 		}
 
 		// Prefix with an empty string to represent the root cluster.
-		// GetCachedClient will return the root client if given an empty string for leafClusterName.
+		// An empty leafClusterName identifies the root cluster everywhere,
+		// both for GetClusterConfig and WithCachedClient.
 		leafClusters = append([]string{""}, leafClusters...)
 
 		for _, leafClusterName := range leafClusters {
-			clusterClient, err := r.cfg.clientApplication.GetCachedClient(ctx, profileName, leafClusterName)
-			if err != nil {
-				log.ErrorContext(ctx, "Failed to get cluster client, resources in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
-				continue
-			}
-
 			candidate := clusterResolutionCandidate{
-				client:          clusterClient,
 				profileName:     profileName,
 				rootClusterName: rootClusterName,
 				leafClusterName: leafClusterName,
-				clusterName:     clusterClient.ClusterName(),
+				// A leaf cluster client reports the leaf cluster name as its
+				// cluster name, the root client reports the root cluster name.
+				clusterName: cmp.Or(leafClusterName, rootClusterName),
 			}
 
 			if !shouldYieldCandidate(candidate) {
@@ -249,9 +239,40 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 	}
 }
 
+func (r *fqdnResolver) resolveResourceInfoForCluster(ctx context.Context, candidate clusterResolutionCandidate, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
+	clusterClient, release, err := r.cfg.clientApplication.AcquireCachedClient(ctx, candidate.profileName, candidate.leafClusterName)
+	if err != nil {
+		return nil, errNoMatch
+	}
+	defer release()
+
+	// First check if there's a matching app in this cluster.
+	result, err := r.resolveAppInfoForCluster(ctx, candidate, clusterClient, fqdn)
+	switch {
+	case err == nil:
+		// Found a matching app.
+		return result, nil
+	case !errors.Is(err, errNoMatch):
+		return nil, trace.Wrap(err)
+	}
+
+	// Check if there's a matching database in this cluster.
+	result, err = r.resolveDBInfoForCluster(ctx, candidate, clusterClient, fqdn)
+	switch {
+	case err == nil:
+		// Found a matching database.
+		return result, nil
+	case !errors.Is(err, errNoMatch):
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, errNoMatch
+}
+
 func (r *fqdnResolver) resolveAppInfoForCluster(
 	ctx context.Context,
 	candidate clusterResolutionCandidate,
+	clusterClient ClusterClient,
 	fqdn string,
 ) (*vnetv1.ResolveFQDNResponse, error) {
 	log := log.With("profile", candidate.profileName, "leaf_cluster", candidate.leafClusterName, "fqdn", fqdn)
@@ -274,7 +295,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 		expr += fmt.Sprintf(` || name == %q`, potentialAppName)
 	}
 
-	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
+	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, clusterClient.CurrentCluster(), &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
 		PredicateExpression: expr,
 		Limit:               10,
@@ -366,7 +387,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 }
 
 func (r *fqdnResolver) makeAppInfo(ctx context.Context, candidate clusterResolutionCandidate, app *types.AppV3) (*vnetv1.AppInfo, error) {
-	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, candidate.client)
+	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, ClusterConfigKey{ProfileName: candidate.profileName, LeafClusterName: candidate.leafClusterName}, r.cfg.clientApplication)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to get cluster VNet config for matching app", "error", err)
 		return nil, trace.Wrap(err, "getting cached cluster VNet config for matching app")
@@ -393,6 +414,7 @@ func (r *fqdnResolver) makeAppInfo(ctx context.Context, candidate clusterResolut
 func (r *fqdnResolver) resolveDBInfoForCluster(
 	ctx context.Context,
 	candidate clusterResolutionCandidate,
+	clusterClient ClusterClient,
 	fqdn string,
 ) (*vnetv1.ResolveFQDNResponse, error) {
 	if !r.cfg.allowDatabaseAccess {
@@ -405,7 +427,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	// Use the proxy public addr from the cluster config (which has the port
 	// stripped) as the primary zone. The profileName may contain a port
 	// (e.g. "proxy.example.com:3080") which is not valid in DNS names.
-	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, candidate.client)
+	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, ClusterConfigKey{ProfileName: candidate.profileName, LeafClusterName: candidate.leafClusterName}, r.cfg.clientApplication)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to get VNet config for database resolution", "error", err)
 		return nil, errNoMatch
@@ -418,7 +440,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		return nil, errNoMatch
 	}
 
-	servers, err := db.ListServers(ctx, candidate.client.CurrentCluster(), identifier)
+	servers, err := db.ListServers(ctx, clusterClient.CurrentCluster(), identifier)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, trace.Wrap(err)
@@ -477,7 +499,7 @@ func (r *fqdnResolver) resolveClusterMatch(ctx context.Context, log *slog.Logger
 			continue
 		}
 
-		clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, matchedCluster.client)
+		clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, ClusterConfigKey{ProfileName: matchedCluster.profileName, LeafClusterName: matchedCluster.leafClusterName}, r.cfg.clientApplication)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to get VNet config, SSH nodes in this cluster will not be resolved", "error", err)
 			continue

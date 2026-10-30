@@ -58,6 +58,9 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err := clientApp.checkProfiles(cf.Context); err != nil {
+		return trace.Wrap(err, "checking profiles")
+	}
 	vnetProcess, err := vnet.RunUserProcess(cf.Context, clientApp)
 	if err != nil {
 		return trace.Wrap(err)

@@ -100,20 +100,16 @@ func (p *UnifiedClusterConfigProvider) fetchForProfile(
 	profileName string,
 	unifiedClusterConfig *UnifiedClusterConfig,
 ) error {
-	rootClusterClient, err := p.cfg.clientApplication.GetCachedClient(ctx, profileName, "" /*leafClusterName*/)
-	if err != nil {
-		return trace.Wrap(err, "getting root cluster client from cache")
-	}
-	rootClusterConfig, err := p.cfg.clusterConfigCache.GetClusterConfig(ctx, rootClusterClient)
+	rootClusterConfig, err := p.cfg.clusterConfigCache.GetClusterConfig(ctx, ClusterConfigKey{ProfileName: profileName}, p.cfg.clientApplication)
 	if err != nil {
 		return trace.Wrap(err, "fetching root cluster VNet config")
 	}
-	unifiedClusterConfig.ClusterNames = append(unifiedClusterConfig.ClusterNames, rootClusterClient.ClusterName())
+	unifiedClusterConfig.ClusterNames = append(unifiedClusterConfig.ClusterNames, rootClusterConfig.ClusterName)
 	unifiedClusterConfig.ProxyPublicAddrs = append(unifiedClusterConfig.ProxyPublicAddrs, rootClusterConfig.ProxyPublicAddr)
 	unifiedClusterConfig.CustomDNSZones = append(unifiedClusterConfig.CustomDNSZones, rootClusterConfig.CustomDNSZones...)
 	unifiedClusterConfig.IPv4CidrRanges = append(unifiedClusterConfig.IPv4CidrRanges, rootClusterConfig.IPv4CIDRRange)
 
-	leafClusterNames, err := p.cfg.leafClusterCache.getLeafClusters(ctx, rootClusterClient)
+	leafClusterNames, err := p.cfg.leafClusterCache.getLeafClusters(ctx, profileName, p.cfg.clientApplication)
 	if err != nil {
 		log.WarnContext(ctx,
 			"Failed to list leaf clusters, profile may be expired, not configuring VNet for leaf clusters in this profile",
@@ -136,11 +132,7 @@ func (p *UnifiedClusterConfigProvider) fetchForLeafCluster(
 	leafClusterName string,
 	unifiedClusterConfig *UnifiedClusterConfig,
 ) error {
-	leafClusterClient, err := p.cfg.clientApplication.GetCachedClient(ctx, profileName, leafClusterName)
-	if err != nil {
-		return trace.Wrap(err, "getting leaf cluster client from cache")
-	}
-	leafClusterConfig, err := p.cfg.clusterConfigCache.GetClusterConfig(ctx, leafClusterClient)
+	leafClusterConfig, err := p.cfg.clusterConfigCache.GetClusterConfig(ctx, ClusterConfigKey{ProfileName: profileName, LeafClusterName: leafClusterName}, p.cfg.clientApplication)
 	if err != nil {
 		return trace.Wrap(err, "fetching leaf cluster VNet config from cache")
 	}

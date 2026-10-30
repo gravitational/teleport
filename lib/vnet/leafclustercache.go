@@ -18,17 +18,24 @@ package vnet
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type leafClusterCache struct {
 	fnCache *utils.FnCache
+	// last holds the last successfully fetched list per profile name, it is
+	// returned when a refresh fails so that an expired profile doesn't drop
+	// leaf clusters out of the VNet configuration. It is dropped when the
+	// profile has no credentials at all, meaning the user logged out.
+	last sync.Map // profile name -> []string
 }
 
 func newLeafClusterCache(clock clockwork.Clock) (*leafClusterCache, error) {
@@ -45,10 +52,34 @@ func newLeafClusterCache(clock clockwork.Clock) (*leafClusterCache, error) {
 	}, nil
 }
 
-func (c *leafClusterCache) getLeafClusters(ctx context.Context, rootClient ClusterClient) ([]string, error) {
-	return c.fnCache.Get(ctx, rootClient.ClusterName(), func(ctx context.Context) ([]string, error) {
-		return c.getLeafClustersUncached(ctx, rootClient)
+func (c *leafClusterCache) getLeafClusters(ctx context.Context, profileName string, app ClientApplication) ([]string, error) {
+	leafClusters, err := c.fnCache.Get(ctx, profileName, func(ctx context.Context) ([]string, error) {
+		var leafClusters []string
+		err := app.WithCachedClient(ctx, profileName, "" /*leafClusterName*/, func(rootClient ClusterClient) error {
+			var err error
+			leafClusters, err = c.getLeafClustersUncached(ctx, rootClient)
+			return err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "getting root cluster client from cache")
+		}
+		c.last.Store(profileName, leafClusters)
+		return leafClusters, nil
 	})
+	if err == nil {
+		return leafClusters, nil
+	}
+	if client.IsNoCredentialsError(err) {
+		// The user logged out of the profile, remove the config.
+		c.last.Delete(profileName)
+		return nil, trace.Wrap(err)
+	}
+	last, ok := c.last.Load(profileName)
+	if ok {
+		log.WarnContext(ctx, "Failed to refresh leaf cluster list, using last known list", "profile", profileName, "error", err)
+		return last.([]string), nil
+	}
+	return nil, trace.Wrap(err)
 }
 
 func (c *leafClusterCache) getLeafClustersUncached(ctx context.Context, rootClient ClusterClient) ([]string, error) {

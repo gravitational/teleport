@@ -19,6 +19,7 @@ package vnet
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -29,9 +30,15 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	typesvnet "github.com/gravitational/teleport/api/types/vnet"
+	"github.com/gravitational/teleport/lib/client"
 )
 
 type ClusterConfig struct {
+	// ClusterName is the name reported by the cluster's Ping response.
+	ClusterName string
+	// RootClusterName is the root cluster's name, even when the profile selects a leaf.
+	// After addressing the FIXME comment in [vnetClientApplication.newTeleportClient] this field should be removed.
+	RootClusterName string
 	// ProxyPublicAddr is the public address of the proxy, it is always a valid DNS zone for apps.
 	ProxyPublicAddr string
 	// CustomDNSZones is the list of custom DNS zones configured for the cluster.
@@ -54,38 +61,62 @@ func (c *ClusterConfig) appDNSZones() []string {
 // ClusterConfigCache is a read-through cache for cluster VnetConfigs. Cached entries go stale after 5
 // minutes, after which they will be re-fetched on the next read.
 //
-// If a read from the cluster fails but there is a stale cache entry present, this prefers to return the stale
-// cached entry. This is desirable in cases where the profile for a cluster expires during VNet operation,
-// it's better to use the stale custom DNS zones than to remove all DNS configuration for that cluster.
+// A stale entry is returned when a refresh fails. This keeps VNet's routing
+// configuration available while the user's credentials are expired. The one
+// exception is a refresh that fails because there are no credentials at all,
+// which means the user logged out of the profile. Then the entry is dropped and
+// the error is returned, so that VNet stops configuring the cluster.
 type ClusterConfigCache struct {
 	flightGroup singleflight.Group
 	clock       clockwork.Clock
-	cache       map[string]*ClusterConfig
+	cache       map[ClusterConfigKey]*ClusterConfig
 	mu          sync.RWMutex
+}
+
+// ClusterConfigKey identifies a cluster config independently of whether a
+// client can currently be acquired for that cluster.
+type ClusterConfigKey struct {
+	ProfileName     string
+	LeafClusterName string
+}
+
+func (k ClusterConfigKey) String() string {
+	return fmt.Sprintf("%q/%q", k.ProfileName, k.LeafClusterName)
 }
 
 func NewClusterConfigCache(clock clockwork.Clock) *ClusterConfigCache {
 	return &ClusterConfigCache{
 		clock: clock,
-		cache: make(map[string]*ClusterConfig),
+		cache: make(map[ClusterConfigKey]*ClusterConfig),
 	}
 }
 
-func (c *ClusterConfigCache) GetClusterConfig(ctx context.Context, clusterClient ClusterClient) (*ClusterConfig, error) {
-	k := clusterClient.ClusterName()
-
+func (c *ClusterConfigCache) GetClusterConfig(ctx context.Context, key ClusterConfigKey, app ClientApplication) (*ClusterConfig, error) {
 	// Use a singleflight.Group to avoid concurrent requests for the same cluster VnetConfig.
-	result, err, _ := c.flightGroup.Do(k, func() (any, error) {
+	result, err, _ := c.flightGroup.Do(key.String(), func() (any, error) {
 		// Check the cache inside flightGroup.Do to avoid the chance of immediate repeat calls to the cluster.
 		c.mu.RLock()
-		existingCacheEntry, existingCacheEntryFound := c.cache[k]
+		existingCacheEntry, existingCacheEntryFound := c.cache[key]
 		c.mu.RUnlock()
-		if existingCacheEntryFound && !existingCacheEntry.stale(c.clock) {
-			return existingCacheEntry, nil
-		}
-
-		clusterConfig, err := c.getClusterConfigUncached(ctx, clusterClient)
+		var clusterConfig *ClusterConfig
+		err := app.WithCachedClient(ctx, key.ProfileName, key.LeafClusterName, func(clusterClient ClusterClient) error {
+			// Always acquire a client, so logout is detected  before the entry becomes stale.
+			if existingCacheEntryFound && !existingCacheEntry.stale(c.clock) {
+				clusterConfig = existingCacheEntry
+				return nil
+			}
+			var err error
+			clusterConfig, err = c.getClusterConfigUncached(ctx, clusterClient)
+			return trace.Wrap(err)
+		})
 		if err != nil {
+			// The user logged out of the profile, remove the config.
+			if client.IsNoCredentialsError(err) {
+				c.mu.Lock()
+				delete(c.cache, key)
+				c.mu.Unlock()
+				return nil, trace.Wrap(err)
+			}
 			// It's better to return a stale cached VnetConfig than an error. The profile probably expired and
 			// we want to keep functioning until a relogin. We don't expect the VnetConfig to change very
 			// often.
@@ -96,7 +127,7 @@ func (c *ClusterConfigCache) GetClusterConfig(ctx context.Context, clusterClient
 		}
 
 		c.mu.Lock()
-		c.cache[k] = clusterConfig
+		c.cache[key] = clusterConfig
 		c.mu.Unlock()
 
 		return clusterConfig, nil
@@ -137,6 +168,8 @@ func (c *ClusterConfigCache) getClusterConfigUncached(ctx context.Context, clust
 	}
 
 	return &ClusterConfig{
+		ClusterName:     pingResp.ClusterName,
+		RootClusterName: clusterClient.RootClusterName(),
 		ProxyPublicAddr: proxyPublicAddr,
 		CustomDNSZones:  customDNSZones,
 		IPv4CIDRRange:   ipv4CIDRRange,

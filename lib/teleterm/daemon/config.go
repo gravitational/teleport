@@ -89,15 +89,18 @@ type ResolveClusterFunc func(uri uri.ResourceURI) (*clusters.Cluster, *client.Te
 
 // ClientCache stores clients keyed by cluster URI.
 type ClientCache interface {
-	// Get returns a client from the cache if there is one,
-	// otherwise it dials the remote server.
-	// The caller should not close the returned client.
-	Get(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error)
-	// ClearStaleClientsForRoot closes and removes clients from the cache
-	// for the root cluster and its leaf clusters, if their cert is outdated.
+	// Acquire returns a client lease. The caller must release it when it no longer
+	// needs the client.
+	Acquire(ctx context.Context, profileName, leafClusterName string) (*clientcache.Lease, error)
+	// Do leases a client for the duration of fn. Prefer Do over Acquire
+	// whenever the client is not needed after fn returns.
+	Do(ctx context.Context, profileName, leafClusterName string, fn func(*client.ClusterClient) error) error
+	// ClearStaleClientsForRoot removes clients from the cache for the root
+	// cluster and its leaf clusters, if their cert is outdated. Removed
+	// clients are closed once no lease refers to them.
 	ClearStaleClientsForRoot(profileName string) error
-	// Clear closes and removes all clients.
-	Clear() error
+	// Close permanently closes the cache.
+	Close() error
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
@@ -171,13 +174,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.CreateClientCacheFunc == nil {
 		c.CreateClientCacheFunc = func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
-			retryWithRelogin := func(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
-				return clusters.AddMetadataToRetryableError(ctx, fn)
-			}
 			return clientcache.New(clientcache.Config{
-				Logger:               c.Logger,
-				NewClientFunc:        newClientFunc,
-				RetryWithReloginFunc: clientcache.RetryWithReloginFunc(retryWithRelogin),
+				Logger:        c.Logger,
+				Clock:         c.Clock,
+				NewClientFunc: newClientFunc,
 			})
 		}
 	}

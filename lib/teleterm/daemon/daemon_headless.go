@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -40,16 +41,10 @@ func (s *Service) UpdateHeadlessAuthenticationState(ctx context.Context, rootClu
 		return trace.Wrap(err)
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := cluster.UpdateHeadlessAuthenticationState(ctx, proxyClient.CurrentCluster(), headlessID, types.HeadlessAuthenticationState(state)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	err = s.WithCachedClient(ctx, cluster.URI, func(proxyClient *client.ClusterClient) error {
+		return trace.Wrap(cluster.UpdateHeadlessAuthenticationState(ctx, proxyClient.CurrentCluster(), headlessID, types.HeadlessAuthenticationState(state)))
+	})
+	return trace.Wrap(err)
 }
 
 // StartHeadlessWatcher starts a headless watcher for the given cluster URI.
@@ -120,11 +115,12 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 	pendingWatcherInitializedOnce := sync.Once{}
 
 	watch := func() error {
-		proxyClient, err := s.GetCachedClient(watchCtx, rootCluster.URI)
+		proxyClient, err := s.AcquireCachedClient(watchCtx, rootCluster.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authClient := proxyClient.CurrentCluster()
+		defer proxyClient.Release()
+		authClient := proxyClient.Client().CurrentCluster()
 
 		pendingWatcher, closePendingWatcher, err := rootCluster.WatchPendingHeadlessAuthentications(watchCtx, authClient)
 		if err != nil {
