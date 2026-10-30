@@ -824,14 +824,15 @@ func makeBotCertsParams(
 	sshAuthorizedKey := ssh.MarshalAuthorizedKey(sshPub)
 
 	return &BotCertsParams{
-		PublicTLSKey:  tlsPubPEM,
-		PublicSSHKey:  sshAuthorizedKey,
-		BotInstanceID: authCtx.BotInstanceID,
-		BotGeneration: int32(authCtx.BotGeneration),
-		Expires:       botParams.Expires,
-		RemoteAddr:    diag.Get().RemoteAddr,
-		RawJoinClaims: rawClaims,
-		Attrs:         attrs,
+		PublicTLSKey:        tlsPubPEM,
+		PublicSSHKey:        sshAuthorizedKey,
+		BotInstanceID:       authCtx.BotInstanceID,
+		BotGeneration:       int32(authCtx.BotGeneration),
+		Expires:             botParams.Expires,
+		RemoteAddr:          diag.Get().RemoteAddr,
+		RawJoinClaims:       rawClaims,
+		Attrs:               attrs,
+		EncryptionPublicKey: botParams.EncryptionPublicKey,
 	}, nil
 }
 

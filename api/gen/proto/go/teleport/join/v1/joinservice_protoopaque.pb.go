@@ -472,11 +472,12 @@ func (b0 HostParams_builder) Build() *HostParams {
 
 // BotParams holds parameters required for bot joining.
 type BotParams struct {
-	state                 protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_PublicKeys *PublicKeys            `protobuf:"bytes,1,opt,name=public_keys,json=publicKeys,proto3"`
-	xxx_hidden_Expires    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires,proto3,oneof"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_PublicKeys          *PublicKeys            `protobuf:"bytes,1,opt,name=public_keys,json=publicKeys,proto3"`
+	xxx_hidden_Expires             *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires,proto3,oneof"`
+	xxx_hidden_EncryptionPublicKey []byte                 `protobuf:"bytes,3,opt,name=encryption_public_key,json=encryptionPublicKey,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
 func (x *BotParams) Reset() {
@@ -518,12 +519,26 @@ func (x *BotParams) GetExpires() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *BotParams) GetEncryptionPublicKey() []byte {
+	if x != nil {
+		return x.xxx_hidden_EncryptionPublicKey
+	}
+	return nil
+}
+
 func (x *BotParams) SetPublicKeys(v *PublicKeys) {
 	x.xxx_hidden_PublicKeys = v
 }
 
 func (x *BotParams) SetExpires(v *timestamppb.Timestamp) {
 	x.xxx_hidden_Expires = v
+}
+
+func (x *BotParams) SetEncryptionPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_EncryptionPublicKey = v
 }
 
 func (x *BotParams) HasPublicKeys() bool {
@@ -555,6 +570,9 @@ type BotParams_builder struct {
 	PublicKeys *PublicKeys
 	// Expires is a desired time of the expiry of the returned certificates.
 	Expires *timestamppb.Timestamp
+	// EncryptionPublicKey is the DER-encoded session-owned encryption public
+	// key.
+	EncryptionPublicKey []byte
 }
 
 func (b0 BotParams_builder) Build() *BotParams {
@@ -563,6 +581,7 @@ func (b0 BotParams_builder) Build() *BotParams {
 	_, _ = b, x
 	x.xxx_hidden_PublicKeys = b.PublicKeys
 	x.xxx_hidden_Expires = b.Expires
+	x.xxx_hidden_EncryptionPublicKey = b.EncryptionPublicKey
 	return m0
 }
 
@@ -4923,11 +4942,12 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"publicKeys\x12\x1b\n" +
 	"\thost_name\x18\x02 \x01(\tR\bhostName\x123\n" +
 	"\x15additional_principals\x18\x03 \x03(\tR\x14additionalPrincipals\x12\x1b\n" +
-	"\tdns_names\x18\x04 \x03(\tR\bdnsNames\"\x91\x01\n" +
+	"\tdns_names\x18\x04 \x03(\tR\bdnsNames\"\xc5\x01\n" +
 	"\tBotParams\x12=\n" +
 	"\vpublic_keys\x18\x01 \x01(\v2\x1c.teleport.join.v1.PublicKeysR\n" +
 	"publicKeys\x129\n" +
-	"\aexpires\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\aexpires\x88\x01\x01B\n" +
+	"\aexpires\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\aexpires\x88\x01\x01\x122\n" +
+	"\x15encryption_public_key\x18\x03 \x01(\fR\x13encryptionPublicKeyB\n" +
 	"\n" +
 	"\b_expires\"\x98\x01\n" +
 	"\fClientParams\x12?\n" +

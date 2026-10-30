@@ -254,7 +254,8 @@ func hostParamsFromMessage(msg *messages.HostParams) *joinv1.HostParams {
 
 func botParamsToMessage(req *joinv1.BotParams) *messages.BotParams {
 	msg := &messages.BotParams{
-		PublicKeys: publicKeysToMessage(req.GetPublicKeys()),
+		PublicKeys:          publicKeysToMessage(req.GetPublicKeys()),
+		EncryptionPublicKey: req.GetEncryptionPublicKey(),
 	}
 	if req.HasExpires() {
 		expires := req.GetExpires().AsTime()
@@ -265,7 +266,8 @@ func botParamsToMessage(req *joinv1.BotParams) *messages.BotParams {
 
 func botParamsFromMessage(msg *messages.BotParams) *joinv1.BotParams {
 	req := joinv1.BotParams_builder{
-		PublicKeys: publicKeysFromMessage(msg.PublicKeys),
+		PublicKeys:          publicKeysFromMessage(msg.PublicKeys),
+		EncryptionPublicKey: msg.EncryptionPublicKey,
 	}.Build()
 	if msg.Expires != nil {
 		req.SetExpires(timestamppb.New(*msg.Expires))

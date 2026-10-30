@@ -77,4 +77,7 @@ type BotCertsParams struct {
 	RawJoinClaims any
 	// Attrs is a collection of attributes that result from the join process.
 	Attrs *workloadidentityv1pb.JoinAttrs
+	// EncryptionPublicKey is the DER-encoded session-owned encryption public
+	// key.
+	EncryptionPublicKey []byte
 }

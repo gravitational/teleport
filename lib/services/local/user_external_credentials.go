@@ -20,6 +20,9 @@ package local
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/x509"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -63,12 +66,8 @@ func validateUserExternalCredentials(resource *pb.UserExternalCredentials) error
 	if err := validateUserExternalCredentialsKeyID(keyID); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(resource.GetSpec().GetEncryptionPublicKey()) == 0 {
-		return trace.BadParameter("missing encryption_public_key")
-	}
-	// A DER-encoded P-256 key is 91 bytes.
-	if len(resource.GetSpec().GetEncryptionPublicKey()) > 1024 {
-		return trace.BadParameter("encryption_public_key is too large")
+	if err := checkEncryptionPublicKey(resource.GetSpec().GetEncryptionPublicKey()); err != nil {
+		return trace.Wrap(err)
 	}
 	if resource.GetMetadata().GetExpires() == nil {
 		return trace.BadParameter("expiry is required")
@@ -84,6 +83,28 @@ func validateUserExternalCredentials(resource *pb.UserExternalCredentials) error
 		if len(credential.GetOauth().GetAccessTokenBlob()) == 0 {
 			return trace.BadParameter("credential for %s %q has no access token", credential.GetResourceKind(), credential.GetResourceName())
 		}
+	}
+	return nil
+}
+
+func checkEncryptionPublicKey(der []byte) error {
+	if len(der) == 0 {
+		return trace.BadParameter("missing encryption_public_key")
+	}
+	// A DER-encoded P-256 key is 91 bytes.
+	if len(der) > 1024 {
+		return trace.BadParameter("encryption_public_key is too large")
+	}
+	parsed, err := x509.ParsePKIXPublicKey(der)
+	if err != nil {
+		return trace.BadParameter("parsing encryption_public_key: %v", err)
+	}
+	publicKey, ok := parsed.(*ecdsa.PublicKey)
+	if !ok {
+		return trace.BadParameter("expected ECDSA encryption_public_key, got %T", parsed)
+	}
+	if publicKey.Curve != elliptic.P256() {
+		return trace.BadParameter("encryption_public_key must be P-256")
 	}
 	return nil
 }
@@ -144,16 +165,23 @@ func (s *UserExternalCredentialsService) serviceForKeyID(keyID *pb.EncryptionKey
 	}), nil
 }
 
-// CreateUserExternalCredentials creates a new UserExternalCredentials resource.
-func (s *UserExternalCredentialsService) CreateUserExternalCredentials(ctx context.Context, resource *pb.UserExternalCredentials) (*pb.UserExternalCredentials, error) {
+func (s *UserExternalCredentialsService) prepareNewResource(resource *pb.UserExternalCredentials) error {
 	if resource == nil {
-		return nil, trace.BadParameter("missing user external credentials")
+		return trace.BadParameter("missing user external credentials")
 	}
 	if resource.GetMetadata().GetName() == "" {
 		if resource.GetMetadata() == nil {
 			resource.SetMetadata(&headerpb.Metadata{})
 		}
 		resource.GetMetadata().SetName(uuid.NewString())
+	}
+	return nil
+}
+
+// CreateUserExternalCredentials creates a new UserExternalCredentials resource.
+func (s *UserExternalCredentialsService) CreateUserExternalCredentials(ctx context.Context, resource *pb.UserExternalCredentials) (*pb.UserExternalCredentials, error) {
+	if err := s.prepareNewResource(resource); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	svc, err := s.serviceForKeyID(resource.GetSpec().GetEncryptionKeyId())
@@ -162,6 +190,20 @@ func (s *UserExternalCredentialsService) CreateUserExternalCredentials(ctx conte
 	}
 	created, err := svc.CreateResource(ctx, resource)
 	return created, trace.Wrap(err)
+}
+
+// UpsertUserExternalCredentials creates or overwrites a UserExternalCredentials resource.
+func (s *UserExternalCredentialsService) UpsertUserExternalCredentials(ctx context.Context, resource *pb.UserExternalCredentials) (*pb.UserExternalCredentials, error) {
+	if err := s.prepareNewResource(resource); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	svc, err := s.serviceForKeyID(resource.GetSpec().GetEncryptionKeyId())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	upserted, err := svc.UpsertResource(ctx, resource)
+	return upserted, trace.Wrap(err)
 }
 
 // UpdateUserExternalCredentials conditionally updates a UserExternalCredentials resource.

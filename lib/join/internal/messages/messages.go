@@ -188,6 +188,9 @@ type BotParams struct {
 	// Expires is a desired time of the expiry of certificates returned by
 	// registration.
 	Expires *time.Time
+	// EncryptionPublicKey is the DER-encoded session-owned encryption public
+	// key.
+	EncryptionPublicKey []byte
 }
 
 func (p *BotParams) check() error {

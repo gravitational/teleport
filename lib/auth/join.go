@@ -468,6 +468,15 @@ func (a *Server) GenerateBotCertsForJoin(
 		}
 	}
 
+	// Auth drops the encryption key if Auth disagrees whether the client should
+	// enable encryption. A message is a logged instead of failing the join.
+	// Client should only use the encryption key if encryption key ID is
+	// embedded in the TLS identity.
+	if len(params.EncryptionPublicKey) > 0 && !shouldBotJoinUseEncryptionKey(user, renewable) {
+		a.logger.InfoContext(ctx, "Dropping encryption public key presented at bot join", "bot_name", botName)
+		params.EncryptionPublicKey = nil
+	}
+
 	certs, botInstanceID, err := a.generateInitialBotCerts(
 		ctx,
 		botName,
@@ -482,6 +491,7 @@ func (a *Server) GenerateBotCertsForJoin(
 		params.PreviousBotInstanceID,
 		params.BotGeneration,
 		params.Attrs,
+		params.EncryptionPublicKey,
 	)
 	if err != nil {
 		return nil, "", trace.Wrap(err)

@@ -521,8 +521,9 @@ func makeClientParams(params JoinParams, publicKeys *messages.PublicKeys) messag
 	if params.ID.Role == types.RoleBot {
 		return messages.ClientParams{
 			BotParams: &messages.BotParams{
-				PublicKeys: *publicKeys,
-				Expires:    params.Expires,
+				PublicKeys:          *publicKeys,
+				Expires:             params.Expires,
+				EncryptionPublicKey: params.EncryptionPublicKey,
 			},
 		}
 	}

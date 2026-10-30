@@ -251,6 +251,9 @@ type RegisterParams struct {
 	OracleIMDSClient utils.HTTPDoClient
 	// AttestTPM overrides the function used to attest the host TPM for the TPM join method.
 	AttestTPM func(context.Context, *slog.Logger) (*tpm.Attestation, func() error, error)
+	// EncryptionPublicKey is the optional DER-encoded session-owned encryption
+	// public key to register for a bot join.
+	EncryptionPublicKey []byte
 	// Log is the logger to use for emitting log messages.
 	// If not specified, this defaults to the global logger.
 	Log *slog.Logger

@@ -91,6 +91,9 @@ message BotParams {
   PublicKeys public_keys = 1;
   // Expires is a desired time of the expiry of the returned certificates.
   optional google.protobuf.Timestamp expires = 2;
+  // EncryptionPublicKey is the DER-encoded session-owned encryption public
+  // key.
+  bytes encryption_public_key = 3;
 }
 
 // ClientParams holds either host or bot join parameters.

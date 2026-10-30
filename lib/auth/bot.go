@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/userexternalcredentials"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -404,6 +406,7 @@ func (a *Server) generateInitialBotCerts(
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 	existingInstanceID string, previousInstanceID string, currentIdentityGeneration int32,
 	joinAttrs *workloadidentityv1pb.JoinAttrs,
+	encryptionPublicKey []byte,
 ) (*proto.Certs, string, error) {
 	var err error
 
@@ -463,6 +466,9 @@ func (a *Server) generateInitialBotCerts(
 		BotInternal:    true,
 		JoinAttributes: joinAttrs,
 	}
+	if len(encryptionPublicKey) > 0 {
+		certReq.EncryptionKeyID = services.MakeUserEncryptionKeyID(encryptionPublicKey)
+	}
 
 	// Set the join token cert field for non-renewable identities. This is used
 	// for lock targeting; token name lock targets are particularly useful for
@@ -501,6 +507,14 @@ func (a *Server) generateInitialBotCerts(
 		// request if it mints a fresh instance.
 		certReq.BotInstanceID = existingInstanceID
 
+		// Extend the encryption key before updateBotInstance bumps (and
+		// persists) the identity generation counter.
+		if len(encryptionPublicKey) > 0 {
+			if err := a.extendBotEncryptionKey(ctx, userState, encryptionPublicKey, expires); err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+		}
+
 		if err := a.updateBotInstance(
 			ctx, &certReq, initialAuth, currentIdentityGeneration,
 		); err != nil {
@@ -513,5 +527,101 @@ func (a *Server) generateInitialBotCerts(
 		return nil, "", trace.Wrap(err)
 	}
 
+	// Register new encryption key after cert gen is successful.
+	if existingInstanceID == "" && len(encryptionPublicKey) > 0 {
+		if err := a.registerBotEncryptionKey(ctx, userState, encryptionPublicKey, expires); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
 	return certs, certReq.BotInstanceID, nil
+}
+
+func shouldBotJoinUseEncryptionKey(botUser services.UserState, renewable bool) bool {
+	// TODO(greedy52) add rpc for extending the key for renewable joins.
+	if renewable {
+		return false
+	}
+
+	// Skip bots not under delegation, assuming a bot cannot "own" their own credentials, yet.
+	if len(botUser.GetDelegation().GetChain()) == 0 {
+		return false
+	}
+
+	// Do not allow encryption key indefinitely.
+	if botWithExpiry, ok := botUser.(interface {
+		Expiry() time.Time
+	}); !ok || botWithExpiry.Expiry().IsZero() {
+		return false
+	}
+	return true
+}
+
+func botEncryptionKeyExpiry(botUser services.UserState, expires time.Time) time.Time {
+	botWithExpiry, ok := botUser.(interface {
+		Expiry() time.Time
+	})
+	if !ok {
+		return expires
+	}
+	if botExpiry := botWithExpiry.Expiry(); !botExpiry.IsZero() && botExpiry.Before(expires) {
+		return botExpiry
+	}
+	return expires
+}
+
+func (a *Server) registerBotEncryptionKey(ctx context.Context, botUser services.UserState, encPubKey []byte, expires time.Time) error {
+	expires = botEncryptionKeyExpiry(botUser, expires)
+
+	keyID, err := services.MakeDelegateEncryptionKeyID(botUser, encPubKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resource := usercredpb.UserExternalCredentials_builder{
+		Kind:    types.KindUserExternalCredentials,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Expires: timestamppb.New(expires),
+		}.Build(),
+		Spec: usercredpb.UserExternalCredentialsSpec_builder{
+			EncryptionKeyId:     keyID,
+			EncryptionPublicKey: encPubKey,
+		}.Build(),
+	}.Build()
+
+	// Use upsert to allow bot reuse the same encryption key for a new instance.
+	if _, err := a.UserExternalCredentials.UpsertUserExternalCredentials(ctx, resource); err != nil {
+		return trace.Wrap(err)
+	}
+	a.logger.DebugContext(ctx, "Registered beam bot session encryption key", "key_id", keyID, "expiry", expires)
+	return nil
+}
+
+func (a *Server) extendBotEncryptionKey(ctx context.Context, botUser services.UserState, encPubKey []byte, expires time.Time) error {
+	expires = botEncryptionKeyExpiry(botUser, expires)
+
+	keyID, err := services.MakeDelegateEncryptionKeyID(botUser, encPubKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resource, err := a.UserExternalCredentials.GetUserExternalCredentials(ctx, keyID)
+	switch {
+	case trace.IsNotFound(err):
+		return trace.AccessDenied("encryption key %s is not registered", keyID.GetKeyId())
+	case err != nil:
+		return trace.Wrap(err)
+	}
+
+	mutate := func(_ context.Context, resource *usercredpb.UserExternalCredentials) error {
+		resource.GetMetadata().SetExpires(timestamppb.New(expires))
+		return nil
+	}
+	if err := userexternalcredentials.UpdateWithRetry(ctx, a.UserExternalCredentials, resource, mutate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.logger.DebugContext(ctx, "Extended beam bot session encryption key", "key_id", keyID, "expiry", expires)
+	return nil
 }

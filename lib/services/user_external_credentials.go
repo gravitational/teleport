@@ -23,6 +23,7 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 
 	userexternalcredentialsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 )
@@ -31,6 +32,7 @@ import (
 // credential storage.
 type UserExternalCredentials interface {
 	CreateUserExternalCredentials(ctx context.Context, resource *userexternalcredentialsv1.UserExternalCredentials) (*userexternalcredentialsv1.UserExternalCredentials, error)
+	UpsertUserExternalCredentials(ctx context.Context, resource *userexternalcredentialsv1.UserExternalCredentials) (*userexternalcredentialsv1.UserExternalCredentials, error)
 	UpdateUserExternalCredentials(ctx context.Context, resource *userexternalcredentialsv1.UserExternalCredentials) (*userexternalcredentialsv1.UserExternalCredentials, error)
 	GetUserExternalCredentials(ctx context.Context, keyID *userexternalcredentialsv1.EncryptionKeyID) (*userexternalcredentialsv1.UserExternalCredentials, error)
 	DeleteUserExternalCredentials(ctx context.Context, keyID *userexternalcredentialsv1.EncryptionKeyID) error
@@ -72,4 +74,23 @@ func PutUserExternalCredential(resource *userexternalcredentialsv1.UserExternalC
 		credentials[i] = credential
 	}
 	resource.GetSpec().SetCredentials(credentials)
+}
+
+// MakeDelegateEncryptionKeyID returns the composite key ID for a delegate's
+// session encryption key.
+func MakeDelegateEncryptionKeyID(delegate UserState, encryptionPublicKey []byte) (*userexternalcredentialsv1.EncryptionKeyID, error) {
+	chain := delegate.GetDelegation().GetChain()
+	if len(chain) == 0 {
+		return nil, trace.BadParameter("cannot find delegator for bot %s", delegate.GetName())
+	}
+	rootDelegator, err := DelegatorUsername(chain[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return userexternalcredentialsv1.EncryptionKeyID_builder{
+		User:     rootDelegator,
+		KeyId:    MakeUserEncryptionKeyID(encryptionPublicKey),
+		Delegate: delegate.GetName(),
+	}.Build(), nil
 }
