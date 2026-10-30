@@ -226,29 +226,29 @@ Helm chart values with the following details:
 ```yaml
 
 # optional
- volumes:
- - name: maxmind-geoip-city-db
-   secret:
-     secretName: maxmind-geoip-city-db
-     optional: false
+volumes:
+- name: maxmind-geoip-city-db
+  secret:
+    secretName: maxmind-geoip-city-db
+    optional: false
 
 # optional
- volumeMounts:
- - name: maxmind-geoip-city-db
-   mountPath: "/etc/maxmindGeoIP/"
-   readOnly: true
+volumeMounts:
+- name: maxmind-geoip-city-db
+  mountPath: "/etc/maxmindGeoIP/"
+  readOnly: true
 
-identity_activity_center:
+identityActivityCenter:
   enabled: true
   region: <Var name="eu-central-1"/>
   database: <Var name="example-db"/>
   table: <Var name="example-table"/>
   s3: s3://<Var name="example-long-term-bucket"/>/data/
-  s3_results: s3://<Var name="example-transient-bucket"/>/results/
-  s3_large_files: s3://<Var name="example-transient-bucket"/>/large_files
+  s3Results: s3://<Var name="example-transient-bucket"/>/results/
+  s3LargeFiles: s3://<Var name="example-transient-bucket"/>/large_files
   workgroup: <Var name="example-workgroup"/>
-  sqs_queue_url: https://sqs.<Var name="eu-central-1"/>.amazonaws.com/<Var name="aws-account-id"/>/<Var name="example-sqs-queue"/>
-  maxmind_geoip_city_db_path: "/etc/maxmindGeoIP/GeoLite2-City.mmdb" # optional
+  sqsQueueUrl: https://sqs.<Var name="eu-central-1"/>.amazonaws.com/<Var name="aws-account-id"/>/<Var name="example-sqs-queue"/>
+  maxmindGeoipCityDbPath: "/etc/maxmindGeoIP/GeoLite2-City.mmdb" # optional
 ```
 
 Upgrade your Identity Security Helm chart release. The command below assumes
