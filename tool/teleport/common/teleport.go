@@ -69,6 +69,10 @@ import (
 
 const selinuxUnsupportedErr = "--enable-selinux is allowed only when the SSH service is the only service enabled"
 
+const insecureNoTLSRemovedErr = "--insecure-no-tls is no longer supported, the Proxy always serves TLS. " +
+	"Remove the flag, and if a load balancer terminates TLS in front of the Proxy, configure it to connect to the Proxy's web_listen_addr over HTTPS. " +
+	"The Proxy serves a self-signed certificate when neither https_keypairs nor ACME is configured."
+
 // Options combines init/start teleport options
 type Options struct {
 	// Args is a list of command-line args passed from main()
@@ -108,6 +112,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		installAutoDiscoverNodeFlags     installAutoDiscoverNodeFlags
 		waitFlags                        waitFlags
 		rawVersion                       bool
+		insecureNoTLS                    bool
 	)
 
 	// define commands:
@@ -130,8 +135,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
 		BoolVar(&ccf.Debug)
-	start.Flag("insecure-no-tls", "Disable TLS for the web socket").
-		BoolVar(&ccf.DisableTLS)
+	// TODO(strideynet): DELETE IN 20.0.0
+	// --insecure-no-tls was removed in 19.0.0. It's kept as a hidden flag so
+	// that anyone still passing it gets an actionable error rather than
+	// kingpin's "unknown long flag".
+	start.Flag("insecure-no-tls", "Removed: the Proxy always serves TLS.").
+		Hidden().
+		BoolVar(&insecureNoTLS)
 	start.Flag("roles",
 		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
 		Short('r').
@@ -759,6 +769,10 @@ Examples:
 	if err != nil {
 		app.Usage(options.Args)
 		utils.FatalError(err)
+	}
+
+	if insecureNoTLS {
+		utils.FatalError(trace.BadParameter(insecureNoTLSRemovedErr))
 	}
 
 	// Create default configuration.

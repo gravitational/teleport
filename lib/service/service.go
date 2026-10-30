@@ -4933,7 +4933,6 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 func (process *TeleportProcess) initProxy() error {
 	// If no TLS key was provided for the web listener, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
-		!process.Config.Proxy.DisableTLS &&
 		!process.Config.Proxy.ACME.Enabled {
 		err := initSelfSignedHTTPSCert(process.Config)
 		if err != nil {
@@ -5181,7 +5180,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	case cfg.Proxy.DisableWebService && cfg.Proxy.DisableReverseTunnel:
 		process.logger.DebugContext(process.ExitContext(), "Setup Proxy: Reverse tunnel proxy and web proxy are disabled.")
 		return &listeners, nil
-	case cfg.Proxy.ReverseTunnelListenAddr == cfg.Proxy.WebAddr && !cfg.Proxy.DisableTLS:
+	case cfg.Proxy.ReverseTunnelListenAddr == cfg.Proxy.WebAddr:
 		process.logger.DebugContext(process.ExitContext(), "Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
 		listener, err := process.importOrCreateListener(ListenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
@@ -5211,7 +5210,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			}
 		}()
 		return &listeners, nil
-	case cfg.Proxy.PROXYProtocolMode != multiplexer.PROXYProtocolOff && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
+	case cfg.Proxy.PROXYProtocolMode != multiplexer.PROXYProtocolOff && !cfg.Proxy.DisableWebService:
 		process.logger.DebugContext(process.ExitContext(), "Setup Proxy: PROXY protocol is enabled for web service, multiplexing is on.")
 		listener, err := process.importOrCreateListener(ListenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
@@ -5268,7 +5267,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			// Unless database proxy is explicitly disabled (which is currently
 			// only done by tests and not exposed via file config), the web
 			// listener is multiplexing both web and db client connections.
-			if !cfg.Proxy.DisableDatabaseProxy && !cfg.Proxy.DisableTLS {
+			if !cfg.Proxy.DisableDatabaseProxy {
 				process.logger.DebugContext(process.ExitContext(), "Setup Proxy: Multiplexing web and database proxy on the same port.")
 				listeners.mux, err = multiplexer.New(multiplexer.Config{
 					PROXYProtocolMode:   cfg.Proxy.PROXYProtocolMode,
@@ -5290,13 +5289,13 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 					}
 				}()
 			} else {
-				process.logger.DebugContext(process.ExitContext(), "Setup Proxy: TLS is disabled, multiplexing is off.")
+				process.logger.DebugContext(process.ExitContext(), "Setup Proxy: Database proxy is disabled, multiplexing is off.")
 				listeners.web = listener
 			}
 		}
 
 		// Even if web service API was disabled create a web listener used for ALPN/SNI service as the master port
-		if cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS && listeners.web == nil {
+		if cfg.Proxy.DisableWebService && listeners.web == nil {
 			listeners.web, err = process.importOrCreateListener(ListenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -5349,7 +5348,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}()
 	var err error
 	cfg := process.Config
-	var tlsConfigWeb *tls.Config
 
 	clusterName := conn.ClusterName()
 
@@ -5794,14 +5792,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 	}
 
-	if !process.Config.Proxy.DisableTLS {
-		tlsConfigWeb, err = process.setupProxyTLSConfig(conn, tsrv, accessPoint, clusterName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if appHTTPSTunnelHandler != nil {
-			appHTTPSTunnelHandler.SetTLSConfig(tlsConfigWeb)
-		}
+	tlsConfigWeb, err := process.setupProxyTLSConfig(conn, tsrv, accessPoint, clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if appHTTPSTunnelHandler != nil {
+		appHTTPSTunnelHandler.SetTLSConfig(tlsConfigWeb)
 	}
 
 	var proxyRouter *proxy.Router
@@ -5983,7 +5979,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
+		if cfg.Proxy.DisableALPNSNIListener {
 			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
 				Listener: tls.NewListener(listeners.web, tlsConfigWeb),
 			})
@@ -6696,9 +6692,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
 
-	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(
 			tsrv,
 			clusterName,
@@ -6772,13 +6766,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *servicecfg.Config, webConfig web.Config) (*web.Server, error) {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id))
-	internalListener := listeners.minimalWeb
-	if !cfg.Proxy.DisableTLS {
-		internalListener = tls.NewListener(internalListener, tlsConfigWeb)
-	}
-
 	minimalListener, err := multiplexer.NewWebListener(multiplexer.WebListenerConfig{
-		Listener: internalListener,
+		Listener: tls.NewListener(listeners.minimalWeb, tlsConfigWeb),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6998,7 +6987,7 @@ func (process *TeleportProcess) setupALPNTLSConfigForWeb(tlsConfig *tls.Config, 
 }
 
 func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *servicecfg.Config, clusterName string) (router, rtRouter *alpnproxy.Router, appHTTPSTunnelHandler *webapp.HTTPSTunnelHandler) {
-	if listeners.web == nil || cfg.Proxy.DisableTLS || cfg.Proxy.DisableALPNSNIListener {
+	if listeners.web == nil || cfg.Proxy.DisableALPNSNIListener {
 		return nil, nil, nil
 	}
 	// ALPN proxy service will use web listener where listener.web will be overwritten by alpn wrapper
@@ -7889,7 +7878,7 @@ func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) 
 		return nil, false
 	}
 
-	if !process.Config.Proxy.DisableTLS && !process.Config.Proxy.DisableALPNSNIListener && mode == types.ProxyListenerMode_Multiplex {
+	if !process.Config.Proxy.DisableALPNSNIListener && mode == types.ProxyListenerMode_Multiplex {
 		var addr utils.NetAddr
 		switch {
 		// Use the public address if available.

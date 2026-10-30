@@ -109,9 +109,6 @@ type CommandLineFlags struct {
 	// -d flag
 	Debug bool
 
-	// --insecure-no-tls flag
-	DisableTLS bool
-
 	// --labels flag
 	Labels string
 	// --pid-file flag
@@ -2996,11 +2993,6 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			return trace.Wrap(err, "failed to parse diag-addr")
 		}
 		cfg.DiagnosticAddr = *addr
-	}
-
-	// apply --insecure-no-tls flag:
-	if clf.DisableTLS {
-		cfg.Proxy.DisableTLS = clf.DisableTLS
 	}
 
 	// apply --debug flag to config:
