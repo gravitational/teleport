@@ -28,3 +28,7 @@ import (
 func MaybeSetCommandCredentialAsUser(ctx context.Context, cmd *exec.Cmd, requestUser *user.User, logger *slog.Logger) error {
 	return trace.NotImplemented("windows not yet supported")
 }
+
+func GetHostUserCredential(localUser *user.User) (*user.User, error) {
+	return nil, trace.NotImplemented("windows not yet supported")
+}
