@@ -18,9 +18,12 @@ package models
 
 import (
 	"cmp"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // ConvertName takes a set model name and do the conversion based on the
@@ -44,3 +47,22 @@ func ConvertName(mappings []*types.LLM_Model, fallbackModelName string, reqModel
 
 	return "", false
 }
+
+// BuildAvailableModelsMessage returns a human-readable message with the list
+// of available models.
+//
+// Expect that the models list will at least contain a single element.
+func BuildAvailableModelsMessage(models []*types.LLM_Model) string {
+	seenModels := set.New[string]()
+	for _, model := range models {
+		seenModels.Add(model.Name)
+	}
+
+	return ModelsListMessagePrefix + strings.Join(slices.Sorted(maps.Keys(seenModels)), ", ")
+}
+
+const (
+	// ModelsListMessagePrefix message prefix when a list of allowed models
+	// is available.
+	ModelsListMessagePrefix = "Use one of the allowed models instead: "
+)

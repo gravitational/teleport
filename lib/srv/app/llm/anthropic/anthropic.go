@@ -139,7 +139,7 @@ func NewRequest(cfg *llmrequest.Config) (*llmrequest.Request, error) {
 
 	providerModel, found := models.ConvertName(llm.Models, llm.FallbackModel, req.Model)
 	if !found {
-		return res, trace.BadParameter("requested model %q is not supported", req.Model)
+		return res, trace.BadParameter("requested model %q is not supported. %s", req.Model, models.BuildAvailableModelsMessage(llm.Models))
 	}
 	info.providerModel = providerModel
 	req.Model = providerModel
