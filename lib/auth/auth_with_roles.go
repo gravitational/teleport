@@ -5071,6 +5071,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	// If the cert is renewable, process any bot instance updates (generation
 	// counter, auth records, etc). `updateBotInstance()` may modify certain
 	// `certReq` attributes (generation, botInstanceID).
+	var commitFn func() error
 	if certReq.Renewable {
 		currentIdentityGeneration := a.scopedContext.Identity.GetIdentity().Generation
 
@@ -5081,9 +5082,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		}
 
 		// Update the bot instance based on this authentication.
-		if err := a.authServer.updateBotInstance(
-			ctx, &certReq, nil, int32(currentIdentityGeneration),
-		); err != nil {
+		commitFn, err = a.authServer.updateBotInstance(ctx, &certReq, nil, int32(currentIdentityGeneration))
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -5091,6 +5091,12 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	certs, err := a.authServer.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if commitFn != nil {
+		if err := commitFn(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return certs, nil

@@ -30,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 )
@@ -512,27 +514,117 @@ func mutateStatusClearRegistrationSecret(oldValue string) boundKeypairStatusMuta
 	}
 }
 
+// joinStateFieldsGuard is a validation-only mutator that makes sure none of the
+// fields needed to issue join state documents were modified in the backend.
+//
+// Individual mutators for each of these fields exist but are not guaranteed to
+// actually execute on any particular join attempt. For example,
+// `bound_bot_instance_id` is only set on first join. We'd otherwise never
+// validate that these fields remained unchanged from the start of the join
+// attempt.
+//
+// We need to be confident that these fields don't change since the backend
+// write needs to run last, _after_ `IssueJoinState()`, but `IssueJoinState()`
+// depends on values that are only computed in the mutators (e.g.
+// `recovery_count`). So, we need to run the mutators in two passes (once for
+// join state, once for `patchToken()`), and need to guarantee join state values
+// are unchanged across both.
+type joinStateFieldsGuard struct {
+	boundBotInstanceID string
+	boundHostID        string
+	recoveryCount      uint32
+}
+
+func (m *joinStateFieldsGuard) validate(
+	spec *types.ProvisionTokenSpecV2BoundKeypair,
+	status *types.ProvisionTokenStatusV2BoundKeypair,
+) error {
+	switch {
+	case status.BoundBotInstanceID != m.boundBotInstanceID:
+		return trace.AccessDenied("unexpected backend state (bound_bot_instance_id)")
+	case status.BoundHostID != m.boundHostID:
+		return trace.AccessDenied("unexpected backend state (bound_host_id)")
+	case status.RecoveryCount != m.recoveryCount:
+		return trace.AccessDenied("unexpected backend state (recovery_count)")
+	}
+
+	return nil
+}
+
+func (m *joinStateFieldsGuard) mutateStandardToken(
+	spec *types.ProvisionTokenSpecV2BoundKeypair,
+	status *types.ProvisionTokenStatusV2BoundKeypair,
+) {
+	// no-op
+}
+
+func (m *joinStateFieldsGuard) mutateScopedToken(
+	spec *joiningv1.BoundKeypairSpec,
+	status *joiningv1.BoundKeypairStatus,
+) {
+	// no-op
+}
+
+// applyMutatorsToToken applies mutators to a ProvisionTokenV2 in place. If a
+// clone is desired, the caller must provide one.
+func applyMutatorsToToken(pt types.ProvisionToken, mutators []boundKeypairStatusMutatorV2) (types.ProvisionToken, error) {
+	if pt.GetBoundKeypairStatus() == nil {
+		return nil, trace.BadParameter("bound keypair tokens must have non-nil status.bound_keypair")
+	}
+
+	// Apply all mutators. Individual mutators may make additional
+	// assertions to ensure invariants haven't changed.
+	for _, mutator := range mutators {
+		if err := mutator.validate(pt.GetBoundKeypair(), pt.GetBoundKeypairStatus()); err != nil {
+			return nil, trace.Wrap(err, "applying status mutator")
+		}
+
+		mutator.mutateStandardToken(pt.GetBoundKeypair(), pt.GetBoundKeypairStatus())
+	}
+
+	return pt, nil
+}
+
+// applyMutatorsToScopedToken applys the given set of mutators to a scoped token
+// in place. If a clone is required, the caller must provide a clone.
+func applyMutatorsToScopedToken(st *joiningv1.ScopedToken, mutators []boundKeypairStatusMutatorV2) (*joiningv1.ScopedToken, error) {
+	if st.GetStatus().GetUsage().GetBoundKeypair() == nil {
+		return nil, trace.BadParameter("scoped bound keypair tokens must have non-nil status.usage.bound_keypair")
+	}
+
+	for _, mutator := range mutators {
+		// Compute the equivalent spec/status for each mutator. No
+		// mutators currently effect the fields another depends on, but
+		// we don't want any surprises if that changes in the future.
+		equivalentSpec := joining.BoundKeypairSpecFromScopedToken(st)
+		equivalentStatus := joining.BoundKeypairStatusFromScopedToken(st)
+
+		if err := mutator.validate(equivalentSpec, equivalentStatus); err != nil {
+			return nil, trace.Wrap(err, "applying status mutator")
+		}
+
+		mutator.mutateScopedToken(
+			st.GetSpec().GetBoundKeypair(),
+			st.GetStatus().GetUsage().GetBoundKeypair(),
+		)
+	}
+
+	return st, nil
+}
+
+// patchToken applies the listed mutators to the current join token
 func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypairStatusMutatorV2) (provision.Token, error) {
 	token := params.ProvisionToken
 
 	switch token.(type) {
 	case *types.ProvisionTokenV2:
 		patched, err := params.AuthService.PatchToken(ctx, token.GetName(), func(pt types.ProvisionToken) (types.ProvisionToken, error) {
-			if pt.GetBoundKeypairStatus() == nil {
-				return nil, trace.BadParameter("bound keypair tokens must have non-nil status.bound_keypair")
+			patched, err := applyMutatorsToToken(pt, mutators)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 
-			// Apply all mutators. Individual mutators may make additional
-			// assertions to ensure invariants haven't changed.
-			for _, mutator := range mutators {
-				if err := mutator.validate(pt.GetBoundKeypair(), pt.GetBoundKeypairStatus()); err != nil {
-					return nil, trace.Wrap(err, "applying status mutator")
-				}
-
-				mutator.mutateStandardToken(pt.GetBoundKeypair(), pt.GetBoundKeypairStatus())
-			}
-
-			return pt, nil
+			return patched, nil
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "committing updated token state, please try again")
@@ -540,29 +632,14 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 
 		return patched, nil
 	case *joining.Token:
-		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetName()}, func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
-			if st.GetStatus().GetUsage().GetBoundKeypair() == nil {
-				return nil, trace.BadParameter("scoped bound keypair tokens must have non-nil status.usage.bound_keypair")
+		sqn := scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetName()}
+		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, sqn, func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+			patched, err := applyMutatorsToScopedToken(st, mutators)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 
-			for _, mutator := range mutators {
-				// Compute the equivalent spec/status for each mutator. No
-				// mutators currently effect the fields another depends on, but
-				// we don't want any surprises if that changes in the future.
-				equivalentSpec := joining.BoundKeypairSpecFromScopedToken(st)
-				equivalentStatus := joining.BoundKeypairStatusFromScopedToken(st)
-
-				if err := mutator.validate(equivalentSpec, equivalentStatus); err != nil {
-					return nil, trace.Wrap(err, "applying status mutator")
-				}
-
-				mutator.mutateScopedToken(
-					st.GetSpec().GetBoundKeypair(),
-					st.GetStatus().GetUsage().GetBoundKeypair(),
-				)
-			}
-
-			return st, nil
+			return patched, nil
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "committing updated token state, please try again")
@@ -574,6 +651,35 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 		}
 
 		return wrapped, nil
+	default:
+		return nil, trace.NotImplemented("unsupported token type %T", token)
+	}
+}
+
+// mutateTokenForJoinState returns a clone of the provision token with mutators
+// applied. It returns a functionally identical token as the one produced by
+// `patchToken()`, appropriate for passing to `IssueJoinState()`.
+func mutateTokenForJoinState(token provision.Token, mutators []boundKeypairStatusMutatorV2) (provision.Token, error) {
+	switch t := token.(type) {
+	case *types.ProvisionTokenV2:
+		clone, err := services.CloneProvisionToken(t)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		patched, err := applyMutatorsToToken(clone, mutators)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return patched, nil
+	case *joining.Token:
+		patched, err := applyMutatorsToScopedToken(proto.CloneOf(t.GetScoped()), mutators)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return joining.NewToken(patched)
 	default:
 		return nil, trace.NotImplemented("unsupported token type %T", token)
 	}
@@ -1290,15 +1396,17 @@ func HandleBoundKeypairJoin(
 		return nil, trace.NotImplemented("bound keypair joining only supports Instance and Bot system roles, client requested %s", systemRole)
 	}
 
-	// A reference to the final provision token state; may be modified below via
-	// mutators.
-	finalToken := params.ProvisionToken
-
-	if len(mutators) > 0 {
-		finalToken, err = patchToken(ctx, params, mutators...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// First mutator pass: compute the desired token outcome so we can issue
+	// join state against it first. Signing is fallible, so this needs to be
+	// done before writing to the backend. It's okay if there are no actual
+	// mutators to apply.
+	// Validation at this stage is a no-op, since it just checks against the
+	// original token. Unfortunately this means we still need to apply and
+	// validate mutators at patch time since that actually compares against the
+	// current backend state.
+	tokenForJoinState, err := mutateTokenForJoinState(params.ProvisionToken, mutators)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	signer, err := params.AuthService.GetKeyStore().GetJWTSigner(ctx, ca)
@@ -1309,11 +1417,38 @@ func HandleBoundKeypairJoin(
 	newJoinState, err := boundkeypair.IssueJoinState(signer, &boundkeypair.JoinStateParams{
 		Clock:       params.Clock,
 		ClusterName: clusterName.GetClusterName(),
-		Token:       finalToken,
+		Token:       tokenForJoinState,
 		HostID:      generatedHostID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "issuing join state document")
+	}
+
+	// A reference to the final provision token state; may be modified below via
+	// mutators.
+	finalToken := params.ProvisionToken
+
+	if len(mutators) > 0 {
+		// If a patch is required at all, include the joinStateFieldsGuard to
+		// make sure params needed for IssueJoinState() are unchanged. This
+		// helps to unconditionally ensure the backend hasn't diverged from the
+		// join state we issued earlier, since we only add certain mutators in
+		// certain branches (sometimes none!), so the associated validators
+		// might otherwise never run.
+		mutators = append([]boundKeypairStatusMutatorV2{&joinStateFieldsGuard{
+			boundBotInstanceID: status.BoundBotInstanceID,
+			boundHostID:        status.BoundHostID,
+			recoveryCount:      status.RecoveryCount,
+		}}, mutators...)
+
+		// `patchToken()` runs the 2nd mutator pass. While we could technically
+		// reuse the `tokenForJoinState` we already computed, we'd risk
+		// overwriting a concurrent write that came through targeting other
+		// fields that would otherwise be safe to overwrite concurrently.
+		finalToken, err = patchToken(ctx, params, mutators...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	switch systemRole {

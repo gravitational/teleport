@@ -176,19 +176,19 @@ func (a *Server) updateBotInstance(
 	ctx context.Context, req *cert.Request,
 	templateAuthRecord *machineidv1pb.BotInstanceStatusAuthentication,
 	currentIdentityGeneration int32,
-) error {
+) (func() error, error) {
 	if req.BotName == "" {
 		// Only applies to bot identities
-		return nil
+		return nil, nil
 	}
 	// We expect all renewals to have a bot instance ID and current identity
 	// generation. n.b: The bot instance ID may refer to a bot instance that no
 	// longer exists.
 	if req.BotInstanceID == "" {
-		return trace.AccessDenied("bot identity is missing a bot instance ID")
+		return nil, trace.AccessDenied("bot identity is missing a bot instance ID")
 	}
 	if currentIdentityGeneration <= 0 {
-		return trace.AccessDenied("a current identity generation must be provided")
+		return nil, trace.AccessDenied("a current identity generation must be provided")
 	}
 
 	// Presumed to be a token join unless a `templateAuthRecord` says otherwise.
@@ -224,7 +224,7 @@ func (a *Server) updateBotInstance(
 				)
 			}
 
-			return trace.AccessDenied(
+			return nil, trace.AccessDenied(
 				"cert generation mismatch for bot %s/%s: instance not found, presented=%v",
 				req.BotName, req.BotInstanceID, currentIdentityGeneration,
 			)
@@ -235,7 +235,7 @@ func (a *Server) updateBotInstance(
 		// failure loop until the identity expires.
 		newInstanceID, err := uuid.NewRandom()
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		a.logger.WarnContext(
@@ -252,7 +252,7 @@ func (a *Server) updateBotInstance(
 			req, joinMethod, a.GetClock().Now(), templateAuthRecord,
 		)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		// Reset generation back to 1 for the new instance.
 		authRecord.SetGeneration(1)
@@ -267,16 +267,20 @@ func (a *Server) updateBotInstance(
 		bi.SetScope(req.BotScope)
 
 		if _, err := a.BotInstance.CreateBotInstance(ctx, bi); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
+		// Don't bother with the patchBotInstanceParams() path. The token was
+		// already consumed, and if cert generation fails, there's no
+		// certificate generation count on the client to fall out of date, and
+		// the bot instance will expire on its own.
 		req.BotInstanceID = newInstanceID.String()
 		req.Generation = 1
 
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Fetch latest generation from bot instance authn record history.
@@ -304,7 +308,7 @@ func (a *Server) updateBotInstance(
 				)
 			}
 
-			return trace.AccessDenied(
+			return nil, trace.AccessDenied(
 				"cert generation mismatch for bot %s/%s: stored=%v, presented=%v",
 				req.BotName, req.BotInstanceID,
 				instanceGeneration, currentIdentityGeneration,
@@ -326,7 +330,7 @@ func (a *Server) updateBotInstance(
 		req, joinMethod, a.GetClock().Now(), templateAuthRecord,
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Increment the generation counter the cert and bot instance. The counter
@@ -335,39 +339,51 @@ func (a *Server) updateBotInstance(
 	authRecord.SetGeneration(newGeneration)
 	req.Generation = uint64(newGeneration)
 
-	_, err = a.BotInstance.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
-		Bot:        scopes.QualifiedName{Scope: req.BotScope, Name: req.BotName},
-		InstanceID: req.BotInstanceID,
-		UpdateFn: func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
-			if !bi.HasStatus() {
-				bi.SetStatus(&machineidv1pb.BotInstanceStatus{})
-			}
+	return func() error {
+		_, err := a.BotInstance.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+			Bot:        scopes.QualifiedName{Scope: req.BotScope, Name: req.BotName},
+			InstanceID: req.BotInstanceID,
+			UpdateFn: func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+				if !bi.HasStatus() {
+					bi.SetStatus(&machineidv1pb.BotInstanceStatus{})
+				}
 
-			// Update the record's expiration timestamp based on the request TTL
-			// plus an expiry margin.
-			bi.GetMetadata().SetExpires(timestamppb.New(a.GetClock().Now().Add(req.TTL + machineidv1.ExpiryMargin)))
+				// Update the record's expiration timestamp based on the request TTL
+				// plus an expiry margin.
+				bi.GetMetadata().SetExpires(timestamppb.New(a.GetClock().Now().Add(req.TTL + machineidv1.ExpiryMargin)))
 
-			// If we're at or above the limit, remove enough of the front elements
-			// to make room for the new one at the end.
-			if len(bi.GetStatus().GetLatestAuthentications()) >= machineidv1.AuthenticationHistoryLimit {
-				toRemove := len(bi.GetStatus().GetLatestAuthentications()) - machineidv1.AuthenticationHistoryLimit + 1
-				bi.GetStatus().SetLatestAuthentications(bi.GetStatus().GetLatestAuthentications()[toRemove:])
-			}
+				// If we're at or above the limit, remove enough of the front elements
+				// to make room for the new one at the end.
+				if len(bi.GetStatus().GetLatestAuthentications()) >= machineidv1.AuthenticationHistoryLimit {
+					toRemove := len(bi.GetStatus().GetLatestAuthentications()) - machineidv1.AuthenticationHistoryLimit + 1
+					bi.GetStatus().SetLatestAuthentications(bi.GetStatus().GetLatestAuthentications()[toRemove:])
+				}
 
-			// An initial auth record should have been added during initial join,
-			// but if not, add it now.
-			if !bi.GetStatus().HasInitialAuthentication() {
-				log.WarnContext(ctx, "bot instance is missing its initial authentication record, a new one will be added")
-				bi.GetStatus().SetInitialAuthentication(authRecord)
-			}
+				// An initial auth record should have been added during initial join,
+				// but if not, add it now.
+				if !bi.GetStatus().HasInitialAuthentication() {
+					log.WarnContext(ctx, "bot instance is missing its initial authentication record, a new one will be added")
+					bi.GetStatus().SetInitialAuthentication(authRecord)
+				}
 
-			bi.GetStatus().SetLatestAuthentications(append(bi.GetStatus().GetLatestAuthentications(), authRecord))
+				var currentGeneration int32
+				if auths := bi.GetStatus().GetLatestAuthentications(); len(auths) > 0 {
+					currentGeneration = auths[len(auths)-1].GetGeneration()
+				}
+				if currentGeneration != instanceGeneration {
+					return nil, trace.CompareFailed(
+						"cannot update bot instance that changed on the backend (expected=%d, saw=%d)",
+						instanceGeneration, currentGeneration)
+				}
 
-			return bi, nil
-		},
-	})
+				bi.GetStatus().SetLatestAuthentications(append(bi.GetStatus().GetLatestAuthentications(), authRecord))
 
-	return trace.Wrap(err)
+				return bi, nil
+			},
+		})
+
+		return trace.Wrap(err)
+	}, nil
 }
 
 // newBotInstance constructs a new bot instance from a spec and initial authentication
@@ -478,6 +494,7 @@ func (a *Server) generateInitialBotCerts(
 		certReq.JoinToken = initialAuth.GetJoinToken()
 	}
 
+	var commitFn func() error
 	if existingInstanceID == "" {
 		// If no existing instance ID is known, create a new one.
 		uuid, err := uuid.NewRandom()
@@ -515,9 +532,8 @@ func (a *Server) generateInitialBotCerts(
 			}
 		}
 
-		if err := a.updateBotInstance(
-			ctx, &certReq, initialAuth, currentIdentityGeneration,
-		); err != nil {
+		commitFn, err = a.updateBotInstance(ctx, &certReq, initialAuth, currentIdentityGeneration)
+		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
@@ -530,6 +546,12 @@ func (a *Server) generateInitialBotCerts(
 	// Register new encryption key after cert gen is successful.
 	if existingInstanceID == "" && len(encryptionPublicKey) > 0 {
 		if err := a.registerBotEncryptionKey(ctx, userState, encryptionPublicKey, expires); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	if commitFn != nil {
+		if err := commitFn(); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
