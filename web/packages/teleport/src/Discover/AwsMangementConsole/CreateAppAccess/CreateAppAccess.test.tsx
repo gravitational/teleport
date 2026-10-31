@@ -30,7 +30,6 @@ import {
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 import { userEventService } from 'teleport/services/userEvent';
-import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
 
 import { CreateAppAccess } from './CreateAppAccess';
 
@@ -58,22 +57,6 @@ test('create app access', async () => {
   await screen.findByText(/aws-console/i);
   expect(integrationService.createAwsAppAccessV2).toHaveBeenCalledTimes(1);
   expect(integrationService.createAwsAppAccess).not.toHaveBeenCalled();
-});
-
-test('create app access with v1 endpoint auto retry', async () => {
-  jest
-    .spyOn(integrationService, 'createAwsAppAccessV2')
-    .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
-  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
-
-  renderCreateAppAccess();
-  await screen.findByText(/bash/i);
-
-  await userEvent.click(screen.getByRole('button', { name: /next/i }));
-  await screen.findByText(/aws-console/i);
-
-  expect(integrationService.createAwsAppAccessV2).toHaveBeenCalledTimes(1);
-  expect(integrationService.createAwsAppAccess).toHaveBeenCalledTimes(1);
 });
 
 const agentMeta: AgentMeta = {

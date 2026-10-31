@@ -20,7 +20,6 @@ import { renderHook, waitFor } from '@testing-library/react';
 
 import { ContextProvider } from 'teleport/index';
 import { userContext } from 'teleport/Main/fixtures';
-import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
 import TeleportContext from 'teleport/teleportContext';
 
 import useAddApp from './useAddApp';
@@ -55,26 +54,6 @@ test('create token without labels', async () => {
 
   expect(ctx.joinTokenService.fetchJoinTokenV2).toHaveBeenCalledTimes(1);
   expect(ctx.joinTokenService.fetchJoinToken).not.toHaveBeenCalled();
-  expect(result.current.token).toEqual(tokenResp);
-});
-
-test('create token without labels with v1 fallback', async () => {
-  jest
-    .spyOn(ctx.joinTokenService, 'fetchJoinTokenV2')
-    .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
-
-  const wrapper = ({ children }) => (
-    <ContextProvider ctx={ctx}>{children}</ContextProvider>
-  );
-
-  let { result } = renderHook(() => useAddApp(ctx), { wrapper });
-
-  await waitFor(() => {
-    expect(result.current.token).not.toBeUndefined();
-  });
-
-  expect(ctx.joinTokenService.fetchJoinTokenV2).toHaveBeenCalledTimes(1);
-  expect(ctx.joinTokenService.fetchJoinToken).toHaveBeenCalledTimes(1);
   expect(result.current.token).toEqual(tokenResp);
 });
 

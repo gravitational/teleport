@@ -25,7 +25,6 @@ import {
 } from 'teleport/Discover/Shared/ResourceKind';
 import type { ResourceLabel } from 'teleport/services/agents';
 import type { JoinMethod, JoinToken } from 'teleport/services/joinToken';
-import { useV1Fallback } from 'teleport/services/version/unsupported';
 
 import { useDiscover } from '../useDiscover';
 
@@ -69,9 +68,6 @@ export function useJoinTokenSuspender({
 
   const [, rerender] = useState(0);
 
-  // TODO(kimlisa): DELETE IN 19.0
-  const { tryV1Fallback } = useV1Fallback();
-
   const kindsKey = resourceKinds.sort().join();
 
   function run() {
@@ -85,22 +81,7 @@ export function useJoinTokenSuspender({
         suggestedLabels,
       };
 
-      let resp: JoinToken;
-      try {
-        resp = await ctx.joinTokenService.fetchJoinTokenV2(
-          req,
-          abortController.signal
-        );
-      } catch (err) {
-        resp = await tryV1Fallback({
-          kind: 'create-join-token',
-          err,
-          req,
-          abortSignal: abortController.signal,
-          ctx,
-        });
-      }
-      return resp;
+      return ctx.joinTokenService.fetchJoinTokenV2(req, abortController.signal);
     }
 
     const result: SuspendResult = {

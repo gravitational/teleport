@@ -40,7 +40,6 @@ import {
 } from 'teleport/services/integrations';
 import KubeService from 'teleport/services/kube/kube';
 import { userEventService } from 'teleport/services/userEvent';
-import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
 
 import { EnrollEksCluster } from './EnrollEksCluster';
 
@@ -225,45 +224,6 @@ describe('test EnrollEksCluster.tsx', () => {
     expect(KubeService.prototype.fetchKubernetes).toHaveBeenCalledTimes(1);
     expect(integrationService.enrollEksClustersV2).toHaveBeenCalledTimes(1);
     expect(integrationService.enrollEksClusters).not.toHaveBeenCalled();
-  });
-
-  test('enroll eks without labels with v1 fallback', async () => {
-    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
-      clusters: mockEKSClusters,
-    });
-    vi.spyOn(integrationService, 'enrollEksClustersV2').mockRejectedValueOnce(
-      new Error(ProxyRequiresUpgrade)
-    );
-    vi.spyOn(integrationService, 'enrollEksClusters').mockResolvedValue({
-      results: [],
-    });
-
-    render(<Component />);
-
-    // select a region from selector.
-    const selectEl = screen.getByLabelText(/aws region/i);
-    fireEvent.focus(selectEl);
-    fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-    fireEvent.click(screen.getByText('us-east-2'));
-
-    await screen.findByText(/eks1/i);
-
-    act(() => screen.getByRole('radio').click());
-    act(() => screen.getByText('Enroll EKS Cluster').click());
-
-    expect(integrationService.enrollEksClustersV2).toHaveBeenCalledTimes(1);
-
-    await screen.findByTestId('dialogbox');
-
-    expect(integrationService.enrollEksClustersV2).toHaveBeenCalledTimes(1);
-    expect(
-      integrationService.enrollEksClusters
-    ).toHaveBeenCalledExactlyOnceWith('test-integration', {
-      region: 'us-east-2',
-      enableAppDiscovery: true,
-      clusterNames: ['EKS1'],
-      extraLabels: [],
-    });
   });
 });
 

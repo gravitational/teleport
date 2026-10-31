@@ -16,72 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { renderHook } from '@testing-library/react';
-
-import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
-
 import { ApiError } from '../api/parseError';
-import { integrationService } from '../integrations';
 import {
   isPathNotFoundError,
-  ProxyRequiresUpgrade,
-  useV1Fallback,
   withGenericUnsupportedError,
 } from './unsupported';
 
 afterEach(() => {
   jest.resetAllMocks();
-});
-
-test('with non upgrade proxy related error, re-throws error', async () => {
-  jest.spyOn(integrationService, 'createAwsAppAccess');
-
-  let { result } = renderHook(() => useV1Fallback());
-
-  const err = new Error('some error');
-  await expect(
-    result.current.tryV1Fallback({
-      kind: 'create-app-access',
-      err,
-      req: {},
-      integrationName: 'foo',
-    })
-  ).rejects.toThrow(err);
-  expect(integrationService.createAwsAppAccess).not.toHaveBeenCalled();
-});
-
-test('with upgrade proxy error, with labels, re-throws error', async () => {
-  jest.spyOn(integrationService, 'createAwsAppAccess');
-
-  let { result } = renderHook(() => useV1Fallback());
-
-  const err = new Error(ProxyRequiresUpgrade);
-  await expect(
-    result.current.tryV1Fallback({
-      kind: 'create-app-access',
-      err,
-      req: { labels: { env: 'dev' } },
-      integrationName: 'foo',
-    })
-  ).rejects.toThrow(err);
-  expect(integrationService.createAwsAppAccess).not.toHaveBeenCalled();
-});
-
-test('with upgrade proxy error, without labels, runs fallback', async () => {
-  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
-
-  let { result } = renderHook(() => useV1Fallback());
-
-  const err = new Error(ProxyRequiresUpgrade);
-  const resp = await result.current.tryV1Fallback({
-    kind: 'create-app-access',
-    err,
-    req: { labels: {} },
-    integrationName: 'foo',
-  });
-
-  expect(resp).toEqual(app);
-  expect(integrationService.createAwsAppAccess).toHaveBeenCalledTimes(1);
 });
 
 describe('withGenericUnsupportedError', () => {
@@ -105,17 +47,6 @@ describe('withGenericUnsupportedError', () => {
     expect(() =>
       withGenericUnsupportedError(pathNotFoundError, '2.0.0')
     ).toThrow('minimum required version (v2.0.0)');
-  });
-
-  test('legach path not found error throws custom error', async () => {
-    const legacyPathNotFoundError = new ApiError({
-      message: `404 - https://llama`,
-      response: { status: 404, url: 'https://llama' } as Response,
-    });
-
-    expect(() =>
-      withGenericUnsupportedError(legacyPathNotFoundError, 'v2.0.0')
-    ).toThrow('Your proxy may be behind');
   });
 
   test('non path related 404 error rethrows same error', async () => {
@@ -145,15 +76,6 @@ describe('isPathNotFoundError', () => {
     });
 
     expect(isPathNotFoundError(pathNotFoundError)).toBe(true);
-  });
-
-  test('error resulting from path not found (legacy)', () => {
-    const legacyPathNotFoundError = new ApiError({
-      message: `404 - https://llama`,
-      response: { status: 404, url: 'https://llama' } as Response,
-    });
-
-    expect(isPathNotFoundError(legacyPathNotFoundError)).toBe(true);
   });
 
   test('error unrelated to path not found', () => {

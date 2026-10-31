@@ -19,7 +19,6 @@
 import { renderHook, waitFor } from '@testing-library/react';
 
 import { userEventService } from 'teleport/services/userEvent';
-import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
 import TeleportContext from 'teleport/teleportContext';
 
 import {
@@ -77,46 +76,6 @@ test('create join token without labels', async () => {
 
   expect(ctx.joinTokenService.fetchJoinTokenV2).toHaveBeenCalledTimes(1);
   expect(ctx.joinTokenService.fetchJoinToken).not.toHaveBeenCalled();
-  expect(result.current.joinToken).toEqual(tokenResp);
-});
-
-test('create join token without labels with v1 fallback', async () => {
-  const ctx = new TeleportContext();
-
-  jest
-    .spyOn(ctx.joinTokenService, 'fetchJoinTokenV2')
-    .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
-
-  jest
-    .spyOn(ctx.joinTokenService, 'fetchJoinToken')
-    .mockResolvedValue(tokenResp);
-
-  const wrapper = ({ children }) => (
-    <RequiredDiscoverProviders
-      agentMeta={discoverCtx.agentMeta}
-      resourceSpec={discoverCtx.resourceSpec}
-      teleportCtx={ctx}
-      discoverCtx={discoverCtx}
-    >
-      {children}
-    </RequiredDiscoverProviders>
-  );
-
-  let { result } = renderHook(
-    () =>
-      useJoinTokenSuspender({
-        resourceKinds: [ResourceKind.Server],
-        suggestedLabels: [],
-      }),
-    { wrapper }
-  );
-
-  await waitFor(() => {
-    expect(result.current.joinToken).not.toBeNull();
-  });
-
-  expect(ctx.joinTokenService.fetchJoinTokenV2).toHaveBeenCalledTimes(1);
-  expect(ctx.joinTokenService.fetchJoinToken).toHaveBeenCalledTimes(1);
   expect(result.current.joinToken).toEqual(tokenResp);
 });
 
