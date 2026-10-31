@@ -190,7 +190,26 @@ type User interface {
 	SetWeakestDevice(MFADeviceKind)
 	// GetWeakestDevice gets the MFA state for the user.
 	GetWeakestDevice() MFADeviceKind
-	// Clone creats a copy of the user.
+	// GetLoginTime returns login time.
+	// It is the time the user logged in. It is set atomically with session_ttl.
+	// Currently it is only recorded during SAML logins. Each login replaces the login
+	// time. In case of concurrent logins it is not guaranteed the latest login time
+	// will be stored.
+	GetLoginTime() time.Time
+	// SetLoginTime sets login time.
+	SetLoginTime(loginTime time.Time)
+	// GetSessionTTL gets the session TTL.
+	// It is an estimated user session TTL for the certificate issued during
+	// the last login. Currently it is only recorded during SAML logins. Each login
+	// replaces the deadline, even if its credentials expire earlier than the previous
+	// login's, but it is set atomically with the login_time. This does not indicate
+	// whether a session is active. Logging out or locking the user does not reduce it.
+	// A zero value means no TTL has been recorded. Currently, combined with login_time
+	// it is used as a trait retention deadline for Okta User Sync.
+	GetSessionTTL() time.Duration
+	// SetSessionExpirationTime sets the session TTL.
+	SetSessionTTL(sessionTTL time.Duration)
+	// Clone creates a copy of the user.
 	Clone() User
 	// GetDelegator returns the user's delegation chain.
 	GetDelegation() *delegationv1.Delegation
@@ -748,6 +767,22 @@ func (u *UserV2) GetDelegation() *delegationv1.Delegation {
 
 func (u *UserV2) SetDelegation(d *delegationv1.Delegation) {
 	u.Status.Delegation = DelegationToLegacy(d)
+}
+
+func (u *UserV2) GetLoginTime() time.Time {
+	return u.Status.LoginTime
+}
+
+func (u *UserV2) SetLoginTime(loginTime time.Time) {
+	u.Status.LoginTime = loginTime
+}
+
+func (u *UserV2) GetSessionTTL() time.Duration {
+	return u.Status.SessionTtl
+}
+
+func (u *UserV2) SetSessionTTL(sessionTTL time.Duration) {
+	u.Status.SessionTtl = sessionTTL
 }
 
 // IsEmpty returns true if there's no info about who created this user
