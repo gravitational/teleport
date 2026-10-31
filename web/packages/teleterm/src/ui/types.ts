@@ -85,6 +85,18 @@ export interface IAppContext {
    */
   unexpectedVnetShutdownListener: UnexpectedVnetShutdownListener | undefined;
 
+  /**
+   * addVnetSessionExpiredListener sets the listener and returns a cleanup function.
+   */
+  addVnetSessionExpiredListener: (
+    listener: VnetSessionExpiredListener
+  ) => () => void;
+  /**
+   * vnetSessionExpiredListener gets called by tshd events service when tsh daemon reports that
+   * VNet could not resolve a name because the session for a cluster has expired.
+   */
+  vnetSessionExpiredListener: VnetSessionExpiredListener | undefined;
+
   /** Sets the listener and returns a cleanup function which removes the listener. */
   addResourceRefreshListener: (listener: ResourceRefreshListener) => () => void;
   /** Gets called when `ClusterLifecycleManager` requests resource refresh. */
@@ -93,6 +105,10 @@ export interface IAppContext {
 
 export type UnexpectedVnetShutdownListener = (
   request: tshdEventsApi.ReportUnexpectedVnetShutdownRequest
+) => void;
+
+export type VnetSessionExpiredListener = (
+  request: tshdEventsApi.ReportVnetSessionExpiredRequest
 ) => void;
 
 export type ResourceRefreshListener = (uri: RootClusterUri) => void;

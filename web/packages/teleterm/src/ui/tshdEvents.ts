@@ -112,6 +112,17 @@ export function createTshdEventsContextBridgeService(
       return {};
     },
 
+    reportVnetSessionExpired: async ({ request }) => {
+      if (!ctx.vnetSessionExpiredListener) {
+        logger.warn(
+          `Dropping VNet session expired event, no listener present; clusters: ${request.rootClusterUris.join(', ')},; hostname: ${request.hostname}`
+        );
+      } else {
+        ctx.vnetSessionExpiredListener(request);
+      }
+      return {};
+    },
+
     promptHardwareKeyPIN: async ({ request, onRequestCancelled }) => {
       await ctx.mainProcessClient.forceFocusWindow();
       const { pin, hasCanceledModal } = await new Promise<{

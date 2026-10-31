@@ -236,6 +236,10 @@ function createService(logger: Logger): {
     reportUnexpectedVnetShutdown: (call, callback) => {
       processEvent('reportUnexpectedVnetShutdown', call, callback);
     },
+
+    reportVnetSessionExpired: (call, callback) => {
+      processEvent('reportVnetSessionExpired', call, callback);
+    },
   };
 
   return { service, setupTshdEventContextBridgeService };

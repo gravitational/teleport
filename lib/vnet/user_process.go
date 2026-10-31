@@ -75,6 +75,11 @@ type ClientApplication interface {
 	// because the provided port does not match any of the TCP ports in the app spec.
 	OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16)
 
+	// OnResolutionBlockedByExpiredSession gets called when a DNS query handled by VNet matched a DNS
+	// zone of a cluster, but VNet could not check whether the queried name belongs to a resource in
+	// that cluster because the user's session has expired.
+	OnResolutionBlockedByExpiredSession(ctx context.Context, hostname string, profileNames []string)
+
 	// ReissueDBCert issues a new cert for the target database.
 	ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error)
 

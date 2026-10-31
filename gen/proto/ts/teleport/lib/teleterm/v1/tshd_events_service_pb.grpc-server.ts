@@ -21,6 +21,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { ReportVnetSessionExpiredResponse } from "./tshd_events_service_pb";
+import { ReportVnetSessionExpiredRequest } from "./tshd_events_service_pb";
 import { ReportUnexpectedVnetShutdownResponse } from "./tshd_events_service_pb";
 import { ReportUnexpectedVnetShutdownRequest } from "./tshd_events_service_pb";
 import { GetUsageReportingSettingsResponse } from "./tshd_events_service_pb";
@@ -129,6 +131,18 @@ export interface ITshdEventsService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: ReportUnexpectedVnetShutdown(teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest) returns (teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse);
      */
     reportUnexpectedVnetShutdown: grpc.handleUnaryCall<ReportUnexpectedVnetShutdownRequest, ReportUnexpectedVnetShutdownResponse>;
+    /**
+     * ReportVnetSessionExpired is sent by tsh daemon when a DNS query handled by VNet matched a DNS
+     * zone of a cluster, but VNet could not check whether the queried name belongs to a resource in
+     * that cluster because the user's session has expired. The Electron app is then able to ask the
+     * user to log in again.
+     *
+     * tsh daemon sends one request per such DNS query, so the Electron app should expect repeated
+     * requests for the same cluster.
+     *
+     * @generated from protobuf rpc: ReportVnetSessionExpired(teleport.lib.teleterm.v1.ReportVnetSessionExpiredRequest) returns (teleport.lib.teleterm.v1.ReportVnetSessionExpiredResponse);
+     */
+    reportVnetSessionExpired: grpc.handleUnaryCall<ReportVnetSessionExpiredRequest, ReportVnetSessionExpiredResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TshdEventsService.
@@ -241,5 +255,15 @@ export const tshdEventsServiceDefinition: grpc.ServiceDefinition<ITshdEventsServ
         requestDeserialize: bytes => ReportUnexpectedVnetShutdownRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(ReportUnexpectedVnetShutdownResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ReportUnexpectedVnetShutdownRequest.toBinary(value))
+    },
+    reportVnetSessionExpired: {
+        path: "/teleport.lib.teleterm.v1.TshdEventsService/ReportVnetSessionExpired",
+        originalName: "ReportVnetSessionExpired",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ReportVnetSessionExpiredResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ReportVnetSessionExpiredRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ReportVnetSessionExpiredResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ReportVnetSessionExpiredRequest.toBinary(value))
     }
 };

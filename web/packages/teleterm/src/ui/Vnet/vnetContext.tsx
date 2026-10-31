@@ -29,11 +29,12 @@ import {
 } from 'react';
 
 import { Action } from 'design/Alert';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
   BackgroundItemStatus,
+  type CheckInstallTimeRequirementsResponse,
   GetServiceInfoResponse,
   WindowsServiceStatus,
-  type CheckInstallTimeRequirementsResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useStateRef } from 'shared/hooks';
@@ -47,6 +48,7 @@ import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { IAppContext } from 'teleterm/ui/types';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 /**
  * VnetContext manages the VNet instance.
@@ -136,6 +138,13 @@ export type VnetContext = {
     /** Optional callback that will be invoked after SSH clients are configured. */
     onSuccess?: () => void;
   }) => void;
+};
+
+type SessionExpiredEntry = {
+  /** When VNet most recently reported this cluster's session as expired, in ms since epoch. */
+  reportedAt: number;
+  /** Present only while a notification for this cluster is currently shown. */
+  notification?: { id: string; timeoutId: ReturnType<typeof setTimeout> };
 };
 
 export type VnetStatus =
@@ -262,6 +271,47 @@ export const VnetContextProvider: FC<
     resetHasActedOnPreviousNotification();
   }, [setHasDismissedDiagnosticsAlert, resetHasActedOnPreviousNotification]);
 
+  const sessionExpiredRef = useRef(
+    new Map<RootClusterUri, SessionExpiredEntry>()
+  );
+  /**
+   * Dismisses the session-expired notification (if any) for a cluster, clearing its auto-dismiss
+   * timer. If forgetReport is true, the cluster is fully forgotten, meaning the next expired
+   * connection attempt will show a fresh notification. If it's false, the cluster is remembered as
+   * still being in the same expired session, so the user won't be notified again until they log in again.
+   */
+  const dismissSessionExpiredNotification = useCallback(
+    (
+      rootClusterUri: RootClusterUri,
+      { forgetReport }: { forgetReport: boolean }
+    ) => {
+      const entry = sessionExpiredRef.current.get(rootClusterUri);
+      if (!entry?.notification) {
+        return;
+      }
+      clearTimeout(entry.notification.timeoutId);
+      notificationsService.removeNotification(entry.notification.id);
+      if (forgetReport) {
+        sessionExpiredRef.current.delete(rootClusterUri);
+      } else {
+        sessionExpiredRef.current.set(rootClusterUri, {
+          reportedAt: entry.reportedAt,
+        });
+      }
+    },
+    [notificationsService]
+  );
+  /** Removes all session-expired notifications and forgets all tracked clusters. */
+  const resetSessionExpiredNotifications = useCallback(() => {
+    for (const entry of sessionExpiredRef.current.values()) {
+      if (entry.notification) {
+        clearTimeout(entry.notification.timeoutId);
+        notificationsService.removeNotification(entry.notification.id);
+      }
+    }
+    sessionExpiredRef.current.clear();
+  }, [notificationsService]);
+
   const [stopAttempt, stop] = useAsync(
     useCallback(async () => {
       await vnet.stop({});
@@ -272,11 +322,13 @@ export const VnetContextProvider: FC<
       setAppState(state => ({ ...state, autoStart: false }));
       setDiagnosticsAttempt(makeEmptyAttempt());
       setHasDismissedDiagnosticsAlert(false);
+      resetSessionExpiredNotifications();
     }, [
       vnet,
       setAppState,
       setDiagnosticsAttempt,
       setHasDismissedDiagnosticsAlert,
+      resetSessionExpiredNotifications,
     ])
   );
 
@@ -388,6 +440,7 @@ export const VnetContextProvider: FC<
             value: 'stopped',
             reason: { value: 'unexpected-shutdown', errorMessage: error },
           });
+          resetSessionExpiredNotifications();
 
           notificationsService.notifyError({
             title: 'VNet has unexpectedly shut down',
@@ -400,7 +453,150 @@ export const VnetContextProvider: FC<
 
       return removeListener;
     },
-    [appCtx, notificationsService]
+    [appCtx, notificationsService, resetSessionExpiredNotifications]
+  );
+
+  const signInToSessionExpiredCluster = useCallback(
+    (rootClusterUri: RootClusterUri) => {
+      appCtx.modalsService.openRegularDialog({
+        kind: 'cluster-connect',
+        clusterUri: rootClusterUri,
+        reason: undefined,
+        prefill: undefined,
+        // The state of the entry is inferred from the new cert.
+        onSuccess: () => {},
+        onCancel: undefined,
+      });
+    },
+    [appCtx.modalsService]
+  );
+
+  useEffect(
+    function handleSessionExpired() {
+      const handleExpiredCluster = (
+        rootClusterUri: RootClusterUri,
+        hostname: string,
+        reportedAt: number
+      ) => {
+        const validUntil =
+          appCtx.clustersService.findCluster(rootClusterUri)?.loggedInUser
+            ?.validUntil;
+
+        // The cert may have been refreshed (e.g. the user signed in through another path) after
+        // this report was generated on the tshd side, but before it was handled here. If so,
+        // sign-in cleanup may have already removed any existingEntry, so checking isStillExpired
+        // against existingEntry alone wouldn't catch it.
+        if (!isStillExpired({ reportedAt }, validUntil)) {
+          return;
+        }
+
+        const existingEntry = sessionExpiredRef.current.get(rootClusterUri);
+
+        const isSessionStillExpired =
+          existingEntry && isStillExpired(existingEntry, validUntil);
+
+        // If it's the same session and there's no notification currently shown,
+        // the user already acted on it (clicked "Sign In") or closed it manually.
+        // Stay silent rather than resurfacing it for every subsequent connection attempt.
+        if (isSessionStillExpired && !existingEntry.notification) {
+          return;
+        }
+
+        const profileName = routing.parseClusterName(rootClusterUri);
+        // Using a key equal to rootClusterUri means that calling notifyWarning again for a
+        // cluster that already has a visible notification updates it in place (including the
+        // hostname in the description) instead of creating a duplicate.
+        const id = notificationsService.notifyWarning({
+          key: rootClusterUri,
+          isAutoRemovable: false,
+          title: `Your session for ${profileName} has expired`,
+          description: `Your session expired before VNet could check whether ${hostname} is a Teleport resource. Log in, then try connecting again.`,
+          action: {
+            content: 'Log In',
+            onClick: () => {
+              dismissSessionExpiredNotification(rootClusterUri, {
+                forgetReport: false,
+              });
+              signInToSessionExpiredCluster(rootClusterUri);
+            },
+          },
+          // Treat this the same as dismissing through the "Sign In" action: stay silent for the
+          // rest of this expired session.
+          onRemove: () => {
+            dismissSessionExpiredNotification(rootClusterUri, {
+              forgetReport: false,
+            });
+          },
+        });
+
+        if (isSessionStillExpired) {
+          // Just refreshed the contents of an already-visible notification. Keep the existing
+          // auto-dismiss timer running and don't request user attention again, to avoid spamming
+          // the user for every connection attempt during the same expired session.
+          sessionExpiredRef.current.set(rootClusterUri, {
+            reportedAt,
+            notification: existingEntry.notification,
+          });
+          return;
+        }
+
+        sessionExpiredRef.current.set(rootClusterUri, {
+          reportedAt,
+          notification: {
+            id,
+            timeoutId: setTimeout(
+              () =>
+                dismissSessionExpiredNotification(rootClusterUri, {
+                  forgetReport: true,
+                }),
+              sessionExpiredNotificationDurationMs
+            ),
+          },
+        });
+      };
+
+      return appCtx.addVnetSessionExpiredListener(request => {
+        const reportedAt = Date.now();
+        for (const rootClusterUri of request.rootClusterUris) {
+          handleExpiredCluster(
+            rootClusterUri as RootClusterUri,
+            request.hostname,
+            reportedAt
+          );
+        }
+      });
+    },
+    [
+      appCtx,
+      notificationsService,
+      dismissSessionExpiredNotification,
+      signInToSessionExpiredCluster,
+    ]
+  );
+
+  useEffect(
+    function removeSessionExpiredNotificationsAfterSignIn() {
+      // The user might sign back in through a path other than the notification's "Sign In" button
+      // Whenever any cluster's state changes, check whether any
+      // tracked clusters are no longer expired and dismiss their notifications if so.
+      const checkForSignIns = () => {
+        for (const rootClusterUri of sessionExpiredRef.current.keys()) {
+          const entry = sessionExpiredRef.current.get(rootClusterUri);
+          const validUntil =
+            appCtx.clustersService.findCluster(rootClusterUri)?.loggedInUser
+              ?.validUntil;
+          if (!isStillExpired(entry, validUntil)) {
+            dismissSessionExpiredNotification(rootClusterUri, {
+              forgetReport: true,
+            });
+          }
+        }
+      };
+
+      appCtx.clustersService.subscribe(checkForSignIns);
+      return () => appCtx.clustersService.unsubscribe(checkForSignIns);
+    },
+    [appCtx.clustersService, dismissSessionExpiredNotification]
   );
 
   const runDiagnosticsAndShowNotification = useCallback(
@@ -570,6 +766,20 @@ export const VnetContextProvider: FC<
 };
 
 const defaultDiagnosticsIntervalMs = 30 * 1000; // 30s
+const sessionExpiredNotificationDurationMs = 10 * 60 * 1000; // 10m
+
+const timestampToMs = (timestamp: Timestamp): number =>
+  Timestamp.toDate(timestamp).getTime();
+
+/**
+ * An entry recorded after the current cert of the cluster expired means that the user still needs
+ * to log in. If the current cert expires after the entry was recorded, the user has logged in
+ * since then, either from the notification or elsewhere.
+ */
+const isStillExpired = (
+  entry: Pick<SessionExpiredEntry, 'reportedAt'>,
+  validUntil: Timestamp | undefined
+): boolean => !validUntil || timestampToMs(validUntil) <= entry.reportedAt;
 
 export const useVnetContext = () => {
   const context = useContext(VnetContext);

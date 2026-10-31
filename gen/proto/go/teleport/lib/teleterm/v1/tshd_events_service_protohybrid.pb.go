@@ -2414,6 +2414,130 @@ func (b0 ReportUnexpectedVnetShutdownResponse_builder) Build() *ReportUnexpected
 	return m0
 }
 
+// Request for ReportVnetSessionExpired.
+type ReportVnetSessionExpiredRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// root_cluster_uris are the URIs of the root clusters with expired sessions in which the queried
+	// name could be a resource. Any of them may hold the resource, so the user may need to log in to
+	// each of them again. Never empty.
+	RootClusterUris []string `protobuf:"bytes,1,rep,name=root_cluster_uris,json=rootClusterUris,proto3" json:"root_cluster_uris,omitempty"`
+	// hostname is the queried name that VNet could not resolve, without the trailing dot.
+	Hostname      string `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportVnetSessionExpiredRequest) Reset() {
+	*x = ReportVnetSessionExpiredRequest{}
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportVnetSessionExpiredRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportVnetSessionExpiredRequest) ProtoMessage() {}
+
+func (x *ReportVnetSessionExpiredRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ReportVnetSessionExpiredRequest) GetRootClusterUris() []string {
+	if x != nil {
+		return x.RootClusterUris
+	}
+	return nil
+}
+
+func (x *ReportVnetSessionExpiredRequest) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *ReportVnetSessionExpiredRequest) SetRootClusterUris(v []string) {
+	x.RootClusterUris = v
+}
+
+func (x *ReportVnetSessionExpiredRequest) SetHostname(v string) {
+	x.Hostname = v
+}
+
+type ReportVnetSessionExpiredRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// root_cluster_uris are the URIs of the root clusters with expired sessions in which the queried
+	// name could be a resource. Any of them may hold the resource, so the user may need to log in to
+	// each of them again. Never empty.
+	RootClusterUris []string
+	// hostname is the queried name that VNet could not resolve, without the trailing dot.
+	Hostname string
+}
+
+func (b0 ReportVnetSessionExpiredRequest_builder) Build() *ReportVnetSessionExpiredRequest {
+	m0 := &ReportVnetSessionExpiredRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RootClusterUris = b.RootClusterUris
+	x.Hostname = b.Hostname
+	return m0
+}
+
+// Response for ReportVnetSessionExpired.
+type ReportVnetSessionExpiredResponse struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportVnetSessionExpiredResponse) Reset() {
+	*x = ReportVnetSessionExpiredResponse{}
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportVnetSessionExpiredResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportVnetSessionExpiredResponse) ProtoMessage() {}
+
+func (x *ReportVnetSessionExpiredResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type ReportVnetSessionExpiredResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ReportVnetSessionExpiredResponse_builder) Build() *ReportVnetSessionExpiredResponse {
+	m0 := &ReportVnetSessionExpiredResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_tshd_events_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
@@ -2508,7 +2632,11 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\";\n" +
 	"#ReportUnexpectedVnetShutdownRequest\x12\x14\n" +
 	"\x05error\x18\x01 \x01(\tR\x05error\"&\n" +
-	"$ReportUnexpectedVnetShutdownResponse2\x93\v\n" +
+	"$ReportUnexpectedVnetShutdownResponse\"i\n" +
+	"\x1fReportVnetSessionExpiredRequest\x12*\n" +
+	"\x11root_cluster_uris\x18\x01 \x03(\tR\x0frootClusterUris\x12\x1a\n" +
+	"\bhostname\x18\x02 \x01(\tR\bhostname\"\"\n" +
+	" ReportVnetSessionExpiredResponse2\xa7\f\n" +
 	"\x11TshdEventsService\x12^\n" +
 	"\aRelogin\x12(.teleport.lib.teleterm.v1.ReloginRequest\x1a).teleport.lib.teleterm.v1.ReloginResponse\x12y\n" +
 	"\x10SendNotification\x121.teleport.lib.teleterm.v1.SendNotificationRequest\x1a2.teleport.lib.teleterm.v1.SendNotificationResponse\x12\xac\x01\n" +
@@ -2519,9 +2647,10 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\x1aPromptHardwareKeyPINChange\x12;.teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest\x1a<.teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse\x12\xa6\x01\n" +
 	"\x1fConfirmHardwareKeySlotOverwrite\x12@.teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest\x1aA.teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse\x12\x94\x01\n" +
 	"\x19GetUsageReportingSettings\x12:.teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest\x1a;.teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse\x12\x9d\x01\n" +
-	"\x1cReportUnexpectedVnetShutdown\x12=.teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest\x1a>.teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponseBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
+	"\x1cReportUnexpectedVnetShutdown\x12=.teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest\x1a>.teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse\x12\x91\x01\n" +
+	"\x18ReportVnetSessionExpired\x129.teleport.lib.teleterm.v1.ReportVnetSessionExpiredRequest\x1a:.teleport.lib.teleterm.v1.ReportVnetSessionExpiredResponseBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
-var file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_goTypes = []any{
 	(*ReloginRequest)(nil),                            // 0: teleport.lib.teleterm.v1.ReloginRequest
 	(*GatewayCertExpired)(nil),                        // 1: teleport.lib.teleterm.v1.GatewayCertExpired
@@ -2551,22 +2680,24 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_goTypes = []any{
 	(*UsageReportingSettings)(nil),                    // 25: teleport.lib.teleterm.v1.UsageReportingSettings
 	(*ReportUnexpectedVnetShutdownRequest)(nil),       // 26: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
 	(*ReportUnexpectedVnetShutdownResponse)(nil),      // 27: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
-	(*RouteToApp)(nil),                                // 28: teleport.lib.teleterm.v1.RouteToApp
-	(*PortRange)(nil),                                 // 29: teleport.lib.teleterm.v1.PortRange
-	(*v1.BrowserMFAChallenge)(nil),                    // 30: teleport.mfa.v1.BrowserMFAChallenge
+	(*ReportVnetSessionExpiredRequest)(nil),           // 28: teleport.lib.teleterm.v1.ReportVnetSessionExpiredRequest
+	(*ReportVnetSessionExpiredResponse)(nil),          // 29: teleport.lib.teleterm.v1.ReportVnetSessionExpiredResponse
+	(*RouteToApp)(nil),                                // 30: teleport.lib.teleterm.v1.RouteToApp
+	(*PortRange)(nil),                                 // 31: teleport.lib.teleterm.v1.PortRange
+	(*v1.BrowserMFAChallenge)(nil),                    // 32: teleport.mfa.v1.BrowserMFAChallenge
 }
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	1,  // 0: teleport.lib.teleterm.v1.ReloginRequest.gateway_cert_expired:type_name -> teleport.lib.teleterm.v1.GatewayCertExpired
 	2,  // 1: teleport.lib.teleterm.v1.ReloginRequest.vnet_cert_expired:type_name -> teleport.lib.teleterm.v1.VnetCertExpired
-	28, // 2: teleport.lib.teleterm.v1.VnetCertExpired.route_to_app:type_name -> teleport.lib.teleterm.v1.RouteToApp
+	30, // 2: teleport.lib.teleterm.v1.VnetCertExpired.route_to_app:type_name -> teleport.lib.teleterm.v1.RouteToApp
 	5,  // 3: teleport.lib.teleterm.v1.SendNotificationRequest.cannot_proxy_gateway_connection:type_name -> teleport.lib.teleterm.v1.CannotProxyGatewayConnection
 	6,  // 4: teleport.lib.teleterm.v1.SendNotificationRequest.cannot_proxy_vnet_connection:type_name -> teleport.lib.teleterm.v1.CannotProxyVnetConnection
-	28, // 5: teleport.lib.teleterm.v1.CannotProxyVnetConnection.route_to_app:type_name -> teleport.lib.teleterm.v1.RouteToApp
+	30, // 5: teleport.lib.teleterm.v1.CannotProxyVnetConnection.route_to_app:type_name -> teleport.lib.teleterm.v1.RouteToApp
 	7,  // 6: teleport.lib.teleterm.v1.CannotProxyVnetConnection.cert_reissue_error:type_name -> teleport.lib.teleterm.v1.CertReissueError
 	8,  // 7: teleport.lib.teleterm.v1.CannotProxyVnetConnection.invalid_local_port:type_name -> teleport.lib.teleterm.v1.InvalidLocalPort
-	29, // 8: teleport.lib.teleterm.v1.InvalidLocalPort.tcp_ports:type_name -> teleport.lib.teleterm.v1.PortRange
+	31, // 8: teleport.lib.teleterm.v1.InvalidLocalPort.tcp_ports:type_name -> teleport.lib.teleterm.v1.PortRange
 	13, // 9: teleport.lib.teleterm.v1.PromptMFARequest.sso:type_name -> teleport.lib.teleterm.v1.SSOChallenge
-	30, // 10: teleport.lib.teleterm.v1.PromptMFARequest.browser:type_name -> teleport.mfa.v1.BrowserMFAChallenge
+	32, // 10: teleport.lib.teleterm.v1.PromptMFARequest.browser:type_name -> teleport.mfa.v1.BrowserMFAChallenge
 	25, // 11: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse.usage_reporting_settings:type_name -> teleport.lib.teleterm.v1.UsageReportingSettings
 	0,  // 12: teleport.lib.teleterm.v1.TshdEventsService.Relogin:input_type -> teleport.lib.teleterm.v1.ReloginRequest
 	4,  // 13: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:input_type -> teleport.lib.teleterm.v1.SendNotificationRequest
@@ -2578,18 +2709,20 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	21, // 19: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:input_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
 	23, // 20: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:input_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
 	26, // 21: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:input_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
-	3,  // 22: teleport.lib.teleterm.v1.TshdEventsService.Relogin:output_type -> teleport.lib.teleterm.v1.ReloginResponse
-	9,  // 23: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:output_type -> teleport.lib.teleterm.v1.SendNotificationResponse
-	11, // 24: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:output_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
-	14, // 25: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:output_type -> teleport.lib.teleterm.v1.PromptMFAResponse
-	16, // 26: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
-	18, // 27: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
-	20, // 28: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
-	22, // 29: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:output_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
-	24, // 30: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:output_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
-	27, // 31: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:output_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
-	22, // [22:32] is the sub-list for method output_type
-	12, // [12:22] is the sub-list for method input_type
+	28, // 22: teleport.lib.teleterm.v1.TshdEventsService.ReportVnetSessionExpired:input_type -> teleport.lib.teleterm.v1.ReportVnetSessionExpiredRequest
+	3,  // 23: teleport.lib.teleterm.v1.TshdEventsService.Relogin:output_type -> teleport.lib.teleterm.v1.ReloginResponse
+	9,  // 24: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:output_type -> teleport.lib.teleterm.v1.SendNotificationResponse
+	11, // 25: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:output_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
+	14, // 26: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:output_type -> teleport.lib.teleterm.v1.PromptMFAResponse
+	16, // 27: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
+	18, // 28: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
+	20, // 29: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
+	22, // 30: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:output_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
+	24, // 31: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:output_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
+	27, // 32: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:output_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
+	29, // 33: teleport.lib.teleterm.v1.TshdEventsService.ReportVnetSessionExpired:output_type -> teleport.lib.teleterm.v1.ReportVnetSessionExpiredResponse
+	23, // [23:34] is the sub-list for method output_type
+	12, // [12:23] is the sub-list for method input_type
 	12, // [12:12] is the sub-list for extension type_name
 	12, // [12:12] is the sub-list for extension extendee
 	0,  // [0:12] is the sub-list for field type_name
@@ -2619,7 +2752,7 @@ func file_teleport_lib_teleterm_v1_tshd_events_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc), len(file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   28,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

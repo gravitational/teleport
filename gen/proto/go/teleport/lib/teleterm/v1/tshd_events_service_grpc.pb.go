@@ -46,6 +46,7 @@ const (
 	TshdEventsService_ConfirmHardwareKeySlotOverwrite_FullMethodName   = "/teleport.lib.teleterm.v1.TshdEventsService/ConfirmHardwareKeySlotOverwrite"
 	TshdEventsService_GetUsageReportingSettings_FullMethodName         = "/teleport.lib.teleterm.v1.TshdEventsService/GetUsageReportingSettings"
 	TshdEventsService_ReportUnexpectedVnetShutdown_FullMethodName      = "/teleport.lib.teleterm.v1.TshdEventsService/ReportUnexpectedVnetShutdown"
+	TshdEventsService_ReportVnetSessionExpired_FullMethodName          = "/teleport.lib.teleterm.v1.TshdEventsService/ReportVnetSessionExpired"
 )
 
 // TshdEventsServiceClient is the client API for TshdEventsService service.
@@ -95,6 +96,14 @@ type TshdEventsServiceClient interface {
 	// request-response cycle of Start and Stop RPCs of VnetService. The Electron app is then able to
 	// update the state of VNet in the UI.
 	ReportUnexpectedVnetShutdown(ctx context.Context, in *ReportUnexpectedVnetShutdownRequest, opts ...grpc.CallOption) (*ReportUnexpectedVnetShutdownResponse, error)
+	// ReportVnetSessionExpired is sent by tsh daemon when a DNS query handled by VNet matched a DNS
+	// zone of a cluster, but VNet could not check whether the queried name belongs to a resource in
+	// that cluster because the user's session has expired. The Electron app is then able to ask the
+	// user to log in again.
+	//
+	// tsh daemon sends one request per such DNS query, so the Electron app should expect repeated
+	// requests for the same cluster.
+	ReportVnetSessionExpired(ctx context.Context, in *ReportVnetSessionExpiredRequest, opts ...grpc.CallOption) (*ReportVnetSessionExpiredResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -205,6 +214,16 @@ func (c *tshdEventsServiceClient) ReportUnexpectedVnetShutdown(ctx context.Conte
 	return out, nil
 }
 
+func (c *tshdEventsServiceClient) ReportVnetSessionExpired(ctx context.Context, in *ReportVnetSessionExpiredRequest, opts ...grpc.CallOption) (*ReportVnetSessionExpiredResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportVnetSessionExpiredResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_ReportVnetSessionExpired_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TshdEventsServiceServer is the server API for TshdEventsService service.
 // All implementations must embed UnimplementedTshdEventsServiceServer
 // for forward compatibility.
@@ -252,6 +271,14 @@ type TshdEventsServiceServer interface {
 	// request-response cycle of Start and Stop RPCs of VnetService. The Electron app is then able to
 	// update the state of VNet in the UI.
 	ReportUnexpectedVnetShutdown(context.Context, *ReportUnexpectedVnetShutdownRequest) (*ReportUnexpectedVnetShutdownResponse, error)
+	// ReportVnetSessionExpired is sent by tsh daemon when a DNS query handled by VNet matched a DNS
+	// zone of a cluster, but VNet could not check whether the queried name belongs to a resource in
+	// that cluster because the user's session has expired. The Electron app is then able to ask the
+	// user to log in again.
+	//
+	// tsh daemon sends one request per such DNS query, so the Electron app should expect repeated
+	// requests for the same cluster.
+	ReportVnetSessionExpired(context.Context, *ReportVnetSessionExpiredRequest) (*ReportVnetSessionExpiredResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
 
@@ -291,6 +318,9 @@ func (UnimplementedTshdEventsServiceServer) GetUsageReportingSettings(context.Co
 }
 func (UnimplementedTshdEventsServiceServer) ReportUnexpectedVnetShutdown(context.Context, *ReportUnexpectedVnetShutdownRequest) (*ReportUnexpectedVnetShutdownResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReportUnexpectedVnetShutdown not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) ReportVnetSessionExpired(context.Context, *ReportVnetSessionExpiredRequest) (*ReportVnetSessionExpiredResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReportVnetSessionExpired not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) mustEmbedUnimplementedTshdEventsServiceServer() {}
 func (UnimplementedTshdEventsServiceServer) testEmbeddedByValue()                           {}
@@ -493,6 +523,24 @@ func _TshdEventsService_ReportUnexpectedVnetShutdown_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TshdEventsService_ReportVnetSessionExpired_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportVnetSessionExpiredRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).ReportVnetSessionExpired(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_ReportVnetSessionExpired_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).ReportVnetSessionExpired(ctx, req.(*ReportVnetSessionExpiredRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TshdEventsService_ServiceDesc is the grpc.ServiceDesc for TshdEventsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -539,6 +587,10 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReportUnexpectedVnetShutdown",
 			Handler:    _TshdEventsService_ReportUnexpectedVnetShutdown_Handler,
+		},
+		{
+			MethodName: "ReportVnetSessionExpired",
+			Handler:    _TshdEventsService_ReportVnetSessionExpired_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

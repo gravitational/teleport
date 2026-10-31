@@ -71,10 +71,16 @@ export function ToastNotification(props: ToastNotificationProps) {
     getContentIsAutoRemovable(item.content) ??
     isAutoRemovableProp ??
     ['success', 'info', 'neutral'].includes(item.severity);
+
+  const handleRemove = () => {
+    content.onRemove?.();
+    onRemove();
+  };
+
   useEffect(() => {
     if (!isHovered && isAutoRemovable) {
       timeoutHandler.current = setTimeout(
-        onRemove,
+        handleRemove,
         autoRemoveDurationMs
       ) as unknown as number;
     }
@@ -141,7 +147,7 @@ export function ToastNotification(props: ToastNotificationProps) {
         title="Close Notification"
         onClick={e => {
           e.stopPropagation();
-          onRemove();
+          handleRemove();
         }}
       >
         <Cross size="small" />

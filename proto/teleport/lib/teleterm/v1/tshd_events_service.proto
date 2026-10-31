@@ -77,6 +77,15 @@ service TshdEventsService {
   // request-response cycle of Start and Stop RPCs of VnetService. The Electron app is then able to
   // update the state of VNet in the UI.
   rpc ReportUnexpectedVnetShutdown(ReportUnexpectedVnetShutdownRequest) returns (ReportUnexpectedVnetShutdownResponse);
+
+  // ReportVnetSessionExpired is sent by tsh daemon when a DNS query handled by VNet matched a DNS
+  // zone of a cluster, but VNet could not check whether the queried name belongs to a resource in
+  // that cluster because the user's session has expired. The Electron app is then able to ask the
+  // user to log in again.
+  //
+  // tsh daemon sends one request per such DNS query, so the Electron app should expect repeated
+  // requests for the same cluster.
+  rpc ReportVnetSessionExpired(ReportVnetSessionExpiredRequest) returns (ReportVnetSessionExpiredResponse);
 }
 
 // Request for Relogin.
@@ -298,3 +307,16 @@ message ReportUnexpectedVnetShutdownRequest {
 
 // Response for ReportUnexpectedVnetShutdown.
 message ReportUnexpectedVnetShutdownResponse {}
+
+// Request for ReportVnetSessionExpired.
+message ReportVnetSessionExpiredRequest {
+  // root_cluster_uris are the URIs of the root clusters with expired sessions in which the queried
+  // name could be a resource. Any of them may hold the resource, so the user may need to log in to
+  // each of them again. Never empty.
+  repeated string root_cluster_uris = 1;
+  // hostname is the queried name that VNet could not resolve, without the trailing dot.
+  string hostname = 2;
+}
+
+// Response for ReportVnetSessionExpired.
+message ReportVnetSessionExpiredResponse {}

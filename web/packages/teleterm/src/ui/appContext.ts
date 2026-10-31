@@ -45,6 +45,7 @@ import {
   IAppContext,
   ResourceRefreshListener,
   UnexpectedVnetShutdownListener,
+  VnetSessionExpiredListener,
 } from 'teleterm/ui/types';
 
 import { CommandLauncher } from './commandLauncher';
@@ -86,6 +87,7 @@ export default class AppContext implements IAppContext {
   private _unexpectedVnetShutdownListener:
     | UnexpectedVnetShutdownListener
     | undefined;
+  private _vnetSessionExpiredListener: VnetSessionExpiredListener | undefined;
   private _resourceRefreshListener: ResourceRefreshListener | undefined;
 
   constructor(config: ElectronGlobals) {
@@ -204,6 +206,31 @@ export default class AppContext implements IAppContext {
   // directly on appContext, we use a getter which exposes a private property.
   get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
     return this._unexpectedVnetShutdownListener;
+  }
+
+  /**
+   * addVnetSessionExpiredListener sets the listener and returns a cleanup function which removes
+   * the listener.
+   */
+  addVnetSessionExpiredListener(
+    listener: VnetSessionExpiredListener
+  ): () => void {
+    this._vnetSessionExpiredListener = listener;
+
+    return () => {
+      this._vnetSessionExpiredListener = undefined;
+    };
+  }
+
+  /**
+   * vnetSessionExpiredListener gets called by tshd events service when tsh daemon reports that
+   * VNet could not resolve a name because the session for a cluster has expired.
+   *
+   * Like unexpectedVnetShutdownListener, it is a callback on AppContext because tshd events
+   * service lives outside of React.
+   */
+  get vnetSessionExpiredListener(): VnetSessionExpiredListener {
+    return this._vnetSessionExpiredListener;
   }
 
   /** Sets the listener and returns a cleanup function which removes the listener. */

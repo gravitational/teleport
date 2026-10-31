@@ -518,6 +518,34 @@ export interface ReportUnexpectedVnetShutdownRequest {
  */
 export interface ReportUnexpectedVnetShutdownResponse {
 }
+/**
+ * Request for ReportVnetSessionExpired.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ReportVnetSessionExpiredRequest
+ */
+export interface ReportVnetSessionExpiredRequest {
+    /**
+     * root_cluster_uris are the URIs of the root clusters with expired sessions in which the queried
+     * name could be a resource. Any of them may hold the resource, so the user may need to log in to
+     * each of them again. Never empty.
+     *
+     * @generated from protobuf field: repeated string root_cluster_uris = 1;
+     */
+    rootClusterUris: string[];
+    /**
+     * hostname is the queried name that VNet could not resolve, without the trailing dot.
+     *
+     * @generated from protobuf field: string hostname = 2;
+     */
+    hostname: string;
+}
+/**
+ * Response for ReportVnetSessionExpired.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ReportVnetSessionExpiredResponse
+ */
+export interface ReportVnetSessionExpiredResponse {
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class ReloginRequest$Type extends MessageType<ReloginRequest> {
     constructor() {
@@ -1928,6 +1956,86 @@ class ReportUnexpectedVnetShutdownResponse$Type extends MessageType<ReportUnexpe
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
  */
 export const ReportUnexpectedVnetShutdownResponse = new ReportUnexpectedVnetShutdownResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ReportVnetSessionExpiredRequest$Type extends MessageType<ReportVnetSessionExpiredRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ReportVnetSessionExpiredRequest", [
+            { no: 1, name: "root_cluster_uris", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ReportVnetSessionExpiredRequest>): ReportVnetSessionExpiredRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUris = [];
+        message.hostname = "";
+        if (value !== undefined)
+            reflectionMergePartial<ReportVnetSessionExpiredRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReportVnetSessionExpiredRequest): ReportVnetSessionExpiredRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string root_cluster_uris */ 1:
+                    message.rootClusterUris.push(reader.string());
+                    break;
+                case /* string hostname */ 2:
+                    message.hostname = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ReportVnetSessionExpiredRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string root_cluster_uris = 1; */
+        for (let i = 0; i < message.rootClusterUris.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUris[i]);
+        /* string hostname = 2; */
+        if (message.hostname !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.hostname);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ReportVnetSessionExpiredRequest
+ */
+export const ReportVnetSessionExpiredRequest = new ReportVnetSessionExpiredRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ReportVnetSessionExpiredResponse$Type extends MessageType<ReportVnetSessionExpiredResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ReportVnetSessionExpiredResponse", []);
+    }
+    create(value?: PartialMessage<ReportVnetSessionExpiredResponse>): ReportVnetSessionExpiredResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<ReportVnetSessionExpiredResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReportVnetSessionExpiredResponse): ReportVnetSessionExpiredResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: ReportVnetSessionExpiredResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ReportVnetSessionExpiredResponse
+ */
+export const ReportVnetSessionExpiredResponse = new ReportVnetSessionExpiredResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TshdEventsService
  */
@@ -1941,5 +2049,6 @@ export const TshdEventsService = new ServiceType("teleport.lib.teleterm.v1.TshdE
     { name: "PromptHardwareKeyPINChange", options: {}, I: PromptHardwareKeyPINChangeRequest, O: PromptHardwareKeyPINChangeResponse },
     { name: "ConfirmHardwareKeySlotOverwrite", options: {}, I: ConfirmHardwareKeySlotOverwriteRequest, O: ConfirmHardwareKeySlotOverwriteResponse },
     { name: "GetUsageReportingSettings", options: {}, I: GetUsageReportingSettingsRequest, O: GetUsageReportingSettingsResponse },
-    { name: "ReportUnexpectedVnetShutdown", options: {}, I: ReportUnexpectedVnetShutdownRequest, O: ReportUnexpectedVnetShutdownResponse }
+    { name: "ReportUnexpectedVnetShutdown", options: {}, I: ReportUnexpectedVnetShutdownRequest, O: ReportUnexpectedVnetShutdownResponse },
+    { name: "ReportVnetSessionExpired", options: {}, I: ReportVnetSessionExpiredRequest, O: ReportVnetSessionExpiredResponse }
 ]);

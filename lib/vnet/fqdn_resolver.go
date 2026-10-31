@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/vnet/db"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
@@ -75,6 +77,7 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 	}
 
 	var matchedClusters []clusterResolutionCandidate
+	expiredProfiles := make(map[string]struct{})
 	for candidate := range r.clusterResolutionCandidates(ctx, profileNames, fqdn) {
 		// Check if there's a matching app or database in this cluster.
 		result, err := r.resolveResourceInfoForCluster(ctx, candidate, fqdn)
@@ -89,6 +92,12 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 		default:
 			return nil, trace.Wrap(err)
 		}
+		// No match in this cluster. If the cause indicates the profile's
+		// session has expired, remember it so it can be reported later if
+		// nothing else resolves the query.
+		if client.IsErrorResolvableWithRelogin(err) {
+			expiredProfiles[candidate.profileName] = struct{}{}
+		}
 
 		// SSH servers match at any subdomain of the cluster name. For example,
 		// a query for "foo.bar.teleport.example.com" should match the cluster
@@ -102,22 +111,44 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 		}
 	}
 
-	if len(matchedClusters) == 0 {
-		return nil, errNoTCPHandler
-	}
-
 	result, err := r.resolveClusterMatch(ctx, log, matchedClusters)
 	switch {
 	case err == nil:
+		// The lookup may be incomplete. Each profile in expiredProfiles passed
+		// the cluster name/zone filter but couldn't be checked for apps or
+		// databases due to an expired session. The requested resource may belong
+		// to one or more of these profiles instead of (or in addition to) the
+		// speculative cluster match.
+		//
+		// Report all expired profiles even when returning a speculative match.
+		r.notifyResolutionBlockedByExpiredSession(ctx, fqdn, slices.Sorted(maps.Keys(expiredProfiles)))
 		return result, nil
 	case errors.Is(err, errNoMatch):
+		// No cluster matched, report any expired session in case that is the cause.
+		r.notifyResolutionBlockedByExpiredSession(ctx, fqdn, slices.Sorted(maps.Keys(expiredProfiles)))
 		return nil, errNoTCPHandler
 	default:
 		return nil, trace.Wrap(err)
 	}
 }
 
+func (r *fqdnResolver) notifyResolutionBlockedByExpiredSession(ctx context.Context, fqdn string, profileNames []string) {
+	if len(profileNames) == 0 {
+		return
+	}
+	hostname := strings.TrimSuffix(fqdn, ".")
+	r.cfg.clientApplication.OnResolutionBlockedByExpiredSession(ctx, hostname, profileNames)
+}
+
 var errNoMatch = errors.New("no match for queried FQDN")
+
+// wrapNoMatch wraps cause as a non-match for the current cluster, joining it
+// with errNoMatch so that errors.Is(err, errNoMatch) still holds while cause
+// remains reachable via errors.Is/errors.As (e.g. for
+// [client.IsErrorResolvableWithRelogin]).
+func wrapNoMatch(cause error, msg string) error {
+	return trace.Wrap(fmt.Errorf("%w: %w", errNoMatch, cause), msg)
+}
 
 type clusterResolutionCandidate struct {
 	profileName     string
@@ -242,31 +273,33 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 func (r *fqdnResolver) resolveResourceInfoForCluster(ctx context.Context, candidate clusterResolutionCandidate, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
 	clusterClient, release, err := r.cfg.clientApplication.AcquireCachedClient(ctx, candidate.profileName, candidate.leafClusterName)
 	if err != nil {
-		return nil, errNoMatch
+		return nil, wrapNoMatch(err, "acquiring cached client")
 	}
 	defer release()
 
 	// First check if there's a matching app in this cluster.
-	result, err := r.resolveAppInfoForCluster(ctx, candidate, clusterClient, fqdn)
+	result, appErr := r.resolveAppInfoForCluster(ctx, candidate, clusterClient, fqdn)
 	switch {
-	case err == nil:
+	case appErr == nil:
 		// Found a matching app.
 		return result, nil
-	case !errors.Is(err, errNoMatch):
-		return nil, trace.Wrap(err)
+	case !errors.Is(appErr, errNoMatch):
+		return nil, trace.Wrap(appErr)
 	}
 
 	// Check if there's a matching database in this cluster.
-	result, err = r.resolveDBInfoForCluster(ctx, candidate, clusterClient, fqdn)
+	result, dbErr := r.resolveDBInfoForCluster(ctx, candidate, clusterClient, fqdn)
 	switch {
-	case err == nil:
+	case dbErr == nil:
 		// Found a matching database.
 		return result, nil
-	case !errors.Is(err, errNoMatch):
-		return nil, trace.Wrap(err)
+	case !errors.Is(dbErr, errNoMatch):
+		return nil, trace.Wrap(dbErr)
 	}
 
-	return nil, errNoMatch
+	// Neither matched; both appErr and dbErr are already classified as
+	// no-match here.
+	return nil, errors.Join(appErr, dbErr)
 }
 
 func (r *fqdnResolver) resolveAppInfoForCluster(
@@ -304,7 +337,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 		// Don't return an unexpected error so we can try to find the app in different clusters or forward the
 		// request upstream.
 		log.InfoContext(ctx, "Failed to list application servers", "error", err)
-		return nil, errNoMatch
+		return nil, wrapNoMatch(err, "listing application servers")
 	}
 	if len(resp.Resources) == 0 {
 		log.DebugContext(ctx, "Found no matching app servers")
@@ -430,7 +463,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, ClusterConfigKey{ProfileName: candidate.profileName, LeafClusterName: candidate.leafClusterName}, r.cfg.clientApplication)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to get VNet config for database resolution", "error", err)
-		return nil, errNoMatch
+		return nil, wrapNoMatch(err, "getting VNet config for database resolution")
 	}
 	if clusterConfig.ProxyPublicAddr == "" {
 		return nil, errNoMatch
@@ -446,7 +479,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 			return nil, trace.Wrap(err)
 		}
 		log.InfoContext(ctx, "Failed to list database servers", "error", err)
-		return nil, errNoMatch
+		return nil, wrapNoMatch(err, "listing database servers")
 	}
 
 	dbResource, ok := db.PickMatch(ctx, log, identifier, servers)

@@ -26,10 +26,16 @@ import {
   useImperativeHandle,
 } from 'react';
 
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { WindowsServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { ToastNotificationItemObjectContent } from 'shared/components/ToastNotification/types';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeLoggedInUser,
+  makeRootCluster,
+} from 'teleterm/services/tshd/testHelpers';
 import {
   makeReport,
   makeReportWithIssuesFound,
@@ -42,6 +48,7 @@ import {
   useConnectionsContext,
 } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { IAppContext } from 'teleterm/ui/types';
+import { routing } from 'teleterm/ui/uri';
 
 import {
   useVnetContext,
@@ -283,6 +290,227 @@ it('registers a callback for unexpected shutdown', async () => {
     { value: 'unexpected-shutdown' }
   >;
   expect(reason.errorMessage).toEqual('lorem ipsum dolor sit amet');
+});
+
+describe('session expired', () => {
+  const setup = async (
+    controlConnectionsRef?: RefObject<ControlConnections>
+  ) => {
+    const appContext = new MockAppContext();
+    const cluster = makeRootCluster({
+      loggedInUser: makeLoggedInUser({
+        validUntil: Timestamp.fromDate(new Date(Date.now() - 60_000)),
+      }),
+    });
+    appContext.addRootCluster(cluster);
+    appContext.workspacesService.setState(draft => {
+      draft.isInitialized = true;
+    });
+    appContext.statePersistenceService.putState({
+      ...appContext.statePersistenceService.getState(),
+      vnet: { autoStart: true, hasEverStarted: true },
+    });
+
+    const { result } = renderHook(() => useVnetContext(), {
+      wrapper: createWrapper(Wrapper, { appContext, controlConnectionsRef }),
+    });
+    await waitFor(
+      () => expect(result.current.startAttempt.status).toEqual('success'),
+      { interval: 5 }
+    );
+
+    return { appContext, cluster, result };
+  };
+
+  const getSessionExpiredNotifications = (appContext: MockAppContext) =>
+    appContext.notificationsService.getNotifications();
+
+  const renewCert = (appContext: MockAppContext, cluster: Cluster) =>
+    appContext.clustersService.setState(draft => {
+      draft.clusters.get(cluster.uri).loggedInUser.validUntil =
+        Timestamp.fromDate(new Date(Date.now() + 60 * 60_000));
+    });
+
+  it('notifies once per expiry', async () => {
+    const { appContext, cluster } = await setup();
+
+    appContext.vnetSessionExpiredListener({
+      rootClusterUris: [cluster.uri],
+      hostname: 'foo.example.com',
+    });
+    appContext.vnetSessionExpiredListener({
+      rootClusterUris: [cluster.uri],
+      hostname: 'bar.example.com',
+    });
+
+    expect(getSessionExpiredNotifications(appContext)).toHaveLength(1);
+    expect(getSessionExpiredNotifications(appContext)[0].content).toEqual(
+      expect.objectContaining({
+        title: `Your session for ${routing.parseClusterName(cluster.uri)} has expired`,
+      })
+    );
+
+    // Signing in removes the notification.
+    renewCert(appContext, cluster);
+    await waitFor(() =>
+      expect(getSessionExpiredNotifications(appContext)).toHaveLength(0)
+    );
+
+    // Expiring again after signing in notifies again.
+    appContext.clustersService.setState(draft => {
+      draft.clusters.get(cluster.uri).loggedInUser.validUntil =
+        Timestamp.fromDate(new Date(Date.now() - 1));
+    });
+    appContext.vnetSessionExpiredListener({
+      rootClusterUris: [cluster.uri],
+      hostname: 'foo.example.com',
+    });
+    expect(getSessionExpiredNotifications(appContext)).toHaveLength(1);
+  });
+
+  it('removes the notification after ten minutes', async () => {
+    const { appContext, cluster } = await setup();
+    jest.useFakeTimers();
+
+    try {
+      appContext.vnetSessionExpiredListener({
+        rootClusterUris: [cluster.uri],
+        hostname: 'foo.example.com',
+      });
+      expect(getSessionExpiredNotifications(appContext)).toHaveLength(1);
+
+      jest.advanceTimersByTime(10 * 60 * 1000);
+
+      expect(getSessionExpiredNotifications(appContext)).toHaveLength(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('notifies again after the previous notification auto-dismissed', async () => {
+    const { appContext, cluster } = await setup();
+    jest.useFakeTimers();
+
+    try {
+      appContext.vnetSessionExpiredListener({
+        rootClusterUris: [cluster.uri],
+        hostname: 'foo.example.com',
+      });
+      expect(getSessionExpiredNotifications(appContext)).toHaveLength(1);
+
+      // The notification auto-dismisses after ten minutes without the user acting on it.
+      jest.advanceTimersByTime(10 * 60 * 1000);
+      expect(getSessionExpiredNotifications(appContext)).toHaveLength(0);
+
+      // A later connection attempt during the same expiry episode (cert still not renewed)
+      // should notify again instead of staying silent forever.
+      appContext.vnetSessionExpiredListener({
+        rootClusterUris: [cluster.uri],
+        hostname: 'bar.example.com',
+      });
+      expect(getSessionExpiredNotifications(appContext)).toHaveLength(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('refreshes the hostname in the description while the notification is still visible', async () => {
+    const { appContext, cluster } = await setup();
+
+    appContext.vnetSessionExpiredListener({
+      rootClusterUris: [cluster.uri],
+      hostname: 'foo.example.com',
+    });
+    expect(getSessionExpiredNotifications(appContext)).toHaveLength(1);
+    expect(getSessionExpiredNotifications(appContext)[0].content).toEqual(
+      expect.objectContaining({
+        description: expect.stringContaining('foo.example.com'),
+      })
+    );
+
+    appContext.vnetSessionExpiredListener({
+      rootClusterUris: [cluster.uri],
+      hostname: 'bar.example.com',
+    });
+
+    // Still a single notification, but its description now reflects the latest attempt.
+    expect(getSessionExpiredNotifications(appContext)).toHaveLength(1);
+    expect(getSessionExpiredNotifications(appContext)[0].content).toEqual(
+      expect.objectContaining({
+        description: expect.stringContaining('bar.example.com'),
+      })
+    );
+  });
+
+  it('does not resurface a notification that the user dismissed via the close button', async () => {
+    const { appContext, cluster } = await setup();
+
+    appContext.vnetSessionExpiredListener({
+      rootClusterUris: [cluster.uri],
+      hostname: 'foo.example.com',
+    });
+    const [notification] = getSessionExpiredNotifications(appContext);
+
+    // Simulate the toast calling its onRemove callback, as it does when the user clicks the close
+    // button.
+    (notification.content as ToastNotificationItemObjectContent).onRemove();
+    expect(getSessionExpiredNotifications(appContext)).toHaveLength(0);
+
+    appContext.vnetSessionExpiredListener({
+      rootClusterUris: [cluster.uri],
+      hostname: 'bar.example.com',
+    });
+    expect(getSessionExpiredNotifications(appContext)).toHaveLength(0);
+  });
+
+  it('adds a notification for each cluster in the event', async () => {
+    const { appContext, cluster } = await setup();
+    const otherCluster = makeRootCluster({
+      uri: '/clusters/other.example.com',
+      name: 'other.example.com',
+      proxyHost: 'other.example.com:3080',
+      loggedInUser: makeLoggedInUser({
+        validUntil: Timestamp.fromDate(new Date(Date.now() - 60_000)),
+      }),
+    });
+    appContext.addRootCluster(otherCluster);
+
+    appContext.vnetSessionExpiredListener({
+      rootClusterUris: [cluster.uri, otherCluster.uri],
+      hostname: 'foo.example.com',
+    });
+
+    expect(getSessionExpiredNotifications(appContext)).toHaveLength(2);
+  });
+
+  it('removes the notification when VNet stops', async () => {
+    const { appContext, cluster, result } = await setup();
+
+    appContext.vnetSessionExpiredListener({
+      rootClusterUris: [cluster.uri],
+      hostname: 'foo.example.com',
+    });
+    expect(getSessionExpiredNotifications(appContext)).toHaveLength(1);
+
+    await act(() => result.current.stop());
+
+    expect(getSessionExpiredNotifications(appContext)).toHaveLength(0);
+  });
+
+  it('does not notify if the cert is already valid by the time the report arrives', async () => {
+    const { appContext, cluster } = await setup();
+
+    // The cert gets renewed (e.g. through another sign-in path) before this report, which was
+    // generated while the session was still expired, is actually delivered and processed.
+    renewCert(appContext, cluster);
+
+    appContext.vnetSessionExpiredListener({
+      rootClusterUris: [cluster.uri],
+      hostname: 'foo.example.com',
+    });
+
+    expect(getSessionExpiredNotifications(appContext)).toHaveLength(0);
+  });
 });
 
 describe('diag notification', () => {

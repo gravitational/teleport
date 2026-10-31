@@ -50,4 +50,9 @@ export type ToastNotificationItemObjectContent = {
    * which automatically removes 'success', 'info', and 'neutral' notifications.
    */
   isAutoRemovable?: boolean;
+  /**
+   * Called when the notification removes itself, i.e. when the user dismisses it through the
+   * close button, or when it auto-dismisses after its timeout.
+   */
+  onRemove?: () => void;
 };

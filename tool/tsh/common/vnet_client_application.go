@@ -46,6 +46,10 @@ type vnetClientApplication struct {
 	clientStore *client.Store
 	clientCache *clientcache.Cache
 	loginMu     sync.Mutex
+	// resolutionBlockedReported holds the profiles for which the user was
+	// already told that VNet could not resolve a name because their session
+	// expired. This avoids printing the message for every DNS query.
+	resolutionBlockedReported sync.Map // profile name -> struct{}
 }
 
 func newVnetClientApplication(cf *CLIConf) (*vnetClientApplication, error) {
@@ -286,6 +290,48 @@ func (p *vnetClientApplication) OnInvalidLocalPort(ctx context.Context, appInfo 
 	}
 
 	fmt.Println(msg)
+}
+
+// OnResolutionBlockedByExpiredSession gets called when VNet could not check whether hostname is a
+// resource in the profiles because the user's sessions have expired.
+//
+// tsh vnet does not watch for external relogins, so a plain "run tsh login" would not be picked
+// up by the running process. Instead, the user is told to stop VNet, log in, and restart it.
+func (p *vnetClientApplication) OnResolutionBlockedByExpiredSession(_ context.Context, hostname string, profileNames []string) {
+	var allowed []string
+	for _, profileName := range profileNames {
+		if _, alreadyReported := p.resolutionBlockedReported.LoadOrStore(profileName, struct{}{}); !alreadyReported {
+			allowed = append(allowed, profileName)
+		}
+	}
+	if len(allowed) == 0 {
+		return
+	}
+
+	var msg strings.Builder
+	switch len(allowed) {
+	case 1:
+		fmt.Fprintf(&msg, "Your session for %s expired before VNet could check whether %s is a Teleport resource.\n\n", allowed[0], hostname)
+		fmt.Fprintln(&msg, "Stop VNet, log in, then restart it:")
+		fmt.Fprintln(&msg)
+		fmt.Fprintf(&msg, "  tsh login --proxy=%s\n", allowed[0])
+		fmt.Fprintln(&msg, "  tsh vnet")
+	default:
+		fmt.Fprintf(&msg, "Your sessions for these clusters expired before VNet could check whether %s is a Teleport resource:\n\n", hostname)
+		for _, profileName := range allowed {
+			fmt.Fprintf(&msg, "  %s\n", profileName)
+		}
+		fmt.Fprintln(&msg)
+		fmt.Fprintln(&msg, "Stop VNet, log in to each cluster, then restart it:")
+		fmt.Fprintln(&msg)
+		for _, profileName := range allowed {
+			fmt.Fprintf(&msg, "  tsh login --proxy=%s\n", profileName)
+		}
+		fmt.Fprintln(&msg, "  tsh vnet")
+	}
+	fmt.Fprintln(&msg, "\nThen try connecting again.")
+
+	fmt.Fprintln(p.cf.Stdout(), msg.String())
 }
 
 // getRootClusterCACertPool returns a certificate pool for the root cluster of the given profile.

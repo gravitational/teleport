@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TshdEventsService } from "./tshd_events_service_pb";
+import type { ReportVnetSessionExpiredResponse } from "./tshd_events_service_pb";
+import type { ReportVnetSessionExpiredRequest } from "./tshd_events_service_pb";
 import type { ReportUnexpectedVnetShutdownResponse } from "./tshd_events_service_pb";
 import type { ReportUnexpectedVnetShutdownRequest } from "./tshd_events_service_pb";
 import type { GetUsageReportingSettingsResponse } from "./tshd_events_service_pb";
@@ -134,6 +136,18 @@ export interface ITshdEventsServiceClient {
      * @generated from protobuf rpc: ReportUnexpectedVnetShutdown(teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest) returns (teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse);
      */
     reportUnexpectedVnetShutdown(input: ReportUnexpectedVnetShutdownRequest, options?: RpcOptions): UnaryCall<ReportUnexpectedVnetShutdownRequest, ReportUnexpectedVnetShutdownResponse>;
+    /**
+     * ReportVnetSessionExpired is sent by tsh daemon when a DNS query handled by VNet matched a DNS
+     * zone of a cluster, but VNet could not check whether the queried name belongs to a resource in
+     * that cluster because the user's session has expired. The Electron app is then able to ask the
+     * user to log in again.
+     *
+     * tsh daemon sends one request per such DNS query, so the Electron app should expect repeated
+     * requests for the same cluster.
+     *
+     * @generated from protobuf rpc: ReportVnetSessionExpired(teleport.lib.teleterm.v1.ReportVnetSessionExpiredRequest) returns (teleport.lib.teleterm.v1.ReportVnetSessionExpiredResponse);
+     */
+    reportVnetSessionExpired(input: ReportVnetSessionExpiredRequest, options?: RpcOptions): UnaryCall<ReportVnetSessionExpiredRequest, ReportVnetSessionExpiredResponse>;
 }
 /**
  * TshdEventsService is served by the Electron app. The tsh daemon calls this service to notify the
@@ -256,5 +270,20 @@ export class TshdEventsServiceClient implements ITshdEventsServiceClient, Servic
     reportUnexpectedVnetShutdown(input: ReportUnexpectedVnetShutdownRequest, options?: RpcOptions): UnaryCall<ReportUnexpectedVnetShutdownRequest, ReportUnexpectedVnetShutdownResponse> {
         const method = this.methods[9], opt = this._transport.mergeOptions(options);
         return stackIntercept<ReportUnexpectedVnetShutdownRequest, ReportUnexpectedVnetShutdownResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * ReportVnetSessionExpired is sent by tsh daemon when a DNS query handled by VNet matched a DNS
+     * zone of a cluster, but VNet could not check whether the queried name belongs to a resource in
+     * that cluster because the user's session has expired. The Electron app is then able to ask the
+     * user to log in again.
+     *
+     * tsh daemon sends one request per such DNS query, so the Electron app should expect repeated
+     * requests for the same cluster.
+     *
+     * @generated from protobuf rpc: ReportVnetSessionExpired(teleport.lib.teleterm.v1.ReportVnetSessionExpiredRequest) returns (teleport.lib.teleterm.v1.ReportVnetSessionExpiredResponse);
+     */
+    reportVnetSessionExpired(input: ReportVnetSessionExpiredRequest, options?: RpcOptions): UnaryCall<ReportVnetSessionExpiredRequest, ReportVnetSessionExpiredResponse> {
+        const method = this.methods[10], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ReportVnetSessionExpiredRequest, ReportVnetSessionExpiredResponse>("unary", this._transport, method, opt, input);
     }
 }

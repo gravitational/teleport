@@ -138,9 +138,10 @@ func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartR
 	}
 
 	clientApplication := &clientApplication{
-		daemonService:      s.cfg.DaemonService,
-		insecureSkipVerify: s.cfg.InsecureSkipVerify,
-		usageReporter:      &disabledTelemetryUsageReporter{},
+		daemonService:            s.cfg.DaemonService,
+		insecureSkipVerify:       s.cfg.InsecureSkipVerify,
+		usageReporter:            &disabledTelemetryUsageReporter{},
+		sessionExpiredReportedAt: make(map[string]time.Time),
 	}
 
 	// Generally, the usage reporting setting cannot be changed without restarting the app, so
@@ -443,6 +444,11 @@ type clientApplication struct {
 	daemonService      *daemon.Service
 	usageReporter      usageReporter
 	insecureSkipVerify bool
+
+	sessionExpiredReportMu sync.Mutex
+	// sessionExpiredReportedAt tracks, per profile, when
+	// ReportVnetSessionExpired was last sent for it.
+	sessionExpiredReportedAt map[string]time.Time
 }
 
 func (p *clientApplication) ListProfiles() ([]string, error) {
@@ -674,6 +680,55 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 			"leaf_cluster_name", appKey.GetLeafCluster(),
 			"route_to_app", routeToApp)
 	}
+}
+
+// OnResolutionBlockedByExpiredSession reports to the Electron app that VNet could not check
+// whether hostname is a resource in the profiles because the user's sessions have expired.
+func (p *clientApplication) OnResolutionBlockedByExpiredSession(_ context.Context, hostname string, profileNames []string) {
+	// Limit reports to at most one per profile per second so a burst of DNS
+	// queries against the same expired profile doesn't spawn a goroutine and
+	// gRPC call for every single query.
+	const perProfileCooldown = time.Second
+	now := time.Now()
+	p.sessionExpiredReportMu.Lock()
+	var allowed []string
+	for _, profileName := range profileNames {
+		if last, ok := p.sessionExpiredReportedAt[profileName]; ok && now.Sub(last) < perProfileCooldown {
+			continue
+		}
+		p.sessionExpiredReportedAt[profileName] = now
+		allowed = append(allowed, profileName)
+	}
+	p.sessionExpiredReportMu.Unlock()
+	if len(allowed) == 0 {
+		return
+	}
+	profileNames = allowed
+	rootClusterURIs := make([]string, 0, len(profileNames))
+	for _, profileName := range profileNames {
+		rootClusterURIs = append(rootClusterURIs, uri.NewClusterURI(profileName).String())
+	}
+
+	// Send the report from a separate goroutine so that DNS resolution is not blocked by the
+	// Electron app. ctx is tied to a single DNS query, so it is not inherited.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		tshdEventsClient, err := p.daemonService.TshdEventsClient(ctx)
+		if err == nil {
+			_, err = tshdEventsClient.ReportVnetSessionExpired(ctx, apiteleterm.ReportVnetSessionExpiredRequest_builder{
+				RootClusterUris: rootClusterURIs,
+				Hostname:        hostname,
+			}.Build())
+		}
+		if err != nil {
+			log.ErrorContext(ctx, "Could not notify the Electron app about expired session",
+				"notify_error", err,
+				"profile_names", profileNames,
+				"hostname", hostname)
+		}
+	}()
 }
 
 type usageReporter interface {
