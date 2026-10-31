@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -83,6 +84,9 @@ type BotsCommand struct {
 	recoveryLimit      uint32
 	registrationSecret string
 
+	cleanup          bool
+	cleanupSetByUser bool
+
 	// testStaticToken is a static token name for use in tests and cannot be set
 	// as a CLI flag.
 	testStaticToken string
@@ -112,6 +116,7 @@ type BotsCommand struct {
 	botsInstancesAdd  *kingpin.CmdClause
 
 	stdout io.Writer
+	stdin  func() prompt.StdinReader
 }
 
 // initSharedBotTokenFlags initializes flags shared between `bots add` and
@@ -169,6 +174,13 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
 	c.botsRemove.Arg("name", "Name of an existing bot to remove. For a scoped bot, provide a scope-qualified name of the form [scope]::[name].").Required().SetValue(&c.botName)
+	c.botsRemove.Flag(
+		"cleanup",
+		"If set, cleans up tokens related to this bot that were flagged for "+
+			"automatic removal, like those created by `tctl bots add`, "+
+			"without additional confirmation. This is implied if the terminal "+
+			"is noninteractive; use --no-cleanup to skip.",
+	).IsSetByUser(&c.cleanupSetByUser).BoolVar(&c.cleanup)
 
 	c.botsLock = bots.Command("lock", "Prevent a bot from renewing its certificates.")
 	c.botsLock.Arg("name", "Name of an existing bot to lock. For a scoped bot, provide a scope-qualified name of the form [scope]::[name].").Required().SetValue(&c.botName)
@@ -203,6 +215,9 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
+	}
+	if c.stdin == nil {
+		c.stdin = prompt.Stdin
 	}
 }
 
@@ -246,7 +261,11 @@ type botsCommandClient interface {
 
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+	// ListProvisionTokens returns a paginated list of provision tokens.
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
+	// DeleteToken deletes a provisioning token
+	DeleteToken(ctx context.Context, token string) error
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 	GetRole(context.Context, string) (types.Role, error)
 	UpsertLock(ctx context.Context, lock types.Lock) error
@@ -432,7 +451,7 @@ func (c *BotsCommand) createBoundKeypairBotToken(ctx context.Context, client bot
 		},
 	}
 
-	token, err := c.createUniqueBotToken(ctx, client, 0, spec)
+	token, err := c.createUniqueBotToken(ctx, client, 0, true, spec)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating join token")
 	}
@@ -544,7 +563,124 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 	return trace.Wrap(c.outputToken(ctx, client, bot, token))
 }
 
+type pageFunc[T any] func(ctx context.Context, limit int, cursor string) ([]T, string, error)
+
+func listProvisionTokensForBot(c botsCommandClient, botName string) pageFunc[types.ProvisionToken] {
+	return func(ctx context.Context, limit int, cursor string) ([]types.ProvisionToken, string, error) {
+		resp, next, err := c.ListProvisionTokens(ctx, limit, cursor, types.SystemRoles{types.RoleBot}, botName)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		return resp, next, nil
+	}
+}
+
+func (c *BotsCommand) findTokensToRemove(ctx context.Context, client botsCommandClient) ([]types.ProvisionToken, error) {
+	if c.botName.Scope != "" {
+		// Note, scoped tokens are not currently created automatically, so
+		// there's no compelling reason to support automatic cleanup. This
+		// should be reworked to support scoped tokens if/when we start
+		// automatically creating them.
+		return nil, nil
+	}
+
+	var toRemove []types.ProvisionToken
+	for tok, err := range clientutils.Resources(ctx, listProvisionTokensForBot(client, c.botName.Name)) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if val, ok := tok.GetMetadata().Labels[types.BotTokenCleanupLabel]; ok && val == types.True {
+			toRemove = append(toRemove, tok)
+		}
+	}
+
+	return toRemove, nil
+}
+
+// shouldAttemptTokenCleanup determines if `tctl bots rm ...` should attempt
+// automatic removal of associated (pre-flagged) bot tokens when deleting the
+// bot, and if user confirmation should be requested when doing so. For
+// noninteractive cases, no confirmation is requested, so an explicit opt-out
+// flag is required to skip cleanup if desired.
+func (c *BotsCommand) shouldAttemptTokenCleanup() (try bool, confirm bool) {
+	interactive := c.stdin != nil && c.stdin().IsTerminal()
+
+	switch {
+	case c.cleanupSetByUser:
+		// regardless of terminal, if an explicit flag was provided, honor it
+		// and don't require further confirmation
+		return c.cleanup, false
+	case interactive:
+		// interactive term, no flags - try and confirm
+		return true, true
+	case !interactive:
+		// for noninteractive cases, assume auto remove unless a flag is given
+		// (in which case it was honored above)
+		return true, false
+	default:
+		// impossible case, do nothing
+		return false, false
+	}
+}
+
+func (c *BotsCommand) tryRemoveTokens(
+	ctx context.Context,
+	client botsCommandClient,
+	tokens []types.ProvisionToken,
+	confirm bool,
+) error {
+	if confirm {
+		stdin := c.stdin()
+		if !stdin.IsTerminal() {
+			// should not be possible due to shouldAttemptTokenCleanup(), but
+			// might as well check
+			return trace.BadParameter("cannot confirm removal in a noninteractive terminal")
+		}
+
+		plural := ""
+		if len(tokens) != 1 {
+			plural = "s"
+		}
+
+		fmt.Fprintf(c.stdout, "\nThere are %d tokens associated with this bot flagged for automatic removal:\n", len(tokens))
+		for _, tok := range tokens {
+			fmt.Fprintf(c.stdout, " - %s %s\n", tok.GetKind(), tok.GetName())
+		}
+		fmt.Fprintf(c.stdout, "\n")
+
+		message := fmt.Sprintf("Delete %d associated bot token%s now?", len(tokens), plural)
+		ok, err := prompt.Confirmation(ctx, c.stdout, stdin, message)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !ok {
+			slog.InfoContext(ctx, "Skipping token removal, listed tokens must be removed manually")
+			return nil
+		}
+	}
+
+	for _, tok := range tokens {
+		if err := client.DeleteToken(ctx, tok.GetName()); err != nil {
+			// It's unlikely attempts on other tokens would succeed, so just
+			// give up.
+			return trace.Wrap(err, "unable to delete tokens")
+		}
+
+		fmt.Fprintf(c.stdout, "associated %s %q has been deleted\n", tok.GetKind(), tok.GetName())
+	}
+
+	return nil
+}
+
 func (c *BotsCommand) RemoveBot(ctx context.Context, client botsCommandClient) error {
+	var (
+		tokensToRemove []types.ProvisionToken
+		err            error
+	)
+
 	if _, err := client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 		BotName: c.botName.Name,
 		Scope:   c.botName.Scope,
@@ -553,6 +689,37 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client botsCommandClient) e
 	}
 
 	fmt.Fprintf(c.stdout, "Bot %q deleted successfully.\n", c.botName)
+
+	// Prompt for admin action MFA if required, allowing reuse for all deletion
+	// requests. Unfortunately the DeleteBot RPC doesn't currently accept cached
+	// MFA so it's deferred to here, and two prompts may be required.
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+	if err == nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+		return trace.Wrap(err)
+	}
+
+	tryRemove, confirmRemove := c.shouldAttemptTokenCleanup()
+	if tryRemove {
+		tokensToRemove, err = c.findTokensToRemove(ctx, client)
+		if err != nil {
+			// Just treat failure to query as an empty set of tokens to remove; log
+			// a warning and move on.
+			slog.WarnContext(
+				ctx,
+				"unable to query for bot tokens to remove, some tokens marked "+
+					"for automatic cleanup may not be removed",
+				"error", err,
+			)
+		}
+	}
+
+	if len(tokensToRemove) > 0 {
+		if err := c.tryRemoveTokens(ctx, client, tokensToRemove, confirmRemove); err != nil {
+			return trace.Wrap(err, "removing associated bot tokens")
+		}
+	}
 
 	return nil
 }
@@ -1474,6 +1641,7 @@ func (c *BotsCommand) createUniqueBotToken(
 	ctx context.Context,
 	client botsCommandClient,
 	ttl time.Duration,
+	autoCleanup bool,
 	spec types.ProvisionTokenSpecV2,
 ) (types.ProvisionToken, error) {
 	for i := 0; i < 3; i++ {
@@ -1492,13 +1660,19 @@ func (c *BotsCommand) createUniqueBotToken(
 			return nil, trace.Wrap(err)
 		}
 
-		// Ugly hack, but there's no other way to unset Expires or construct a
-		// token with a nil value.
+		meta := token.GetMetadata()
 		if ttl == 0 {
-			meta := token.GetMetadata()
+			// Ugly hack, but there's no other way to unset Expires or construct a
+			// token with a nil value.
 			meta.Expires = nil
-			token.SetMetadata(meta)
 		}
+		if autoCleanup {
+			// Opt this token in for automatic cleanup on bot delete.
+			meta.Labels = map[string]string{
+				types.BotTokenCleanupLabel: types.True,
+			}
+		}
+		token.SetMetadata(meta)
 
 		err = client.CreateToken(ctx, token)
 		if trace.IsAlreadyExists(err) {

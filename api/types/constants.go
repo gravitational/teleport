@@ -1318,6 +1318,13 @@ const (
 	// role impersonation.
 	BotDirectRoleAssignmentLabel = TeleportInternalLabelPrefix + "bot-direct-role-assignment"
 
+	// BotTokenCleanupLabel is a label used to flag tokens that should be
+	// automatically cleaned up by supported clients and explicit deletion
+	// requests (e.g. `tctl bots rm ...`). This opts in to a best-effort cleanup
+	// pass to help reduce token clutter over time and may not be supported by
+	// all deletion paths.
+	BotTokenCleanupLabel = TeleportInternalLabelPrefix + "bot-token-auto-cleanup"
+
 	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
 	// A pratical example of this is to create a correlation between a Node Provision Token and
 	// the Node that used that token to join the cluster

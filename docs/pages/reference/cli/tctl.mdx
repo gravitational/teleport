@@ -1337,8 +1337,14 @@ Permanently remove a certificate renewal bot from the cluster.
 Usage:
 
 ```code
-$ tctl bots rm <name>
+$ tctl bots rm [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]cleanup`|`false`|If set, cleans up tokens related to this bot that were flagged for automatic removal, like those created by `tctl bots add`, without additional confirmation. This is implied if the terminal is noninteractive; use --no-cleanup to skip.|
 
 Arguments:
 
