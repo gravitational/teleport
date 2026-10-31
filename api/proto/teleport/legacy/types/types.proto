@@ -5143,6 +5143,26 @@ message UserStatusV2 {
   // Delegation describes the relationship between this user and the identity
   // who delegated their access to them.
   Delegation Delegation = 3 [(gogoproto.jsontag) = "delegation,omitempty"];
+  // login_time is the time the user logged in. It is set atomically with session_ttl.
+  // Currently it is only recorded during SAML logins. Each login replaces the login
+  // time. In case of concurrent logins it is not guaranteed the latest login time
+  // will be stored.
+  google.protobuf.Timestamp login_time = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "login_time,omitempty"
+  ];
+  // session_ttl is an estimated user session TTL for the certificate issued during
+  // the last login. Currently it is only recorded during SAML logins. Each login
+  // replaces the deadline, even if its credentials expire earlier than the previous
+  // login's, but it is set atomically with the login_time. This does not indicate
+  // whether a session is active. Logging out or locking the user does not reduce it.
+  // A zero value means no TTL has been recorded. Currently, combined with login_time
+  // it is used as a trait retention deadline for Okta User Sync.
+  int64 session_ttl = 5 [
+    (gogoproto.casttype) = "time.Duration",
+    (gogoproto.jsontag) = "session_ttl,omitempty"
+  ];
 }
 
 // PasswordState indicates what is known about existence of user's password.

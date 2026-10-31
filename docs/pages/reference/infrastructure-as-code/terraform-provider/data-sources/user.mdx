@@ -93,8 +93,10 @@ Optional:
 Optional:
 
 - `delegation` (Attributes) Delegation describes the relationship between this user and the identity who delegated their access to them. (see [below for nested schema](#nested-schema-for-statusdelegation))
+- `login_time` (String) login_time is the time the user logged in. It is set atomically with session_ttl. Currently it is only recorded during SAML logins. Each login replaces the login time. In case of concurrent logins it is not guaranteed the latest login time will be stored.
 - `mfa_weakest_device` (Number) mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a "best effort" property, in that it can be UNSPECIFIED.
 - `password_state` (Number) password_state reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!
+- `session_ttl` (String) session_ttl is an estimated user session TTL for the certificate issued during the last login. Currently it is only recorded during SAML logins. Each login replaces the deadline, even if its credentials expire earlier than the previous login's, but it is set atomically with the login_time. This does not indicate whether a session is active. Logging out or locking the user does not reduce it. A zero value means no TTL has been recorded. Currently, combined with login_time it is used as a trait retention deadline for Okta User Sync.
 
 ### Nested Schema for `status.delegation`
 

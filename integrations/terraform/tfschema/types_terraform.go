@@ -10040,6 +10040,13 @@ func GenSchemaUserV2Resource(ctx context.Context) (github_com_hashicorp_terrafor
 					Description: "Delegation describes the relationship between this user and the identity who delegated their access to them.",
 					Optional:    true,
 				},
+				"login_time": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+					Computed:      true,
+					CustomType:    UseRFC3339Time(),
+					Description:   "login_time is the time the user logged in. It is set atomically with session_ttl. Currently it is only recorded during SAML logins. Each login replaces the login time. In case of concurrent logins it is not guaranteed the latest login time will be stored.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
+				},
 				"mfa_weakest_device": github_com_hashicorp_terraform_plugin_framework_resource_schema.Int64Attribute{
 					Computed:      true,
 					Description:   "mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED.",
@@ -10051,6 +10058,13 @@ func GenSchemaUserV2Resource(ctx context.Context) (github_com_hashicorp_terrafor
 					Description:   "password_state reflects what the system knows about the user's password. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.Int64{github_com_hashicorp_terraform_plugin_framework_resource_schema_int64planmodifier.UseStateForUnknown()},
+				},
+				"session_ttl": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+					Computed:      true,
+					CustomType:    DurationType{},
+					Description:   "session_ttl is an estimated user session TTL for the certificate issued during the last login. Currently it is only recorded during SAML logins. Each login replaces the deadline, even if its credentials expire earlier than the previous login's, but it is set atomically with the login_time. This does not indicate whether a session is active. Logging out or locking the user does not reduce it. A zero value means no TTL has been recorded. Currently, combined with login_time it is used as a trait retention deadline for Okta User Sync.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseStateForUnknown()},
 				},
 			},
 			Computed:      true,
@@ -10277,6 +10291,12 @@ func GenSchemaUserV2DataSource(ctx context.Context) (github_com_hashicorp_terraf
 					Description: "Delegation describes the relationship between this user and the identity who delegated their access to them.",
 					Optional:    true,
 				},
+				"login_time": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+					Computed:    true,
+					CustomType:  UseRFC3339Time(),
+					Description: "login_time is the time the user logged in. It is set atomically with session_ttl. Currently it is only recorded during SAML logins. Each login replaces the login time. In case of concurrent logins it is not guaranteed the latest login time will be stored.",
+					Optional:    true,
+				},
 				"mfa_weakest_device": github_com_hashicorp_terraform_plugin_framework_datasource_schema.Int64Attribute{
 					Computed:    true,
 					Description: "mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED.",
@@ -10285,6 +10305,12 @@ func GenSchemaUserV2DataSource(ctx context.Context) (github_com_hashicorp_terraf
 				"password_state": github_com_hashicorp_terraform_plugin_framework_datasource_schema.Int64Attribute{
 					Computed:    true,
 					Description: "password_state reflects what the system knows about the user's password. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!",
+					Optional:    true,
+				},
+				"session_ttl": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+					Computed:    true,
+					CustomType:  DurationType{},
+					Description: "session_ttl is an estimated user session TTL for the certificate issued during the last login. Currently it is only recorded during SAML logins. Each login replaces the deadline, even if its credentials expire earlier than the previous login's, but it is set atomically with the login_time. This does not indicate whether a session is active. Logging out or locking the user does not reduce it. A zero value means no TTL has been recorded. Currently, combined with login_time it is used as a trait retention deadline for Okta User Sync.",
 					Optional:    true,
 				},
 			},
@@ -47376,6 +47402,40 @@ func CopyUserV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attributes()["login_time"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UserV2.Status.login_time"})
+						} else {
+							v, ok := a.(TimeValue)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UserV2.Status.login_time", "TimeValue"})
+							} else {
+								var t time.Time
+								if !v.IsNull() && !v.IsUnknown() {
+									t = time.Time(v.ValueTime())
+								}
+								obj.LoginTime = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attributes()["session_ttl"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UserV2.Status.session_ttl"})
+						} else {
+							v, ok := a.(DurationValue)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UserV2.Status.session_ttl", "DurationValue"})
+							} else {
+								var t time.Duration
+								if !v.IsNull() && !v.IsUnknown() {
+									t = time.Duration(v.ValueDuration())
+								}
+								obj.SessionTtl = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -48211,6 +48271,26 @@ func CopyUserV2ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 										attrs["delegation"] = v
 									}
 								}
+							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["login_time"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = UnknownTime()
+								} else {
+									v = NewTime(time.Time(obj.LoginTime))
+								}
+								attrs["login_time"] = v
+							}
+							{
+								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+								existing := attrs["session_ttl"]
+								if preserveUnknown && existing != nil && existing.IsUnknown() {
+									v = UnknownDuration()
+								} else {
+									v = NewDuration(time.Duration(obj.SessionTtl))
+								}
+								attrs["session_ttl"] = v
 							}
 							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 							diags.Append(resultDiags...)
