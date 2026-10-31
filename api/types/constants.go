@@ -754,6 +754,9 @@ const (
 	// KindBeamsConfig is the user-provided configuration for Beams.
 	KindBeamsConfig = "beams_config"
 
+	// KindLLMEndpointQuota is the resource kind for LLM endpoint quota.
+	KindLLMEndpointQuota = "llm_endpoint_quota"
+
 	// MetaNameBeamsConfig is the exact name of the singleton resource holding Beams config.
 	MetaNameBeamsConfig = "beams-config"
 

@@ -48,6 +48,7 @@ func Handlers() map[string]Handler {
 		types.KindKubernetesCluster:   kubeClusterHandler(),
 		types.KindWorkloadIdentity:    workloadIdentityHandler(),
 		types.KindApp:                 appHandler(),
+		types.KindLLMEndpointQuota:    llmEndpointQuotaHandler(),
 	}
 }
 

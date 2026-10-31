@@ -1924,6 +1924,23 @@ Arguments:
 |---|---|---|
 |labels|*no default* (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 
+## tctl llm usage
+
+List current LLM usage
+
+Usage:
+
+```code
+$ tctl llm usage [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--endpoint`|*no default*|Retrieve usage only from the specified LLM endpoint|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+
 ## tctl lock
 
 Create a new lock.

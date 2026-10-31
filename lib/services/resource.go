@@ -317,6 +317,8 @@ func ParseShortcut(in string) (string, error) {
 		return scopedaccess.KindScopedToken, nil
 	case types.KindBeamsConfig:
 		return types.KindBeamsConfig, nil
+	case types.KindLLMEndpointQuota:
+		return types.KindLLMEndpointQuota, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
