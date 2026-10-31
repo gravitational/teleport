@@ -226,6 +226,7 @@ func (a *Server) newWebSession(
 			Traits:                   req.Traits,
 			AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
 			DelegationSessionID:      req.DelegationSessionID,
+			Delegation:               userState.GetDelegation(),
 		}, clusterName.GetClusterName(), a)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -577,6 +578,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 			// are present on caller's identity.
 			AllowedResourceAccessIDs: req.NewWebSessionRequest.RequestedResourceAccessIDs,
 			DelegationSessionID:      req.DelegationSessionID,
+			Delegation:               user.GetDelegation(),
 		}, clusterName.GetClusterName(), a)
 		if err != nil {
 			return nil, trace.Wrap(err)

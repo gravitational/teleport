@@ -375,6 +375,7 @@ func (a *Server) authenticateUser(
 			defaultMode:    p.ClusterLockingMode,
 			username:       user,
 			mfaVerified:    mfaDev.Id,
+			delegation:     p.CheckerContext.Delegation(),
 		})
 	}
 	return verifyLocks, mfaDev, user, nil

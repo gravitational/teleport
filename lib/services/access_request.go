@@ -2014,6 +2014,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		Username:                 m.userState.GetName(),
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
 		DelegationSessionID:      identity.DelegationSessionID,
+		Delegation:               identity.Delegation,
 	}, cluster.GetClusterName(), m.getter)
 	if err != nil {
 		return nil, trace.Wrap(err)

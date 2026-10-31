@@ -762,5 +762,6 @@ func (p *ProfileStatus) AccessInfo() *services.AccessInfo {
 		Traits:                   p.Traits,
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 		DelegationSessionID:      p.DelegationSessionID,
+		Delegation:               p.Delegation,
 	}
 }

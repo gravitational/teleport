@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
@@ -180,6 +181,15 @@ func (c *ScopedAccessCheckerContext) isScoped() bool {
 // Returns (nil, false) for unscoped identities.
 func (c *ScopedAccessCheckerContext) ScopePin() (*scopesv1.Pin, bool) {
 	return c.pin, c.pin != nil
+}
+
+// Delegation returns the unscoped identity's delegation chain, if any. Scoped
+// identities do not currently support delegation.
+func (c *ScopedAccessCheckerContext) Delegation() *delegationv1.Delegation {
+	if c.isScoped() {
+		return nil
+	}
+	return c.unscopedChecker.AccessInfo().Delegation
 }
 
 // CheckersForResourceScope returns a stream of ScopedAccessCheckers in evaluation order for the given resource

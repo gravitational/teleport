@@ -288,6 +288,7 @@ func (s *ScopedContext) LockTargets() []types.LockTarget {
 	if id.BotInstanceID != "" {
 		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: id.BotInstanceID})
 	}
+	lockTargets = slices.AppendSeq(lockTargets, services.DelegationToLockTargets(id.Delegation))
 	return lockTargets
 }
 

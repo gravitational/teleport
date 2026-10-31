@@ -4218,9 +4218,10 @@ func (a *ScopedServerWithRoles) desiredAccessInfo(ctx context.Context, req *prot
 // impersonation request.
 func (a *ScopedServerWithRoles) desiredAccessInfoForImpersonation(user services.UserState) (*services.AccessInfo, error) {
 	return &services.AccessInfo{
-		Username: user.GetName(),
-		Roles:    user.GetRoles(),
-		Traits:   user.GetTraits(),
+		Username:   user.GetName(),
+		Roles:      user.GetRoles(),
+		Traits:     user.GetTraits(),
+		Delegation: user.GetDelegation(),
 	}, nil
 }
 
@@ -4241,9 +4242,10 @@ func (a *ScopedServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserC
 	// Traits are copied across from the impersonating user so that role
 	// variables within the impersonated role behave as expected.
 	return &services.AccessInfo{
-		Username: user.GetName(),
-		Roles:    req.RoleRequests,
-		Traits:   user.GetTraits(),
+		Username:   user.GetName(),
+		Roles:      req.RoleRequests,
+		Traits:     user.GetTraits(),
+		Delegation: user.GetDelegation(),
 	}, nil
 }
 

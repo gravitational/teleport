@@ -342,6 +342,9 @@ type AccessInfo struct {
 	// DelegationSessionID is the ID of the Delegation Session this identity was
 	// created for, if any.
 	DelegationSessionID string
+	// Delegation contains the chain-of-delegation between the current user and
+	// other users, bots, or beams who delegated their access to them.
+	Delegation *delegationv1.Delegation
 	// Username is the Teleport username.
 	Username string
 }
@@ -361,6 +364,7 @@ func (a *AccessInfo) Clone() *AccessInfo {
 		Traits:                   a.Traits.Clone(),
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 		DelegationSessionID:      a.DelegationSessionID,
+		Delegation:               proto.CloneOf(a.Delegation),
 		Username:                 a.Username,
 	}
 }
@@ -472,6 +476,7 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 		// AllowedResourceAccessIDs are always the same across clusters.
 		AllowedResourceAccessIDs: localAccessInfo.AllowedResourceAccessIDs,
 		DelegationSessionID:      localAccessInfo.DelegationSessionID,
+		Delegation:               localAccessInfo.Delegation,
 	}
 
 	for i := range remoteRoles {
@@ -1587,6 +1592,7 @@ func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 		Traits:                   ident.Traits,
 		AllowedResourceAccessIDs: ident.AllowedResourceAccessIDs,
 		DelegationSessionID:      ident.DelegationSessionID,
+		Delegation:               ident.Delegation,
 	}
 }
 
@@ -1629,6 +1635,7 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 		Traits:                   traits,
 		AllowedResourceAccessIDs: unmappedIdentity.AllowedResourceAccessIDs,
 		DelegationSessionID:      unmappedIdentity.DelegationSessionID,
+		Delegation:               unmappedIdentity.Delegation,
 	}, nil
 }
 
@@ -1647,6 +1654,7 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error
 		Traits:                   identity.Traits,
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
 		DelegationSessionID:      identity.DelegationSessionID,
+		Delegation:               identity.Delegation,
 	}, nil
 }
 
@@ -1705,6 +1713,7 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 		Traits:                   traits,
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
 		DelegationSessionID:      identity.DelegationSessionID,
+		Delegation:               identity.Delegation,
 	}, nil
 }
 
@@ -1718,6 +1727,9 @@ type UserAccessState interface {
 
 	// GetTraits returns the traits associated with the user's current sate.
 	GetTraits() map[string][]string
+
+	// GetDelegation returns the user's delegation chain.
+	GetDelegation() *delegationv1.Delegation
 }
 
 // UserState is a representation of a user's current state.
@@ -1737,9 +1749,6 @@ type UserState interface {
 	GetGithubIdentities() []types.ExternalIdentity
 	// SetGithubIdentities sets the list of connected GitHub identities
 	SetGithubIdentities(identities []types.ExternalIdentity)
-
-	// GetDelegation returns user's delegation chain.
-	GetDelegation() *delegationv1.Delegation
 }
 
 // AccessInfoFromUserState return a new AccessInfo populated from the roles and
@@ -1759,9 +1768,10 @@ func ScopePinnedAccessInfoFromUserState(user UserAccessState, pin *scopesv1.Pin)
 
 func accessInfoFromUserState(user UserAccessState, roles []string, pin *scopesv1.Pin) *AccessInfo {
 	return &AccessInfo{
-		Username: user.GetName(),
-		Roles:    roles,
-		ScopePin: pin,
-		Traits:   user.GetTraits(),
+		Username:   user.GetName(),
+		Roles:      roles,
+		ScopePin:   pin,
+		Traits:     user.GetTraits(),
+		Delegation: user.GetDelegation(),
 	}
 }

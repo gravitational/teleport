@@ -367,6 +367,7 @@ func (c *Context) WithExtraRoles(access services.RoleGetter, clusterName string,
 		Traits:                   c.User.GetTraits(),
 		AllowedResourceAccessIDs: c.Checker.GetAllowedResourceAccessIDs(),
 		DelegationSessionID:      c.Checker.DelegationSessionID(),
+		Delegation:               c.Checker.AccessInfo().Delegation,
 	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {

@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -3659,6 +3660,7 @@ func (a *Server) augmentUserCertificates(
 		mfaVerified:          x509Identity.MFAVerified,
 		activeAccessRequests: x509Identity.ActiveRequests,
 		deviceID:             dev.DeviceID, // Check lock against requested device.
+		delegation:           x509Identity.Delegation,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3822,6 +3824,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		deviceID:             req.DeviceExtensions.DeviceID,
 		botInstanceID:        req.BotInstanceID,
 		joinToken:            req.JoinToken,
+		delegation:           req.User.GetDelegation(),
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4403,6 +4406,9 @@ type verifyLocksForUserCertsReq struct {
 	botInstanceID string
 	// joinMethod is the join token name, set only for non-token bots.
 	joinToken string
+	// delegation contains the chain-of-delegation between the current user and
+	// other users, bots, or beams who delegated their access to them.
+	delegation *delegationv1.Delegation
 }
 
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
@@ -4429,6 +4435,7 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	if req.joinToken != "" {
 		lockTargets = append(lockTargets, types.LockTarget{JoinToken: req.joinToken})
 	}
+	lockTargets = slices.AppendSeq(lockTargets, services.DelegationToLockTargets(req.delegation))
 
 	return trace.Wrap(a.checkLockInForce(lockingMode, lockTargets))
 }

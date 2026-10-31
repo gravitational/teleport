@@ -216,6 +216,7 @@ func (s *SessionService) generateCertificates(
 			Traits:                   delegatingUser.GetTraits(),
 			AllowedResourceAccessIDs: resourceIDs,
 			Username:                 delegatingUser.GetName(),
+			Delegation:               delegatingUser.GetDelegation(),
 		},
 		clusterName.GetClusterName(),
 		roleSet,
@@ -361,8 +362,9 @@ func (s *SessionService) bestEffortCheckResourceAccess(
 ) error {
 	checker, err := services.NewAccessChecker(
 		&services.AccessInfo{
-			Roles:  user.GetRoles(),
-			Traits: user.GetTraits(),
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
+			Delegation: user.GetDelegation(),
 		},
 		"",
 		s.roleGetter,

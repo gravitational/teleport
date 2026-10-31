@@ -19,13 +19,17 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"iter"
+	"log/slog"
 	"maps"
 	"slices"
 
 	"github.com/gravitational/trace"
 
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -88,6 +92,12 @@ func proxyingLockTargets(localClusterName, serverID string, osLogin *string, acc
 	for lockTarget := range AccessRequestsToLockTargets(slices.Values(unmappedIdentity.ActiveRequests)) {
 		lockTargets[lockTarget] = struct{}{}
 	}
+	for lockTarget := range DelegationToLockTargets(accessInfo.Delegation) {
+		lockTargets[lockTarget] = struct{}{}
+	}
+	for lockTarget := range DelegationToLockTargets(unmappedIdentity.Delegation) {
+		lockTargets[lockTarget] = struct{}{}
+	}
 	if osLogin != nil {
 		lockTargets[types.LockTarget{Login: *osLogin}] = struct{}{}
 	}
@@ -126,6 +136,55 @@ func LockTargetsFromTLSIdentity(id tlsca.Identity) iter.Seq[types.LockTarget] {
 		for lockTarget := range AccessRequestsToLockTargets(slices.Values(id.ActiveRequests)) {
 			if !yield(lockTarget) {
 				return
+			}
+		}
+		for lockTarget := range DelegationToLockTargets(id.Delegation) {
+			if !yield(lockTarget) {
+				return
+			}
+		}
+	}
+}
+
+// DelegationToLockTargets returns the lock targets for a given delegation chain.
+func DelegationToLockTargets(delegation *delegationv1.Delegation) iter.Seq[types.LockTarget] {
+	return func(yield func(types.LockTarget) bool) {
+		if delegation == nil {
+			return
+		}
+
+		for _, link := range delegation.GetChain() {
+			switch link.WhichIdentity() {
+			case delegationv1.DelegationChainLink_User_case:
+				if !yield(types.LockTarget{User: link.GetUser().GetName()}) {
+					return
+				}
+			case delegationv1.DelegationChainLink_Bot_case:
+				bot := link.GetBot()
+				botUser, err := BotResourceName(scopes.QualifiedName{
+					Scope: bot.GetScope(),
+					Name:  bot.GetName(),
+				})
+				if err != nil {
+					// Note: We do not bubble this error up because none of the
+					// callers return errors. It should be impossible because we
+					// StrongValidate the scope before storing the delegation.
+					slog.ErrorContext(context.TODO(),
+						"Failed to create lock target from bot delegator",
+						"error", err,
+						"bot_name", bot.GetName(),
+						"bot_scope", bot.GetScope(),
+					)
+					continue
+				}
+				if !yield(types.LockTarget{User: botUser}) {
+					return
+				}
+			default:
+				slog.WarnContext(context.TODO(),
+					"Failed to convert unknown delegator type to lock target",
+					"delegator_type", link.WhichIdentity().String(),
+				)
 			}
 		}
 	}
