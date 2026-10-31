@@ -5598,7 +5598,8 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 	return samlReq, nil
 }
 
-// ValidateSAMLResponse validates SAML auth response.
+// ValidateSAMLResponse validates SAML auth response. The connectorID is only required for
+// IdP-initiated flow. SP-initiated flows use the connector ID from the stored SAML auth request.
 func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error) {
 	isProxy := a.hasBuiltinRole(types.RoleProxy)
 	if !isProxy {

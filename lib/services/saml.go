@@ -373,8 +373,8 @@ func CheckSAMLEntityDescriptor(entityDescriptor string) ([]*x509.Certificate, er
 	return roots, nil
 }
 
-// GetSAMLServiceProvider gets the SAMLConnector's service provider
-func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*saml2.SAMLServiceProvider, error) {
+// NewSAMLServiceProvider generates a new SAMLConnector's service provider
+func NewSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*saml2.SAMLServiceProvider, error) {
 	roots, errEd := CheckSAMLEntityDescriptor(sc.GetEntityDescriptor())
 	if errEd != nil {
 		return nil, trace.Wrap(errEd)

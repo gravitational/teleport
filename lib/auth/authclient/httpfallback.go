@@ -261,7 +261,9 @@ func (c *Client) ValidateSAMLResponse(ctx context.Context, samlResponse, connect
 type ValidateSAMLResponseReq struct {
 	// Response is SAML statements coming from the identity provider.
 	Response string `json:"response"`
-	// ConnectorID is ID of a SAML connector that should be used for this request.
+	// ConnectorID is ID of a SAML connector that should be used for this request. It's only
+	// required for for IdP-initiated flow. SP-initiated flows use the connector ID from the
+	// stored SAML auth request.
 	ConnectorID string `json:"connector_id,omitempty"`
 	// ClientIP is IP of the logging in client, used in identity provider initiated login case,
 	// when we don't have original client's request with their IP stored.
