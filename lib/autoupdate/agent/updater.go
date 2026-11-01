@@ -475,9 +475,15 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) (err err
 
 	if err := u.update(ctx, cfg, target, override.AllowOverwrite, resp.AGPL); err != nil {
 		if errors.Is(err, ErrFilePresent) && !override.AllowOverwrite {
-			u.Log.ErrorContext(ctx, "A non-packaged or outdated installation of Teleport was detected on this system.")
-			u.Log.ErrorContext(ctx, "Use --overwrite to force immediate removal of any existing binaries installed manually or via script.")
-			u.Log.ErrorContext(ctx, "Alternatively, if a Teleport RPM or DEB package is installed, upgrade it to the latest version and retry without --overwrite.")
+			if runtime.GOOS == constants.WindowsOS {
+				u.Log.ErrorContext(ctx, "An installation of Teleport that was not created by the updater was detected on this system.")
+				u.Log.ErrorContext(ctx, "Use --overwrite to point the existing Teleport Windows service at the updater-managed installation.")
+				u.Log.ErrorContext(ctx, "The service is then managed by the updater, and is removed by teleport-update uninstall.")
+			} else {
+				u.Log.ErrorContext(ctx, "A non-packaged or outdated installation of Teleport was detected on this system.")
+				u.Log.ErrorContext(ctx, "Use --overwrite to force immediate removal of any existing binaries installed manually or via script.")
+				u.Log.ErrorContext(ctx, "Alternatively, if a Teleport RPM or DEB package is installed, upgrade it to the latest version and retry without --overwrite.")
+			}
 		}
 		return trace.Wrap(err)
 	}
@@ -1135,7 +1141,18 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
 			return false
 		}
-		// Note: this version may be inaccurate if the active installation was modified
+		if runtime.GOOS == "windows" {
+			// Reconcile the Teleport service back to the active revision. On Windows
+			// the service's binPath targets the versioned executable directly rather
+			// than the pathDir junction reverted above. Reverting the link alone
+			// is not enough to make the next Reload start the previously working
+			// revision instead of the failed target.
+			// Note: this version may be inaccurate if the active installation was modified
+			if err := u.WriteTeleportService(ctx, cfg.Spec.Path, cfg.Status.Active); err != nil {
+				u.Log.ErrorContext(ctx, "Failed to revert Teleport service configuration after failed restart.", errorKey, err)
+				return false
+			}
+		}
 		if err := u.SetupNamespace(ctx, cfg.Spec.Path, cfg.Status.Active, SetupFeatures{
 			SELinuxSSH: cfg.Spec.SELinuxSSH,
 			Tbot:       !ignoreTbot,

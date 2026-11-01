@@ -20,12 +20,14 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
 )
 
 // SetRequiredUmask does nothing on Windows, which does not support umask.
@@ -71,4 +73,23 @@ func writeFileAtomicWithinDir(filename string, data []byte, perm os.FileMode) er
 
 func atomicSymlink(oldpath, newpath string) error {
 	return trace.NotImplemented("atomic symlink not supported on Windows")
+}
+
+// readJunction returns the target of the junction at link.
+// readJunction returns os.ErrNotExist if nothing exists at link, and
+// ErrFilePresent if a file or directory that is not a junction exists at link.
+func readJunction(link string) (string, error) {
+	target, err := os.Readlink(link)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", trace.Wrap(os.ErrNotExist)
+	}
+	if errors.Is(err, windows.ERROR_NOT_A_REPARSE_POINT) ||
+		errors.Is(err, os.ErrInvalid) ||
+		errors.Is(err, windows.ERROR_INVALID_PARAMETER) {
+		return "", trace.Wrap(ErrFilePresent, "%s is not a junction", link)
+	}
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	return target, nil
 }
