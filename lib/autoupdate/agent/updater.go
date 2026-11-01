@@ -1320,6 +1320,33 @@ func (u *Updater) validateProcess(ctx context.Context, p Process) (bool, error) 
 	return true, nil
 }
 
+// serviceEnableCommand returns the platform-appropriate command that enables
+// (configures to start on boot) the named system service.
+func serviceEnableCommand(name string) string {
+	if runtime.GOOS == constants.WindowsOS {
+		return "sc.exe config " + name + " start= auto"
+	}
+	return "systemctl enable " + name
+}
+
+// serviceStartCommand returns the platform-appropriate command that starts
+// the named system service.
+func serviceStartCommand(name string) string {
+	if runtime.GOOS == constants.WindowsOS {
+		return "sc.exe start " + name
+	}
+	return "systemctl start " + name
+}
+
+// serviceEnableNowCommand returns the platform-appropriate command that both
+// enables and starts the named system service.
+func serviceEnableNowCommand(name string) string {
+	if runtime.GOOS == constants.WindowsOS {
+		return "powershell -Command \"sc.exe config " + name + " start= auto ; sc.exe start " + name + "\""
+	}
+	return "systemctl enable --now " + name
+}
+
 // teleportNotices displays final notices for teleport after install or update.
 func (u *Updater) teleportNotices(ctx context.Context) {
 	enabled, err := u.TeleportProcess.IsEnabled(ctx)
@@ -1344,17 +1371,17 @@ func (u *Updater) teleportNotices(ctx context.Context) {
 	if !enabled && active {
 		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must enable it.",
-			"command", "systemctl enable "+u.TeleportProcess.Name())
+			"command", serviceEnableCommand(u.TeleportProcess.Name()))
 	}
 	if !active && enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed and enabled at boot, but not running.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must start it.",
-			"command", "systemctl start "+u.TeleportProcess.Name())
+			"command", serviceStartCommand(u.TeleportProcess.Name()))
 	}
 	if !active && !enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot.")
-		u.Log.WarnContext(ctx, "To enable and start Teleport, configure teleport.yaml and run systemctl.",
-			"command", "systemctl enable --now "+u.TeleportProcess.Name())
+		u.Log.WarnContext(ctx, "To enable and start Teleport, configure teleport.yaml and run the command below.",
+			"command", serviceEnableNowCommand(u.TeleportProcess.Name()))
 	}
 }
 
