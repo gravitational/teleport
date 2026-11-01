@@ -21,6 +21,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/client/debug"
 )
 
@@ -65,5 +67,14 @@ func createTbotProcess(ns *Namespace, debugClient *debug.Client, logger *slog.Lo
 }
 
 func (u *Updater) readMachineID() ([]byte, error) {
-	return os.ReadFile(u.MachineIDFile)
+	return readMachineIDFile(u.MachineIDFile)
+}
+
+func readMachineIDFile(machineIDFile string) ([]byte, error) {
+	data, err := os.ReadFile(machineIDFile)
+	return data, trace.Wrap(err, "failed to read %s", machineIDFile)
+}
+
+func readMachineID() ([]byte, error) {
+	return readMachineIDFile(systemdMachineIDFile)
 }

@@ -335,11 +335,16 @@ type Process interface {
 	Name() string
 	// Reload must reload the Teleport process as gracefully as possible.
 	// If the process is not healthy after reloading, Reload must return an error.
-	// If the process did not require reloading, Reload must return ErrNotNeeded.
-	// E.g., if the process is not enabled, or it was already reloaded after the last Sync.
+	// If the process is not currently running and forceStart is false, Reload must
+	// leave it stopped and return nil. E.g., if the process is not enabled, or it
+	// was already reloaded after the last Sync.
+	// If the process is not currently running and forceStart is true, Reload must
+	// start it rather than treating the stopped state as a no-op. This is used to
+	// restore a process to its previously-active state after a failed update is
+	// rolled back, since the failed launch attempt may have left it stopped.
 	// If the type implementing Process does not support the system process manager,
 	// Reload must return ErrNotSupported.
-	Reload(ctx context.Context) error
+	Reload(ctx context.Context, forceStart bool) error
 	// Sync must validate and synchronize process configuration.
 	// After the linked Teleport installation is changed, failure to call Sync without
 	// error before Reload may result in undefined behavior.
@@ -583,7 +588,6 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	if !customTbot {
 		pg = append(pg, u.TbotProcess)
 	}
-
 	revertConfig := func(ctx context.Context) bool {
 		if ok := revert(ctx); !ok {
 			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
@@ -594,6 +598,27 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 			return false
 		}
 		return true
+	}
+
+	var forceRestart []bool
+	for _, p := range pg {
+		active, err := p.IsActive(ctx)
+		if errors.Is(err, ErrNotSupported) {
+			// Systemd is not present, so the service cannot have been running under it.
+			active = false
+		} else if err != nil {
+			// We already linked the package version above, so we must revert that
+			// before bailing out. Otherwise, the live symlinks would point at the
+			// package version while the updater config still believes the
+			// updater-managed version is active, leaving the installation in an
+			// inconsistent state.
+			u.Log.ErrorContext(ctx, "Reverting symlinks because the active status of a service could not be determined.", "service", p.Name(), errorKey, err)
+			if ok := revertConfig(ctx); ok {
+				u.Log.WarnContext(ctx, "Teleport updater failed to determine service status and successfully reverted the installation.")
+			}
+			return trace.Wrap(err, "failed to determine active status of %s", p.Name())
+		}
+		forceRestart = append(forceRestart, active)
 	}
 
 	// Sync systemd.
@@ -614,7 +639,7 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	}
 
 	u.Log.InfoContext(ctx, "Teleport package successfully restored.")
-	err = pg.Reload(ctx)
+	err = pg.Reload(ctx, false)
 	if errors.Is(err, context.Canceled) {
 		return trace.Errorf("reload canceled")
 	}
@@ -624,12 +649,15 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 		// If reloading at the new version fails, revert and reload again.
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 		if ok := revertConfig(ctx); ok {
-			if err := pg.Reload(ctx); err != nil {
-				u.Log.ErrorContext(ctx, "Failed to reload after reverting.", errorKey, err, "service", pg.Name())
-				u.Log.ErrorContext(ctx, "Installation likely broken.")
-			} else {
-				u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
+			for i, p := range pg {
+				err := p.Reload(ctx, forceRestart[i])
+				if err != nil {
+					u.Log.ErrorContext(ctx, "Failed to reload after reverting.", errorKey, err, "service", pg.Name())
+					u.Log.ErrorContext(ctx, "Installation likely broken.")
+					return trace.Wrap(err, "failed to start system package version of Teleport")
+				}
 			}
+			u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
 		}
 		return trace.Wrap(err, "failed to start system package version of Teleport")
 	}
@@ -682,7 +710,7 @@ func (u *Updater) readID(ctx context.Context) string {
 	}
 	mid, err := u.readMachineID()
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		u.Log.WarnContext(ctx, "Failed to read systemd machine ID.", "path", u.MachineIDFile, errorKey, err)
+		u.Log.WarnContext(ctx, "Failed to read machine ID.", errorKey, err)
 	}
 	out, err := FindDBPID(u.UpdateIDFile, bytes.TrimSpace(mid), bytes.TrimSpace(tid), false)
 	if err != nil {
@@ -1057,11 +1085,6 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	// Cleanup logic at the end of this function will ensure that they are removed
 	// eventually.
 
-	revert, err := u.Installer.Link(ctx, target, cfg.Spec.Path, overwrite)
-	if err != nil {
-		return trace.Wrap(err, "failed to link")
-	}
-
 	ignoreTbot := false
 	if runtime.GOOS == "windows" {
 		ignoreTbot = true
@@ -1082,6 +1105,19 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	pg := ProcessGroup{u.TeleportProcess}
 	if !ignoreTbot {
 		pg = append(pg, u.TbotProcess)
+	}
+	var processActive []bool
+	for _, p := range pg {
+		active, err := p.IsActive(ctx)
+		if err != nil {
+			return trace.Wrap(err, "failed to determine if process is active")
+		}
+		processActive = append(processActive, active)
+	}
+
+	revert, err := u.Installer.Link(ctx, target, cfg.Spec.Path, overwrite)
+	if err != nil {
+		return trace.Wrap(err, "failed to link")
 	}
 
 	// If we fail to revert after this point, the next update/enable will
@@ -1148,11 +1184,13 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 		// If reloading Teleport at the new version fails, revert and reload.
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 		if ok := revertConfig(ctx); ok {
-			if err := pg.Reload(ctx); err != nil {
-				u.Log.ErrorContext(ctx, "Failed to reload services after reverting. Installation likely broken.", errorKey, err)
-			} else {
-				u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
+			for i, p := range pg {
+				if err := p.Reload(ctx, processActive[i]); err != nil {
+					u.Log.ErrorContext(ctx, "Failed to reload services after reverting. Installation likely broken.", errorKey, err)
+					return trace.Wrap(err, "failed to start new version %s of Teleport", target)
+				}
 			}
+			u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
 		}
 		return trace.Wrap(err, "failed to start new version %s of Teleport", target)
 	}
@@ -1232,7 +1270,7 @@ func (u *Updater) Setup(ctx context.Context, path string, rev Revision, f SetupF
 		pg = append(pg, u.TbotProcess)
 	}
 
-	err = pg.Reload(ctx)
+	err = pg.Reload(ctx, false)
 	if errors.Is(err, context.Canceled) {
 		return trace.Errorf("reload canceled")
 	}

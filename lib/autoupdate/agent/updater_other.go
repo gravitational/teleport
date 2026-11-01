@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build !linux && !windows
 
 // Teleport
 // Copyright (C) 2026 Gravitational, Inc.
@@ -40,7 +40,7 @@ func (i invalidProcess) Name() string {
 	return i.name
 }
 
-func (i invalidProcess) Reload(ctx context.Context) error {
+func (i invalidProcess) Reload(ctx context.Context, forceStart bool) error {
 	return trace.NotImplemented("reload")
 }
 
@@ -77,5 +77,9 @@ func createTbotProcess(ns *Namespace, debugClient *debug.Client, logger *slog.Lo
 }
 
 func (u *Updater) readMachineID() ([]byte, error) {
+	return readMachineID()
+}
+
+func readMachineID() ([]byte, error) {
 	return nil, trace.NotImplemented("readMachineID")
 }

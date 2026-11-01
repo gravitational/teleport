@@ -44,14 +44,14 @@ const updateConfigFileEnvVar = "TELEPORT_UPDATE_CONFIG_FILE"
 
 // IsManagedByUpdater returns true if the local Teleport binary is managed by teleport-update.
 // Note that true may be returned even if auto-updates is disabled or the version is pinned.
-// The binary is considered managed if it lives under /opt/teleport, but not within the package
-// path at /opt/teleport/system.
+// The binary is considered managed if one of its parent directories is called `versions` and
+// contains update.yaml.
 func IsManagedByUpdater() (bool, error) {
-	systemd, err := hasServiceManager()
+	serviceManager, err := hasServiceManager()
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	if !systemd {
+	if !serviceManager {
 		return false, nil
 	}
 	teleportPath, err := os.Executable()
@@ -185,9 +185,9 @@ func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string
 		info.UpdateGroup = defaultSetting
 	}
 	if p := cfg.Status.IDFile; p != "" {
-		machineID, err := os.ReadFile(systemdMachineIDFile)
+		machineID, err := readMachineID()
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			log.WarnContext(ctx, "Failed to read systemd machine ID.", "path", systemdMachineIDFile, errorKey, err)
+			log.WarnContext(ctx, "Failed to read machine ID.", errorKey, err)
 			log.WarnContext(ctx, "Updater ID may be inaccurate for tracking.")
 			machineID = nil
 		}

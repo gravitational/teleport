@@ -19,8 +19,19 @@
 package agent
 
 const (
+	// windowsTeleportServiceName is the name of the Windows service (SCM) running the Teleport agent.
+	windowsTeleportServiceName = "Teleport"
 	// UpdaterServiceName is the name of the Windows service (SCM) running the updater loop.
 	UpdaterServiceName = "TeleportUpdater"
 	// EventSourceName is the Windows Event Log source used by the updater service.
 	EventSourceName = "teleport-update"
 )
+
+// teleportServiceName returns the name of the Windows service running the Teleport agent.
+// Namespaced installations are suffixed with the namespace name.
+func (ns *Namespace) teleportServiceName() string {
+	if ns.name == "" {
+		return windowsTeleportServiceName
+	}
+	return windowsTeleportServiceName + "_" + ns.name
+}

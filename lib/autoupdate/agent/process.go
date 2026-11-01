@@ -274,10 +274,10 @@ func (p ProcessGroup) Name() string {
 }
 
 // Reload reloads all processes in the process group.
-func (p ProcessGroup) Reload(ctx context.Context) error {
+func (p ProcessGroup) Reload(ctx context.Context, forceStart bool) error {
 	// TODO(sclevine): consider reloading in parallel if this is too slow for users
 	for _, process := range p {
-		if err := process.Reload(ctx); err != nil {
+		if err := process.Reload(ctx, forceStart); err != nil {
 			return trace.Wrap(err, "failed to reload %s", process.Name())
 		}
 	}

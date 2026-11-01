@@ -53,7 +53,7 @@ func (s SystemdService) Name() string {
 // Reload the systemd service.
 // Attempts a graceful reload before a hard restart.
 // See Process interface for more details.
-func (s SystemdService) Reload(ctx context.Context) error {
+func (s SystemdService) Reload(ctx context.Context, forceStart bool) error {
 	// TODO(sclevine): allow server to force restart instead of reload
 
 	if err := s.checkSystem(ctx); err != nil {
@@ -63,29 +63,38 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	// Command error codes < 0 indicate that we are unable to run the command.
 	// Errors from s.systemctl are logged along with stderr and stdout (debug only).
 
-	// If the service is not running, return nil.
+	// If the service is not running and the caller does not need it started,
+	// return nil.
 	// Note systemctl reload returns an error if the unit is not active, and
 	// try-reload-or-restart is too recent of an addition for centos7.
 	code := s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
 	switch {
 	case code < 0:
 		return trace.Errorf("unable to determine if systemd service is active")
-	case code > 0:
+	case code > 0 && !forceStart:
 		s.Log.WarnContext(ctx, "Systemd service not running.", unitKey, s.ServiceName)
 		return nil
 	}
 
 	// Get initial PID for crash monitoring.
 
-	initPID, err := readInt(s.PIDFile)
+	initialPID, err := readInt(s.PIDFile)
 	if errors.Is(err, os.ErrNotExist) {
 		s.Log.InfoContext(ctx, "No existing process detected. Skipping crash monitoring.", unitKey, s.ServiceName)
 	} else if err != nil {
 		s.Log.ErrorContext(ctx, "Error reading initial PID value. Skipping crash monitoring.", unitKey, s.ServiceName, errorKey, err)
 	}
 
+	if initialPID == 0 && forceStart {
+		// set initial PID to non-zero so we will start monitoring it
+		initialPID = -1
+	}
+
 	// Attempt graceful reload of running service.
-	if !s.ForceRestart {
+	// forceStart may be requested when the service is not currently running
+	// (e.g., it crashed and was not restarted by systemd), in which case
+	// reload/try-restart would be a no-op, so fall through to restart instead.
+	if !s.ForceRestart && code == 0 {
 		code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
 		switch {
 		case code < 0:
@@ -101,14 +110,16 @@ func (s SystemdService) Reload(ctx context.Context) error {
 			s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
 		}
 	} else {
-		code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
+		// restart starts the unit if it is not currently active, unlike
+		// try-restart, which is a no-op in that case.
+		code = s.systemctl(ctx, slog.LevelError, "restart", s.ServiceName)
 		if code != 0 {
 			return trace.Errorf("hard restart of systemd service failed")
 		}
 	}
 
 	// monitor logs all relevant errors, so we filter for a few outcomes
-	err = s.monitor(ctx, initPID)
+	err = s.monitor(ctx, initialPID)
 	if errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(err, context.Canceled) {
 		return trace.Wrap(err)
