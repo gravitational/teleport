@@ -20,6 +20,7 @@ package agent
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"io"
 	"log/slog"
@@ -73,6 +74,100 @@ func writeFileAtomicWithinDir(filename string, data []byte, perm os.FileMode) er
 
 func atomicSymlink(oldpath, newpath string) error {
 	return trace.NotImplemented("atomic symlink not supported on Windows")
+}
+
+// setJunction creates or replaces a directory junction (NTFS mount point) at link that points to target.
+// Unlike symlinks, junctions do not require special privileges to create.
+// If link does not exist, it is created. If link is already a junction, its target is replaced in-place
+// with a single reparse point update, so that the junction is never missing.
+// If link is a directory that is not a junction, setJunction errors unless the directory is empty.
+// target must be an absolute path.
+func setJunction(link, target string) (err error) {
+	if !filepath.IsAbs(target) {
+		return trace.BadParameter("junction target %s must be an absolute path", target)
+	}
+	data, err := mountPointReparseData(target)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	created := false
+	if err := os.Mkdir(link, systemDirMode); err == nil {
+		created = true
+	} else if !errors.Is(err, os.ErrExist) {
+		return trace.ConvertSystemError(err)
+	}
+	defer func() {
+		if err != nil && created {
+			_ = os.Remove(link)
+		}
+	}()
+	namePtr, err := windows.UTF16PtrFromString(link)
+	if err != nil {
+		return trace.Wrap(err, "converting path to UTF16")
+	}
+	h, err := windows.CreateFile(namePtr,
+		windows.GENERIC_WRITE,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
+		nil,
+		windows.OPEN_EXISTING,
+		windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT,
+		0)
+	if err != nil {
+		return trace.Wrap(err, "opening %s", link)
+	}
+	defer windows.CloseHandle(h)
+	var ret uint32
+	err = windows.DeviceIoControl(h, windows.FSCTL_SET_REPARSE_POINT, &data[0], uint32(len(data)), nil, 0, &ret, nil)
+	if err != nil {
+		return trace.Wrap(err, "setting junction %s -> %s", link, target)
+	}
+	return nil
+}
+
+// mountPointReparseData encodes a REPARSE_DATA_BUFFER describing a mount point (junction) to target.
+//
+//	ULONG  ReparseTag
+//	USHORT ReparseDataLength
+//	USHORT Reserved
+//	USHORT SubstituteNameOffset
+//	USHORT SubstituteNameLength
+//	USHORT PrintNameOffset
+//	USHORT PrintNameLength
+//	WCHAR  PathBuffer[]
+func mountPointReparseData(target string) ([]byte, error) {
+	substitute, err := windows.UTF16FromString(`\??\` + target) // NUL-terminated
+	if err != nil {
+		return nil, trace.Wrap(err, "converting path to UTF16")
+	}
+	print, err := windows.UTF16FromString(target) // NUL-terminated
+	if err != nil {
+		return nil, trace.Wrap(err, "converting path to UTF16")
+	}
+	const headerLen = 8           // ReparseTag + ReparseDataLength + Reserved
+	const mountPointHeaderLen = 8 // four USHORT offsets and lengths
+	substituteLen := (len(substitute) - 1) * 2
+	printLen := (len(print) - 1) * 2
+	pathBufferLen := len(substitute)*2 + len(print)*2
+	dataLen := mountPointHeaderLen + pathBufferLen
+	if headerLen+dataLen > windows.MAXIMUM_REPARSE_DATA_BUFFER_SIZE {
+		return nil, trace.BadParameter("junction target %s is too long", target)
+	}
+	le := binary.LittleEndian
+	buf := make([]byte, 0, headerLen+dataLen)
+	buf = le.AppendUint32(buf, windows.IO_REPARSE_TAG_MOUNT_POINT)
+	buf = le.AppendUint16(buf, uint16(dataLen))
+	buf = le.AppendUint16(buf, 0) // Reserved
+	buf = le.AppendUint16(buf, 0) // SubstituteNameOffset
+	buf = le.AppendUint16(buf, uint16(substituteLen))
+	buf = le.AppendUint16(buf, uint16(substituteLen+2)) // PrintNameOffset, after NUL
+	buf = le.AppendUint16(buf, uint16(printLen))
+	for _, c := range substitute {
+		buf = le.AppendUint16(buf, c)
+	}
+	for _, c := range print {
+		buf = le.AppendUint16(buf, c)
+	}
+	return buf, nil
 }
 
 // readJunction returns the target of the junction at link.

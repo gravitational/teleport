@@ -86,8 +86,10 @@ const (
 // logic from lib/config.
 type ServiceFile struct {
 	// Path is the full path to the linked service file.
+	// On Windows, Path is the name of the Windows service (SCM) instead.
 	Path string
 	// Binary is the corresponding linked binary name.
+	// On Windows, the ".exe" extension is implied if missing.
 	Binary string
 	// ExampleName is the name of the example service file.
 	// Deprecated.
