@@ -100,6 +100,13 @@ type agentService struct {
 
 // Sign the given digest with the specified hardware private key.
 func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignRequest) (*hardwarekeyagentv1.Signature, error) {
+	if req.GetKeyRef() == nil {
+		return nil, trace.BadParameter("key_ref must be provided")
+	}
+	if req.GetKeyInfo() == nil {
+		return nil, trace.BadParameter("key_info must be provided")
+	}
+
 	slotKey, err := hardwarekey.PIVSlotKeyFromProto(req.KeyRef.SlotKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
