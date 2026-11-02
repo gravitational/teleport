@@ -525,7 +525,17 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 
 	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
 
-	accessChecker, err := services.NewAccessCheckerForUserSession(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
+	// If this is a scoped identity, return an empty checker. Callers that still need real
+	// scoped permissions must use GetUserScopedAccessCheckerContext instead. This exists
+	// so callers that haven't been made scope aware get an inert checker instead of an error.
+	if accessInfo.ScopePin != nil {
+		return services.NewAccessCheckerWithRoleSet(accessInfo, c.cfg.RootClusterName, services.NewRoleSet()), nil
+	}
+
+	accessChecker, err := services.NewAccessChecker(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
+	if trace.IsNotFound(err) {
+		return nil, authz.ErrUserSessionRoleNotFound
+	}
 	return accessChecker, trace.Wrap(err)
 }
 

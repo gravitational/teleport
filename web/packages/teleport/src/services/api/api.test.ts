@@ -24,7 +24,7 @@ import api, {
   AGENT_USAGE_HEADER,
   defaultRequestOptions,
   getAuthHeaders,
-  isUserSessionRoleNotFoundError,
+  isUserSessionInvalidError,
   MFA_HEADER,
 } from './api';
 import { ApiError } from './parseError';
@@ -257,43 +257,57 @@ test('fetchJsonWithMfaAuthnRetry does not return any', () => {
   expect(true).toBe(true);
 });
 
-test('isUserSessionRoleNotFoundError correctly identifies user session role not found errors', () => {
-  const userSessionRoleError = {
-    error: 'role admin is not found',
-    messages: ['user session role not found'],
-  };
-  expect(isUserSessionRoleNotFoundError(userSessionRoleError)).toBe(true);
+describe('isUserSessionInvalidError', () => {
+  test('identifies a removed/expired user error', () => {
+    const json = { error: { message: 'user expired or removed' } };
+    expect(isUserSessionInvalidError(json)).toBe(true);
+  });
 
-  const regularRoleError = { error: 'role admin is not found' };
-  expect(isUserSessionRoleNotFoundError(regularRoleError)).toBe(false);
+  test('identifies a missing session role error', () => {
+    const json = { error: { message: 'user session role not found' } };
+    expect(isUserSessionInvalidError(json)).toBe(true);
+  });
 
-  const regularRoleWithIrrelevantMessages = {
-    error: 'role admin is not found',
-    messages: ['some_other_message'],
-  };
-  expect(
-    isUserSessionRoleNotFoundError(regularRoleWithIrrelevantMessages)
-  ).toBe(false);
+  test('returns false for an unrelated 403/404 error', () => {
+    const json = { error: { message: 'role admin is not found' } };
+    expect(isUserSessionInvalidError(json)).toBe(false);
+  });
 
-  const nonRoleError = { error: 'failed to list access lists' };
-  expect(isUserSessionRoleNotFoundError(nonRoleError)).toBe(false);
+  // TODO(Joerger): DELETE IN v20.0.0 - covers the legacy wrapped message.
+  test('falls back to the legacy wrapped message format', () => {
+    const json = {
+      error: 'role admin is not found',
+      messages: ['user session role not found'],
+    };
+    expect(isUserSessionInvalidError(json)).toBe(true);
+  });
+
+  test('legacy fallback ignores irrelevant messages', () => {
+    const json = {
+      error: 'role admin is not found',
+      messages: ['some_other_message'],
+    };
+    expect(isUserSessionInvalidError(json)).toBe(false);
+  });
+
+  test('handles a response with no error field at all', () => {
+    expect(isUserSessionInvalidError({})).toBe(false);
+  });
 });
 
-describe('handling of role not found errors', () => {
+describe('handling of invalid session errors', () => {
   afterEach(() => {
     jest.resetAllMocks();
   });
 
-  test('sign out on user session role not found error', async () => {
+  test.each([
+    ['removed user', 'user expired or removed'],
+    ['missing session role', 'user session role not found'],
+  ])('sign out on %s error', async (_name, message) => {
     jest.spyOn(global, 'fetch').mockResolvedValue({
-      json: async () => ({
-        error: {
-          message: 'role foo is not found',
-        },
-        messages: ['user session role not found'],
-      }),
+      json: async () => ({ error: { message } }),
       ok: false,
-      status: 404,
+      status: 403,
     } as Response);
 
     await api.get('/foobar');

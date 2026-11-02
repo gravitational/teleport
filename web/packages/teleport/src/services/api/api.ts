@@ -255,7 +255,7 @@ const api = {
     }
 
     /** This error can occur in the edge case where a role in the user's certificate was deleted during their session. */
-    const isUserSessionRoleNotFoundErr = isUserSessionRoleNotFoundError(json);
+    const isUserSessionRoleNotFoundErr = isUserSessionInvalidError(json);
     if (isUserSessionRoleNotFoundErr) {
       websession.logoutWithoutSlo({
         /* Don't remember location after login, since they may no longer have access to the page they were on. */
@@ -414,11 +414,24 @@ export function isAdminActionRequiresMfaError(err: unknown) {
   );
 }
 
-/** isUserSessionRoleNotFoundError returns true if the error is a role not found error encountered durings user session role validation */
-export function isUserSessionRoleNotFoundError(json: any): boolean {
-  // Keep in sync with lib/services/role.go(UserSessionRoleNotFoundError)
+/**
+ * isUserSessionInvalidError returns true if the error indicates the user's
+ * session is no longer valid because the backing user or one of the roles on
+ * their cert roles was removed.
+ * Keep in sync with authz.ErrUserNotFound / authz.ErrUserSessionRoleNotFound
+ * in lib/authz/permissions.go.
+ */
+export function isUserSessionInvalidError(json: any): boolean {
+  // TODO(Joerger): DELETE IN v20.0.0 - older auth servers wrap the role not
+  // found error with a message instead, landing it in the top-level `messages`
+  // list rather than `error.message`.
+  if (json?.messages?.includes('user session role not found')) {
+    return true;
+  }
+
+  const msg = json?.error?.message;
   return (
-    !!json.error && !!json?.messages?.includes('user session role not found')
+    msg === 'user expired or removed' || msg === 'user session role not found'
   );
 }
 
