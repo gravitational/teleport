@@ -3664,7 +3664,7 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 
 	// unless the user has allow directives for reviewing, they will never be able to
 	// see any requests other than their own.
-	if !checker.HasAllowDirectives() {
+	if !checker.HasAllowDirectives() && !checker.CanBeDelegator() {
 		if req.Filter.User != "" {
 			// filter specifies a user, but it wasn't caught by the preceding exception,
 			// so just return nothing.
@@ -3682,7 +3682,7 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 			return true
 		}
 
-		canReview, _, err := checker.CanReviewRequest(accessRequest)
+		canReview, _, err := checker.CanReviewRequest(ctx, accessRequest)
 		if err != nil {
 			a.authServer.logger.WarnContext(ctx, "Failed to evaluate review permissions for user against access request",
 				"user", a.context.User.GetName(),

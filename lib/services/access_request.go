@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -997,6 +998,8 @@ type allowReviewEntry struct {
 // ReviewPermissionChecker is a helper for validating whether a user
 // is allowed to review specific access requests.
 type ReviewPermissionChecker struct {
+	logger    *slog.Logger
+	getter    RequestValidatorGetter
 	UserState UserState
 	Roles     struct {
 		// AllowReview maps allow directives, keyed by their constraining predicate
@@ -1008,6 +1011,8 @@ type ReviewPermissionChecker struct {
 		// constraining predicate (where) expression.
 		DenyReview map[string][]parse.Matcher
 	}
+	standingRoleSet RoleSet
+	clusterName     string
 }
 
 // HasAllowDirectives checks if any allow directives exist.  A user with
@@ -1023,6 +1028,17 @@ func (c *ReviewPermissionChecker) HasAllowDirectives() bool {
 	return false
 }
 
+// CanBeDelegator checks if any allow directives exist containing
+// `delegation.roles`. A user with no delegatable roles can never be a
+// delegator. This is an inexpensive check and may produce false positives.
+func (c *ReviewPermissionChecker) CanBeDelegator() bool {
+	// Failed to load user roles in `NewReviewPermissionChecker`
+	if len(c.standingRoleSet) == 0 {
+		return false
+	}
+	return c.standingRoleSet.CanBeDelegator()
+}
+
 // CanReviewRequest checks if the user is allowed to review the specified request.
 // Note that the ability to review a request does not necessarily imply that any specific
 // approval/denial thresholds will actually match the user's review.  Matching one or more
@@ -1032,7 +1048,7 @@ func (c *ReviewPermissionChecker) HasAllowDirectives() bool {
 // Only entries that contributed to satisfying this specific request are
 // considered: a role's GrantableTraits can never be used based on another,
 // unrelated role's matchers matching the request.
-func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (bool, map[string]struct{}, error) {
+func (c *ReviewPermissionChecker) CanReviewRequest(ctx context.Context, req types.AccessRequest) (bool, map[string]struct{}, error) {
 	// TODO(fspmarshall): Refactor this to improve readability when
 	// adding role subselection support.
 
@@ -1082,6 +1098,21 @@ func (c *ReviewPermissionChecker) CanReviewRequest(req types.AccessRequest) (boo
 				}
 			}
 		}
+	}
+
+	// check if review is allowed by delegation
+	canReviewAsDelegator, err := c.canReviewAsDelegator(req)
+	if err != nil {
+		// log errors as warnings and drop through to the ordinary reviewer
+		// checks
+		c.logger.WarnContext(
+			ctx, "Failed to check if reviewer can review request as identity delegator",
+			"request_id", req.GetName(),
+			"reviewer", c.UserState.GetName(),
+			"error", err,
+		)
+	} else if canReviewAsDelegator {
+		return true, nil, nil
 	}
 
 	// needsAllow tracks the list of roles which still need to match an allow directive
@@ -1256,15 +1287,42 @@ func NewReviewPermissionChecker(
 		}
 	}
 
+	clusterName, err := getter.GetClusterName(ctx)
+	if err != nil {
+		return ReviewPermissionChecker{}, trace.Wrap(err, "getting cluster name")
+	}
+
 	c := ReviewPermissionChecker{
-		UserState: uls,
+		logger:      slog.With(teleport.ComponentKey, "request.review-permission-checker"),
+		getter:      getter,
+		UserState:   uls,
+		clusterName: clusterName.GetClusterName(),
 	}
 
 	c.Roles.AllowReview = make(map[string][]allowReviewEntry)
 	c.Roles.DenyReview = make(map[string][]parse.Matcher)
 
-	// load all statically assigned roles for the user and
-	// use them to build our checker state.
+	// Read the user to discover their standing roles (without assumed access
+	// requests).
+	user, err := c.getter.GetUser(ctx, uls.GetName(), false /* withSecrets */)
+	if err != nil {
+		c.logger.WarnContext(ctx, "Failed to load user's standing access for delegation checks",
+			"user", uls.GetName(),
+			"error", err,
+		)
+	} else {
+		c.standingRoleSet, err = FetchRolesForUser(user, getter)
+		if err != nil {
+			c.logger.WarnContext(ctx, "Failed to load user's standing roles for delegation checks",
+				"user", uls.GetName(),
+				"error", err,
+			)
+		}
+	}
+
+	// Load all assigned roles for the user including those assumed through
+	// access requests or held via access lists and use them to build our
+	// checker state.
 	for _, roleName := range c.UserState.GetRoles() {
 		role, err := getter.GetRole(ctx, roleName)
 		if err != nil {
@@ -1303,6 +1361,106 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 	})
 
 	return nil
+}
+
+// canReviewAsDelegator determines if this user can review as a delegator of the
+// requester without needing the usual `allow.review_requests.roles`.
+//
+// This is permitted given the following invariants:
+//
+// The relationship is authentic: The request owner is a delegate of the
+// identified delegator. Neither identity nor the relationship is caller-
+// controlled.
+//
+// The request is resource-based: The request must contain at least one
+// requested resource. Role-based requests cannot be approved by a delegator.
+//
+// The request was fully validated at creation: The normal Access Request
+// validator must have:
+//   - Resolved the roles needed for the requested resources.
+//   - Verified Kubernetes subresources, SSH logins, and other constraints.
+//   - Stored an immutable representation of the resources, constraints, and
+//     resolved roles.
+//
+// The delegator currently holds every resolved role as standing access: The
+// comparison must use the delegator's current standing roles, excluding roles
+// obtained from active Access Requests or other temporary elevation.
+//
+// All delegator deny effects are retained by the delegate.
+// Every standing role that contributes an applicable deny condition must be
+// assigned to the delegate.
+//
+// Role evaluation is equivalent for both identities: The delegate must receive
+// the delegator's traits.
+//
+// Errors fail closed: Missing roles, malformed requests, or indeterminate
+// authorization results must cause escalation to normal reviewers rather than
+// delegator approval.
+func (c *ReviewPermissionChecker) canReviewAsDelegator(req types.AccessRequest) (bool, error) {
+	// Only resource-based access requests support delegator review
+	resources := req.GetAllRequestedResourceIDs()
+	if len(resources) < 1 {
+		return false, nil
+	}
+
+	// Check the user matches the delegator in the chain
+	var delegation *delegationv1.Delegation
+	if req.GetDelegation() != nil {
+		delegation = types.DelegationFromLegacy(&types.Delegation{
+			Chain: req.GetDelegation().Chain,
+		})
+	}
+	ok, err := c.assertDelegator(delegation)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if !ok {
+		return false, nil
+	}
+
+	// Check the delegator holds the requested roles as standing roles. Using
+	// GetRoles (instead of GetOriginalRoles) here to remain consistent with the
+	// roles that apply when the request is assumed.
+	requestedRoles := req.GetRoles()
+	if !c.assertStandingRoles(requestedRoles) {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (c *ReviewPermissionChecker) assertDelegator(delegation *delegationv1.Delegation) (bool, error) {
+	chain := delegation.GetChain()
+	if len(chain) == 0 {
+		return false, nil
+	}
+	// Bot users cannot currently be reviewing delegators.
+	if c.UserState.IsBot() {
+		return false, nil
+	}
+	// The original delegator is the top of the chain
+	originalDelegator, err := DelegatorUsername(chain[0])
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	// Check that this user is the original delegator
+	return originalDelegator == c.UserState.GetName(), nil
+}
+
+func (c *ReviewPermissionChecker) assertStandingRoles(roles []string) bool {
+	// Failed to load user roles in `NewReviewPermissionChecker`
+	if len(c.standingRoleSet) == 0 {
+		return false
+	}
+	for _, role := range roles {
+		if !c.standingRoleSet.HasRole(role) {
+			return false
+		}
+		if c.standingRoleSet.IsAccessReviewRoleDenied(role) {
+			return false
+		}
+	}
+	return true
 }
 
 // RequestValidator is a helper for validating access requests.
@@ -1999,7 +2157,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 	}
 
 	// For fetching the underling resources, we can safely discard additional info carried on the ResourceAccessID.
-	underlyingResources, err := m.getUnderlyingResourcesByResourceIDs(ctx, types.RiskyExtractResourceIDs(resourceAccessIDs))
+	underlyingResources, err := getUnderlyingResourcesByResourceIDs(ctx, m.getter, types.RiskyExtractResourceIDs(resourceAccessIDs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2230,7 +2388,7 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 			constrainedIDs = append(constrainedIDs, r)
 		}
 	}
-	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, types.RiskyExtractResourceIDs(constrainedIDs))
+	resources, err := getUnderlyingResourcesByResourceIDs(ctx, m.getter, types.RiskyExtractResourceIDs(constrainedIDs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2744,19 +2902,19 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	localClusterName := clusterNameResource.GetClusterName()
 
 	localResourceAccessIDs := make([]types.ResourceAccessID, 0, len(requestedResourceAccessIDs))
-	hasForeignResources := false
+	hasRemoteResources := false
 	for _, resource := range requestedResourceAccessIDs {
 		resourceID := resource.GetResourceID()
 		if resourceID.ClusterName == localClusterName {
 			localResourceAccessIDs = append(localResourceAccessIDs, resource)
 			continue
 		}
-		hasForeignResources = true
+		hasRemoteResources = true
 		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Retaining search_as_roles for a leaf resource",
 			slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
 		)
 	}
-	if len(localResourceAccessIDs) == 0 || (hasForeignResources && !m.opts.expandVars) {
+	if len(localResourceAccessIDs) == 0 || (hasRemoteResources && !m.opts.expandVars) {
 		return roles, nil
 	}
 
@@ -2775,7 +2933,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 
 	// For fetching the underling resources, we can safely discard additional info carried on the ResourceAccessID.
 	requestedResourceIDs := types.RiskyExtractResourceIDs(localResourceAccessIDs)
-	underlyingResources, err := m.getUnderlyingResourcesByResourceIDs(ctx, requestedResourceIDs)
+	underlyingResources, err := getUnderlyingResourcesByResourceIDs(ctx, m.getter, requestedResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2912,7 +3070,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	for role := range necessaryRoles {
 		result = append(result, role)
 	}
-	if hasForeignResources {
+	if hasRemoteResources {
 		result = roles
 	}
 
@@ -3088,11 +3246,18 @@ func constraintValuesError(resource types.ResourceWithLabels, ungranted []string
 		strings.Join(ungranted, ", "), resource.GetKind(), resource.GetName())
 }
 
-// getUnderlyingResourcesByResourceIDs gets the underlying resources the user
-// requested access. Except for resource Kinds present in types.KubernetesResourcesKinds,
-// the underlying resources are the same as requested. If the resource requested
-// is a Kubernetes resource, we return the underlying Kubernetes cluster.
-func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Context, resourceIDs []types.ResourceID) ([]types.ResourceWithLabels, error) {
+// getUnderlyingResourcesByResourceIDs gets the concrete resources identified by
+// resourceIDs. Kubernetes subresources are authorized through their parent
+// Kubernetes cluster, so their IDs are translated to kube_cluster before lookup.
+//
+// The returned slice may contain fewer entries than resourceIDs when resources
+// no longer exist. Callers making an all-resources authorization decision must
+// compare the requested and returned sets and fail closed on missing entries.
+func getUnderlyingResourcesByResourceIDs(
+	ctx context.Context,
+	getter client.ListResourcesClient,
+	resourceIDs []types.ResourceID,
+) ([]types.ResourceWithLabels, error) {
 	if len(resourceIDs) == 0 {
 		return []types.ResourceWithLabels{}, nil
 	}
@@ -3107,11 +3272,11 @@ func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Conte
 		}
 	}
 	// load the underlying resources.
-	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, m.getter, searchableResourcesIDs)
+	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, getter, searchableResourcesIDs)
 	return resources, trace.Wrap(err)
 }
 
-// GetKubeResourcesFromResourceIDs returns the Kubernetes resources requested for
+// getKubeResourcesFromResourceIDs returns the Kubernetes Resources requested for
 // the configured cluster.
 func GetKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName string) ([]types.KubernetesResource, error) {
 	kubernetesResources := make([]types.KubernetesResource, 0, len(resourceIDs))

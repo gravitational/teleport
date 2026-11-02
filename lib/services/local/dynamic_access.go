@@ -213,7 +213,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		}
 
 		// verify review permissions against request details
-		ok, grantableTraits, err := checker.CanReviewRequest(req)
+		ok, grantableTraits, err := checker.CanReviewRequest(ctx, req)
 		if err != nil || !ok {
 			if err == nil {
 				err = trace.AccessDenied("user %q cannot review request %q", params.Review.Author, params.RequestID)

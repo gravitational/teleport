@@ -3560,6 +3560,33 @@ func (set RoleSet) MaybeCanReviewRequests() bool {
 	return false
 }
 
+// CanBeDelegator returns true if this RoleSet allows delegation (see
+// `delegation.roles`).
+func (rs RoleSet) CanBeDelegator() bool {
+	allow := setutils.Set[string]{}
+	deny := setutils.Set[string]{}
+	for _, r := range rs {
+		deny.Add(r.GetDelegationRoles(types.Deny)...)
+		if deny.Contains(types.Wildcard) {
+			return false
+		}
+		allow.Add(r.GetDelegationRoles(types.Allow)...)
+	}
+	return allow.Subtract(deny).Len() > 0
+}
+
+// IsAccessReviewRoleDenied checks if there is a `deny.review_requests.roles`
+// covering the given role name.
+func (rs RoleSet) IsAccessReviewRoleDenied(role string) bool {
+	for _, r := range rs {
+		cond := r.GetAccessReviewConditions(types.Deny)
+		if slices.Contains(cond.Roles, role) {
+			return true
+		}
+	}
+	return false
+}
+
 // PermitX11Forwarding returns true if this RoleSet allows X11 Forwarding.
 func (set RoleSet) PermitX11Forwarding() bool {
 	for _, role := range set {

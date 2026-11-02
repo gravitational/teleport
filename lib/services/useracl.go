@@ -255,7 +255,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	instances := newAccess(userRoles, ctx, types.KindInstance)
 	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
 	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
-	reviewRequests := userRoles.MaybeCanReviewRequests()
+	reviewRequests := userRoles.MaybeCanReviewRequests() || userRoles.CanBeDelegator()
 	fileTransferAccess := userRoles.CanCopyFiles()
 	workloadIdentity := newAccess(userRoles, ctx, types.KindWorkloadIdentity)
 

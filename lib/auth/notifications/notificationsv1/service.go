@@ -344,7 +344,7 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 
 		var results []bool
 		for _, roleConditions := range roleConditionsList {
-			match, err := s.matchRoleConditions(authCtx, getReviewChecker, roleConditions)
+			match, err := s.matchRoleConditions(ctx, authCtx, getReviewChecker, roleConditions)
 			if err != nil {
 				slog.WarnContext(ctx, "Encountered error while matching RoleConditions", "role_conditions", roleConditions, "error", err)
 				return false
@@ -374,7 +374,7 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 	return false
 }
 
-func (s *Service) matchRoleConditions(authCtx *authz.Context, getReviewChecker func() (*services.ReviewPermissionChecker, error), rc *types.RoleConditions) (bool, error) {
+func (s *Service) matchRoleConditions(ctx context.Context, authCtx *authz.Context, getReviewChecker func() (*services.ReviewPermissionChecker, error), rc *types.RoleConditions) (bool, error) {
 	if len(rc.Logins) > 0 {
 		userLogins := authCtx.Checker.GetAllLogins()
 		var matchedLogin bool
@@ -428,7 +428,7 @@ func (s *Service) matchRoleConditions(authCtx *authz.Context, getReviewChecker f
 			return false, trace.Wrap(err)
 		}
 
-		canReview, _, err := checker.CanReviewRequest(fakeAccessRequest)
+		canReview, _, err := checker.CanReviewRequest(ctx, fakeAccessRequest)
 		if err != nil {
 			return false, trace.Wrap(err, "failed to evaluate request review permissions")
 		}
