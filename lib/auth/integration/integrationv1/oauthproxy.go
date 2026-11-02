@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/zitadel/oidc/v3/pkg/client"
 	"golang.org/x/oauth2"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -54,10 +53,6 @@ const (
 	// oauthProxyAuthRequestTTL is the duration to store an in-flight request.
 	// This must be long enough for the authorizer to complete authorization and consent.
 	oauthProxyAuthRequestTTL = 5 * time.Minute
-	// discoverTimeout is the timeout for an OIDC discovery request.
-	// The request times out, rather than retries, because some of the endpoints to be discovered are optional,
-	// and we don't want to make the user wait indefinitely if they can't be discovered.
-	discoverTimeout = 15 * time.Second
 	// exchangeTimeout is the timeout for an OAuth exchange request.
 	// The request times out, rather than retries, because authorization code is single use and requests are not idempotent.
 	exchangeTimeout = 15 * time.Second
@@ -313,45 +308,20 @@ func (s *OAuthProxyService) oauthConfig(ctx context.Context, ig types.Integratio
 		return nil, trace.Wrap(err)
 	}
 
-	spec := ig.GetOAuthProxyIntegrationSpec()
-	authorizationEndpoint := spec.AuthorizationEndpoint
-	tokenEndpoint := spec.TokenEndpoint
-
-	shouldDiscover := authorizationEndpoint == "" || tokenEndpoint == ""
-
-	if shouldDiscover {
-		discoverCtx, cancel := context.WithTimeout(ctx, discoverTimeout)
-		defer cancel()
-
-		dc, err := client.Discover(discoverCtx, spec.IssuerUrl, s.client)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to call discovery endpoint", "issuer_url", spec.IssuerUrl, "error", err)
-		} else {
-			if authorizationEndpoint == "" && dc.AuthorizationEndpoint != "" {
-				if err := validateHTTPSEndpoint(dc.AuthorizationEndpoint); err != nil {
-					s.logger.ErrorContext(ctx, "Discovered authorization_endpoint is invalid", "authorization_endpoint", dc.AuthorizationEndpoint, "error", err)
-					return nil, trace.BadParameter("discovered authorization_endpoint is invalid")
-				}
-				authorizationEndpoint = dc.AuthorizationEndpoint
-			}
-			if tokenEndpoint == "" && dc.TokenEndpoint != "" {
-				if err := validateHTTPSEndpoint(dc.TokenEndpoint); err != nil {
-					s.logger.ErrorContext(ctx, "Discovered token_endpoint is invalid", "token_endpoint", dc.TokenEndpoint, "error", err)
-					return nil, trace.BadParameter("discovered token_endpoint is invalid")
-				}
-				tokenEndpoint = dc.TokenEndpoint
-			}
-		}
+	endpoints, err := credentials.ResolveOAuthProxyEndpoints(ctx, ig, s.client, credentials.OAuthEndpointKindAuthorize, credentials.OAuthEndpointKindToken)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to resolve endpoints", "error", err)
+		return nil, trace.BadParameter("failed to resolve endpoints")
 	}
 
 	switch {
-	case authorizationEndpoint == "":
+	case endpoints.Authorize == "":
 		return nil, trace.BadParameter("authorization_endpoint is required")
-	case tokenEndpoint == "":
+	case endpoints.Token == "":
 		return nil, trace.BadParameter("token_endpoint is required")
 	}
 
-	clientID, clientSecret, err := s.oauthProxyClientSecret(ctx, ig)
+	clientID, clientSecret, err := credentials.GetOAuthProxyClient(ctx, ig, s.cache)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -360,10 +330,10 @@ func (s *OAuthProxyService) oauthConfig(ctx context.Context, ig types.Integratio
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURL:  redirectURL,
-		Scopes:       spec.Scopes,
+		Scopes:       ig.GetOAuthProxyIntegrationSpec().Scopes,
 		Endpoint: oauth2.Endpoint{
-			AuthURL:   authorizationEndpoint,
-			TokenURL:  tokenEndpoint,
+			AuthURL:   endpoints.Authorize,
+			TokenURL:  endpoints.Token,
 			AuthStyle: oauth2.AuthStyleAutoDetect,
 		},
 	}, nil
@@ -380,28 +350,11 @@ func (s *OAuthProxyService) redirectURI(ctx context.Context, integration string)
 		publicProxyAddr = "https://" + publicProxyAddr
 	}
 
-	if err := validateHTTPSEndpoint(publicProxyAddr); err != nil {
+	if err := credentials.ValidateHTTPSEndpoint(publicProxyAddr); err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	return fmt.Sprintf("%s/web/integrations/oauthproxy/%s/callback", publicProxyAddr, url.PathEscape(integration)), nil
-}
-
-// oauthProxyClientSecret returns the client ID and client secret for an OAuth Proxy integration from its static credentials ref.
-func (s *OAuthProxyService) oauthProxyClientSecret(ctx context.Context, ig types.Integration) (string, string, error) {
-	creds := ig.GetCredentials()
-	if creds == nil || creds.GetStaticCredentialsRef() == nil {
-		return "", "", trace.NotFound("integration %q has no credentials", ig.GetName())
-	}
-
-	cred, err := credentials.GetByPurpose(ctx, creds.GetStaticCredentialsRef(), credentials.PurposeOAuthProxyClient, s.cache)
-	if err != nil {
-		return "", "", trace.Wrap(err)
-	}
-
-	clientID, clientSecret := cred.GetOAuthClientSecret()
-
-	return clientID, clientSecret, nil
 }
 
 func (s *OAuthProxyService) storeUserCredentials(ctx context.Context, integration, user string, tok *oauth2.Token) error {
@@ -488,19 +441,6 @@ func grantedScopes(requestedScopes []string, tok *oauth2.Token) []string {
 	}
 
 	return requestedScopes
-}
-
-// validateHTTPSEndpoint ensures the given endpoint is a valid HTTPS URL.
-func validateHTTPSEndpoint(endpoint string) error {
-	u, err := url.Parse(endpoint)
-	switch {
-	case err != nil:
-		return trace.Wrap(err)
-	case u.Scheme != "https" || u.Host == "":
-		return trace.BadParameter("not a valid HTTPS URL")
-	}
-
-	return nil
 }
 
 func validateCompleteOAuthProxyAuthorizationRequest(req *integrationpb.CompleteOAuthProxyAuthorizationRequest) error {

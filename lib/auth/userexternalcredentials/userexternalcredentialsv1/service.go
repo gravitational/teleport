@@ -21,6 +21,7 @@ package userexternalcredentialsv1
 import (
 	"context"
 	"crypto/x509"
+	"iter"
 	"log/slog"
 	"net/http"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/credentialencryption"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/userexternalcredentials"
@@ -49,6 +51,9 @@ type Cache interface {
 	services.GitServerGetter
 	credentials.IntegrationGetter
 	credentials.ByLabelsGetter
+
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
 }
 
 // rateLimiter limits the rate of requests by token, e.g.
@@ -95,6 +100,8 @@ type ServiceConfig struct {
 	// UpstreamTransport (optional) overrides the HTTP transport used for
 	// calling external services, e.g. GitHub. Used in tests.
 	UpstreamTransport http.RoundTripper
+	// Emitter emits audit events for credential refresh.
+	Emitter apievents.Emitter
 	// httpClient is the client for calling external services, e.g. GitHub.
 	httpClient *http.Client
 }
@@ -183,6 +190,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 	s.handlers = map[string]resourceHandler{
 		types.KindGitServer: &gitServerHandler{cfg: &s.cfg},
+		// Currently, OAuth Proxy is the only integration that supports user external credentials,
+		// so KindIntegration maps directly to the OAuth Proxy handler.
+		types.KindIntegration: &oauthProxyHandler{cfg: &s.cfg},
 	}
 	return s, nil
 }
