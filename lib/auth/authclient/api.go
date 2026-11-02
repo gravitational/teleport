@@ -1558,6 +1558,9 @@ type Cache interface {
 	services.SummarizerServiceGetter
 	// BeamReader defines methods for reading beam resources.
 	services.BeamReader
+
+	// PhaseReader defines methods for reading Phase resources.
+	services.PhaseReader
 	// BeamsConfigGetter reads BeamsConfig.
 	services.BeamsConfigGetter
 
