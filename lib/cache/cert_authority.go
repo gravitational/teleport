@@ -58,7 +58,8 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 					Name: hdr.Metadata.Name,
 				},
 				Spec: types.CertAuthoritySpecV2{
-					Type: types.CertAuthType(hdr.SubKind),
+					Type:        types.CertAuthType(hdr.SubKind),
+					ClusterName: hdr.Metadata.Name,
 				},
 			}
 		},
