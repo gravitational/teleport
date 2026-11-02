@@ -4780,6 +4780,10 @@ func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
 		}
+		var sshExitErr *ssh.ExitError
+		if errors.As(err, &sshExitErr) && sshExitErr.Msg() == "" && sshExitErr.Signal() == "" {
+			return trace.Wrap(&common.ExitCodeError{Code: status})
+		}
 		if err != nil {
 			// Print the error here so we don't lose it when returning the exitCodeError.
 			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
