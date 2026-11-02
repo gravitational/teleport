@@ -312,7 +312,7 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 			collection:      c.collections.dbServers,
 			index:           databaseServerDatabaseNameIndex,
 			nextToken:       databaseServerByDatabaseNameKey,
-			defaultPageSize: defaults.DefaultChunkSize,
+			defaultPageSize: c.Config.defaultPageSize,
 			upstreamList:    upstreamListFn,
 		}
 

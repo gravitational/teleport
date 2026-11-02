@@ -282,7 +282,7 @@ func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName str
 			collection:      c.collections.appServers,
 			index:           appServerAppNameIndex,
 			nextToken:       appServerByAppNameKey,
-			defaultPageSize: defaults.DefaultChunkSize,
+			defaultPageSize: c.Config.defaultPageSize,
 			upstreamList:    upstreamListFn,
 		}
 

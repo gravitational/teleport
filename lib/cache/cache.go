@@ -812,6 +812,8 @@ type Config struct {
 	MetricComponent string
 	// QueueSize is a desired queue Size
 	QueueSize int
+	// defaultPageSize overrides the page size used for internal paginated reads.
+	defaultPageSize int
 	// neverOK is used in tests to create a cache that appears to never
 	// becomes healthy, meaning that it will always end up hitting the
 	// real backend and the ttl cache.
@@ -895,6 +897,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.RelativeExpiryLimit == 0 {
 		c.RelativeExpiryLimit = 2000
+	}
+	if c.defaultPageSize == 0 {
+		c.defaultPageSize = apidefaults.DefaultChunkSize
 	}
 	if c.Component == "" {
 		c.Component = teleport.ComponentCache

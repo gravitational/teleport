@@ -178,7 +178,7 @@ func (c *Cache) RangeKubernetesServersWithName(ctx context.Context, clusterName 
 			collection:      c.collections.kubeServers,
 			index:           kubeServerClusterNameIndex,
 			nextToken:       kubeServerByClusterNameKey,
-			defaultPageSize: defaults.DefaultChunkSize,
+			defaultPageSize: c.Config.defaultPageSize,
 			upstreamList:    upstreamListFn,
 		}
 
