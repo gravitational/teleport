@@ -402,7 +402,7 @@ func (k *KubernetesClusterV3) GetScope() string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (k *KubernetesClusterV3) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(k.GetAllLabels()), k.GetName())
+	fieldVals := append(utils.MapToStrings(k.GetAllLabels()), k.GetName(), k.GetScope())
 	return MatchSearch(fieldVals, values, nil)
 }
 

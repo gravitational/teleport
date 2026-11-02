@@ -718,6 +718,10 @@ Outer:
 			}
 		}
 
+		if strcase.Contains(s.Scope, searchV) {
+			continue
+		}
+
 		if strcase.Contains(s.Metadata.Name, searchV) {
 			continue
 		}

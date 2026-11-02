@@ -459,7 +459,7 @@ func (a *AppV3) GetCORS() *CORSPolicy {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (a *AppV3) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName(), a.GetDescription(), a.GetPublicAddr())
+	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName(), a.GetDescription(), a.GetPublicAddr(), a.GetScope())
 	return MatchSearch(fieldVals, values, nil)
 }
 
