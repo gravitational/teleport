@@ -103,7 +103,13 @@ be assumed unsupported in scoped mode.
   at a scope, registering dynamic clusters, and assigning scoped Kubernetes
   access to users.
 - Basic scoped Application access, including joining Application Services
-  at a scope and assigning scoped application access to users.
+  at a scope, registering dynamic applications, and assigning
+  scoped application access to users.
+- Scoped AWS console apps through registering statically on an Application Service,
+  or through OIDC and AWS IAM Roles Anywhere integrations, which give scoped
+  users access to the AWS console through scoped applications.
+  These integrations are created with `tctl` or Terraform, and the AWS setup scripts; the
+  Web UI does not support them yet.
 - Scoped Access Lists that can be managed by scoped administrators and used to
   grant scoped roles to groups of users.
 - Scoped Bots for Machine and Workload Identity (MWI), supporting both
@@ -128,6 +134,8 @@ scoped mode:
 - `tsh kube login <cluster>` (for Kubernetes clusters available at the current scope)
 - `tsh apps ls` (lists applications available at the current scope)
 - `tsh apps login <app>` (for applications available at the current scope)
+- `tsh aws --app <app> ...` (for AWS console applications backed by a scoped
+  AWS OIDC integration)
 - `tctl get|create|edit|rm <resource>` (for scoped resources)
 - `tctl scoped tokens add|rm|ls ...` (for managing scoped tokens)
 - `tctl scopes status` (overview of scoped privilege usage in the cluster)
@@ -188,8 +196,11 @@ spec:
     labels:
       - name: '*'
         values: ['*']
+    aws:
+      role_arns:
+      - arn:aws:iam::123456789012:role/example-readonly
   rules:
-    - resources: [scoped_role, scoped_role_assignment, bot, bot_instance, access_list]
+    - resources: [scoped_role, scoped_role_assignment, bot, bot_instance, access_list, app_server, integration, app]
       verbs: [create, list, read, update, delete]
     - resources: [scoped_token, kube_cluster]
       verbs: [create, list, read, secrets, update, delete]
@@ -329,9 +340,11 @@ cluster.
 
 ## Joining a scoped Application Service
 
-Only statically configured applications served by Application Services support
-joining with scopes. Dynamic application registration, including those discovered
-by the Teleport Discovery Service, does not yet support scopes.
+Application Service instances that join with a scoped token can serve both statically
+configured applications and dynamic `app` resources created in the same scope
+(see [Registering dynamic applications](#registering-dynamic-applications)).
+Applications discovered by the Teleport Discovery Service do not yet support
+scopes.
 
 Log the scoped admin into the desired scope:
 
@@ -405,6 +418,354 @@ curl \
   --cert "/Users/teleport-user/.tsh/keys/teleport.example.com/teleport-app/teleport.example.com/@lv7pgada3xgarg2rvk7gm4xgmx7nto6j.crt" \
   --key "/Users/teleport-user/.tsh/keys/teleport.example.com/teleport-app/teleport.example.com/@lv7pgada3xgarg2rvk7gm4xgmx7nto6j.key" \
   https://lv7pgada3xgarg2rvk7gm4xgmx7nto6j.teleport.example.com
+```
+
+### Registering dynamic applications
+
+Application Service instances that joined with a scoped token pick up dynamic applications in their assigned scope, 
+using the `resources` label matchers in their configuration, the same way as unscoped Application
+Service instances. An Application Service only serves dynamic applications in its own scope.
+
+Add a `resources` matcher to the Application Service configuration:
+
+```yaml
+app_service:
+  enabled: true
+  resources:
+    - labels:
+        "*": "*"
+```
+
+Create the application in the scope of the Application Service:
+
+```code
+$ tctl create <<EOF
+kind: app
+version: v3
+scope: /examples/basic
+metadata:
+  name: dynamic-grafana
+  labels:
+    env: staging
+spec:
+  uri: http://localhost:3000
+EOF
+```
+
+The Application Service registers it within a few seconds, with a derived
+public address:
+
+```code
+$ tsh apps ls
+Application                      Description Type Public Address                        Labels
+-------------------------------- ----------- ---- ------------------------------------- -----------
+/examples/basic::dynamic-grafana             HTTP 7ttymu4ogft5frph5gxtgfdqvsnz37tl.t... env=staging
+```
+
+Manage scoped dynamic applications with their scope-qualified name, for example
+- `tctl get app /examples/basic::dynamic-grafana`
+- `tctl rm app /examples/basic::dynamic-grafana`
+
+Scoped applications cannot set a `public_addr`, `required_apps`, or dynamic
+labels, and cannot be Azure or GCP cloud applications, stdio MCP servers, or
+LLM applications. An AWS console application can reference an integration in
+the same scope, as described in [Scoped AWS access](#scoped-aws-access).
+
+### Application JWTs
+
+Teleport signs a JWT for every request to an HTTP application and passes it to
+the application in the `Teleport-Jwt-Assertion` header. For a scoped
+application, the token's issuer and audience identify the application's scope
+and name:
+
+| Claim | Unscoped application | Scoped application |
+|---|---|---|
+| `iss` | `<cluster-name>` ex. `teleport.example.com`) | `<cluster-name><scope>` ex. `teleport.example.com/examples/basic` |
+| `aud` | The application URI ex. `http://localhost:3000`) | `<scope>/<app-name>` ex. `/examples/basic/scoped-grafana` |
+
+An application that validates the `iss` and `aud` claims therefore rejects
+tokens minted for an application in another scope, or for another application
+in the same scope. 
+
+## Scoped AWS access
+
+Scoped administrators can register a static AWS application on an Application Service.
+Applications registered statically here use the ambient credentials on the host machine.
+
+AWS OIDC and AWS IAM Roles Anywhere integrations can be created in a scope.
+A scoped integration gives scoped users access to the AWS console and AWS CLI
+through scoped applications, and AWS can tell integrations in different scopes
+apart, so a role in one scope cannot be assumed with credentials issued for
+another, given correctly configured AWS settings.
+
+- Only AWS OIDC and AWS IAM Roles Anywhere integrations can be scoped.
+- A scoped application refers to its integration by scope-qualified name
+  (`/examples/basic::aws-oidc`), and the integration must be in the same scope
+  as the application.
+- The Web UI does not support scoped integrations yet. Create them with `tctl`
+  (or the Terraform provider) and set up AWS with the scripts and commands
+  below.
+
+To access and manage scoped integrations and their AWS console applications, a scoped
+admin's role needs rules for the `integration` and `app_server` resources:
+
+```yaml
+  rules:
+    - resources: [integration, app_server]
+      verbs: [create, list, read, update, delete]
+```
+
+To use them, a scoped user's role lists the AWS roles they may assume:
+
+```yaml
+  app:
+    labels:
+      - name: '*'
+        values: ['*']
+    aws:
+      role_arns:
+        - arn:aws:iam::123456789012:role/example-readonly
+```
+
+### AWS OIDC
+
+Teleport signs a token for each AWS OIDC request and exchanges it with AWS STS
+for credentials, using `AssumeRoleWithWebIdentity`. AWS trusts the token
+because an IAM OIDC identity provider for the token's issuer exists in the AWS
+account, and the integration's IAM role trusts that provider.
+
+An unscoped integration uses the cluster's issuer,
+`https://teleport.example.com`, so any role that trusts the cluster's IAM OIDC
+provider accepts tokens minted for any unscoped integration. A scoped
+integration uses its own issuer:
+
+```text
+https://<proxy>/scope/<scope>/<integration-name>
+```
+
+For example, `/examples/basic::aws-oidc` uses
+`https://teleport.example.com/scope/examples/basic/aws-oidc`. The Proxy Service
+serves the OpenID configuration for each scoped integration at
+`<issuer>/.well-known/openid-configuration`, with the cluster's signing keys.
+Each scoped integration needs its own IAM OIDC provider, and its role trusts
+only that provider, so AWS refuses a token minted for an integration in another
+scope. Scoped AWS OIDC integrations do not support `issuer_s3_uri`.
+
+#### Step 1/4. Create the IAM OIDC provider and role
+
+Generate the setup script for the integration. Pass the scope URL-encoded in
+the `scope` query parameter:
+
+```code
+$ curl -o awsoidc-idp.sh 'https://teleport.example.com/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=aws-oidc&role=teleport-aws-oidc&scope=%2Fexamples%2Fbasic'
+```
+
+Run it with AWS credentials for the target account in AWS
+CloudShell. The script downloads `teleport` and runs:
+
+```code
+$ teleport integration configure awsoidc-idp \
+  --cluster=teleport.example.com \
+  --name=aws-oidc \
+  --role=teleport-aws-oidc \
+  --proxy-public-url=https://teleport.example.com/scope/examples/basic/aws-oidc
+```
+
+You can run this command directly instead of the script. It prints the changes
+and asks for confirmation, then creates:
+
+- an IAM OIDC provider for
+  `https://teleport.example.com/scope/examples/basic/aws-oidc`, with the
+  audience `discover.teleport`;
+- the IAM role `teleport-aws-oidc`, whose trust policy allows
+  `sts:AssumeRoleWithWebIdentity` only from that provider:
+
+```json
+{
+  "Effect": "Allow",
+  "Principal": {
+    "Federated": "arn:aws:iam::123456789012:oidc-provider/teleport.example.com/scope/examples/basic/aws-oidc"
+  },
+  "Action": "sts:AssumeRoleWithWebIdentity",
+  "Condition": {
+    "StringEquals": {
+      "teleport.example.com/scope/examples/basic/aws-oidc:aud": "discover.teleport"
+    }
+  }
+}
+```
+
+Users access the AWS console as roles that the integration's role assumes.
+Allow `teleport-aws-oidc` to assume them (`sts:AssumeRole`), and have each of
+those roles trust `arn:aws:iam::123456789012:role/teleport-aws-oidc`.
+
+#### Step 2/4. Create the integration
+
+```code
+$ tctl create <<EOF
+kind: integration
+sub_kind: aws-oidc
+version: v1
+scope: /examples/basic
+metadata:
+  name: aws-oidc
+spec:
+  aws_oidc:
+    role_arn: arn:aws:iam::123456789012:role/teleport-aws-oidc
+EOF
+```
+
+#### Step 3/4. Register the AWS console application
+
+Register an AWS console application that uses the integration.
+
+```code
+$ tctl create <<EOF
+kind: app_server
+version: v3
+scope: /examples/basic
+metadata:
+  name: aws-oidc
+spec:
+  host_id: some-host-id
+  app:
+    kind: app
+    version: v3
+    scope: /examples/basic
+    metadata:
+      name: aws-oidc
+    spec:
+      uri: https://console.aws.amazon.com
+      cloud: AWS
+      integration: /examples/basic::aws-oidc
+EOF
+```
+
+The Proxy Service serves AWS console applications backed by an integration,
+so you do not need to start an Application Service.
+
+#### Step 4/4. Access AWS
+
+Log in to the scope, then to the application with one of the roles your scoped
+role allows:
+
+```code
+$ tsh login --user=alice --scope=/examples/basic --proxy=teleport.example.com
+$ tsh apps login /examples/basic::aws-oidc --aws-role arn:aws:iam::123456789012:role/example-readonly
+$ tsh aws --app /examples/basic::aws-oidc s3 ls
+```
+
+### AWS IAM Roles Anywhere
+
+With AWS IAM Roles Anywhere, the Auth Service signs a short-lived X.509
+certificate with the cluster's AWS Roles Anywhere certificate authority and
+exchanges it with AWS for credentials (`CreateSession`). A Roles Anywhere trust
+anchor in the AWS account holds that certificate authority.
+
+Every certificate the Auth Service signs for an integration carries the
+integration's identity as a URI subject alternative name (SAN):
+
+| Integration | URI SAN |
+|---|---|
+| Scoped, ex. `/examples/basic::aws-ra` | `urn:teleport:awsra:/examples/basic:aws-ra` |
+| Unscoped, ex. `aws-ra` | `urn:teleport:awsra:aws-ra` |
+
+AWS exposes the SAN to IAM as the `aws:PrincipalTag/x509SAN/URI` condition key.
+Every certificate chains to the same trust anchor, so a role that does not check
+the SAN can be assumed with a certificate issued for any integration in any
+scope. [Require the SAN](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/trust-model.html#trust-policy) in the trust policy of every role a scoped integration uses to emulate scoping isolation.
+
+#### Step 1/4. Create the trust anchor, sync profile, and sync role
+
+Generate the setup script:
+
+```code
+$ curl -o awsra-trust-anchor.sh 'https://teleport.example.com/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=aws-ra&trustAnchor=teleport-aws-ra&syncProfile=teleport-aws-ra-sync&syncRole=teleport-aws-ra-sync'
+```
+
+Run it with AWS credentials for the target account. The script downloads
+`teleport` and runs `teleport integration configure awsra-trust-anchor`, which
+you can also run directly. Export the certificate authority with
+`tctl auth export --type=awsra`:
+
+```code
+$ teleport integration configure awsra-trust-anchor \
+  --cluster=teleport.example.com \
+  --name=aws-ra \
+  --trust-anchor=teleport-aws-ra \
+  --sync-profile=teleport-aws-ra-sync \
+  --sync-role=teleport-aws-ra-sync \
+  --trust-anchor-cert-b64="$(tctl auth export --type=awsra | base64 | tr -d '\n')"
+```
+
+#### Step 2/4. Create the target role and profile
+
+Create the role users will assume. Its trust policy requires the trust anchor
+and the integration's URI SAN:
+
+```json
+{
+  "Effect": "Allow",
+  "Principal": { "Service": "rolesanywhere.amazonaws.com" },
+  "Action": ["sts:AssumeRole", "sts:TagSession", "sts:SetSourceIdentity"],
+  "Condition": {
+    "ArnEquals": {
+      "aws:SourceArn": "arn:aws:rolesanywhere:us-west-2:123456789012:trust-anchor/<trust-anchor-id>"
+    },
+    "StringEquals": {
+      "aws:PrincipalTag/x509SAN/URI": "urn:teleport:awsra:/examples/basic:aws-ra"
+    }
+  }
+}
+```
+
+Then create a Roles Anywhere profile that lists the role. 
+
+```code
+$ aws rolesanywhere create-profile --name example-readonly --enabled \
+  --role-arns arn:aws:iam::123456789012:role/example-readonly
+```
+
+#### Step 3/4. Create the integration
+
+Use the trust anchor and the sync profile and role from step 1.
+
+```code
+$ tctl create <<EOF
+kind: integration
+sub_kind: aws-ra
+version: v1
+scope: /examples/basic
+metadata:
+  name: aws-ra
+spec:
+  aws_ra:
+    trust_anchor_arn: arn:aws:rolesanywhere:us-west-2:123456789012:trust-anchor/<trust-anchor-id>
+    profile_sync_config:
+      enabled: true
+      profile_arn: arn:aws:rolesanywhere:us-west-2:123456789012:profile/<sync-profile-id>
+      role_arn: arn:aws:iam::123456789012:role/teleport-aws-ra-sync
+      profile_name_filters: ["example-readonly"]
+EOF
+```
+
+Teleport's profile syncer runs every few minutes. Once it has run, the application
+will appear in the integration's scope:
+
+```code
+$ tctl get app_server /examples/basic::example-readonly-aws-ra
+```
+
+#### Step 4/4. Access AWS
+
+Roles Anywhere applications hand credentials to the AWS CLI. Log in to the
+scope and the application, then use the AWS profile that `tsh` configures,
+named after the application:
+
+```code
+$ tsh login --user=alice --scope=/examples/basic --proxy=teleport.example.com
+$ tsh apps login /examples/basic::example-readonly-aws-ra --aws-role arn:aws:iam::123456789012:role/example-readonly
+$ aws --profile example-readonly-aws-ra s3 ls
 ```
 
 ### Adding immutable labels via a token
@@ -717,14 +1078,15 @@ For an example Access List with scope `/examples/basic`:
 ## Infrastructure as Code
 
 Scoped Roles, Scoped Role Assignments, Scoped Tokens, Kubernetes clusters,
-Access Lists, Access List Members, Bots, and Workload Identities can be
-managed with Teleport's IaC tooling.
+Integrations, Access Lists, Access List Members, Bots, and Workload Identities
+can be managed with Teleport's IaC tooling.
 
 The Teleport Terraform provider supports these resources:
 
 - [`teleport_access_list`](../../reference/infrastructure-as-code/terraform-provider/resources/access_list.mdx)
 - [`teleport_access_list_member`](../../reference/infrastructure-as-code/terraform-provider/resources/access_list_member.mdx)
 - [`teleport_bot`](../../reference/infrastructure-as-code/terraform-provider/resources/bot.mdx)
+- [`teleport_integration`](../../reference/infrastructure-as-code/terraform-provider/resources/integration.mdx)
 - [`teleport_kube_cluster`](../../reference/infrastructure-as-code/terraform-provider/resources/kube_cluster.mdx)
 - [`teleport_scoped_role`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_role.mdx)
 - [`teleport_scoped_role_assignment`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_role_assignment.mdx)
