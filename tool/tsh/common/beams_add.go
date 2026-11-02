@@ -165,10 +165,10 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 
 	switch strings.ToLower(c.format) {
 	case teleport.JSON:
-		c.maybeSyncCredentialsAndPrintError(ctx, tc, beam, cf.Stderr())
+		c.maybeSyncCredentialsAndPrintError(cf, ctx, tc, beam, cf.Stderr())
 		return trace.Wrap(common.PrintJSONIndent(cf.Stdout(), formatBeam(beam, proxyAddr)))
 	case teleport.YAML:
-		c.maybeSyncCredentialsAndPrintError(ctx, tc, beam, cf.Stderr())
+		c.maybeSyncCredentialsAndPrintError(cf, ctx, tc, beam, cf.Stderr())
 		return trace.Wrap(common.PrintYAML(cf.Stdout(), formatBeam(beam, proxyAddr)))
 	default:
 		if err := c.printCreatedMessage(cf.Stdout(), beam, c.region); err != nil {
@@ -181,7 +181,7 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 			// print into it.
 			syncErr := make(chan error, 1)
 			go func() {
-				syncErr <- c.maybeSyncCredentials(ctx, tc, beam)
+				syncErr <- c.maybeSyncCredentials(cf, ctx, tc, beam)
 			}()
 			sshErr := sshBeam(cf, tc, beam, nil)
 			if err := <-syncErr; err != nil {
@@ -192,22 +192,27 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 			}
 			return trace.Wrap(c.printReconnectMessage(cf.Stdout(), beam.GetStatus().GetAlias()))
 		}
-		c.maybeSyncCredentialsAndPrintError(ctx, tc, beam, cf.Stderr())
+		c.maybeSyncCredentialsAndPrintError(cf, ctx, tc, beam, cf.Stderr())
 	}
 
 	return nil
 }
 
-func (c *beamsAddCommand) maybeSyncCredentialsAndPrintError(ctx context.Context, tc *client.TeleportClient, beam *beamsv1.Beam, w io.Writer) {
-	if err := c.maybeSyncCredentials(ctx, tc, beam); err != nil {
+func (c *beamsAddCommand) maybeSyncCredentialsAndPrintError(cf *CLIConf, ctx context.Context, tc *client.TeleportClient, beam *beamsv1.Beam, w io.Writer) {
+	if err := c.maybeSyncCredentials(cf, ctx, tc, beam); err != nil {
 		fmt.Fprintf(w, "Warning: failed to share your connected accounts (such as GitHub) with the beam: %v\n", err)
 	}
 }
 
-func (c *beamsAddCommand) maybeSyncCredentials(ctx context.Context, tc *client.TeleportClient, beam *beamsv1.Beam) error {
+func (c *beamsAddCommand) maybeSyncCredentials(cf *CLIConf, ctx context.Context, tc *client.TeleportClient, beam *beamsv1.Beam) error {
 	if !c.shareConnectedAccounts {
 		logger.DebugContext(ctx, "Skipping credentials sync as sharing connected accounts is disabled")
 		return nil
+	}
+
+	profile, err := cf.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Beams with a delegation session (Delegation V1) do not create
@@ -229,7 +234,7 @@ func (c *beamsAddCommand) maybeSyncCredentials(ctx context.Context, tc *client.T
 		return nil
 	}
 
-	botUser, err := services.BotResourceName(apiscopes.QualifiedName{
+	targetBotUser, err := services.BotResourceName(apiscopes.QualifiedName{
 		Name: beam.GetStatus().GetBotName(),
 	})
 	if err != nil {
@@ -253,13 +258,23 @@ func (c *beamsAddCommand) maybeSyncCredentials(ctx context.Context, tc *client.T
 		return nil
 	}
 
+	// Resolve credential owner for nested beams.
+	credentialOwner := tc.Username
+	if chain := profile.Delegation.GetChain(); len(chain) > 0 {
+		rootDelegator, err := services.DelegatorUsername(chain[0])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		credentialOwner = rootDelegator
+	}
+
 	// The beam's tbot registers its credentials record when it joins, which is
 	// before the beam is ready. The bot of a beam is expected to have a single
 	// session.
 	listResp, err := clt.ListUserExternalCredentials(ctx, usercredpb.ListUserExternalCredentialsRequest_builder{
 		Filter: usercredpb.EncryptionKeyID_builder{
-			User:     tc.Username,
-			Delegate: botUser,
+			User:     credentialOwner,
+			Delegate: targetBotUser,
 		}.Build(),
 	}.Build())
 	if err != nil {
@@ -289,6 +304,7 @@ func (c *beamsAddCommand) maybeSyncCredentials(ctx context.Context, tc *client.T
 			return trace.Wrap(err)
 		}
 	}
+	logger.DebugContext(ctx, "Synced user credentials to beam", "beam", beam.GetStatus().GetAlias())
 	return nil
 }
 
