@@ -412,6 +412,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 			},
 			alpnproxy.WithHTTPMiddleware(kubeMiddleware),
 			alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
+			alpnproxy.WithUpstreamHTTP2(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -423,6 +424,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 			alpnproxy.WithHTTPMiddleware(kubeMiddleware),
 			alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
 			alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
+			alpnproxy.WithUpstreamHTTP2(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)

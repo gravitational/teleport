@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/net/http/httpguts"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -74,6 +75,10 @@ type reverseProxyKey struct {
 	// Keying on the certs rather than on a cluster name means a reissued cert yields a new pool by construction,
 	// so a pooled connection can never outlive the identity it was opened with.
 	certSum string
+	// upgrade is set for protocol upgrade requests (the websockets behind kubectl exec, attach and port-forward)
+	// when UpstreamHTTP2 is on. HTTP/2 forbids the Connection header an upgrade relies on,
+	// so these need a pool of their own that stays on HTTP/1.1.
+	upgrade bool
 }
 
 // pooledReverseProxy is a cached reverse proxy and the transport that owns its connection pool.
@@ -125,6 +130,9 @@ type LocalProxyConfig struct {
 	// needs to always have cert loaded for postgres in case it is needed,
 	// but only use the cert as needed.
 	CheckCertNeeded bool
+	// UpstreamHTTP2 lets the HTTP access proxy multiplex requests over HTTP/2 to the upstream,
+	// so concurrent long-lived requests such as watches share a connection instead of each dialing one.
+	UpstreamHTTP2 bool
 	// verifyUpstreamConnection is a callback function to verify upstream connection state.
 	verifyUpstreamConnection func(tls.ConnectionState) error
 	// onSetCert is a callback when lp.SetCert is called.
@@ -354,13 +362,31 @@ func (l *LocalProxy) getALPNDialerConfig(serverName string, cert tls.Certificate
 	}
 }
 
-func (l *LocalProxy) makeHTTPReverseProxy(serverName string, cert tls.Certificate) *pooledReverseProxy {
+// upstreamHTTP2Config pings quiet HTTP/2 connections so a half-open one, which would hang every request
+// multiplexed on it, is dropped. Values match client-go's. Pings don't keep an idle connection past the proxy's idle timeout.
+var upstreamHTTP2Config = http.HTTP2Config{
+	SendPingTimeout: 30 * time.Second,
+	PingTimeout:     15 * time.Second,
+}
+
+func (l *LocalProxy) makeHTTPReverseProxy(key reverseProxyKey, cert tls.Certificate) *pooledReverseProxy {
+	dialerConfig := l.getALPNDialerConfig(key.serverName, cert)
+	upstreamHTTP2 := l.cfg.UpstreamHTTP2 && !key.upgrade
+	if upstreamHTTP2 {
+		// Offered only on this pool's dialer, since the raw TCP paths read cfg.Protocols too.
+		dialerConfig.TLSConfig.NextProtos = append([]string{string(common.ProtocolHTTP2)}, dialerConfig.TLSConfig.NextProtos...)
+	}
 	baseTransport := &http.Transport{
-		DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(serverName, cert)).DialContext,
+		DialTLSContext: client.NewALPNDialer(dialerConfig).DialContext,
+		// Go disables HTTP/2 whenever a custom TLS dialer is set, unless forced.
+		ForceAttemptHTTP2: upstreamHTTP2,
 		// Go's default MaxIdleConnsPerHost is 2, which would close
 		// most of a burst's connections and make the next burst handshake again.
 		MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
 		IdleConnTimeout:     defaults.HTTPIdleTimeout,
+	}
+	if upstreamHTTP2 {
+		baseTransport.HTTP2 = &upstreamHTTP2Config
 	}
 	var transport http.RoundTripper = baseTransport
 	if middleware, ok := l.cfg.HTTPMiddleware.(LocalProxyHTTPTransportMiddleware); ok {
@@ -491,6 +517,8 @@ func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request) (*httputil.Rev
 	return l.getOrCreateReverseProxy(reverseProxyKey{
 		serverName: serverName,
 		certSum:    certFingerprint(cert),
+		// The same predicate httputil.ReverseProxy uses to decide a request is an upgrade.
+		upgrade: l.cfg.UpstreamHTTP2 && httpguts.HeaderValuesContainsToken(req.Header["Connection"], "Upgrade"),
 	}, cert), nil
 }
 
@@ -516,7 +544,7 @@ func (l *LocalProxy) getOrCreateReverseProxy(key reverseProxyKey, cert tls.Certi
 		}
 	}
 
-	pooled := l.makeHTTPReverseProxy(key.serverName, cert)
+	pooled := l.makeHTTPReverseProxy(key, cert)
 	pooled.lastUsed = now
 	l.reverseProxies[key] = pooled
 	l.reverseProxyMu.Unlock()
