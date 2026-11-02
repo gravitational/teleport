@@ -6,7 +6,7 @@ GOLANG_VERSION ?= go1.27.3
 GOLANGCI_LINT_VERSION ?= v2.14.0
 
 # NOTE: Remember to update engines.node in package.json to match the major version.
-NODE_VERSION ?= 24.22.1
+NODE_VERSION ?= 24.22.2
 
 WASM_OPT_VERSION ?= 0.116.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport

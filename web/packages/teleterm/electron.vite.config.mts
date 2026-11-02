@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createRequire } from 'node:module';
-import { builtinModules } from 'node:module';
 import path from 'node:path';
 
 import { defineConfig, UserConfig } from 'electron-vite';
-import { normalizePath, type Plugin, type Rolldown } from 'vite';
+import { normalizePath, type Plugin } from 'vite';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 
@@ -29,28 +27,6 @@ import { getConnectCsp } from './csp';
 
 const rootDirectory = path.resolve(import.meta.dirname, '../../..');
 const outputDirectory = path.resolve(import.meta.dirname, 'build', 'app');
-
-// electron-vite's externalizeDepsPlugin sets build.rollupOptions.external, which
-// Vite 8 ignores (it uses rolldownOptions).
-// TODO(ryan): Remove this once electron-vite supports Vite 8.
-//
-// electron-vite externalizes electron, Node.js built-in modules, and package.json
-// dependencies for main and preload, but bundles everything for the renderer.
-// See https://electron-vite.org/guide/dependency-handling.
-const pkg = createRequire(import.meta.url)('./package.json');
-const deps = Object.keys(pkg.dependencies || {});
-
-// Main and preload run in Node.js, so we externalize electron, Node.js built-in
-// modules, and package.json dependencies (they'll be included during packaging).
-const nodeExternalOptions: Rolldown.RolldownOptions = {
-  external: [
-    'electron',
-    /^electron\/.+/,
-    ...builtinModules.flatMap(m => [m, `node:${m}`]),
-    ...deps,
-    new RegExp(`^(${deps.join('|')})/.+`),
-  ],
-};
 
 const config = defineConfig(env => {
   const config: UserConfig = {
@@ -61,7 +37,6 @@ const config = defineConfig(env => {
       build: {
         outDir: path.resolve(outputDirectory, 'main'),
         rolldownOptions: {
-          ...nodeExternalOptions,
           checks: {
             circularDependency: true,
           },
@@ -96,10 +71,10 @@ const config = defineConfig(env => {
             ),
           },
           output: {
-            // TODO(gzdunek): Remove this once electron-vite supports Vite 8.
-            // https://github.com/alex8088/electron-vite/issues/894
+            // electron-vite only renames entry files to use the .mjs
+            // extension automatically when a single `build.lib` entry is
+            // used.
             entryFileNames: '[name].mjs',
-            format: 'es',
           },
         },
       },
@@ -119,15 +94,8 @@ const config = defineConfig(env => {
       build: {
         outDir: path.resolve(outputDirectory, 'preload'),
         rolldownOptions: {
-          ...nodeExternalOptions,
           input: {
             index: path.resolve(import.meta.dirname, 'src/preload.ts'),
-          },
-          output: {
-            // TODO(gzdunek): Remove this once electron-vite supports Vite 8.
-            // https://github.com/alex8088/electron-vite/issues/894
-            entryFileNames: '[name].mjs',
-            format: 'es',
           },
         },
       },
@@ -147,12 +115,6 @@ const config = defineConfig(env => {
         rolldownOptions: {
           input: {
             index: path.resolve(import.meta.dirname, 'index.html'),
-          },
-          output: {
-            // TODO(gzdunek): Remove this once electron-vite supports Vite 8.
-            // https://github.com/alex8088/electron-vite/issues/894
-            entryFileNames: '[name].mjs',
-            format: 'es',
           },
         },
       },
