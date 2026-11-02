@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // kubeCertIssuer issues per-cluster Kubernetes certificates.
@@ -76,13 +78,15 @@ func newKubeCertIssuer(tc *client.TeleportClient) *kubeCertIssuer {
 
 // LoadOrIssueCerts returns certs for the given clusters, loading them from
 // the key store where a valid cert is stored and issuing the rest.
-func (issuer *kubeCertIssuer) LoadOrIssueCerts(ctx context.Context, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, error) {
+// Clusters no Kubernetes server is serving get no cert and are returned in unserved,
+// so the caller can keep the shared unrouted cert away from them.
+func (issuer *kubeCertIssuer) LoadOrIssueCerts(ctx context.Context, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, set.Set[alpnproxy.KubeClusterKey], error) {
 	ctx, span := issuer.tc.Tracer.Start(ctx, "kubeCertIssuer/loadOrIssueCerts")
 	defer span.End()
 
 	kubeKeys, err := issuer.loadKubeKeyRings(clusters.TeleportClusters())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	certs := make(alpnproxy.KubeClientCerts)
@@ -97,21 +101,28 @@ func (issuer *kubeCertIssuer) LoadOrIssueCerts(ctx context.Context, clusters kub
 				continue
 			}
 			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
+				return nil, nil, trace.Wrap(err)
 			}
 		}
 		missing = append(missing, cluster)
 	}
 	if len(missing) == 0 {
-		return certs, nil
+		return certs, nil, nil
 	}
 
-	issued, err := issuer.issueCerts(ctx, missing)
+	issued, unserved, err := issuer.issueCerts(ctx, missing)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	maps.Copy(certs, issued)
-	return certs, nil
+	// Starting a proxy that can serve nothing is worse than saying so. This counts the
+	// certs loaded from the key store too, since only the clusters issued above went
+	// through the requirement check.
+	if len(certs) == 0 && len(unserved) > 0 {
+		return nil, nil, trace.NotFound("no Kubernetes server is serving %s",
+			strings.Join(unservedNames(clusters, unserved), ", "))
+	}
+	return certs, unserved, nil
 }
 
 // IssueCert issues one cert for the given cluster.
@@ -279,32 +290,37 @@ func (issuer *kubeCertIssuer) loadKubeKeyRings(teleportClusters []string) (map[s
 // issueCerts issues certs for the given clusters with at most one MFA ceremony.
 // One issuance runs the ceremony and the rest replay its reusable response.
 // Clusters without per-session MFA share one unrouted cert per Teleport cluster.
-func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, error) {
+func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, set.Set[alpnproxy.KubeClusterKey], error) {
 	// Hold one connection across the whole burst: the MFA prefetch and the issuances share it.
 	cc, release, err := issuer.conn.Acquire(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	defer release()
 
 	mfaChecks, err := issuer.fetchMFAChecks(ctx, cc, clusters)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	run := issuer.newCertRun(mfaChecks)
 
-	// Headless serializes every issuance on the ceremony lock, so the partition below cannot help it.
-	if issuer.tc.AllowHeadless {
-		return run.certs, trace.Wrap(run.IssuePerCluster(ctx, clusters))
+	mfaOn, mfaOff, unresolved := run.PartitionByMFA(clusters)
+	for _, cluster := range unresolved {
+		run.MarkUnserved(cluster)
 	}
 
-	mfaOn, mfaOff := run.PartitionByMFA(clusters)
+	// Headless serializes every issuance on the ceremony lock, so the partition cannot help it.
+	// The clusters keep their given order, which is the order the user was shown.
+	if issuer.tc.AllowHeadless {
+		served := slices.DeleteFunc(slices.Clone(clusters), run.IsUnserved)
+		return run.certs, run.unserved, trace.Wrap(run.IssuePerCluster(ctx, served))
+	}
 
 	// One issuance runs the ceremony and the rest replay its response, so run it on its own first.
 	if len(mfaOn) > 0 {
 		first := mfaOn[0]
 		if err := run.IssueOne(ctx, first); err != nil {
-			return nil, fmt.Errorf("%s: %w", localProxyClusterKey(first), err)
+			return nil, nil, fmt.Errorf("%s: %w", localProxyClusterKey(first), err)
 		}
 		mfaOn = mfaOn[1:]
 	}
@@ -313,25 +329,25 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfi
 	group := newKubeClusterGroup(cc, mfaOn, kubeCertIssueConcurrency())
 	defer group.Close(ctx)
 	if err := group.ForEach(ctx, run.IssueOne); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	if issuer.sharedCertUnsupported.Load() {
-		return run.certs, trace.Wrap(run.IssuePerCluster(ctx, mfaOff))
+		return run.certs, run.unserved, trace.Wrap(run.IssuePerCluster(ctx, mfaOff))
 	}
 
 	// Prompt-free issuances share one unrouted cert per Teleport cluster.
 	if err := run.IssueShared(ctx, mfaOff); err != nil {
 		if !isUnroutedKubeCertRejected(err) {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		// The auth server rejected the shared unrouted cert, so issue per cluster instead.
 		logger.DebugContext(ctx, "Auth server rejected the shared unrouted cert, issuing per cluster", "error", err)
 		issuer.sharedCertUnsupported.Store(true)
 		run.DropShared()
-		return run.certs, trace.Wrap(run.IssuePerCluster(ctx, mfaOff))
+		return run.certs, run.unserved, trace.Wrap(run.IssuePerCluster(ctx, mfaOff))
 	}
-	return run.certs, nil
+	return run.certs, run.unserved, nil
 }
 
 // issueMFAGatedCert issues one certificate that may require MFA through
@@ -358,13 +374,12 @@ func (issuer *kubeCertIssuer) requestCert(ctx context.Context, cc kubeCertClient
 	}
 
 	result, err := cc.IssueUserCertsWithMFA(ctx, params)
+	if result != nil && result.ReusableMFAResponse != nil {
+		// Keep the response a fresh ceremony produced for the other issuances to replay.
+		issuer.mfa.Capture(result.ReusableMFAResponse)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Save the reusable MFA response produced by a fresh ceremony for the other issuances to replay.
-	if result.ReusableMFAResponse != nil {
-		issuer.mfa.Capture(result.ReusableMFAResponse)
 	}
 
 	// Save to the keystore if MFA was not required.
@@ -412,7 +427,17 @@ func (issuer *kubeCertIssuer) fetchMFAChecks(ctx context.Context, cc kubeCertCli
 		resp, err := authClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 			Target: &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: cluster.KubeCluster},
 		})
-		if err != nil {
+		switch {
+		case trace.IsNotFound(err):
+			// No Kubernetes server is serving this cluster right now, so the auth server cannot say whether it needs MFA.
+			// NotFound cannot tell a restarting agent from a cluster deleted months ago,
+			// so leave the requirement unknown rather than failing every other cluster in the same invocation.
+			logger.DebugContext(ctx, "No Kubernetes server is serving this cluster, leaving its MFA requirement unknown",
+				"cluster", cluster,
+				"error", err,
+			)
+			return nil
+		case err != nil:
 			return trace.Wrap(err)
 		}
 		checksMu.Lock()
@@ -457,6 +482,17 @@ func kubeCertFromKeyRing(keyRing *client.KeyRing, kubeCluster string) (tls.Certi
 
 func localProxyClusterKey(cluster kubeconfig.LocalProxyCluster) string {
 	return cluster.TeleportCluster + "/" + cluster.KubeCluster
+}
+
+// unservedNames names the unserved clusters in the order the caller listed them.
+func unservedNames(clusters kubeconfig.LocalProxyClusters, unserved set.Set[alpnproxy.KubeClusterKey]) []string {
+	names := make([]string, 0, len(unserved))
+	for _, cluster := range clusters {
+		if unserved.Contains(alpnproxy.KubeClusterKey{TeleportCluster: cluster.TeleportCluster, KubeCluster: cluster.KubeCluster}) {
+			names = append(names, localProxyClusterKey(cluster))
+		}
+	}
+	return names
 }
 
 // isUnroutedKubeCertRejected reports whether an auth server refused the request for naming no Kubernetes cluster,

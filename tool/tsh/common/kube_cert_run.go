@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // kubeCertRun is the state of one issuance burst.
@@ -40,6 +42,7 @@ type kubeCertRun struct {
 	issuer    *kubeCertIssuer
 	mfaChecks map[string]*proto.IsMFARequiredResponse
 	certs     alpnproxy.KubeClientCerts
+	unserved  set.Set[alpnproxy.KubeClusterKey]
 	mu        sync.Mutex
 }
 
@@ -48,24 +51,57 @@ func (issuer *kubeCertIssuer) newCertRun(mfaChecks map[string]*proto.IsMFARequir
 		issuer:    issuer,
 		mfaChecks: mfaChecks,
 		certs:     make(alpnproxy.KubeClientCerts),
+		unserved:  set.New[alpnproxy.KubeClusterKey](),
 	}
 }
 
-// PartitionByMFA splits clusters by whether they need per-session MFA.
-func (r *kubeCertRun) PartitionByMFA(clusters kubeconfig.LocalProxyClusters) (mfaOn, mfaOff kubeconfig.LocalProxyClusters) {
+// MarkUnserved records that no Kubernetes server is serving the cluster.
+func (r *kubeCertRun) MarkUnserved(cluster kubeconfig.LocalProxyCluster) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.unserved.Add(alpnproxy.KubeClusterKey{TeleportCluster: cluster.TeleportCluster, KubeCluster: cluster.KubeCluster})
+}
+
+// IsUnserved reports whether the cluster was recorded as unserved.
+func (r *kubeCertRun) IsUnserved(cluster kubeconfig.LocalProxyCluster) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.unserved.Contains(alpnproxy.KubeClusterKey{TeleportCluster: cluster.TeleportCluster, KubeCluster: cluster.KubeCluster})
+}
+
+// PartitionByMFA splits clusters by their per-session MFA requirement.
+// A cluster has three states:
+// - MFA required: we must issue a routed cert for it
+// - MFA not required: we can issue a shared cert for it
+// - unknown: we don't know yet because the check failed, so we must issue a routed cert for it
+func (r *kubeCertRun) PartitionByMFA(clusters kubeconfig.LocalProxyClusters) (mfaOn, mfaOff, unknown kubeconfig.LocalProxyClusters) {
 	for _, cluster := range clusters {
-		if r.mfaChecks[localProxyClusterKey(cluster)].GetRequired() {
+		check, known := r.mfaChecks[localProxyClusterKey(cluster)]
+		switch {
+		case !known:
+			unknown = append(unknown, cluster)
+		case check.GetRequired():
 			mfaOn = append(mfaOn, cluster)
-		} else {
+		default:
 			mfaOff = append(mfaOff, cluster)
 		}
 	}
-	return mfaOn, mfaOff
+	return mfaOn, mfaOff, unknown
 }
 
 // IssueOne issues the cert for a single cluster and collects it.
+// A cluster the auth server will not issue for, because nothing is serving it,
+// is recorded as unserved and left without a cert instead of failing the clusters around it.
 func (r *kubeCertRun) IssueOne(ctx context.Context, cluster kubeconfig.LocalProxyCluster) error {
 	cert, err := r.issuer.IssueCert(ctx, cluster.TeleportCluster, cluster.KubeCluster, r.mfaChecks[localProxyClusterKey(cluster)])
+	if isKubeClusterUnserved(err) {
+		logger.DebugContext(ctx, "No Kubernetes server is serving this cluster, so it gets no certificate",
+			"cluster", cluster,
+			"error", err,
+		)
+		r.MarkUnserved(cluster)
+		return nil
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -113,4 +149,15 @@ func (r *kubeCertRun) add(teleportCluster, kubeCluster string, cert tls.Certific
 	r.mu.Lock()
 	r.certs.Add(teleportCluster, kubeCluster, cert)
 	r.mu.Unlock()
+}
+
+// isKubeClusterUnserved reports whether err means no Kubernetes server is serving the cluster.
+// The auth server answers differently depending on where it notices:
+//   - the per-session MFA check returns NotFound
+//   - certificate issuance refuses the unregistered cluster with BadParameter
+func isKubeClusterUnserved(err error) bool {
+	if trace.IsNotFound(err) {
+		return true
+	}
+	return trace.IsBadParameter(err) && strings.Contains(err.Error(), "is not registered in this Teleport cluster")
 }
