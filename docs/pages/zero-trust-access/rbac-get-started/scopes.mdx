@@ -110,8 +110,8 @@ be assumed unsupported in scoped mode.
   users access to the AWS console through scoped applications.
   These integrations are created with `tctl` or Terraform, and the AWS setup scripts; the
   Web UI does not support them yet.
-- Scoped Access Lists that can be managed by scoped administrators and used to
-  grant scoped roles to groups of users.
+- Scoped Access Lists that can be managed by scoped administrators, used to
+  grant scoped roles to groups of users, and synchronized with a SCIM provider.
 - Scoped Bots for Machine and Workload Identity (MWI), supporting both
   identity output and SSH access.
 - Scoped Workload Identity resources for issuing SPIFFE credentials to
@@ -422,7 +422,7 @@ curl \
 
 ### Registering dynamic applications
 
-Application Service instances that joined with a scoped token pick up dynamic applications in their assigned scope, 
+Application Service instances that joined with a scoped token pick up dynamic applications in their assigned scope,
 using the `resources` label matchers in their configuration, the same way as unscoped Application
 Service instances. An Application Service only serves dynamic applications in its own scope.
 
@@ -485,7 +485,7 @@ and name:
 
 An application that validates the `iss` and `aud` claims therefore rejects
 tokens minted for an application in another scope, or for another application
-in the same scope. 
+in the same scope.
 
 ## Scoped AWS access
 
@@ -719,7 +719,7 @@ and the integration's URI SAN:
 }
 ```
 
-Then create a Roles Anywhere profile that lists the role. 
+Then create a Roles Anywhere profile that lists the role.
 
 ```code
 $ aws rolesanywhere create-profile --name example-readonly --enabled \
@@ -1074,6 +1074,44 @@ For an example Access List with scope `/examples/basic`:
 1. It can only have member Access Lists that are unscoped or have scope `/examples/basic` or `/examples` or `/`.
 1. It can only have owner Access Lists that are unscoped or have scope `/examples/basic` or `/examples` or `/`.
 1. It may not contain any member or owner requirements.
+
+### Manage scoped Access Lists with SCIM
+
+SCIM integrations can synchronize membership for scoped Access Lists. To avoid
+name and title collisions between scopes, configure the SCIM plugin to use
+scope-qualified names:
+
+```code
+$ tctl edit plugin/scim-generic
+```
+
+In the editor, keep the plugin's existing connector settings and other fields
+unchanged. Under `spec.Settings.scim`, add the following block to set
+`access_list.name_encoding` to `scope_qualified`:
+
+```yaml
+access_list:
+  name_encoding: scope_qualified
+```
+
+When scope-qualified encoding is enabled, the SCIM integration exposes both
+scoped and unscoped Access Lists of type `scim`:
+
+- An unscoped Access List keeps its bare SCIM group ID and display name. For
+  example, an Access List named `engineering` with title `Engineering` is
+  exposed with ID `engineering` and display name `Engineering`.
+- A scoped Access List uses its scope-qualified name as the SCIM group ID and
+  its scope-qualified title as the display name. For example, an Access List
+  named `engineering` with title `Engineering` in `/examples/basic` is exposed
+  with ID `/examples/basic::engineering` and display name
+  `/examples/basic::Engineering`.
+
+The SCIM provider must use the scope-qualified display name when matching a
+scoped group to an Access List. If `name_encoding` is unset, the integration
+retains its legacy behavior and exposes only unscoped Access Lists.
+
+See the [SCIM integration guide](../../identity-governance/integrations/scim/scim.mdx)
+for general setup instructions.
 
 ## Infrastructure as Code
 
