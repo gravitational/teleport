@@ -19,7 +19,8 @@ Teleport FIPS mode works and how it can help your company to become FedRAMP auth
 
 Teleport Enterprise FIPS builds are compiled against a FIPS 140 validated module.
 
-- Teleport releases from 17.7.3+ and 18.0.0+ use BoringCrypto tag `fips-20220613` (CMVP certificate #4735, FIPS 140-3)
+- Teleport releases from 19.0.0+ use the Go Cryptographic Module v1.0.0 (CMVP certificate #5247, FIPS 140-3)
+- Teleport releases from 17.7.3+ and before 19.0.0 use BoringCrypto tag `fips-20220613` (CMVP certificate #4735, FIPS 140-3)
 - Teleport releases prior to 17.7.3 use BoringCrypto tag `fips-20210429` (CMVP certificate #4407, FIPS 140-2)
 
 ## Obtain FedRAMP authorization with Teleport
@@ -117,14 +118,17 @@ $ sudo ./install
 
 After you download and install, all of the Teleport Enterprise binaries are
 installed in the `/usr/local/bin` directory. You can verify you have FIPS
-binaries installed by running the `teleport version` command and verifying that
-the `X:boringcrypto` library is listed:
+binaries installed by running the `teleport version` command with FIPS mode disabled. A FIPS binary will refuse to start:
 
 ```code
-$ teleport version
+$ GODEBUG=fips140=off teleport version
 ```
 
-The output should end with `X:boringcrypto`.
+If the command exits with an error message stating that FIPS140 mode is not active, it is a FIPS binary.
+
+If the command instead prints a version string, the binary is not a FIPS build.
+
+For Teleport releases before 19.0.0, run `teleport version` without the environment variable and confirm the output ends with `X:boringcrypto`.
 
 If your Teleport cluster runs on AWS, the cluster can run in US-East or US-West regions for services
 with low or moderate impact levels. For services with a high impact level, the cluster must run
