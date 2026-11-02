@@ -774,44 +774,6 @@ var (
 		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 	}
 
-	// FIPSCiphers is a list of supported FIPS compliant SSH ciphers.
-	// Order will dictate the selected cipher, as per RFC 4253 § 7.1.
-	// See `encryption_algorithms` section of https://datatracker.ietf.org/doc/html/rfc4253#section-7.1.
-	// This aligns to `x/crypto/ssh`'s `preferredCiphers`, but just constrained to
-	// only FIPS-approved ciphers.
-	// Can also be compared to OpenSSH's `KEX_SERVER_ENCRYPT` / `KEX_CLIENT_ENCRYPT`.
-	FIPSCiphers = []string{
-		"aes128-gcm@openssh.com",
-		"aes256-gcm@openssh.com",
-		"aes128-ctr",
-		"aes192-ctr",
-		"aes256-ctr",
-	}
-
-	// FIPSKEXAlgorithms is a list of supported FIPS compliant SSH kex algorithms.
-	// Order will dictate the selected algorithm, as per RFC 4253 § 7.1.
-	// See `kex_algorithms` section of https://datatracker.ietf.org/doc/html/rfc4253#section-7.1.
-	// This aligns to `x/crypto/ssh`'s `preferredKeyAlgos`, but just constrained to
-	// only FIPS-approved algorithms.
-	// Can also be compared to OpenSSH's `KEX_SERVER_KEX` / `KEX_CLIENT_KEX`.
-	FIPSKEXAlgorithms = []string{
-		"ecdh-sha2-nistp256",
-		"ecdh-sha2-nistp384",
-	}
-
-	// FIPSMACAlgorithms is a list of supported FIPS compliant SSH mac algorithms.
-	// Order will dictate the selected algorithm, as per RFC 4253 § 7.1.
-	// See `mac_algorithms` section of https://datatracker.ietf.org/doc/html/rfc4253#section-7.1.
-	// This aligns to `x/crypto/ssh`'s `preferredMACs`, but just constrained to
-	// only FIPS-approved algorithms.
-	// Can also be compared to OpenSSH's `KEX_SERVER_MAC` / `KEX_CLIENT_MAC`.
-	FIPSMACAlgorithms = []string{
-		"hmac-sha2-256-etm@openssh.com",
-		"hmac-sha2-512-etm@openssh.com",
-		"hmac-sha2-256",
-		"hmac-sha2-512",
-	}
-
 	// FIPSPubKeyAuthAlgorithms is a list of supported FIPS compliant SSH public
 	// key authentication algorithms.
 	// Order will dictate the selected algorithm, as per RFC 4253 § 7.1.

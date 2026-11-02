@@ -198,13 +198,6 @@ func (f *Facade) SSHClientConfig() (apissh.ClientConfig, error) {
 		// ~ noah
 		User: "-teleport-internal-join",
 	}
-	if f.fips {
-		cfg.SSHConfig = ssh.Config{
-			KeyExchanges: defaults.FIPSKEXAlgorithms,
-			MACs:         defaults.FIPSMACAlgorithms,
-			Ciphers:      defaults.FIPSCiphers,
-		}
-	}
 	return cfg, nil
 }
 

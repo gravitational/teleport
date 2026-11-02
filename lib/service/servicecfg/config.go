@@ -771,11 +771,8 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 func ApplyFIPSDefaults(cfg *Config) {
 	cfg.FIPS = true
 
-	// Update TLS and SSH cryptographic primitives.
+	// Update TLS cipher suites
 	cfg.CipherSuites = defaults.FIPSCipherSuites
-	cfg.Ciphers = defaults.FIPSCiphers
-	cfg.KEXAlgorithms = defaults.FIPSKEXAlgorithms
-	cfg.MACAlgorithms = defaults.FIPSMACAlgorithms
 
 	// Only SSO based authentication is supported in FIPS mode. The SSO
 	// provider is where any FedRAMP/FIPS compliance (like password

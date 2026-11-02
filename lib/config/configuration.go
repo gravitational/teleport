@@ -2925,25 +2925,11 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	// If FIPS mode is specified, validate Teleport uses a FIPS-validated module
 	if clf.FIPS {
-		// Make sure all cryptographic primitives are FIPS compliant.
-		//
+		// Make sure all TLS cipher suites are FIPS compliant
 		err = libslices.ContainsAll(defaults.FIPSCipherSuites, cfg.CipherSuites)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant TLS cipher suite selected: %v", err)
 		}
-		err = libslices.ContainsAll(defaults.FIPSCiphers, cfg.Ciphers)
-		if err != nil {
-			return trace.BadParameter("non-FIPS compliant SSH cipher selected: %v", err)
-		}
-		err = libslices.ContainsAll(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
-		if err != nil {
-			return trace.BadParameter("non-FIPS compliant SSH kex algorithm selected: %v", err)
-		}
-		err = libslices.ContainsAll(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
-		if err != nil {
-			return trace.BadParameter("non-FIPS compliant SSH mac algorithm selected: %v", err)
-		}
-
 		// Make sure cluster settings are also FedRAMP/FIPS compliant.
 		if cfg.Auth.Enabled {
 			// Only SSO based authentication is supported. The SSO provider is where
