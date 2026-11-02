@@ -33,6 +33,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
+// MaxPhaseNameLength leaves room for the hyphen and eight-character build alias suffix appended to a Phase name in a hostname.
+const MaxPhaseNameLength = 54
+
+// Build aliases use the Phase name and a unique hexadecimal suffix. Phase names
+// support more characters than the generated word pairs used by ordinary Beams.
+var buildBeamAliasRegexp = regexp.MustCompile(`^(.+)-[a-f0-9]{8}$`)
+
+// Ordinary Beam aliases are generated as two lowercase words.
 var beamAliasRegexp = regexp.MustCompile(`^[a-z]+-[a-z]+$`)
 
 // BeamReader defines methods for reading beam resources.
@@ -106,6 +114,27 @@ func ValidateBeam(b *beamsv1.Beam) error {
 		return trace.BadParameter("status: is required")
 	}
 
+	inputs := b.GetStatus().GetSnapshotInputs()
+	if len(inputs) > 2 {
+		return trace.BadParameter("status.snapshot_inputs: at most two inputs are allowed")
+	}
+	if len(inputs) != 0 &&
+		b.GetSpec().GetPurpose() != beamsv1.BeamResourcePurpose_BEAM_RESOURCE_PURPOSE_BUILD {
+		return trace.BadParameter("status.snapshot_inputs: only allowed for build Beams")
+	}
+	seenTags := set.NewWithCapacity[string](len(inputs))
+	for _, input := range inputs {
+		if !IsValidImageDigest(input.GetDigest()) ||
+			!strings.HasPrefix(input.GetRetentionTag(), "build-") ||
+			!phaseRetentionTagPattern.MatchString(input.GetRetentionTag()) {
+			return trace.BadParameter("status.snapshot_inputs: invalid digest or retention tag")
+		}
+		if seenTags.Contains(input.GetRetentionTag()) {
+			return trace.BadParameter("status.snapshot_inputs: duplicate retention tag")
+		}
+		seenTags.Add(input.GetRetentionTag())
+	}
+
 	switch b.GetSpec().GetEgress() {
 	case beamsv1.EgressMode_EGRESS_MODE_RESTRICTED:
 		for i, domain := range b.GetSpec().GetAllowedDomains() {
@@ -159,6 +188,20 @@ func ValidateBeam(b *beamsv1.Beam) error {
 		return trace.BadParameter("status.delegation.mode: unsupported mode %s", delegation.GetMode())
 	}
 
+	switch b.GetSpec().GetPurpose() {
+	case beamsv1.BeamResourcePurpose_BEAM_RESOURCE_PURPOSE_UNSPECIFIED,
+		beamsv1.BeamResourcePurpose_BEAM_RESOURCE_PURPOSE_USER:
+	case beamsv1.BeamResourcePurpose_BEAM_RESOURCE_PURPOSE_BUILD:
+		if _, err := BuildBeamPhase(b.GetStatus().GetAlias()); err != nil {
+			return trace.Wrap(err)
+		}
+		if b.GetSpec().GetPhase() == "" {
+			return trace.BadParameter("spec.phase: is required for a build Beam")
+		}
+	default:
+		return trace.BadParameter("spec.purpose: %s is invalid", b.GetSpec().GetPurpose())
+	}
+
 	if err := ValidateBeamAlias(b.GetStatus().GetAlias()); err != nil {
 		return trace.Wrap(err)
 	}
@@ -170,7 +213,22 @@ func ValidateBeamAlias(alias string) error {
 	if beamAliasRegexp.MatchString(alias) {
 		return nil
 	}
-	return trace.BadParameter("beam alias must be a hyphen-separated pair of two lowercase words")
+	if _, err := BuildBeamPhase(alias); err == nil {
+		return nil
+	}
+	return trace.BadParameter("beam alias must be two lowercase words or a Phase name followed by eight hexadecimal characters")
+}
+
+// BuildBeamPhase extracts the target Phase from a build Beam alias.
+// Callers must also verify the Phase's active build ID before acting on it.
+func BuildBeamPhase(alias string) (string, error) {
+	parts := buildBeamAliasRegexp.FindStringSubmatch(alias)
+	if len(parts) != 2 ||
+		len(parts[1]) > MaxPhaseNameLength ||
+		len(validation.IsDNS1123Label(parts[1])) != 0 {
+		return "", trace.BadParameter("invalid build Beam alias %q", alias)
+	}
+	return parts[1], nil
 }
 
 // MakeBeamFilterFunc creates a filter function for beams based on the provided

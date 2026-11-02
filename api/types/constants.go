@@ -776,6 +776,9 @@ const (
 	// KindBeam is an ephemeral AI-optimized compute environment.
 	KindBeam = "beam"
 
+	// KindPhase is a reusable Beam base image.
+	KindPhase = "phase"
+
 	// KindBeamsConfig is the user-provided configuration for Beams.
 	KindBeamsConfig = "beams_config"
 
