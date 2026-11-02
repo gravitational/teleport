@@ -534,7 +534,7 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) error {
 
 				// 3. ACK the delivered events, retrying without re-delivering
 				//    on failure.
-				if err := q.ackWithRetry(ctx, successfullyDelivered); err != nil {
+				if err := q.ackWithRetry(ctx, successfullyDelivered, q.ack); err != nil {
 					return err
 				}
 				progressed = true
@@ -589,18 +589,19 @@ func (q *sqliteQueue) waitThrottled(ctx context.Context) error {
 	return nil
 }
 
-// ackWithRetry acks the delivered events. It intends to cover an error
+// ackWithRetry acks the delivered events with ack, which deletes them from
+// the main queue or the dead-letter table. It intends to cover an error
 // condition where if we experience local disk errors or database errors from
 // SQLite, then we don't want to hammer the auth server with retries. In the
 // event of disk errors, the best thing we can do is continue retrying until we
 // *hopefully* succeed. It returns nil once the events are acked, or the context
 // error if it stopped because the context was canceled.
-func (q *sqliteQueue) ackWithRetry(ctx context.Context, items []Item) error {
+func (q *sqliteQueue) ackWithRetry(ctx context.Context, items []Item, ack func([]Item) error) error {
 	firstFailure := true
 	backoff := time.NewTimer(pollInterval)
 	defer backoff.Stop()
 	for {
-		err := q.ack(items)
+		err := ack(items)
 		if err == nil {
 			if !firstFailure {
 				slog.InfoContext(
@@ -985,11 +986,8 @@ func (q *sqliteQueue) sweepDeadLetter(ctx context.Context, handler Handler) {
 
 		delivered, deliveryErr := handler(ctx, items)
 		if len(delivered) > 0 {
-			if err := q.ackDeadLetter(delivered); err != nil {
-				slog.ErrorContext(q.ctx,
-					"Failed to ack dead-letter audit events.",
-					"error", err,
-				)
+			if err := q.ackWithRetry(ctx, delivered, q.ackDeadLetter); err != nil {
+				return
 			}
 		}
 		if trace.IsLimitExceeded(deliveryErr) {
