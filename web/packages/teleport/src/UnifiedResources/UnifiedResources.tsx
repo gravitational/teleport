@@ -377,6 +377,7 @@ export function ClusterResources({
             </Flex>
           </>
         }
+        showScopes={cfg.scopesEnabled}
       />
     </>
   );

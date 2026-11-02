@@ -52,6 +52,7 @@ function getLaunchUrl({
 export default function makeApp(json: any): App {
   json = json || {};
   const {
+    scope = '',
     name = '',
     description = '',
     uri = '',
@@ -131,6 +132,7 @@ export default function makeApp(json: any): App {
   return {
     kind: 'app',
     subKind,
+    scope,
     id,
     name,
     description,

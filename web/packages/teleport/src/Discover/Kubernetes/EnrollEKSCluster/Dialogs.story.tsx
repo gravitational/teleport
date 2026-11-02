@@ -140,6 +140,7 @@ const agentMeta: AgentMeta = {
   agentMatcherLabels: [],
   kube: {
     kind: 'kube_cluster',
+    scope: '',
     name: '',
     labels: [],
   },

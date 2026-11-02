@@ -20,6 +20,7 @@ import { Kube } from 'teleport/services/kube';
 
 export const kubes: Kube[] = [
   {
+    scope: '/prod/east',
     kind: 'kube_cluster',
     name: 'tele.logicoma.dev-prod',
     labels: [
@@ -29,12 +30,14 @@ export const kubes: Kube[] = [
     targetHealth: { status: 'healthy' },
   },
   {
+    scope: '/staging',
     kind: 'kube_cluster',
     name: 'tele.logicoma.dev-staging',
     labels: [{ name: 'env', value: 'staging' }],
     targetHealth: { status: 'healthy' },
   },
   {
+    scope: '',
     kind: 'kube_cluster',
     name: 'cookie',
     labels: [
@@ -44,6 +47,7 @@ export const kubes: Kube[] = [
     targetHealth: { status: 'unknown' },
   },
   {
+    scope: '/prod/west',
     kind: 'kube_cluster',
     name: 'unhealthy-kube-cluster',
     labels: [{ name: 'env', value: 'sunflower' }],
@@ -53,6 +57,7 @@ export const kubes: Kube[] = [
 
 export const moreKubes: Kube[] = [
   {
+    scope: '',
     kind: 'kube_cluster',
     name: 'tele.logicoma.official-dev',
     labels: [
@@ -61,11 +66,13 @@ export const moreKubes: Kube[] = [
     ],
   },
   {
+    scope: '',
     kind: 'kube_cluster',
     name: 'tele.logicoma.official-prod',
     labels: [{ name: 'env', value: 'official-prod' }],
   },
   {
+    scope: '',
     kind: 'kube_cluster',
     name: 'cookie2',
     labels: [

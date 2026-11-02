@@ -64,8 +64,8 @@ import { FilterPanel } from './FilterPanel';
 import { ListView } from './ListView/ListView';
 import { ResourceTab } from './ResourceTab';
 import { getResourceId } from './shared/StatusInfo';
-import { mapResourceToViewItem } from './shared/viewItemsFactory';
 import './unifiedStyles.css';
+import { mapResourceToViewItem } from './shared/viewItemsFactory';
 import {
   IncludedResourceMode,
   PinningSupport,
@@ -273,6 +273,8 @@ export interface UnifiedResourcesProps {
    * Optional content rendered on the left side of the filter panel.
    */
   FilterPanelLeftContent?: JSX.Element;
+  /** Shows scopes and uses scope-aware resource keys. Defaults to false. */
+  showScopes?: boolean;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -300,6 +302,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     noResultCustomText,
     showResourceSelectedIcon,
     FilterPanelLeftContent,
+    showScopes = false,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -494,13 +497,23 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       return bulkActions;
     }
 
+    const disabled =
+      updatePinnedResourcesAttempt.status === 'processing' ||
+      (!shouldUnpin &&
+        selectedResources.some(sr => {
+          const res = resources.find(
+            r => generateUnifiedResourceKey(r.resource) === sr
+          );
+          return !!res && 'scope' in res.resource && !!res.resource.scope;
+        }));
+
     return [
       ...bulkActions,
       {
         key: 'pin_resource',
         text: shouldUnpin ? 'Unpin Selected' : 'Pin Selected',
         Icon: PushPin,
-        disabled: updatePinnedResourcesAttempt.status === 'processing',
+        disabled,
         action: () => handlePinSelected(shouldUnpin),
       },
     ];
@@ -752,6 +765,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         }
         expandAllLabels={expandAllLabels}
         visibleInputFields={visibleResourceItemFields}
+        showScopes={showScopes}
       />
       <div ref={setTrigger} />
       <ListFooter>{footerElement}</ListFooter>
@@ -804,16 +818,20 @@ function getResourcePinningSupport(
 export function generateUnifiedResourceKey(
   resource: SharedUnifiedResource['resource']
 ): string {
+  let name = '';
   if (resource.kind === 'node' || resource.kind == 'git_server') {
-    return `${resource.hostname}/${resource.id}/${resource.kind}`.toLowerCase();
+    name = `${resource.hostname}/${resource.id}`;
+  } else if (resource.kind === 'app' && resource.friendlyName !== '') {
+    name = `${resource.friendlyName}/${resource.name}`;
+  } else if (resource.kind === 'linux_desktop') {
+    name = `${resource.host_id}`;
+  } else {
+    name = resource.name;
   }
-  if (resource.kind === 'app' && resource.friendlyName !== '') {
-    return `${resource.friendlyName}/${resource.name}/${resource.kind}`.toLowerCase();
+  if ('scope' in resource && resource.scope) {
+    return `${resource.scope}::${name}/${resource.kind}`.toLowerCase();
   }
-  if (resource.kind === 'linux_desktop') {
-    return `${resource.host_id}/${resource.kind}`.toLowerCase();
-  }
-  return `${resource.name}/${resource.kind}`.toLowerCase();
+  return `${name}/${resource.kind}`.toLowerCase();
 }
 
 function NoPinned() {

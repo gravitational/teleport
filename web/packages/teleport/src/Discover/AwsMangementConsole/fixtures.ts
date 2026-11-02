@@ -20,6 +20,7 @@ import { App } from 'teleport/services/apps';
 
 export const app: App = {
   kind: 'app',
+  scope: '',
   id: 'id',
   name: 'Jenkins',
   launchUrl: '',

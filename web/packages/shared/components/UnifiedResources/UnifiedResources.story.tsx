@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react-vite';
 import { useState } from 'react';
+import { createGlobalStyle } from 'styled-components';
 
 import { ButtonBorder } from 'design';
 import {
@@ -53,9 +55,30 @@ import {
   useUnifiedResourcesFetch,
 } from './UnifiedResources';
 
-export default {
+type StoryProps = { showScopes: boolean };
+
+const meta: Meta<StoryProps> = {
   title: 'Shared/UnifiedResources',
+  argTypes: {
+    showScopes: {
+      control: { type: 'boolean' },
+    },
+  },
+  args: {
+    showScopes: true,
+  },
 };
+export default meta;
+
+/**
+ * Makes the container always show the scrollbar so that the horizontal layout
+ * stays stable when contents start to overflow.
+ */
+const StoryScrollbars = createGlobalStyle`
+  html {
+    overflow-y: scroll;
+  }
+`;
 
 const aLotOfLabels = {
   ...databases[0],
@@ -104,7 +127,7 @@ const story = ({
     },
     ...params,
   };
-  return () => {
+  return ({ showScopes }: StoryProps) => {
     const [userPrefs, setUserPrefs] = useState<UnifiedResourcePreferences>({
       defaultTab: DefaultTab.ALL,
       viewMode: ViewMode.CARD,
@@ -116,6 +139,7 @@ const story = ({
     });
     return (
       <InfoGuidePanelProvider>
+        <StoryScrollbars />
         <UnifiedResources
           availableKinds={[
             {
@@ -158,6 +182,7 @@ const story = ({
               ActionButton: <ButtonBorder size="small">Connect</ButtonBorder>,
             },
           }))}
+          showScopes={showScopes}
           {...props}
         />
       </InfoGuidePanelProvider>

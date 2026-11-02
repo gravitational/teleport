@@ -22,6 +22,7 @@ import { ResourceLabel } from 'teleport/services/agents';
 
 export interface Kube {
   kind: 'kube_cluster';
+  scope: string;
   name: string;
   labels: ResourceLabel[];
   users?: string[];

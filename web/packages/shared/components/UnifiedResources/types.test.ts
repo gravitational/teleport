@@ -53,6 +53,7 @@ describe('generateUnifiedResourceKey', () => {
   test('generates key for node resource using hostname/id/kind format', () => {
     const nodeResource: UnifiedResourceNode = {
       kind: 'node',
+      scope: '',
       hostname: 'MyServer',
       id: 'abc-123',
       addr: '127.0.0.1',
@@ -87,6 +88,7 @@ describe('generateUnifiedResourceKey', () => {
   test('generates key for app resource with friendlyName using friendlyName/name/kind format', () => {
     const appResource: UnifiedResourceApp = {
       kind: 'app',
+      scope: '',
       id: 'app-123',
       name: 'my-app',
       friendlyName: 'MyFriendlyApp',
@@ -104,6 +106,7 @@ describe('generateUnifiedResourceKey', () => {
   test('generates key for app resource without friendlyName using name/kind format', () => {
     const appResource: UnifiedResourceApp = {
       kind: 'app',
+      scope: '',
       id: 'app-124',
       name: 'my-app',
       friendlyName: '',
@@ -132,6 +135,7 @@ describe('generateUnifiedResourceKey', () => {
   test('generates key for kube_cluster resource using name/kind format', () => {
     const kubeResource: UnifiedResourceKube = {
       kind: 'kube_cluster',
+      scope: '',
       name: 'MyKubeCluster',
       labels: [],
     };

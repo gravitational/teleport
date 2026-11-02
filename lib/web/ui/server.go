@@ -33,6 +33,8 @@ import (
 
 // Server describes a server for webapp
 type Server struct {
+	// Scope is the scope in which this resource exists.
+	Scope string `json:"scope,omitempty"`
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
 	Kind string `json:"kind"`
 	// Tunnel indicates of this server is connected over a reverse tunnel.
@@ -73,6 +75,7 @@ func MakeServer(clusterName string, server types.Server, logins []string, requir
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels())
 
 	uiServer := Server{
+		Scope:           server.GetScope(),
 		Kind:            server.GetKind(),
 		ClusterName:     clusterName,
 		Labels:          uiLabels,
@@ -114,6 +117,8 @@ type EKSCluster struct {
 
 // KubeCluster describes a kube cluster.
 type KubeCluster struct {
+	// Scope is the scope in which this resource exists.
+	Scope string `json:"scope,omitempty"`
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
 	Kind string `json:"kind"`
 	// Name is the name of the kube cluster.
@@ -142,6 +147,7 @@ func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChe
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(cluster.GetAllLabels())
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
+		Scope:           cluster.GetScope(),
 		Kind:            cluster.GetKind(),
 		Name:            cluster.GetName(),
 		Labels:          uiLabels,

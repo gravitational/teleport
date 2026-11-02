@@ -31,21 +31,24 @@ export function PinButton({
   pinned,
   pinningSupport,
   hovered,
+  scoped,
   setPinned,
   className,
 }: {
   pinned: boolean;
   pinningSupport: PinningSupport;
   hovered: boolean;
+  scoped?: boolean;
   setPinned: () => void;
   className?: string;
 }) {
   const copyAnchorEl = useRef(null);
-  const tipContent = getTipContent(pinningSupport, pinned);
+  const tipContent = getTipContent(pinningSupport, pinned, scoped);
 
   const shouldShowButton =
     pinningSupport !== PinningSupport.Hidden && (pinned || hovered);
   const shouldDisableButton =
+    (scoped && !pinned) ||
     pinningSupport === PinningSupport.Disabled ||
     pinningSupport === PinningSupport.NotSupported;
 
@@ -88,12 +91,16 @@ export function PinButton({
 
 function getTipContent(
   pinningSupport: PinningSupport,
-  pinned: boolean
+  pinned: boolean,
+  scoped: boolean
 ): string {
   switch (pinningSupport) {
     case PinningSupport.NotSupported:
       return 'To enable pinning support, upgrade to 17.3 or newer.';
     case PinningSupport.Supported:
+      if (scoped) {
+        return pinned ? 'Unpin' : 'Scoped resources cannot be pinned.';
+      }
       return pinned ? 'Unpin' : 'Pin';
     default:
       return '';

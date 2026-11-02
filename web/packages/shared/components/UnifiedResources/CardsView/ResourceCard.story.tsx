@@ -99,6 +99,7 @@ type StoryProps = {
   showSelectedResourceIconForMatchingLabels: boolean;
   labelIconPlacement: 'left' | 'right';
   labelKind: LabelKind;
+  showScopes: boolean;
 };
 
 const meta: Meta<StoryProps> = {
@@ -133,6 +134,9 @@ const meta: Meta<StoryProps> = {
       control: { type: 'select' },
       options: ['secondary', 'outline-primary', 'outline-warning', ''],
     },
+    showScopes: {
+      control: { type: 'boolean' },
+    },
   },
   // default
   args: {
@@ -143,6 +147,7 @@ const meta: Meta<StoryProps> = {
     withHoverState: true,
     showResourceSelectedIcon: false,
     showSelectedResourceIconForMatchingLabels: false,
+    showScopes: true,
   },
 };
 export default meta;
@@ -222,6 +227,7 @@ export function Cards(props: StoryProps) {
                   withHoverState: props.withLabelIcon,
                 },
               })}
+              showScope={props.showScopes}
             />
           ))}
         </Grid>

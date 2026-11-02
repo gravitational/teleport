@@ -32,6 +32,7 @@ function makeTestResources(
     .fill(0)
     .map((_, i) => ({
       kind: 'node',
+      scope: '',
       subKind: 'teleport',
       id: i.toString(),
       clusterId: clusterId,

@@ -22,6 +22,7 @@ export default function makeNode(json: any): Node {
   json = json ?? {};
   const {
     id,
+    scope = '',
     siteId,
     subKind,
     hostname,
@@ -35,6 +36,7 @@ export default function makeNode(json: any): Node {
 
   return {
     kind: 'node',
+    scope,
     id,
     subKind,
     clusterId: siteId,

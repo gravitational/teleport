@@ -232,6 +232,7 @@ const agentMeta: AgentMeta = {
   agentMatcherLabels: [],
   kube: {
     kind: 'kube_cluster',
+    scope: '',
     name: '',
     labels: [],
   },
@@ -263,6 +264,7 @@ const Component = ({ devInfoText = '' }) => {
 const kubeServers: Kube[] = [
   {
     kind: 'kube_cluster',
+    scope: '',
     name: 'EKS2',
     labels: [
       { name: 'region', value: 'us-east-1' },

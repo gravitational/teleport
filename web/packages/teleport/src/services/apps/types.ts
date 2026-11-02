@@ -37,6 +37,7 @@ export enum CloudInstance {
 
 export interface App {
   kind: 'app';
+  scope: string;
   id: string;
   name: string;
   description: string;

@@ -37,6 +37,7 @@ export function ListView({
   visibleInputFields,
   showResourceSelectedIcon,
   resourceLabelConfig,
+  showScopes,
 }: ResourceViewProps) {
   return (
     <Flex className="ListContainer">
@@ -57,6 +58,7 @@ export function ListView({
             visibleInputFields={visibleInputFields}
             resourceLabelConfig={resourceLabelConfig}
             showResourceSelectedIcon={showResourceSelectedIcon}
+            showScope={showScopes}
           />
         )
       )}

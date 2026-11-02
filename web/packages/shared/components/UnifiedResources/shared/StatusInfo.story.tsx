@@ -111,6 +111,7 @@ export function UnhealthyStatusInfo(props: StoryProps) {
     case 'kube_cluster':
       resource = {
         kind: 'kube_cluster',
+        scope: '',
         name: 'testing-kube-resource-long-title-name',
         labels: [],
         targetHealth: {

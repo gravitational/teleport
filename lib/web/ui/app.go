@@ -34,6 +34,8 @@ import (
 
 // App describes an application
 type App struct {
+	// Scope is the scope in which this resource exists.
+	Scope string `json:"scope,omitempty"`
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
 	Kind string `json:"kind"`
 	// SubKind is the subkind of the app resource. Used to differentiate different
@@ -193,6 +195,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	permissionSets := makePermissionSets(app.GetIdentityCenter().GetPermissionSets())
 
 	resultApp := App{
+		Scope:                 app.GetScope(),
 		Kind:                  types.KindApp,
 		SubKind:               app.GetSubKind(),
 		Name:                  app.GetName(),

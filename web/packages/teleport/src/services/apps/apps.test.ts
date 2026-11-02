@@ -30,6 +30,7 @@ test('correct formatting of apps fetch response', async () => {
     agents: [
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-app-name-app-name.example.com',
         name: 'app-name',
         description: 'some description',
@@ -56,6 +57,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-cloud-app-unidentified-cloud://some-addr',
         name: 'cloud-app-unidentified',
         description: '',
@@ -82,6 +84,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-cloud-app-azure-cloud://Azure',
         name: 'cloud-app-azure',
         description: '',
@@ -108,6 +111,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-cloud-app-gcp-localhost:3000',
         name: 'cloud-app-gcp',
         description: '',
@@ -134,6 +138,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-cloud-app-aws-localhost:3000',
         name: 'cloud-app-aws',
         description: '',
@@ -160,6 +165,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-tcp-app-tcp://some-addr',
         name: 'tcp-app',
         description: '',
@@ -185,6 +191,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-saml-app-',
         name: 'saml-app',
         description: 'SAML Application',
@@ -212,6 +219,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-app-with-other-proxy-addr-app-with-other-proxy-addr.example.com',
         name: 'app-with-other-proxy-addr',
         useAnyProxyPublicAddr: true,
@@ -237,6 +245,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-mcp-app-mcp-app.example.com',
         name: 'mcp-app',
         useAnyProxyPublicAddr: false,
@@ -267,6 +276,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-mcp-http-app-mcp-http-app.example.com',
         name: 'mcp-http-app',
         useAnyProxyPublicAddr: false,
@@ -292,6 +302,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-anthropic-anthropic.example.com',
         name: 'anthropic',
         useAnyProxyPublicAddr: false,
@@ -319,6 +330,7 @@ test('correct formatting of apps fetch response', async () => {
       },
       {
         kind: 'app',
+        scope: '',
         id: 'cluster-id-openai-openai.example.com',
         name: 'openai',
         useAnyProxyPublicAddr: false,
