@@ -65,6 +65,12 @@ func PhaseBuildTypeString(t beamsv1.PhaseBuildType) string {
 // ValidatePhaseBuildRequest checks that the configuration matches the requested
 // startup type. The contents of build_config remain opaque to Teleport.
 func ValidatePhaseBuildRequest(req *beamsv1.CreatePhaseRequest) error {
+	if req.GetReplace() && req.HasDelegation() {
+		return trace.BadParameter("replacement must preserve the Phase's delegation")
+	}
+	if err := validatePhaseDelegation(req.GetDelegation()); err != nil {
+		return trace.Wrap(err, "delegation")
+	}
 	if PhaseBuildTypeString(req.GetBuildType()) == "" {
 		return trace.BadParameter("build_type must be snapshot, rebuild, or copy")
 	}
@@ -80,6 +86,23 @@ func ValidatePhaseBuildRequest(req *beamsv1.CreatePhaseRequest) error {
 		return trace.BadParameter("streaming build logs requires a rebuild")
 	}
 	return validatePhaseSuppressRebuilds(req.GetSuppressRebuilds())
+}
+
+func validatePhaseDelegation(spec *beamsv1.DelegationSpec) error {
+	switch spec.GetMode() {
+	case beamsv1.DelegationMode_DELEGATION_MODE_UNSPECIFIED,
+		beamsv1.DelegationMode_DELEGATION_MODE_OWNER_STANDING_ROLES:
+		if len(spec.GetRoles()) != 0 {
+			return trace.BadParameter("roles require selected roles mode")
+		}
+	case beamsv1.DelegationMode_DELEGATION_MODE_SELECTED_ROLES:
+		if len(spec.GetRoles()) == 0 {
+			return trace.BadParameter("selected roles must not be empty")
+		}
+	default:
+		return trace.BadParameter("unsupported mode %s", spec.GetMode())
+	}
+	return nil
 }
 
 func validatePhaseSuppressRebuilds(ids []string) error {
@@ -178,6 +201,9 @@ func ValidatePhase(phase *beamsv1.Phase) error {
 	}
 
 	buildConfig := phase.GetSpec().GetBuildConfig()
+	if err := validatePhaseDelegation(phase.GetStatus().GetDelegation()); err != nil {
+		return trace.Wrap(err, "status.delegation")
+	}
 	if len(buildConfig) > MaxPhaseBuildConfigSize {
 		return trace.BadParameter("spec.build_config: exceeds maximum size of %d bytes", MaxPhaseBuildConfigSize)
 	}

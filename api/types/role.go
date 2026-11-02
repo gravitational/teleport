@@ -343,6 +343,11 @@ type Role interface {
 	// GetDelegationRoles returns the allow or deny delegation roles.
 	GetDelegationRoles(RoleConditionType) []string
 
+	// GetBeamLabels returns the allow or deny Beam label selectors.
+	GetBeamLabels(RoleConditionType) Labels
+	// SetBeamLabels sets the allow or deny Beam label selectors.
+	SetBeamLabels(RoleConditionType, Labels)
+
 	// Clone creats a copy of the role.
 	Clone() Role
 }
@@ -2623,6 +2628,20 @@ func (r *RoleV6) GetDelegationRoles(rct RoleConditionType) []string {
 		return cond.Roles
 	}
 	return nil
+}
+
+// GetBeamLabels returns the allow or deny Beam label selectors.
+func (r *RoleV6) GetBeamLabels(rct RoleConditionType) Labels {
+	return r.GetRoleConditions(rct).BeamLabels
+}
+
+// SetBeamLabels sets the allow or deny Beam label selectors.
+func (r *RoleV6) SetBeamLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.BeamLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.BeamLabels = labels.Clone()
+	}
 }
 
 func (r *RoleV6) Clone() Role {

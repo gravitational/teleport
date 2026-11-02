@@ -939,14 +939,13 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 
 	allowLLMApps := fmt.Sprintf(`labels[%q] == %q`, types.BeamAppTypeLabel, types.SubKindLLM)
 
-	// Allow resources where the current user matches the owner label.
-	allowDirectlyOwned := fmt.Sprintf(`labels[%q] == user.metadata.name`, types.BeamOwnerLabel)
+	allowOwned := beamOwnerLabelsExpression()
 
-	// Allow resources where the current user is in the delegation chain, because
-	// their beam created and sub-delegated to a beam.
-	allowIndirectlyOwned := fmt.Sprintf(
-		`contains(labels_matching(%q), user.metadata.name)`,
-		types.BeamDelegatorLabelPrefix+"*",
+	// Phases keep their root user or bot owner when created inside a Beam.
+	// This trait is derived from the authenticated delegation chain.
+	allowOwnedPhases := fmt.Sprintf(
+		`contains(user.spec.traits[%q], labels[%q])`,
+		types.PhaseOwnerLabel, types.PhaseOwnerLabel,
 	)
 
 	or := func(conds ...string) string { return strings.Join(conds, " || ") }
@@ -970,16 +969,12 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 				},
 				AppLabelsExpression: or(
 					allowLLMApps,
-					allowDirectlyOwned,
-					allowIndirectlyOwned,
+					allowOwned,
 				),
-				NodeLabelsExpression: or(
-					allowDirectlyOwned,
-					allowIndirectlyOwned,
-				),
+				NodeLabelsExpression: allowOwned,
 				BeamLabelsExpression: or(
-					allowDirectlyOwned,
-					allowIndirectlyOwned,
+					allowOwned,
+					allowOwnedPhases,
 				),
 				Rules: []types.Rule{
 					{
@@ -1003,6 +998,15 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 		},
 	}
 	return role
+}
+
+// beamOwnerLabelsExpression matches direct owners and users whose Beams created
+// a resource.
+func beamOwnerLabelsExpression() string {
+	return fmt.Sprintf(
+		`labels[%q] == user.metadata.name || contains(labels_matching(%q), user.metadata.name)`,
+		types.BeamOwnerLabel, types.BeamDelegatorLabelPrefix+"*",
+	)
 }
 
 // NewPresetBeamAdminRole returns a new pre-defined role for administering beams
