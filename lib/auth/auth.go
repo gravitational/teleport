@@ -6343,19 +6343,15 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		}
 	}
 
-	// Delegation is derived from the beneficiary and overwritten in the
-	// request. It cannot be provided in the request. This caters for requests
-	// made by an admin on the beneficiary's behalf, where the caller's identity
-	// is that of the admin instead of the beneficiary.
-	beneficiary, err := a.GetUserOrLoginState(ctx, req.GetUser())
+	// Mutates the request adding a delegation snapshot
+	delegatorInfo, err := addDelegationSnapshot(ctx, a, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "fetching request beneficiary")
-	}
-	delegation := types.DelegationToLegacy(beneficiary.GetDelegation())
-	if delegation != nil {
-		req.SetDelegation(&types.AccessRequestDelegation{
-			Chain: delegation.GetChain(),
-		})
+		a.logger.WarnContext(
+			ctx, "Failed to add delegation snapshot to the request, proceeding without delegation",
+			"request_id", req.GetName(),
+			"request_expiry", req.Expiry(),
+			"error", err,
+		)
 	}
 
 	accesslistSuggestedReviewers := a.generateAccessRequestSuggestedReviewers(ctx, req, allAccessLists)
@@ -6456,49 +6452,31 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		ResourceKinds: apiutils.Deduplicate(resources),
 	})
 
-	requesterDisplay := formatUserWithDisplay(req.GetUser(), req.GetUserInfo().UserDisplay())
-
-	// Create a notification.
-	var notificationText string
-	// If this is a resource request.
-	if len(req.GetRequestedResourceIDs()) > 0 {
-		notificationText = fmt.Sprintf("%s requested access to %d resources.", requesterDisplay, len(req.GetAllRequestedResourceIDs()))
-		if len(req.GetRequestedResourceIDs()) == 1 {
-			notificationText = fmt.Sprintf("%s requested access to a resource.", requesterDisplay)
-		}
-		// If this is a role request.
-	} else {
-		notificationText = fmt.Sprintf("%s requested access to the '%s' role.", requesterDisplay, req.GetRoles()[0])
-		if len(req.GetRoles()) > 1 {
-			notificationText = fmt.Sprintf("%s requested access to %d roles.", requesterDisplay, len(req.GetRoles()))
+	// Send a notification to the delegated reviewer if one exists. Delegators
+	// receive a notification even when they cannot review the request
+	// themselves.
+	var notifyDelegatorErr error
+	if delegatorInfo != nil {
+		if notifyDelegatorErr = a.sendReviewPendingNotificationToDelegator(ctx, req, *delegatorInfo); notifyDelegatorErr != nil {
+			a.logger.WarnContext(
+				ctx, "Failed to create access request delegator notification",
+				"request_id", req.GetName(),
+				"error", err,
+			)
 		}
 	}
 
-	_, err = a.Services.CreateGlobalNotification(ctx, notificationsv1.GlobalNotification_builder{
-		Spec: notificationsv1.GlobalNotificationSpec_builder{
-			ByPermissions: notificationsv1.ByPermissions_builder{
-				RoleConditions: []*types.RoleConditions{
-					{
-						ReviewRequests: &types.AccessReviewConditions{
-							Roles: req.GetOriginalRoles(),
-						},
-					},
-				},
-			}.Build(),
-			// Prevent the requester from seeing the notification for their own access request.
-			ExcludeUsers: []string{req.GetUser()},
-			Notification: notificationsv1.Notification_builder{
-				Spec:    &notificationsv1.NotificationSpec{},
-				SubKind: types.NotificationAccessRequestPendingSubKind,
-				Metadata: headerv1.Metadata_builder{
-					Labels:  map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
-					Expires: timestamppb.New(req.Expiry()),
-				}.Build(),
-			}.Build(),
-		}.Build(),
-	}.Build())
-	if err != nil {
-		a.logger.WarnContext(ctx, "Failed to create access request notification", "error", err)
+	// Send the usual notification to reviewers if there is no delegated
+	// reviewer, the delegator cannot review this request themselves, or
+	// notifying the delegator failed.
+	if delegatorInfo == nil || !delegatorInfo.delegatorCanReview || notifyDelegatorErr != nil {
+		if err := a.broadcastReviewPendingNotification(ctx, req, delegatorInfo); err != nil {
+			a.logger.WarnContext(
+				ctx, "Failed to create access request notification",
+				"request_id", req.GetName(),
+				"error", err,
+			)
+		}
 	}
 
 	// calculate the promotions
@@ -6515,6 +6493,182 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		strconv.Itoa(len(req.GetRoles())),
 		strconv.Itoa(len(req.GetAllRequestedResourceIDs()))).Inc()
 	return req, nil
+}
+
+func (a *Server) broadcastReviewPendingNotification(ctx context.Context, req types.AccessRequest, info *delegatorInfo) error {
+	requesterDisplay := formatUserWithDisplay(req.GetUser(), req.GetUserInfo().UserDisplay())
+
+	numResources := len(req.GetRequestedResourceIDs())
+	numRoles := len(req.GetRoles())
+	var delegatorName string
+	var beamAlias string
+	if info != nil {
+		delegatorName = info.delegatorName
+		beamAlias = info.beamAlias
+	}
+
+	text := fmt.Sprintf("%s submitted an access request.", requesterDisplay)
+	switch {
+	case delegatorName != "" && beamAlias != "" && numResources > 0:
+		text = fmt.Sprintf("Beam %s owned by %s requested access to one or more resources", beamAlias, delegatorName)
+	case delegatorName != "" && beamAlias != "" && numRoles > 0:
+		text = fmt.Sprintf("Beam %s owned by %s requested access to one or more roles", beamAlias, delegatorName)
+	case delegatorName != "" && beamAlias == "" && numResources > 0:
+		text = fmt.Sprintf("Delegated identity %s owned by %s requested access to one or more resources", beamAlias, delegatorName)
+	case delegatorName != "" && beamAlias == "" && numRoles > 0:
+		text = fmt.Sprintf("Delegated identity %s owned by %s requested access to one or more roles", beamAlias, delegatorName)
+	case numResources == 1:
+		text = fmt.Sprintf("%s requested access to a resource.", requesterDisplay)
+	case numResources > 1:
+		text = fmt.Sprintf("%s requested access to %d resources.", requesterDisplay, numResources)
+	case numRoles == 1:
+		text = fmt.Sprintf("%s requested access to the '%s' role.", requesterDisplay, req.GetRoles()[0])
+	case numRoles > 1:
+		text = fmt.Sprintf("%s requested access to %d roles.", requesterDisplay, numRoles)
+	}
+
+	_, err := a.Services.CreateGlobalNotification(ctx, notificationsv1.GlobalNotification_builder{
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			ByPermissions: notificationsv1.ByPermissions_builder{
+				RoleConditions: []*types.RoleConditions{
+					{
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: req.GetOriginalRoles(),
+						},
+					},
+				},
+			}.Build(),
+			// Prevent the requester from seeing the notification for their own access request.
+			ExcludeUsers: []string{req.GetUser()},
+			Notification: notificationsv1.Notification_builder{
+				Spec:    &notificationsv1.NotificationSpec{},
+				SubKind: types.NotificationAccessRequestPendingSubKind,
+				Metadata: headerv1.Metadata_builder{
+					Labels: map[string]string{
+						types.NotificationTitleLabel: text,
+						"request-id":                 req.GetName(),
+					},
+					Expires: timestamppb.New(req.Expiry()),
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+
+	return err
+}
+
+func (a *Server) sendReviewPendingNotificationToDelegator(ctx context.Context, req types.AccessRequest, info delegatorInfo) error {
+	requestBase := "Role"
+	if len(req.GetAllRequestedResourceIDs()) > 0 {
+		requestBase = "Resource"
+	}
+	text := fmt.Sprintf(
+		"You have a new %s Request from your delegated identity %s",
+		requestBase,
+		req.GetUser(),
+	)
+	if info.beamAlias != "" {
+		text = fmt.Sprintf(
+			"You have a new %s Request from your beam %s",
+			requestBase,
+			info.beamAlias,
+		)
+	}
+	if !info.delegatorCanReview {
+		text = fmt.Sprintf(
+			"A new %s Request from your delegated identity %s has been escalated for review",
+			requestBase,
+			req.GetUser(),
+		)
+		if info.beamAlias != "" {
+			text = fmt.Sprintf(
+				"A new %s Request from your beam %s has been escalated for review",
+				requestBase,
+				info.beamAlias,
+			)
+		}
+	}
+
+	userNotification := notificationsv1.Notification_builder{
+		Spec: notificationsv1.NotificationSpec_builder{
+			Username: info.delegatorName,
+		}.Build(),
+		SubKind: types.NotificationAccessRequestPendingSubKind,
+		Metadata: headerv1.Metadata_builder{
+			Labels: map[string]string{
+				types.NotificationTitleLabel: text,
+				"request-id":                 req.GetName(),
+			},
+			Expires: timestamppb.New(req.Expiry()),
+		}.Build(),
+	}.Build()
+
+	_, err := a.Services.CreateUserNotification(ctx, userNotification)
+
+	return err
+}
+
+type delegatorInfo struct {
+	delegatorName      string
+	delegatorCanReview bool
+	beamAlias          string
+}
+
+// addDelegationSnapshot mutates the request by saving a copy of the delegation
+// chain, if the requester is a delegate. If the delegator cannot be found an
+// error is returned and the snapshot is not saved to the request. When
+// successful, delegation info is returned including whether the delegator can
+// review the request.
+func addDelegationSnapshot(ctx context.Context, a *Server, req types.AccessRequest) (*delegatorInfo, error) {
+	// Delegation is derived from the beneficiary. This caters for requests made
+	// by an admin on the beneficiary's behalf, where the caller's identity is
+	// that of the admin instead of the beneficiary.
+	beneficiary, err := a.GetUserOrLoginState(ctx, req.GetUser())
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching request beneficiary")
+	}
+
+	delegation := beneficiary.GetDelegation()
+
+	// The chain must have at least two links, an original delegator and
+	// a requester
+	if len(delegation.GetChain()) < 2 {
+		return nil, nil
+	}
+
+	// Add a snapshot of the delegation chain to the request
+	if delegation != nil {
+		req.SetDelegation(&types.AccessRequestDelegation{
+			Chain: types.DelegationToLegacy(delegation).GetChain(),
+		})
+	}
+
+	// The original delegator is the first link in the chain
+	delegator := delegation.GetChain()[0]
+	if delegator.HasBot() {
+		return nil, nil
+	}
+	delegatorName := delegator.GetUser().GetName()
+
+	// The requester is the last link in the chain
+	requester := delegation.GetChain()[len(delegation.GetChain())-1]
+
+	checker, err := services.NewReviewPermissionChecker(ctx, a, delegatorName, nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating review permissions checker for delegator")
+	}
+	canReview, _, err := checker.CanReviewRequest(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "checking can review request for delegator")
+	}
+
+	info := delegatorInfo{
+		delegatorName:      delegatorName,
+		delegatorCanReview: canReview,
+		beamAlias:          requester.GetBot().GetBeam().GetAlias(),
+	}
+
+	return &info, nil
 }
 
 // appendImplicitlyRequiredResources examines the set of requested resources and adds
