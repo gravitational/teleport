@@ -259,6 +259,9 @@ func trimDelegation(delegation *apiTypes.AccessRequestDelegation, maxFieldSize i
 	if delegation == nil {
 		return nil
 	}
+	if len(delegation.Chain) == 0 {
+		return &apiTypes.AccessRequestDelegation{}
+	}
 	trimmed := &apiTypes.AccessRequestDelegation{
 		Chain: make([]*apiTypes.DelegationChainLink, len(delegation.Chain)),
 	}

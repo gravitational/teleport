@@ -6343,6 +6343,21 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		}
 	}
 
+	// Delegation is derived from the beneficiary and overwritten in the
+	// request. It cannot be provided in the request. This caters for requests
+	// made by an admin on the beneficiary's behalf, where the caller's identity
+	// is that of the admin instead of the beneficiary.
+	beneficiary, err := a.GetUserOrLoginState(ctx, req.GetUser())
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching request beneficiary")
+	}
+	delegation := types.DelegationToLegacy(beneficiary.GetDelegation())
+	if delegation != nil {
+		req.SetDelegation(&types.AccessRequestDelegation{
+			Chain: delegation.GetChain(),
+		})
+	}
+
 	accesslistSuggestedReviewers := a.generateAccessRequestSuggestedReviewers(ctx, req, allAccessLists)
 	serverSuggestedReviewers := apiutils.Deduplicate(slices.Concat(roleSuggestedReviewers, accesslistSuggestedReviewers))
 
@@ -6418,6 +6433,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		Reason:                     req.GetRequestReason(),
 		MaxDuration:                req.GetMaxDuration(),
 		Annotations:                annotations,
+		Delegation:                 req.GetDelegation(),
 	}
 
 	updateEventTiming(req, event)
