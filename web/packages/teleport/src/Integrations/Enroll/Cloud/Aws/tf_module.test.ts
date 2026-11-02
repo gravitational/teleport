@@ -115,10 +115,17 @@ module "aws_discovery" {
     const result = buildTerraformConfig({
       ...baseConfig,
       version: '19.0.0-rc.1',
+      databaseService: {
+        deploy: true,
+        agents: [{ region: 'us-east-1', vpcId: 'vpc-1', securityGroupIds: [] }],
+      },
     });
 
     expect(result).toContain(
       'source  = "terraform-staging.releases.development.teleport.dev/teleport/discovery/aws"'
+    );
+    expect(result).toContain(
+      'source  = "terraform-staging.releases.development.teleport.dev/teleport/agent/aws"'
     );
   });
 
@@ -303,6 +310,91 @@ module "aws_discovery" {
     expect(result).toContain(
       'regions = ["eu-west-1", "us-east-1", "us-west-2"]'
     );
+  });
+
+  test('renders a db_agent module for each VPC and its security groups', () => {
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      databaseService: {
+        deploy: true,
+        agents: [
+          {
+            region: 'us-east-1',
+            vpcId: 'vpc-one',
+            securityGroupIds: ['sg-01234', 'sg-56789'],
+          },
+          {
+            region: 'us-east-1',
+            vpcId: 'vpc-two',
+            securityGroupIds: ['sg-abcdef'],
+          },
+          {
+            region: 'us-west-2',
+            vpcId: 'vpc-three',
+            securityGroupIds: ['sg-fedcba'],
+          },
+          {
+            region: 'us-east-1',
+            vpcId: 'vpc-one',
+            securityGroupIds: [
+              ' sg-01234 ',
+              'sg-duplication',
+              // Removes duplication
+              'sg-duplication',
+            ],
+          },
+        ],
+      },
+      matchers: [
+        {
+          type: 'rds',
+          regions: ['us-east-1', 'us-west-2'],
+          tags: [],
+        },
+      ],
+    });
+
+    expect(result).toContain(`types   = ["rds"]
+      regions = ["us-east-1", "us-west-2"]`);
+    expect(result)
+      .toContain(`# Added because you selected "Deploy a new Database Service for me".
+# Teleport needs network access to reach these databases.
+module "db_agent" {
+  for_each = {
+    "us-east-1/vpc-one" = {
+      region             = "us-east-1"
+      vpc_id             = "vpc-one"
+      security_group_ids = [
+        "sg-01234",
+        "sg-56789",
+        "sg-duplication"
+      ]
+    }
+    "us-east-1/vpc-two" = {
+      region             = "us-east-1"
+      vpc_id             = "vpc-two"
+      security_group_ids = ["sg-abcdef"]
+    }
+    "us-west-2/vpc-three" = {
+      region             = "us-west-2"
+      vpc_id             = "vpc-three"
+      security_group_ids = ["sg-fedcba"]
+    }
+  }
+
+  source  = "terraform.releases.teleport.dev/teleport/agent/aws"
+  version = "19.0.0"
+
+  teleport_proxy_public_addr = "example.teleport.sh:443"
+
+  region = each.value.region
+  vpc_id = each.value.vpc_id
+  database_service = {
+    enabled                           = true
+    default_iam_policy_database_types = ["rds"]
+    database_security_group_ids       = each.value.security_group_ids
+  }
+}`);
   });
 
   describe('organization scope', () => {

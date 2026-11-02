@@ -21,16 +21,23 @@ import { parse as parseVersion } from 'shared/utils/semVer';
 import cfg from 'teleport/config';
 
 import { hcl, teleportProviderConfig, TFObject } from '../terraform';
-import { AwsLabel, AwsMatcher, AwsOrganizationalUnits } from './types';
+import {
+  AwsLabel,
+  AwsMatcher,
+  AwsOrganizationalUnits,
+  DatabaseServiceConfig,
+} from './types';
 
 export type AwsDiscoverTerraformModuleConfig = {
   integrationName: string;
   matchers: AwsMatcher[];
   version: string;
   orgUnits?: AwsOrganizationalUnits | null;
+  databaseService?: DatabaseServiceConfig;
 };
 
-const TF_MODULE = '/teleport/discovery/aws';
+const TF_DISCOVERY_MODULE = '/teleport/discovery/aws';
+const TF_AGENT_MODULE = '/teleport/agent/aws';
 
 const AWS_PROVIDER = `
 # The module only creates IAM resources, which are global.
@@ -107,12 +114,13 @@ export const buildTerraformConfig = ({
   matchers,
   version,
   orgUnits,
+  databaseService,
 }: AwsDiscoverTerraformModuleConfig): string => {
   const tfRegistry = isStaging(version)
     ? cfg.terraform.stagingRegistry
     : cfg.terraform.registry;
 
-  const moduleSrc = `${tfRegistry}${TF_MODULE}`;
+  const moduleSrc = `${tfRegistry}${TF_DISCOVERY_MODULE}`;
 
   const integrationNameOrNull = integrationName.trim() || null;
 
@@ -149,10 +157,61 @@ module "aws_discovery" {
 }
 `;
 
+  let dbAgentModule = '';
+  if (databaseService?.deploy) {
+    const agentModuleSrc = `${tfRegistry}${TF_AGENT_MODULE}`;
+
+    const agentsByRegionAndVpc: Record<
+      string,
+      {
+        region: string;
+        vpc_id: string;
+        security_group_ids: string[];
+      }
+    > = {};
+    databaseService.agents.forEach(agent => {
+      let newSgis = agent.securityGroupIds.map(id => id.trim());
+      const region = agent.region.trim();
+      const vpcId = agent.vpcId.trim();
+      const key = `${region}/${vpcId}`;
+      const existingAgent = agentsByRegionAndVpc[key];
+      if (existingAgent) {
+        newSgis = [...existingAgent.security_group_ids, ...newSgis];
+      }
+      agentsByRegionAndVpc[key] = {
+        region,
+        vpc_id: vpcId,
+        security_group_ids: [...new Set(newSgis)],
+      };
+    });
+
+    dbAgentModule = hcl`
+# Added because you selected "Deploy a new Database Service for me".
+# Teleport needs network access to reach these databases.
+module "db_agent" {
+  for_each = ${agentsByRegionAndVpc}
+
+  source  = ${agentModuleSrc}
+  version = ${version}
+
+  teleport_proxy_public_addr = ${proxyAddr}
+
+  region = each.value.region
+  vpc_id = each.value.vpc_id
+  database_service = {
+    enabled                           = true
+    default_iam_policy_database_types = ["rds"]
+    database_security_group_ids       = each.value.security_group_ids
+  }
+}
+`;
+  }
+
   return (
     teleportProviderConfig({ proxyAddr, clusterVersion: version }) +
     AWS_PROVIDER +
     tfModule +
+    dbAgentModule +
     orgOutput
   );
 };

@@ -19,7 +19,7 @@
 import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
-import { ButtonPrimary, Flex } from 'design';
+import { ButtonPrimary, Flex, Text } from 'design';
 
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
@@ -52,8 +52,7 @@ export function CheckIntegrationButton({
 }
 export const Container = styled(Flex)`
   border-radius: 8px;
-  background: ${props => props.theme.colors.levels.elevated};
-
+  background-color: ${props => props.theme.colors.levels.surface};
   box-shadow:
     0 2px 1px -1px rgba(0, 0, 0, 0.2),
     0 1px 1px 0 rgba(0, 0, 0, 0.14),
@@ -65,6 +64,8 @@ export const Divider = styled.hr`
   margin-bottom: ${p => p.theme.space[3]}px;
   border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
   width: 100%;
+  margin-left: ${p => p.theme.space[4]}px;
+  margin-right: ${p => p.theme.space[4]}px;
 `;
 
 export const CircleNumber = styled.span`
@@ -81,4 +82,13 @@ export const CircleNumber = styled.span`
   margin-right: ${p => p.theme.space[2]}px;
   flex-shrink: 0;
   box-sizing: border-box;
+`;
+
+export const TextWeighted = styled(Text)`
+  font-weight: 400;
+`;
+
+export const TextWeightedSmall = styled(TextWeighted)`
+  line-height: 1.5;
+  font-size: ${p => p.theme.fontSizes[1]}px;
 `;

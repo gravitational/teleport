@@ -19,8 +19,25 @@
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
 
-import { Box, Card, Flex, Indicator } from 'design';
+import {
+  Alert,
+  Box,
+  ButtonIcon,
+  ButtonSecondary,
+  Card,
+  Flex,
+  Indicator,
+  Mark,
+  Text,
+} from 'design';
 import { Danger } from 'design/Alert';
+import Dialog, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'design/DialogConfirmation';
+import { Cross } from 'design/Icon';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import Validation from 'shared/components/Validation';
 
@@ -34,7 +51,7 @@ import {
   IntegrationSection,
 } from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
 import { InfoGuideContent } from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
-import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Aws/ResourcesSection';
+import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Aws/ResourceSection/ResourcesSection';
 import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Aws/tf_module';
 import {
   AwsOrganizationalUnits,
@@ -137,6 +154,19 @@ export function SettingsTab({
       ),
   });
 
+  const {
+    data: rdsRules,
+    isLoading: isLoadingRds,
+    isError: isRdsError,
+  } = useQuery({
+    queryKey: ['integrationRules', stats.name, AwsResource.rds],
+    queryFn: () =>
+      integrationService.fetchIntegrationRules(
+        integrationName,
+        AwsResource.rds
+      ),
+  });
+
   const [updatedConfigs, setUpdatedConfigs] = useState<Partial<ServiceConfigs>>(
     {}
   );
@@ -144,7 +174,9 @@ export function SettingsTab({
   const [updatedOrgUnits, setOrgUnits] =
     useState<AwsOrganizationalUnits | null>(null);
 
-  if (isLoadingEc2 || isLoadingEks || isIntegrationLoading) {
+  const [showCopyWarning, setShowCopyWarning] = useState(false);
+
+  if (isLoadingEc2 || isLoadingEks || isLoadingRds || isIntegrationLoading) {
     return (
       <SettingsTabContainer>
         {header}
@@ -155,7 +187,7 @@ export function SettingsTab({
     );
   }
 
-  if (isEc2Error || isEksError || isIntegrationError) {
+  if (isEc2Error || isEksError || isRdsError || isIntegrationError) {
     return (
       <SettingsTabContainer>
         {header}
@@ -171,9 +203,21 @@ export function SettingsTab({
   const orgUnits = updatedOrgUnits ??
     initialOrgUnits ?? { include: ['*'], exclude: [] };
 
+  const rdsEnabled = rdsRules.rules.length > 0;
+
   const configs: ServiceConfigs = {
     ec2: updatedConfigs.ec2 ?? configFromRules(ec2Rules.rules),
     eks: updatedConfigs.eks ?? configFromRules(eksRules.rules),
+    rds: updatedConfigs.rds ?? {
+      ...configFromRules(rdsRules.rules),
+      databaseService: {
+        deploy: !rdsEnabled,
+        // Note: these fields are not persisted by backend.
+        agents: rdsEnabled
+          ? []
+          : [{ region: '', vpcId: '', securityGroupIds: [] }],
+      },
+    },
   };
 
   const updateConfig = (type: ServiceType, patch: Partial<ServiceConfig>) => {
@@ -185,7 +229,11 @@ export function SettingsTab({
 
   // TF module currently supports EC2 only
   const supportedConfigs: ServiceConfigs = isOrganization
-    ? { ...configs, eks: { ...configs.eks, enabled: false } }
+    ? {
+        ...configs,
+        eks: { ...configs.eks, enabled: false },
+        rds: { ...configs.rds, enabled: false },
+      }
     : configs;
 
   const terraformConfig = buildTerraformConfig({
@@ -193,7 +241,22 @@ export function SettingsTab({
     matchers: buildMatchers(supportedConfigs),
     version: clusterVersion,
     orgUnits: isOrganization ? orgUnits : null,
+    databaseService: supportedConfigs.rds.enabled
+      ? supportedConfigs.rds.databaseService
+      : undefined,
   });
+
+  const shouldWarnOnCopy =
+    supportedConfigs.rds.enabled &&
+    supportedConfigs.rds.databaseService?.deploy === false;
+
+  function copyTerraformConfig() {
+    copyToClipboard(terraformConfig);
+
+    if (shouldWarnOnCopy) {
+      setShowCopyWarning(true);
+    }
+  }
 
   return (
     <Validation>
@@ -229,7 +292,7 @@ export function SettingsTab({
                   terraformConfig={terraformConfig}
                   handleCopy={() => {
                     if (validator.validate() && terraformConfig) {
-                      copyToClipboard(terraformConfig);
+                      copyTerraformConfig();
                     }
                   }}
                   integrationExists={true}
@@ -247,14 +310,46 @@ export function SettingsTab({
           <ResizableTerraformInfoGuideSidePanel
             infoGuideContent={<InfoGuideContent />}
             terraformConfig={terraformConfig}
+            onEditorCopy={
+              shouldWarnOnCopy ? () => setShowCopyWarning(true) : undefined
+            }
             handleCopy={() => {
               if (validator.validate() && terraformConfig) {
-                copyToClipboard(terraformConfig);
+                copyTerraformConfig();
               }
             }}
           />
+          {showCopyWarning && (
+            <PreserveDbAgentWarning onClose={() => setShowCopyWarning(false)} />
+          )}
         </ResizablePanelLayout>
       )}
     </Validation>
+  );
+}
+
+function PreserveDbAgentWarning({ onClose }: { onClose(): void }) {
+  return (
+    <Dialog onClose={onClose} open={true}>
+      <DialogHeader justifyContent="space-between">
+        <DialogTitle>Terraform Module Copied</DialogTitle>
+        <ButtonIcon onClick={onClose}>
+          <Cross size="small" />
+        </ButtonIcon>
+      </DialogHeader>
+      <DialogContent width="500px">
+        <Alert kind="warning" mb={3}>
+          Preserve your existing Database Service configuration.
+        </Alert>
+        <Text typography="body3">
+          Keep any existing <Mark>module &quot;db_agent&quot;</Mark> block.
+          Removing it from the same Terraform state will cause Terraform to plan
+          deleting the Database Service infrastructure.
+        </Text>
+      </DialogContent>
+      <DialogFooter>
+        <ButtonSecondary onClick={onClose}>Got It</ButtonSecondary>
+      </DialogFooter>
+    </Dialog>
   );
 }

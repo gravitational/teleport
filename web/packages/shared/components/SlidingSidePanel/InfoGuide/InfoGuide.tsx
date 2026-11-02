@@ -152,17 +152,21 @@ export type ReferenceLink = { title: string; href: string };
 export const ReferenceLinks = ({ links }: { links: ReferenceLink[] }) => (
   <>
     <InfoTitle>Reference Links</InfoTitle>
-    <InfoUl>
-      {links.map(link => (
-        <InfoLinkLi key={link.href}>
-          <Link target="_blank" href={link.href}>
-            <Flex>
-              {link.title}
-              <NewTab size="small" ml={1} />
-            </Flex>
-          </Link>
-        </InfoLinkLi>
-      ))}
-    </InfoUl>
+    <Links links={links} />
   </>
+);
+
+export const Links = ({ links }: { links: ReferenceLink[] }) => (
+  <InfoUl>
+    {links.map(link => (
+      <InfoLinkLi key={link.href}>
+        <Link target="_blank" href={link.href}>
+          <Flex>
+            {link.title}
+            <NewTab size="small" ml={1} />
+          </Flex>
+        </Link>
+      </InfoLinkLi>
+    ))}
+  </InfoUl>
 );

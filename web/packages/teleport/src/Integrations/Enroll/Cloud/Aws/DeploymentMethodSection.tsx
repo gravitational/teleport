@@ -77,8 +77,8 @@ export function DeploymentMethodSection({
         <Flex flexDirection="column" mb={3}>
           <Box mt={1} mb={4}>
             <H3>
-              1. Add the configuration generated on the right to your Terraform
-              project.
+              1. Add the module generated on the right to your Terraform
+              templates.
             </H3>
             <P3 color="text.slightlyMuted">
               If your project already configures the AWS or Teleport providers,
@@ -103,7 +103,7 @@ export function DeploymentMethodSection({
             </Box>
           </Box>
           <Box mb={4}>
-            <H3>2. Set up AWS and Teleport credentials</H3>
+            <H3>2. Configure AWS and Teleport providers</H3>
             <Text typography="body3" color="text.slightlyMuted">
               If you need help configuring providers for your environment,
               please reference{' '}

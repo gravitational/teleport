@@ -17,17 +17,22 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import selectEvent from 'react-select-event';
 
+import { copyToClipboard } from 'design/utils/copyToClipboard';
 import {
+  fireEvent,
   render,
   screen,
   testQueryClient,
+  userEvent,
   waitFor,
   within,
 } from 'design/utils/testing';
 import 'shared/components/TextEditor/TextEditor.mock';
 
 import { ContextProvider } from 'teleport';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationAwsOidc,
@@ -37,6 +42,10 @@ import {
 } from 'teleport/services/integrations';
 
 import { SettingsTab } from './SettingsTab';
+
+jest.mock('design/utils/copyToClipboard', () => ({
+  copyToClipboard: jest.fn(),
+}));
 
 const baseStats: IntegrationWithSummary = {
   name: 'my-aws-integration',
@@ -70,6 +79,28 @@ function setupMocks(integration: IntegrationAwsOidc = baseIntegration) {
     rules: [],
     nextKey: '',
   });
+}
+
+function mockRdsRule() {
+  jest
+    .mocked(integrationService.fetchIntegrationRules)
+    .mockImplementation((_name, resourceType) =>
+      Promise.resolve({
+        rules:
+          resourceType === AwsResource.rds
+            ? [
+                {
+                  resourceType: AwsResource.rds,
+                  region: 'us-east-1',
+                  labelMatcher: [],
+                  discoveryConfig: 'my-discovery-config',
+                  lastSync: 0,
+                },
+              ]
+            : [],
+        nextKey: '',
+      })
+    );
 }
 
 function renderSettingsTab() {
@@ -153,5 +184,106 @@ describe('SettingsTab', () => {
         within(excludeGroup).getByDisplayValue('ou-3')
       ).toBeInTheDocument();
     });
+  });
+
+  test('rendering warning dialog after copying Terraform while editing', async () => {
+    setupMocks();
+    mockRdsRule();
+    renderSettingsTab();
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Copy Terraform Module' })
+    );
+
+    const dialog = screen.getByRole('dialog');
+    expect(
+      within(dialog).getByText('Terraform Module Copied')
+    ).toBeInTheDocument();
+    expect(copyToClipboard).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Got It' })
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(copyToClipboard).toHaveBeenCalledTimes(1);
+
+    // Render warning when copying directly from the editor.
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Terraform Configuration' })
+    );
+    fireEvent.copy(screen.getByTestId('mock-text-editor'));
+    expect(screen.getByText('Terraform Module Copied')).toBeInTheDocument();
+  });
+
+  test('warning dialog is not rendered when deploying a new database service', async () => {
+    setupMocks();
+    mockRdsRule();
+    renderSettingsTab();
+
+    await userEvent.click(
+      await screen.findByRole('radio', {
+        name: /Deploy a new database service for me/i,
+      })
+    );
+    await selectEvent.select(
+      screen.getByRole('combobox', { name: 'Region' }),
+      'US East (N. Virginia)'
+    );
+    fireEvent.change(screen.getByPlaceholderText('vpc-0123456789abcdef0'), {
+      target: { value: 'vpc-123' },
+    });
+    const securityGroupInput = screen.getByRole('combobox', {
+      name: 'Security group IDs',
+    });
+    fireEvent.change(securityGroupInput, {
+      target: { value: 'sg-123' },
+    });
+    fireEvent.keyDown(securityGroupInput, { key: 'Enter', code: 'Enter' });
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Copy Terraform Module' })
+    );
+
+    expect(copyToClipboard).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  test('warning dialog is not rendered if RDS is not configured', async () => {
+    setupMocks();
+    renderSettingsTab();
+
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: 'EC2 Instances' })
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Copy Terraform Module' })
+    );
+
+    expect(copyToClipboard).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  test('defaulting to deploying a database service when enabling RDS', async () => {
+    setupMocks();
+    renderSettingsTab();
+
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: 'RDS Databases' })
+    );
+
+    expect(
+      screen.getByRole('radio', {
+        name: /Deploy a new database service for me/i,
+      })
+    ).toBeChecked();
+    expect(
+      screen.getByRole('combobox', { name: 'Region' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('vpc-0123456789abcdef0')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: 'Security group IDs' })
+    ).toBeInTheDocument();
   });
 });

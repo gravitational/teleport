@@ -50,9 +50,11 @@ import {
 } from '../Shared';
 import { ResizableTerraformInfoGuideSidePanel } from '../Shared/InfoGuide';
 import { BackBtn } from '../Shared/Shared';
+import { CtaAgentSkill } from './CtaAgentSkill';
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import { InfoGuideContent } from './InfoGuide';
-import { ResourcesSection } from './ResourcesSection';
+import { Prereqs } from './Prereqs';
+import { ResourcesSection } from './ResourceSection/ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
 import {
   AwsOrganizationalUnits,
@@ -87,7 +89,16 @@ export function EnrollAws() {
 
   const [configs, setConfigs] = useState<ServiceConfigs>({
     ec2: { enabled: true, regions: [], tags: [] },
-    eks: { enabled: false, regions: [], tags: [], kubeAppDiscovery: true },
+    eks: { enabled: true, regions: [], tags: [], kubeAppDiscovery: true },
+    rds: {
+      enabled: true,
+      regions: [],
+      tags: [],
+      databaseService: {
+        deploy: true,
+        agents: [{ region: '', vpcId: '', securityGroupIds: [] }],
+      },
+    },
   });
 
   const updateConfig = (type: ServiceType, patch: Partial<ServiceConfig>) => {
@@ -101,7 +112,11 @@ export function EnrollAws() {
 
   // TF module currently supports EC2 only
   const supportedConfigs: ServiceConfigs = isOrganization
-    ? { ...configs, eks: { ...configs.eks, enabled: false } }
+    ? {
+        ...configs,
+        eks: { ...configs.eks, enabled: false },
+        rds: { ...configs.rds, enabled: false },
+      }
     : configs;
 
   const terraformConfig = useMemo(
@@ -111,6 +126,9 @@ export function EnrollAws() {
         matchers: buildMatchers(supportedConfigs),
         version: clusterVersion,
         orgUnits: isOrganization ? orgUnits : null,
+        databaseService: supportedConfigs.rds.enabled
+          ? supportedConfigs.rds.databaseService
+          : undefined,
       }),
     [
       integrationName,
@@ -126,7 +144,7 @@ export function EnrollAws() {
       {({ validator }) => (
         <ResizablePanelLayout $withHorizontalScroll>
           <ResizableSidePanelMainContent $minWidth={650}>
-            <Box pt={3} pb={5} px={6} maxWidth={930}>
+            <Box pt={3} pb={5} px={6} maxWidth={990}>
               <Flex>
                 <BackBtn />
                 <Box>
@@ -143,6 +161,10 @@ export function EnrollAws() {
                   </Subtitle1>
                 </Box>
               </Flex>
+              <CtaAgentSkill />
+              <Container flexDirection="column" p={4} mb={3}>
+                <Prereqs />
+              </Container>
               <Container flexDirection="column" p={4} mb={3}>
                 <IntegrationSection
                   integrationName={integrationName}
@@ -288,6 +310,7 @@ export function ScopeSection({
       </Text>
       <Box ml={4} mb={3}>
         <RadioGroup
+          gap={1}
           name="awsScope"
           options={[
             { value: 'account', label: 'Single Account' },

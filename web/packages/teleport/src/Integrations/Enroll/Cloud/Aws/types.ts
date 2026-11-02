@@ -23,15 +23,34 @@ export type AwsLabel = {
   value: string;
 };
 
-export type ServiceType = 'ec2' | 'eks';
+export type ServiceType = 'ec2' | 'eks' | 'rds';
 
-const serviceTypes: ServiceType[] = ['ec2', 'eks'];
+const serviceTypes: ServiceType[] = ['ec2', 'eks', 'rds'];
+
+export type DbSvcDeployment = {
+  region: Regions | '';
+  vpcId: string;
+  securityGroupIds: string[];
+};
+
+export type DatabaseServiceConfig = {
+  deploy: boolean;
+  agents: DbSvcDeployment[];
+};
 
 export type ServiceConfig = {
   enabled: boolean;
+  /**
+   * List of regions for tf module "aws_discovery"
+   * aws_matchers field.
+   */
   regions: Regions[];
   tags: AwsLabel[];
   kubeAppDiscovery?: boolean;
+  /**
+   * Describes the tf module "db_agent".
+   */
+  databaseService?: DatabaseServiceConfig;
 };
 
 export type ServiceConfigs = Record<ServiceType, ServiceConfig>;

@@ -31,9 +31,12 @@ jest.mock('./TextEditor', () => {
  * other features are available in the mock.
  */
 
-function MockTextEditor(props: { data?: [{ content: string }] }) {
+function MockTextEditor(props: {
+  data?: [{ content: string }];
+  onCopy?: () => void;
+}) {
   return (
-    <div data-testid="mock-text-editor">
+    <div data-testid="mock-text-editor" onCopy={props.onCopy}>
       {props.data?.map(d => (
         <div key={d.content}>{d.content}</div>
       ))}

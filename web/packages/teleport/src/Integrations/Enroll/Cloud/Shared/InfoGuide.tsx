@@ -40,11 +40,13 @@ import LiveTextEditor from './LiveTextEditor';
 type TerraformInfoGuideProps = {
   terraformConfig: string;
   handleCopy: () => void;
+  onEditorCopy?: () => void;
 };
 
 function TerraformInfoGuide({
   terraformConfig,
   handleCopy,
+  onEditorCopy,
 }: TerraformInfoGuideProps) {
   const validator = useValidation();
 
@@ -59,6 +61,7 @@ function TerraformInfoGuide({
     >
       <LiveTextEditor
         data={[{ content: terraformConfig, type: 'terraform' }]}
+        onCopy={onEditorCopy}
       />
       <Box p={3}>
         <TerraformCopyButton
@@ -85,10 +88,12 @@ export function ResizableTerraformInfoGuideSidePanel({
   infoGuideContent,
   terraformConfig,
   handleCopy,
+  onEditorCopy,
 }: {
   infoGuideContent: ReactNode;
   terraformConfig: string;
   handleCopy(): void;
+  onEditorCopy?: () => void;
 }) {
   const sidePanel = useResizableSidePanel();
   const isTerraformPanelActive =
@@ -144,6 +149,7 @@ export function ResizableTerraformInfoGuideSidePanel({
               <TerraformInfoGuide
                 terraformConfig={terraformConfig}
                 handleCopy={handleCopy}
+                onEditorCopy={onEditorCopy}
               />
             </TerraformPanelContent>
           )}

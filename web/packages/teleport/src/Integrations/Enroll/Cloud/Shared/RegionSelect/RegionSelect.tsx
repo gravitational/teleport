@@ -37,7 +37,9 @@ function OptionContainer(props: OptionProps<Option>) {
   return (
     <components.Option {...props}>
       <Flex gap={2} width="100%">
-        {props.isMulti && <CheckboxInput checked={props.isSelected} />}
+        {props.isMulti && (
+          <CheckboxInput checked={props.isSelected} onChange={() => {}} />
+        )}
         <Flex flex="1" justifyContent="space-between">
           <Text as="span">{props.children}</Text>
           <Text as="span">{props.data.value}</Text>

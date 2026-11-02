@@ -18,6 +18,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
+import selectEvent from 'react-select-event';
 
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { act, fireEvent, render, screen, waitFor } from 'design/utils/testing';
@@ -132,10 +133,15 @@ describe('EnrollAws', () => {
         screen.getByText(/integration name is required/i)
       ).toBeInTheDocument();
     });
+    expect(
+      screen.getByText(/at least one security group ID is required/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/region is required/i)).toBeInTheDocument();
 
     fireEvent.change(input, {
       target: { value: 'test-integration' },
     });
+    await enterDatabaseServiceDetails();
 
     fireEvent.click(copyButton);
 
@@ -190,6 +196,7 @@ describe('EnrollAws', () => {
     fireEvent.change(screen.getByLabelText(/integration name/i), {
       target: { value: 'test-integration' },
     });
+    await enterDatabaseServiceDetails();
 
     const checkButton = screen.getByRole('button', {
       name: /check integration/i,
@@ -245,6 +252,7 @@ describe('EnrollAws', () => {
     fireEvent.change(screen.getByLabelText(/integration name/i), {
       target: { value: 'missing-integration' },
     });
+    await enterDatabaseServiceDetails();
 
     fireEvent.click(
       screen.getByRole('button', {
@@ -308,4 +316,223 @@ describe('EnrollAws', () => {
       expect(screen.getByText(/Reference Links/i)).toBeInTheDocument();
     });
   });
+
+  test('all resource types are enabled by default and are included in the Terraform configuration', async () => {
+    renderEnrollAws();
+    await enterDatabaseServiceDetails();
+
+    // Default selections:
+    expect(
+      screen.getByRole('checkbox', { name: 'EC2 Instances' })
+    ).toBeChecked();
+    expect(
+      screen.getByRole('checkbox', { name: 'RDS Databases' })
+    ).toBeChecked();
+    expect(
+      screen.getByRole('checkbox', { name: 'EKS Clusters' })
+    ).toBeChecked();
+    expect(
+      screen.getByRole('radio', {
+        name: /Deploy a new database service for me/i,
+      })
+    ).toBeChecked();
+    expect(
+      screen.getByRole('checkbox', {
+        name: 'Enable Kubernetes App Discovery',
+      })
+    ).toBeChecked();
+
+    fireEvent.click(
+      screen.getAllByRole('button', {
+        name: /copy terraform module/i,
+      })[0]
+    );
+
+    // Default generated terraform config:
+    expect(copyToClipboard).toHaveBeenCalledWith(
+      expect.stringMatching(/types\s+= \["ec2"\]/)
+    );
+    expect(copyToClipboard).toHaveBeenCalledWith(
+      expect.stringMatching(/types\s+= \["rds"\]/)
+    );
+    expect(copyToClipboard).toHaveBeenCalledWith(
+      expect.stringMatching(/types\s+= \["eks"\]/)
+    );
+
+    expect(copyToClipboard).toHaveBeenCalledWith(
+      expect.stringContaining('module "db_agent"')
+    );
+  });
+
+  test('toggling database service module in terraform config', async () => {
+    renderEnrollAws();
+    await enterDatabaseServiceDetails();
+
+    expect(
+      screen.getByRole('combobox', { name: 'RDS Databases regions' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: 'Region' })
+    ).toBeInTheDocument();
+
+    const copyButton = screen.getAllByRole('button', {
+      name: /copy terraform module/i,
+    })[0];
+
+    // default enables db service
+    fireEvent.click(copyButton);
+    expect(copyToClipboard).toHaveBeenLastCalledWith(
+      expect.stringContaining('module "db_agent"')
+    );
+
+    fireEvent.click(
+      screen.getByRole('radio', {
+        name: /I already have a Database Service/i,
+      })
+    );
+    expect(
+      screen.getByRole('combobox', { name: 'RDS Databases regions' })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('combobox', { name: 'Region' })
+    ).not.toBeInTheDocument();
+    fireEvent.click(copyButton);
+
+    expect(copyToClipboard).toHaveBeenLastCalledWith(
+      expect.not.stringContaining('module "db_agent"')
+    );
+  });
+
+  test('root and nested regions stay in sync and support multiple VPCs per region', async () => {
+    renderEnrollAws();
+
+    const rootRegionSelect = screen.getByRole('combobox', {
+      name: 'RDS Databases regions',
+    });
+    await selectEvent.select(rootRegionSelect, 'US East (N. Virginia)');
+    fireEvent.keyDown(rootRegionSelect, { key: 'Escape', code: 'Escape' });
+    expect(screen.getByText('US East (N. Virginia)')).toBeInTheDocument();
+
+    const vpcInputs = screen.getAllByPlaceholderText('vpc-0123456789abcdef0');
+    expect(vpcInputs).toHaveLength(1);
+    fireEvent.change(vpcInputs[0], { target: { value: 'vpc-one' } });
+
+    const firstSecurityGroupInput = screen.getByRole('combobox', {
+      name: 'Security group IDs',
+    });
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+    fireEvent.change(firstSecurityGroupInput, {
+      target: { value: 'sg-one' },
+    });
+    expect(screen.getByText('Press Enter to add "sg-one"')).toBeInTheDocument();
+    fireEvent.keyDown(firstSecurityGroupInput, {
+      key: 'Enter',
+      code: 'Enter',
+    });
+    expect(screen.getByText('sg-one')).toBeInTheDocument();
+
+    fireEvent.change(firstSecurityGroupInput, {
+      target: { value: 'sg-two' },
+    });
+    fireEvent.keyDown(firstSecurityGroupInput, {
+      key: 'Enter',
+      code: 'Enter',
+    });
+    expect(screen.getByText('sg-two')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Add another VPC/i }));
+
+    const updatedVpcInputs = screen.getAllByPlaceholderText(
+      'vpc-0123456789abcdef0'
+    );
+    expect(updatedVpcInputs).toHaveLength(2);
+    fireEvent.change(updatedVpcInputs[1], { target: { value: 'vpc-two' } });
+
+    const securityGroupInputs = screen.getAllByRole('combobox', {
+      name: 'Security group IDs',
+    });
+    expect(securityGroupInputs).toHaveLength(2);
+    fireEvent.change(securityGroupInputs[1], {
+      target: { value: 'sg-three' },
+    });
+    fireEvent.keyDown(securityGroupInputs[1], {
+      key: 'Enter',
+      code: 'Enter',
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Add another region/i })
+    );
+
+    const regionInputs = screen.getAllByRole('combobox', { name: 'Region' });
+    expect(regionInputs).toHaveLength(2);
+    selectEvent.openMenu(regionInputs[1]);
+
+    // Already selected regions are disabled
+    expect(
+      screen.getByRole('option', { name: /US East \(N\. Virginia\)/ })
+    ).toHaveAttribute('aria-disabled', 'true');
+
+    await selectEvent.select(regionInputs[1], 'US West (Oregon)');
+    expect(screen.getByText('2 regions selected')).toBeInTheDocument();
+
+    const allVpcInputs = screen.getAllByPlaceholderText(
+      'vpc-0123456789abcdef0'
+    );
+    expect(allVpcInputs).toHaveLength(3);
+    fireEvent.change(allVpcInputs[2], { target: { value: 'vpc-three' } });
+
+    const allSecurityGroupInputs = screen.getAllByRole('combobox', {
+      name: 'Security group IDs',
+    });
+    expect(allSecurityGroupInputs).toHaveLength(3);
+    fireEvent.change(allSecurityGroupInputs[2], {
+      target: { value: 'sg-four' },
+    });
+    fireEvent.keyDown(allSecurityGroupInputs[2], {
+      key: 'Enter',
+      code: 'Enter',
+    });
+
+    fireEvent.click(
+      screen.getAllByRole('button', {
+        name: /copy terraform module/i,
+      })[0]
+    );
+
+    expect(copyToClipboard).toHaveBeenCalledTimes(1);
+    const terraformConfig = jest.mocked(copyToClipboard).mock.calls[0][0];
+
+    expect(terraformConfig).toContain('us-east-1');
+    expect(terraformConfig).toContain('vpc-one');
+    expect(terraformConfig).toContain('sg-one');
+    expect(terraformConfig).toContain('sg-two');
+    expect(terraformConfig).toContain('vpc-two');
+    expect(terraformConfig).toContain('sg-three');
+
+    expect(terraformConfig).toContain('us-west-2');
+    expect(terraformConfig).toContain('vpc-three');
+    expect(terraformConfig).toContain('sg-four');
+  });
 });
+
+async function enterDatabaseServiceDetails(
+  vpcId = 'vpc-123',
+  securityGroupId = 'sg-123'
+) {
+  await selectEvent.select(
+    screen.getByRole('combobox', { name: 'Region' }),
+    'US East (N. Virginia)'
+  );
+  fireEvent.change(screen.getByPlaceholderText('vpc-0123456789abcdef0'), {
+    target: { value: vpcId },
+  });
+  const securityGroupInput = screen.getByRole('combobox', {
+    name: 'Security group IDs',
+  });
+  fireEvent.change(securityGroupInput, {
+    target: { value: securityGroupId },
+  });
+  fireEvent.keyDown(securityGroupInput, { key: 'Enter', code: 'Enter' });
+}

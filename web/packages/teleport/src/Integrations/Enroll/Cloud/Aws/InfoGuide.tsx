@@ -16,17 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
-
-import { Box, Flex, Link as ExternalLink, Text } from 'design';
-import { NewTab } from 'design/Icon';
+import { Box, Text, Stack } from 'design';
 import {
-  InfoParagraph,
   InfoTitle,
-  InfoUl,
+  Links,
   ReferenceLinks,
   type ReferenceLink,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
+
+const dbRefLinks: ReferenceLink[] = [
+  {
+    title: 'Database Labels Reference',
+    href: 'https://goteleport.com/docs/enroll-resources/database-access/reference/labels/',
+  },
+  {
+    title: 'Dynamic Database Registration',
+    href: 'https://goteleport.com/docs/enroll-resources/database-access/guides/dynamic-registration/',
+  },
+];
 
 const referenceLinks: ReferenceLink[] = [
   {
@@ -47,74 +54,57 @@ export function InfoGuideContent() {
   return (
     <Box>
       <InfoTitle>How It Works</InfoTitle>
-      <Box pl={2}>
-        <ol
-          css={`
-            padding: inherit;
-          `}
-        >
-          <li>
-            <strong>Configure what to discover.</strong>
-            <br />
-            <Text as="span" color="text.slightlyMuted">
-              Specify resource types, regions, and tag filters to control which
-              resources are discovered.
-            </Text>
-          </li>
-          <li>
-            <strong>Use the generated Terraform module.</strong>
-            <br />
-            <Text as="span" color="text.slightlyMuted">
-              The Terraform module will set up an OIDC connection in AWS and
-              configure Teleport discovery to scan for your resources.
-            </Text>
-          </li>
-          <li>
-            <strong>
-              Your cloud resources automatically appear in your Teleport
-              cluster.
-            </strong>
-            <br />
-            <Text as="span" color="text.slightlyMuted">
-              Teleport scans every 30 minutes to find matching resources.
-              Resources are enrolled in Teleport and ready for secure access.
-            </Text>
-          </li>
-        </ol>
-      </Box>
+      <Stack gap={3}>
+        <Box>
+          <Text fontWeight={'medium'}>Configure what to discover.</Text>
+          <Text>
+            Specify resource types, regions, and tag filters to control which
+            resources are discovered.
+          </Text>
+        </Box>
+        <Box>
+          <Text fontWeight={'medium'}>Use the generated Terraform module.</Text>
+          <Text>
+            The Terraform module will set up an OIDC connection in AWS and
+            configure Teleport discovery to scan for your resources.
+          </Text>
+        </Box>
+        <Box>
+          <Text fontWeight={'medium'}>
+            Your cloud resources automatically appear in your Teleport cluster.
+          </Text>
+          <Text>
+            Teleport scans every 30 minutes to find matching resources.
+            Resources are enrolled in Teleport and ready for secure access.
+          </Text>
+        </Box>
+      </Stack>
 
-      <InfoTitle>Prerequisites</InfoTitle>
-      <InfoParagraph>Before you begin, ensure you have:</InfoParagraph>
-      <InfoUl>
-        <InfoLinkLi>
-          <ExternalLink
-            href="https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-terraform#step-15-configure-aws-terraform-provider"
-            target="_blank"
-          >
-            <Flex>
-              AWS IAM permissions for discovery
-              <NewTab size="small" ml={1} />
-            </Flex>
-          </ExternalLink>
-        </InfoLinkLi>
-        <InfoLinkLi>
-          <ExternalLink
-            href="https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html"
-            target="_blank"
-          >
-            <Flex>
-              SSM agent running on EC2 instances
-              <NewTab size="small" ml={1} />
-            </Flex>
-          </ExternalLink>
-        </InfoLinkLi>
-      </InfoUl>
+      <InfoTitle>Database Service</InfoTitle>
+      <Stack gap={3}>
+        <Text>
+          Database discovery enrolls databases by creating db resources in the
+          Teleport cluster. It assigns labels from AWS tags and cloud metadata,
+          such as the database's VPC ID. Database Service instances use label
+          selectors to determine which enrolled databases to proxy.
+        </Text>
+        <Text>
+          For IAM-authenticated RDS databases, the Database Service must be able
+          to reach both the Teleport cluster and RDS endpoints and use AWS
+          credentials with rds-db:connect permission.
+        </Text>
+        <Text>
+          To provide this network connectivity, we recommend deploying a
+          Database Service instance in each AWS VPC containing databases that it
+          will proxy.
+        </Text>
+      </Stack>
+
+      <Box mt={2}>
+        <Links links={dbRefLinks} />
+      </Box>
 
       <ReferenceLinks links={referenceLinks} />
     </Box>
   );
 }
-
-const InfoLinkLi = styled.li`
-  color: ${({ theme }) => theme.colors.interactive.solid.accent.default};
-`;
