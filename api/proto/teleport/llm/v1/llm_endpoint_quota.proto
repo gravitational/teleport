@@ -1,0 +1,66 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.llm.v1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/llm/v1;llmv1";
+
+// LLMEndpointQuota is resource tracks a LLM endpoint quota usage.
+message LLMEndpointQuota {
+  // Kind is the kind of resource represented. This is always `llm_endpoint_quota`.
+  string kind = 1;
+  // SubKind is the sub_kind of the resource. Always "".
+  string sub_kind = 2;
+  // Version is the version of the resource. Always "v1".
+  string version = 3;
+  // Metadata about this resource.
+  teleport.header.v1.Metadata metadata = 4;
+  // Spec defines the user-provided configuration.
+  LLMEndpointQuotaSpec spec = 5;
+  // Status is set by the server as results of operations. These should not
+  // be modified by users.
+  LLMEndpointQuotaStatus status = 6;
+}
+
+// LLMEndpointQuotaSpec defines the user-provided configuration for the endpoint
+// quota.
+message LLMEndpointQuotaSpec {}
+
+// LLMEndpointQuotaStatus is set by the server as results of operations. These
+// should not be modified by users.
+message LLMEndpointQuotaStatus {
+  // Window is a time window where tokens are consumed.
+  message Window {
+    // Name of the interval type name of this window. For example, "lifetime".
+    //
+    // It must match the supported values from app configuration.
+    string interval_name = 1;
+    // Time when the window started.
+    google.protobuf.Timestamp starts_at = 2;
+    // Time when the window ends.
+    google.protobuf.Timestamp ends_at = 3;
+    // Number of input tokens consumed in the window.
+    uint64 input_tokens = 4;
+    // Number of output tokens consumed in the window.
+    uint64 output_tokens = 5;
+  }
+
+  // List of current active windows.
+  repeated Window active_windows = 1;
+}

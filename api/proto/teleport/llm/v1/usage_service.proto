@@ -1,0 +1,131 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.llm.v1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/llm/v1/llm_endpoint_quota.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/llm/v1;llmv1";
+
+// UsageService is the service used to control LLM usage using quotas.
+service UsageService {
+  // ReportUsage reports an amount of tokens used for an LLM endpoint.
+  rpc ReportUsage(ReportUsageRequest) returns (ReportUsageResponse);
+
+  // GetLLMEndpointQuota returns the specified LLMEndpointQuota.
+  rpc GetLLMEndpointQuota(GetLLMEndpointQuotaRequest) returns (GetLLMEndpointQuotaResponse);
+  // ListLLMEndpointQuotas lists LLMEndpointQuota resources.
+  rpc ListLLMEndpointQuotas(ListLLMEndpointQuotasRequest) returns (ListLLMEndpointQuotasResponse);
+}
+
+// ReportUsageRequest is the request for reporting LLM usage.
+message ReportUsageRequest {
+  // List of endpoint usage.
+  repeated EndpointUsage endpoints = 1;
+}
+
+// EndpointUsage contains an endpoint usage information.
+message EndpointUsage {
+  // Name of the endpoint.
+  string endpoint_name = 1;
+  // Aggregated usage in 1-minute buckets aligned to UTC minutes.
+  repeated UsageBucket buckets = 2;
+}
+
+// UsageBucket is the aggregated usage of an endpoint over a minute.
+message UsageBucket {
+  // Is the start of the minute the bucket covers. Auth uses it to place the
+  // usage into the correct windows.
+  google.protobuf.Timestamp time = 1;
+  // Number of input tokens used.
+  uint64 input_tokens = 2;
+  // Number of output tokens used.
+  uint64 output_tokens = 3;
+}
+
+// ReportUsageResponse is the response for reporting LLM usage.
+message ReportUsageResponse {
+  // Result for each endpoint present in the request.
+  repeated EndpointResult results = 1;
+}
+
+// EndpointResult is the result of reporting usage for a single endpoint.
+message EndpointResult {
+  // Name of the endpoint.
+  string endpoint_name = 1;
+  // Error is set when the endpoint usage couldn't be persisted.
+  ReportError error = 2;
+  // Quota is the endpoint quota state after the usage was persisted. Empty
+  // when error is set.
+  LLMEndpointQuota quota = 3;
+}
+
+// ReportError describes why an endpoint usage couldn't be persisted.
+message ReportError {
+  // Code is the error category, used by the app service to decide whether
+  // the usage must be reported again.
+  ReportErrorCode code = 1;
+  // Message is a human-readable description of the error.
+  string message = 2;
+}
+
+// ReportErrorCode is the category of a report error.
+enum ReportErrorCode {
+  // Unknown error. App services treat it as transient.
+  REPORT_ERROR_CODE_UNSPECIFIED = 0;
+  // The usage couldn't be persisted temporarily (for example, backend or lock
+  // failures). The usage must be reported again.
+  REPORT_ERROR_CODE_UNAVAILABLE = 1;
+  // The app service isn't allowed to report usage for the endpoint. The usage
+  // must not be reported again.
+  REPORT_ERROR_CODE_PERMISSION_DENIED = 2;
+  // The endpoint doesn't exist or doesn't have quotas configured. The usage
+  // must not be reported again.
+  REPORT_ERROR_CODE_NOT_FOUND = 3;
+  // The reported usage is malformed. The usage must not be reported again.
+  REPORT_ERROR_CODE_INVALID_ARGUMENT = 4;
+}
+
+// GetLLMEndpointQuotaRequest is a request for GetLLMEndpointQuota.
+message GetLLMEndpointQuotaRequest {
+  // Name is the name of the LLMEndpointQuota to retrieve.
+  string name = 1;
+}
+
+// GetLLMEndpointQuotaResponse is the response from GetLLMEndpointQuota.
+message GetLLMEndpointQuotaResponse {
+  // The requested LLMEndpointQuota
+  LLMEndpointQuota quota = 1;
+}
+
+// ListLLMEndpointQuotasRequest is the request for ListLLMEndpointQuotas.
+message ListLLMEndpointQuotasRequest {
+  // PageSize is the maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // PageToken is the page token value returned from a prior list request, if any.
+  string page_token = 2;
+}
+
+// ListLLMEndpointQuotasResponse is the response from ListLLMEndpointQuotas.
+message ListLLMEndpointQuotasResponse {
+  // Configs is a page of LLM endpoint quotas.
+  repeated LLMEndpointQuota quotas = 1;
+  // NextPageToken is the token that can be used to retrieve the next page of
+  // results or empty if there are no more pages.
+  string next_page_token = 2;
+}
