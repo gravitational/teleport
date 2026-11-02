@@ -3889,7 +3889,7 @@ func AuthorizeAccessReviewRequest(context authz.Context, params types.AccessRevi
 
 		// MaybeCanReviewRequests returns false positives, but it will tell us
 		// if the user definitely can't review requests, which saves a lot of work.
-		if !context.Checker.MaybeCanReviewRequests() {
+		if !context.Checker.MaybeCanReviewRequests() && !context.Checker.CanBeDelegator() {
 			return trace.AccessDenied("user %q cannot submit reviews", context.User.GetName())
 		}
 	}

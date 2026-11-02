@@ -6889,8 +6889,8 @@ func (a *Server) submitAccessReview(
 		return nil, trace.Wrap(err)
 	}
 
-	// don't bother continuing if the author has no allow directives
-	if !checker.HasAllowDirectives() {
+	// don't bother continuing if the author has no allow directives and cannot be a delegator
+	if !checker.HasAllowDirectives() && !checker.CanBeDelegator() {
 		return nil, trace.AccessDenied("user %q cannot submit reviews", params.Review.Author)
 	}
 

@@ -154,6 +154,9 @@ type AccessChecker interface {
 	// are derived from statically assigned roles, this may return false positives.
 	MaybeCanReviewRequests() bool
 
+	// CanBeDelegator returns true if this RoleSet allows delegation
+	CanBeDelegator() bool
+
 	// PermitX11Forwarding returns true if this RoleSet allows X11 Forwarding.
 	PermitX11Forwarding() bool
 
