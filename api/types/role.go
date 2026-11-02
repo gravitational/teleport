@@ -2435,7 +2435,7 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return r.makeGitServerLabelMatchers(cond), nil
 	case KindWorkloadIdentity:
 		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
-	case KindBeam:
+	case KindBeam, KindPhase:
 		return LabelMatchers{cond.BeamLabels, cond.BeamLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
@@ -2498,7 +2498,7 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 		cond.WorkloadIdentityLabels = labelMatchers.Labels
 		cond.WorkloadIdentityLabelsExpression = labelMatchers.Expression
 		return nil
-	case KindBeam:
+	case KindBeam, KindPhase:
 		cond.BeamLabels = labelMatchers.Labels
 		cond.BeamLabelsExpression = labelMatchers.Expression
 		return nil
@@ -2642,6 +2642,7 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktopService,
 	KindUserGroup,
 	KindBeam,
+	KindPhase,
 }
 
 const (

@@ -216,6 +216,7 @@ type Event struct {
 	//	*Event_Classifier
 	//	*Event_PendingCSRRequest
 	//	*Event_LLMEndpointQuota
+	//	*Event_Phase
 	Resource      isEvent_Resource `protobuf_oneof:"Resource"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1098,6 +1099,15 @@ func (x *Event) GetLLMEndpointQuota() *v125.LLMEndpointQuota {
 	return nil
 }
 
+func (x *Event) GetPhase() *v124.Phase {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_Phase); ok {
+			return x.Phase
+		}
+	}
+	return nil
+}
+
 func (x *Event) SetType(v Operation) {
 	x.Type = v
 }
@@ -1845,6 +1855,14 @@ func (x *Event) SetLLMEndpointQuota(v *v125.LLMEndpointQuota) {
 		return
 	}
 	x.Resource = &Event_LLMEndpointQuota{v}
+}
+
+func (x *Event) SetPhase(v *v124.Phase) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Phase{v}
 }
 
 func (x *Event) HasResource() bool {
@@ -2599,6 +2617,14 @@ func (x *Event) HasLLMEndpointQuota() bool {
 	return ok
 }
 
+func (x *Event) HasPhase() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Phase)
+	return ok
+}
+
 func (x *Event) ClearResource() {
 	x.Resource = nil
 }
@@ -3162,6 +3188,12 @@ func (x *Event) ClearLLMEndpointQuota() {
 	}
 }
 
+func (x *Event) ClearPhase() {
+	if _, ok := x.Resource.(*Event_Phase); ok {
+		x.Resource = nil
+	}
+}
+
 const Event_Resource_not_set_case case_Event_Resource = 0
 const Event_ResourceHeader_case case_Event_Resource = 2
 const Event_CertAuthority_case case_Event_Resource = 3
@@ -3256,6 +3288,7 @@ const Event_BeamsConfig_case case_Event_Resource = 97
 const Event_Classifier_case case_Event_Resource = 98
 const Event_PendingCSRRequest_case case_Event_Resource = 99
 const Event_LLMEndpointQuota_case case_Event_Resource = 100
+const Event_Phase_case case_Event_Resource = 101
 
 func (x *Event) WhichResource() case_Event_Resource {
 	if x == nil {
@@ -3448,6 +3481,8 @@ func (x *Event) WhichResource() case_Event_Resource {
 		return Event_PendingCSRRequest_case
 	case *Event_LLMEndpointQuota:
 		return Event_LLMEndpointQuota_case
+	case *Event_Phase:
+		return Event_Phase_case
 	default:
 		return Event_Resource_not_set_case
 	}
@@ -3655,6 +3690,8 @@ type Event_builder struct {
 	PendingCSRRequest *v122.PendingCSRRequest
 	// LLMEndpointQuota is resource tracks a LLM endpoint quota usage.
 	LLMEndpointQuota *v125.LLMEndpointQuota
+	// Phase is a reusable Beam base image.
+	Phase *v124.Phase
 	// -- end of Resource
 }
 
@@ -3941,6 +3978,9 @@ func (b0 Event_builder) Build() *Event {
 	}
 	if b.LLMEndpointQuota != nil {
 		x.Resource = &Event_LLMEndpointQuota{b.LLMEndpointQuota}
+	}
+	if b.Phase != nil {
+		x.Resource = &Event_Phase{b.Phase}
 	}
 	return m0
 }
@@ -4432,6 +4472,11 @@ type Event_LLMEndpointQuota struct {
 	LLMEndpointQuota *v125.LLMEndpointQuota `protobuf:"bytes,100,opt,name=LLMEndpointQuota,proto3,oneof"`
 }
 
+type Event_Phase struct {
+	// Phase is a reusable Beam base image.
+	Phase *v124.Phase `protobuf:"bytes,101,opt,name=Phase,proto3,oneof"`
+}
+
 func (*Event_ResourceHeader) isEvent_Resource() {}
 
 func (*Event_CertAuthority) isEvent_Resource() {}
@@ -4618,11 +4663,13 @@ func (*Event_PendingCSRRequest) isEvent_Resource() {}
 
 func (*Event_LLMEndpointQuota) isEvent_Resource() {}
 
+func (*Event_Phase) isEvent_Resource() {}
+
 var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a$teleport/beams/v1/beams_config.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/llm/v1/llm_endpoint_quota.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a)teleport/mfa/v1/validated_challenge.proto\x1a)teleport/mfa/v2/validated_challenge.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a+teleport/subca/v1/pending_csr_request.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xb59\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a$teleport/beams/v1/beams_config.proto\x1a\x1dteleport/beams/v1/phase.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/llm/v1/llm_endpoint_quota.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a)teleport/mfa/v1/validated_challenge.proto\x1a)teleport/mfa/v2/validated_challenge.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a+teleport/subca/v1/pending_csr_request.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xe79\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -4732,7 +4779,8 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"Classifier\x18b \x01(\v2\".teleport.summarizer.v1.ClassifierH\x00R\n" +
 	"Classifier\x12T\n" +
 	"\x11PendingCSRRequest\x18c \x01(\v2$.teleport.subca.v1.PendingCSRRequestH\x00R\x11PendingCSRRequest\x12O\n" +
-	"\x10LLMEndpointQuota\x18d \x01(\v2!.teleport.llm.v1.LLMEndpointQuotaH\x00R\x10LLMEndpointQuotaB\n" +
+	"\x10LLMEndpointQuota\x18d \x01(\v2!.teleport.llm.v1.LLMEndpointQuotaH\x00R\x10LLMEndpointQuota\x120\n" +
+	"\x05Phase\x18e \x01(\v2\x18.teleport.beams.v1.PhaseH\x00R\x05PhaseB\n" +
 	"\n" +
 	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10EJ\x04\bX\x10YJ\x04\bV\x10WR\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlanR\x0fWorkloadClusterR\rAppAuthConfig**\n" +
 	"\tOperation\x12\b\n" +
@@ -4836,6 +4884,7 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*v123.Classifier)(nil),                     // 89: teleport.summarizer.v1.Classifier
 	(*v122.PendingCSRRequest)(nil),              // 90: teleport.subca.v1.PendingCSRRequest
 	(*v125.LLMEndpointQuota)(nil),               // 91: teleport.llm.v1.LLMEndpointQuota
+	(*v124.Phase)(nil),                          // 92: teleport.beams.v1.Phase
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -4932,11 +4981,12 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	89, // 91: proto.Event.Classifier:type_name -> teleport.summarizer.v1.Classifier
 	90, // 92: proto.Event.PendingCSRRequest:type_name -> teleport.subca.v1.PendingCSRRequest
 	91, // 93: proto.Event.LLMEndpointQuota:type_name -> teleport.llm.v1.LLMEndpointQuota
-	94, // [94:94] is the sub-list for method output_type
-	94, // [94:94] is the sub-list for method input_type
-	94, // [94:94] is the sub-list for extension type_name
-	94, // [94:94] is the sub-list for extension extendee
-	0,  // [0:94] is the sub-list for field type_name
+	92, // 94: proto.Event.Phase:type_name -> teleport.beams.v1.Phase
+	95, // [95:95] is the sub-list for method output_type
+	95, // [95:95] is the sub-list for method input_type
+	95, // [95:95] is the sub-list for extension type_name
+	95, // [95:95] is the sub-list for extension extendee
+	0,  // [0:95] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -5038,6 +5088,7 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*Event_Classifier)(nil),
 		(*Event_PendingCSRRequest)(nil),
 		(*Event_LLMEndpointQuota)(nil),
+		(*Event_Phase)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

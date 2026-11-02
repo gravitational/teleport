@@ -75,6 +75,7 @@ type Config struct {
 	AppSession              services.AppSessionReader
 	Applications            services.Applications
 	Beams                   services.BeamReader
+	Phases                  services.PhaseReader // Phases supplies resources for the Phase cache.
 	BeamsConfig             services.BeamsConfigGetter
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
@@ -169,6 +170,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Applications,
 		Beams:                   cfg.Beams,
+		Phases:                  cfg.Phases,
 		BeamsConfig:             cfg.BeamsConfig,
 		ClusterConfig:           cfg.ClusterConfig,
 		StaticScopedToken:       cfg.StaticScopedToken,

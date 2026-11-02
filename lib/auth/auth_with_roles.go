@@ -1358,6 +1358,10 @@ func supportedScopedWatchKind(kind string) bool {
 // to the classical implementation (and denied for scoped callers); everything else goes through the
 // unified scoped-first path.
 func (a *ScopedServerWithRoles) authorizeWatchKind(ctx context.Context, kind types.WatchKind) (*scopesv1.Filter, error) {
+	if kind.Kind == types.KindPhase && !authz.ScopedIsLocalOrRemoteService(a.scopedContext) {
+		return nil, trace.AccessDenied("only service identities may watch Phases")
+	}
+
 	// do a pre-check for kinds that have exceptional behavior we haven't integrated into the unified
 	// scoped authz path yet.
 	switch kind.Kind {

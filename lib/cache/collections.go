@@ -87,6 +87,7 @@ type collections struct {
 	nodes                              *collection[types.Server, nodeIndex]
 	apps                               *collection[types.Application, appIndex]
 	beams                              *collection[*beamsv1.Beam, beamIndex]
+	phases                             *collection[*beamsv1.Phase, phaseIndex]
 	beamsConfig                        *collection[*beamsv1.BeamsConfig, beamsConfigIndex]
 	appServers                         *collection[types.AppServer, appServerIndex]
 	dbs                                *collection[types.Database, databaseIndex]
@@ -283,6 +284,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.beams = collect
 			out.byKind[resourceKind] = out.beams
+		case types.KindPhase:
+			collect, err := newPhaseCollection(c.Phases, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.phases = collect
+			out.byKind[resourceKind] = out.phases
 		case types.KindBeamsConfig:
 			collect, err := newBeamsConfigCollection(c.BeamsConfig, watch)
 			if err != nil {

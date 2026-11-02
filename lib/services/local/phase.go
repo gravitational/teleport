@@ -153,9 +153,9 @@ func (s *PhaseService) ListPhases(ctx context.Context, pageSize int, pageToken s
 	return phases, next, trace.Wrap(err)
 }
 
-// IteratePhases yields Phases starting at the supplied pagination token.
-func (s *PhaseService) IteratePhases(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Phase, error] {
-	return s.svc.Resources(ctx, pageToken, "")
+// RangePhases yields Phases starting at the supplied pagination token.
+func (s *PhaseService) RangePhases(ctx context.Context, startToken string) iter.Seq2[*beamsv1.Phase, error] {
+	return s.svc.Resources(ctx, startToken, "")
 }
 
 // UpdatePhase updates operation progress using the resource revision.
@@ -195,15 +195,12 @@ func (s *PhaseService) deletePhaseGraph(ctx context.Context, name string, condit
 	return trace.Wrap(err)
 }
 
-//nolint:unused // Used by Phase watch integration in the next PR in this stack.
 func newPhaseParser() *phaseParser {
 	return &phaseParser{baseParser: newBaseParser(backend.NewKey(phasePrefix).ExactKey())}
 }
 
-//nolint:unused // Used by Phase watch integration in the next PR in this stack.
 type phaseParser struct{ baseParser }
 
-//nolint:unused // Used by Phase watch integration in the next PR in this stack.
 func (p *phaseParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:

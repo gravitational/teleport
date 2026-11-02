@@ -100,6 +100,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_Beam{
 			Beam: r.UnwrapT(),
 		}
+	case types.Resource153UnwrapperT[*beamsv1.Phase]:
+		out.Resource = &proto.Event_Phase{
+			Phase: r.UnwrapT(),
+		}
 	case types.Resource153UnwrapperT[*beamsv1.BeamsConfig]:
 		out.Resource = &proto.Event_BeamsConfig{
 			BeamsConfig: r.UnwrapT(),
@@ -669,6 +673,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetBeam(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetPhase(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetBeamsConfig(); r != nil {

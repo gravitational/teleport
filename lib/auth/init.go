@@ -460,6 +460,9 @@ type InitConfig struct {
 	// Beams is the service for reading and writing beams.
 	Beams services.Beams
 
+	// Phases is the service for reading and writing reusable Beam images.
+	Phases services.Phases
+
 	// BeamsConfigService is the service for reading and writing the Beams config singleton.
 	BeamsConfigService services.BeamsConfigService
 

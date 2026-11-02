@@ -112,8 +112,8 @@ type PhaseReader interface {
 	GetPhase(context.Context, string) (*beamsv1.Phase, error)
 	// ListPhases returns a filtered page and the next pagination token.
 	ListPhases(context.Context, int, string, *ListPhasesRequestOptions) ([]*beamsv1.Phase, string, error)
-	// IteratePhases yields Phases and pagination errors from the supplied token.
-	IteratePhases(context.Context, string) iter.Seq2[*beamsv1.Phase, error]
+	// RangePhases yields Phases and pagination errors starting at the supplied token.
+	RangePhases(context.Context, string) iter.Seq2[*beamsv1.Phase, error]
 }
 
 // PhaseWriter writes Phase resources using optimistic concurrency.

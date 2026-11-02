@@ -321,6 +321,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindBeamsConfig, nil
 	case types.KindLLMEndpointQuota:
 		return types.KindLLMEndpointQuota, nil
+	case types.KindPhase, types.KindPhase + "s":
+		return types.KindPhase, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

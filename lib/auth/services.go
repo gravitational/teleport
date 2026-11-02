@@ -98,6 +98,7 @@ type Services struct {
 	services.ScopedTokenService
 	MFAService
 	services.Beams
+	services.Phases
 	services.BeamsConfigService
 	services.SubCAService
 	services.PendingCSRRequestService

@@ -986,6 +986,10 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 						Resources: []string{types.KindBeam},
 						Verbs:     []string{types.Wildcard},
 					},
+					{
+						Resources: []string{types.KindPhase},
+						Verbs:     []string{types.Wildcard},
+					},
 					types.NewRule(types.KindBeamsConfig, RO()),
 					{
 						Resources: []string{types.KindSession},
@@ -1026,7 +1030,7 @@ func NewPresetBeamAdminRole(buildType string) types.Role {
 				},
 				Rules: []types.Rule{
 					{
-						Resources: []string{types.KindBeam},
+						Resources: []string{types.KindBeam, types.KindPhase},
 						Verbs:     []string{types.Wildcard},
 					},
 					types.NewRule(types.KindBeamsConfig, RW()),

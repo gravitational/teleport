@@ -21,6 +21,7 @@ import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
 import "teleport/autoupdate/v1/autoupdate.proto";
 import "teleport/beams/v1/beam.proto";
 import "teleport/beams/v1/beams_config.proto";
+import "teleport/beams/v1/phase.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
@@ -274,5 +275,7 @@ message Event {
     teleport.subca.v1.PendingCSRRequest PendingCSRRequest = 99;
     // LLMEndpointQuota is resource tracks a LLM endpoint quota usage.
     teleport.llm.v1.LLMEndpointQuota LLMEndpointQuota = 100;
+    // Phase is a reusable Beam base image.
+    teleport.beams.v1.Phase Phase = 101;
   }
 }

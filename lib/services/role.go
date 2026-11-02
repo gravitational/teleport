@@ -833,6 +833,9 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 			types.KindSAMLIdPServiceProvider,
 			types.KindWorkloadIdentity,
 			types.KindBeam,
+			// Do not add KindPhase: it shares BeamLabels with KindBeam. A second
+			// pass would interpret template-shaped trait values again and could
+			// expand a literal value into a wildcard access matcher.
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition, kind)
 			if err != nil {

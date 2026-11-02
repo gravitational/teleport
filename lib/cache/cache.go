@@ -169,6 +169,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAppServer, ScopeFilter: allScopes},
 		{Kind: types.KindApp, ScopeFilter: allScopes},
 		{Kind: types.KindBeam},
+		{Kind: types.KindPhase},
 		{Kind: types.KindBeamsConfig},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
@@ -725,6 +726,8 @@ type Config struct {
 	Apps services.Applications
 	// Beams is a beam reader service.
 	Beams services.BeamReader
+	// Phases is a Phase reader service.
+	Phases services.PhaseReader
 	// BeamsConfig is a beams config getter service.
 	BeamsConfig services.BeamsConfigGetter
 	// Kubernetes is an kubernetes service.
