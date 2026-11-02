@@ -25,9 +25,10 @@ import (
 
 // MaxChainLength is the maximum number of links allowed in a delegation chain.
 //
-// It's an arbitrary limit, and mainly used to prevent unbounded sub-delegation
-// from resulting in enormous and invalid certificates.
-const MaxChainLength = 25
+// This limit was chosen to allow us to include the entire chain in audit events
+// without trimming, which have a maximum total size of 64KiB. We also use it to
+// avoid generating enormous X.509 and SSH certificates.
+const MaxChainLength = 8
 
 // Validate the given delegation chain.
 func Validate(d *delegationv1.Delegation) error {
