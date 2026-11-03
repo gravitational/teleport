@@ -51,6 +51,10 @@ should match the snapshot (full):
                 - mountPath: /run/tbot/sockets
                   name: tbot-sockets
                   readOnly: false
+          dnsConfig:
+            options:
+              - name: ndots
+                value: "2"
           hostPID: true
           securityContext:
             runAsGroup: 0
@@ -143,3 +147,14 @@ should match the snapshot (simple):
                       audience: example.teleport.sh
                       expirationSeconds: 600
                       path: join-sa-token
+should set dnsConfig when set in values:
+  1: |
+    nameservers:
+      - 1.2.3.4
+    options:
+      - name: ndots
+        value: "2"
+      - name: edns0
+    searches:
+      - ns1.svc.cluster-domain.example
+      - my.dns.search.suffix

@@ -18,3 +18,30 @@ tests:
       - ../.lint/full.yaml
     asserts:
       - matchSnapshot: {}
+  - it: should not set dnsConfig or dnsPolicy when not set in values
+    template: daemonset.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.dnsConfig
+      - notExists:
+          path: spec.template.spec.dnsPolicy
+  - it: should set dnsConfig when set in values
+    template: daemonset.yaml
+    values:
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - notEqual:
+          path: spec.template.spec.dnsConfig
+          value: null
+      - matchSnapshot:
+          path: spec.template.spec.dnsConfig
+  - it: should set dnsPolicy when set in values
+    template: daemonset.yaml
+    values:
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: None

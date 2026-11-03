@@ -234,3 +234,32 @@ securityContext:
 podSecurityContext:
   runAsUser: 0
   runAsGroup: 0
+
+# dnsConfig(object) -- contains custom Pod DNS Configuration for the tbot pods.
+# This value is useful if you need to reduce the DNS load: lower "ndots" so
+# that FQDNs such as the Teleport Proxy address are not first resolved against
+# the cluster search domains.
+#
+# See [the Kubernetes pod DNS documentation
+# ](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config)
+# for more information.
+#
+# For example:
+# ```yaml
+#  nameservers:
+#    - 1.2.3.4
+#  searches:
+#    - ns1.svc.cluster-domain.example
+#    - my.dns.search.suffix
+#  options:
+#    - name: ndots
+#      value: "2"
+# ```
+dnsConfig: {}
+
+# dnsPolicy(string) -- sets the Pod's DNS Policy
+#
+# See [the Kubernetes pod DNS documentation
+# ](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy)
+# for more information.
+dnsPolicy: ""
