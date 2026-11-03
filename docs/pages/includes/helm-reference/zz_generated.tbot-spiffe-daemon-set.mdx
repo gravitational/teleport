@@ -473,3 +473,42 @@ The default high level of privileges are necessary to support the workload attes
 requires the ability to read sensitive information about other processes running on the system.
 See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
 for more details.
+
+## `dnsConfig`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`dnsConfig` contains custom Pod DNS Configuration for the tbot pods.
+This value is useful if you need to reduce the DNS load: lower "ndots" so
+that FQDNs such as the Teleport Proxy address are not first resolved against
+the cluster search domains.
+
+See [the Kubernetes pod DNS documentation
+](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config)
+for more information.
+
+For example:
+```yaml
+ nameservers:
+   - 1.2.3.4
+ searches:
+   - ns1.svc.cluster-domain.example
+   - my.dns.search.suffix
+ options:
+   - name: ndots
+     value: "2"
+```
+
+## `dnsPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`dnsPolicy` sets the Pod's DNS Policy
+
+See [the Kubernetes pod DNS documentation
+](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy)
+for more information.

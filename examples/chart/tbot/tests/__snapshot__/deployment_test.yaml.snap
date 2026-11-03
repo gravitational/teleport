@@ -115,6 +115,10 @@ should match the snapshot (full):
                   name: join-sa-token
                 - mountPath: /test/path
                   name: test-volume
+          dnsConfig:
+            options:
+              - name: ndots
+                value: "2"
           imagePullSecrets:
             - name: test-pull-secret
           nodeSelector:
@@ -229,3 +233,14 @@ should match the snapshot (simple):
                       audience: test.teleport.sh
                       expirationSeconds: 600
                       path: join-sa-token
+should set dnsConfig when set in values:
+  1: |
+    nameservers:
+      - 1.2.3.4
+    options:
+      - name: ndots
+        value: "2"
+      - name: edns0
+    searches:
+      - ns1.svc.cluster-domain.example
+      - my.dns.search.suffix

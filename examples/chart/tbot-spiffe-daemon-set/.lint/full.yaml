@@ -6,3 +6,8 @@ workloadIdentitySelector:
   labels:
     foo: bar
     fizz: buzz
+
+dnsConfig:
+  options:
+    - name: ndots
+      value: "2"

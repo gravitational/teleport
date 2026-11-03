@@ -1,0 +1,16 @@
+clusterName: example.teleport.sh
+token: example-token
+teleportProxyAddress: example.teleport.sh:443
+workloadIdentitySelector:
+  name: example-workload-identity
+dnsPolicy: None
+dnsConfig:
+  nameservers:
+    - 1.2.3.4
+  searches:
+    - ns1.svc.cluster-domain.example
+    - my.dns.search.suffix
+  options:
+    - name: ndots
+      value: "2"
+    - name: edns0
