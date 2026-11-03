@@ -22,6 +22,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"strings"
 	"time"
 
@@ -238,10 +240,36 @@ func (s KubeConnectionTester) handleUserGenCertsErr(ctx context.Context, cluster
 	return nil, nil
 }
 
+func isConnectivityError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, net.ErrClosed) {
+		return true
+	}
+
+	// Covers dial, DNS, connection-refused, connection-reset, and socket
+	// read/write failures. errors.As unwraps *url.Error as well.
+	_, isOpErr := errors.AsType[*net.OpError](err)
+	return isOpErr
+}
+
 // handleErrFromKube parses the errors received from the Teleport and marks the
 // steps according to the given error.
 func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName string, connectionDiagnosticID string, actionErr error, namespace string) (types.ConnectionDiagnostic, error) {
 	var kubeErr *kubeerrors.StatusError
+
+	if isConnectivityError(actionErr) {
+		message := "Failed to connect to Kubernetes cluster. Ensure the cluster is registered and online."
+		traceType := types.ConnectionDiagnosticTrace_CONNECTIVITY
+		err := fmt.Errorf("kubernetes cluster %q is not reachable: %w", clusterName, actionErr)
+		return s.appendDiagnosticTrace(ctx, connectionDiagnosticID, traceType, message, err)
+	}
+
 	if actionErr != nil && !errors.As(actionErr, &kubeErr) {
 		traceType := types.ConnectionDiagnosticTrace_UNKNOWN_ERROR
 		message := fmt.Sprintf("Unknown error. %v", actionErr)
