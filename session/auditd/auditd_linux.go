@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/mdlayher/netlink"
-	"github.com/mdlayher/netlink/nlenc"
 )
 
 // featureStatus is a 3 state boolean yes/no/unknown type.
@@ -244,7 +243,7 @@ func getAuditStatus(conn NetlinkConnector) (*auditStatus, error) {
 	}
 
 	// auditd marshaling depends on the system architecture.
-	byteOrder := nlenc.NativeEndian()
+	byteOrder := binary.NativeEndian
 	status := &auditStatus{}
 
 	payload := bytes.NewReader(msgs[0].Data[:])
