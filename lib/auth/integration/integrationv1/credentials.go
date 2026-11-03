@@ -46,10 +46,17 @@ func (s *Service) ExportIntegrationCertAuthorities(ctx context.Context, in *inte
 		return nil, trace.Wrap(err)
 	}
 
-	caKeySet, err := credentials.GetIntegrationCertAuthorities(ctx, ig, s.cache)
+	caKeySets, err := credentials.GetIntegrationCertAuthorities(ctx, ig, s.cache)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// GetIntegrationCertAuthorities should always return 1 KeySet for a type that has them.
+	if len(caKeySets) != 1 {
+		return nil, trace.BadParameter("integration %q does not have exportable certificate authorities", ig.GetName())
+	}
+
+	caKeySet := caKeySets[0]
 
 	// Currently only public keys are exported.
 	caKeySetWithoutSecrets := caKeySet.WithoutSecrets()

@@ -139,13 +139,32 @@ func GetIntegrationWithCredRef(ctx context.Context, integration string, igGetter
 
 // GetIntegrationCertAuthorities attempts to retrieve certificate authorities
 // for provided integration.
-func GetIntegrationCertAuthorities(ctx context.Context, ig types.Integration, getter ByLabelsGetter) (*types.CAKeySet, error) {
+func GetIntegrationCertAuthorities(ctx context.Context, ig types.Integration, getter ByLabelsGetter) ([]types.CAKeySet, error) {
+	// Newly created integrations need to be classified in here,
+	// specially if they have a key of their own. Signing keys considered
+	// unused are deleted during boot, and this is the function that tells the
+	// boot about the keys that being used by integrations.
+	// For safety, an unknown integration returns BadParameter which skips
+	// the key cleanup.
 	switch ig.GetSubKind() {
 	case types.IntegrationSubKindGitHub:
 		caKeySet, err := GetGitHubCertAuthorities(ctx, ig, getter)
-		return caKeySet, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []types.CAKeySet{*caKeySet}, nil
+
+	case types.IntegrationSubKindAWSOIDC,
+		types.IntegrationSubKindAzureOIDC,
+		types.IntegrationSubKindAWSRolesAnywhere,
+		types.IntegrationSubKindOAuthProxy:
+		// These subkinds have no certificates that they own.
+		return []types.CAKeySet{}, nil
+
 	default:
-		return nil, trace.NotImplemented("unsupported for integration subkind %v", ig.GetSubKind())
+		// Unknown subkind. This binary cannot determine which keys the
+		// integration owns, so callers must not assume it owns none.
+		return nil, trace.BadParameter("unknown integration subkind %v, cannot determine which certificate authorities it owns", ig.GetSubKind())
 	}
 }
 

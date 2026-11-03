@@ -162,6 +162,11 @@ type Integration interface {
 	IsOAuthProxy() bool
 }
 
+// Returns all integrationSubKindValues
+func IntegrationSubKinds() []string {
+	return integrationSubKindValues
+}
+
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
 
 // NewIntegrationAWSOIDC returns a new `aws-oidc` subkind Integration

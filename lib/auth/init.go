@@ -882,21 +882,43 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	igs := asrv.Services.RangeIntegrations(ctx, integrationpb.ListIntegrationsRequest_builder{
 		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
 	}.Build())
+
+	// allKeysInUseIsComplete prevents deleting any keys in case there's any error in the process.
+	// Otherwise a cleanup operation error could end up deleting real keys.
+	allKeysInUseIsComplete := true
+	incompleteIntegrations := []string{}
+
 	for ig, err := range igs {
 		if err != nil {
-			return trace.Wrap(err)
+			// The set of integrations could not be enumerated, so the keys owned by
+			// them are unknown and the cleanup must be skipped.
+			// Every CA is already initialized at this point and key cleanup is
+			// opportunistic, so this must not fail initialization.
+			allKeysInUseIsComplete = false
+			asrv.logger.WarnContext(ctx, "Failed to list integrations", "error", err)
+			break
 		}
 
-		caKeySet, err := igcredentials.GetIntegrationCertAuthorities(ctx, ig, asrv.Services)
-		switch {
-		case trace.IsNotImplemented(err):
-		case err != nil:
-			// This should not happen by design. In case integration is in a
+		caKeySets, err := igcredentials.GetIntegrationCertAuthorities(ctx, ig, asrv.Services)
+		if err != nil {
+			// This should not happen by design. In case the integration is in a
 			// bad state, log a warning instead of failing this initialization.
+			//
+			// The keys owned by this integration cannot be determined, so the
+			// cleanup below must be skipped: deleting a key that is still in
+			// use is unrecoverable, while leaving an unused key behind is not.
+			allKeysInUseIsComplete = false
+			incompleteIntegrations = append(incompleteIntegrations, ig.GetName())
 			asrv.logger.WarnContext(ctx, "Failed to fetch integration CAs", "ig", ig.GetName(), "error", err)
-		default:
-			allKeysInUse = append(allKeysInUse, collectKeysInUse(*caKeySet)...)
 		}
+
+		allKeysInUse = append(allKeysInUse, collectKeysInUse(caKeySets...)...)
+	}
+
+	if !allKeysInUseIsComplete {
+		asrv.logger.WarnContext(ctx,
+			"Skipping clean up of unused HSM or KMS keys because the set of keys in use could not be determined",
+			"integrations", incompleteIntegrations)
 		return nil
 	}
 
