@@ -32,7 +32,7 @@ Global flags:
 |`-d`, `--[no-]debug`|`false`|Verbose logging to stdout.|
 |`-i`, `--identity`|*no default*|Identity file.|
 |`-J`, `--jumphost`|*no default*|SSH jumphost.|
-|`-k`, `--add-keys-to-agent`|`auto`|Controls how keys are handled. Valid values are \[auto no yes only\].|
+|`-k`, `--add-keys-to-agent`|`no`|Controls how keys are handled. Valid values are \[auto no yes only\].|
 |`-l`, `--login`|*no default*|Remote host login.|
 |`--mfa-mode`|`auto` (one of: `auto`, `cross-platform`, `platform`, `otp`, `sso`, `browser`)|Preferred mode for MFA and Passwordless assertions.|
 |`--mlock`|`auto`|Determines whether process memory will be locked and whether failure to do so will be accepted (off, auto, best_effort, strict).|
@@ -51,7 +51,7 @@ Global environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_ADD_KEYS_TO_AGENT`|`auto`|Controls how keys are handled. Valid values are [auto no yes only].|
+|`TELEPORT_ADD_KEYS_TO_AGENT`|`no`|Controls how keys are handled. Valid values are [auto no yes only].|
 |`TELEPORT_AUTH`|*no default*|Specify the name of authentication connector to use.|
 |`TELEPORT_CLUSTER`|`none`|Name of a Teleport root or leaf cluster|
 |`TELEPORT_GLOBAL_TSH_CONFIG`|`none`|Override location of global `tsh` config file from default `/etc/tsh.yaml`|

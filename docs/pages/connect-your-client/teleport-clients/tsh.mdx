@@ -609,20 +609,26 @@ This command:
 
 ### SSH agent support
 
-If there is an [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) running,
-`tsh login` will store the user certificate in the agent. This can be verified
-via:
+<Admonition type="warning">
+SSH agent certificate loading is disabled by default since v19.
+This change does not impact `tsh ssh` nor `ssh` used with `tsh config`'s output.
+</Admonition>
+
+`tsh login` can be configured to store the user certificate in the SSh agent.
+When enabled, the SSH agent can be used to feed the certificate to other SSH clients,
+for example to OpenSSH (`ssh`).
+
+This is not required to use `ssh` with an ssh_config generated with `tsh config`.
+
+If you wish to enable SSH agent integration, pass `--add-keys-to-agent=yes` to
+`tsh`. You can also set the `TELEPORT_ADD_KEYS_TO_AGENT` environment variable to
+`yes` in your shell profile to make this permanent.
+
+This can be verified via:
 
 ```code
 $ ssh-add -L
 ```
-
-The SSH agent can be used to feed the certificate to other SSH clients, for example
-to OpenSSH (`ssh`).
-
-If you wish to disable SSH agent integration, pass `--add-keys-to-agent=no` to
-`tsh`. You can also set the `TELEPORT_ADD_KEYS_TO_AGENT` environment variable to
-`no` in your shell profile to make this permanent.
 
 For a full reference of `tsh` flags and environment variables, see the [`tsh
 Reference`](../../reference/cli/tsh.mdx).
