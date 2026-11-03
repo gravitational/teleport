@@ -917,7 +917,7 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req resource
 }
 {{- end}}
 
-{{- if not .WithoutModifyPlan }}
+{{- if and (not .WithoutModifyPlan) (not .HasCheckAndSetDefaults) }}
 
 // ModifyPlan modifies the planned value, normalizing null values.
 func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
@@ -958,14 +958,6 @@ func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req resource.
 {{- if .ForceSetKind }}
 	{{.VarName}}Resource.Kind = {{.ForceSetKind}}
 {{- end}}
-
-{{- if .HasCheckAndSetDefaults }}
-
-	if err := {{.VarName}}Resource.CheckAndSetDefaults(); err != nil {
-		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting {{.Name}} defaults", trace.Wrap(err), "{{.Kind}}"))
-		return
-	}
-{{- end }}
 
 {{- if .ConvertPackagePath}}
 
