@@ -1,0 +1,64 @@
+---
+title: TeleportClassifierV1
+description: Provides a comprehensive list of fields in the TeleportClassifierV1 resource available through the Teleport Kubernetes operator
+page_type: reference
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+{/* Disable the outdated name check since custom resource fields occasionally
+need to refer to these. */}
+{/* vale 3rd-party-products.former-names = NO */}
+
+This guide lists the fields in the `TeleportClassifierV1`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|Classifier resource definition v1 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|actions|[object](#specactions)|Actions configures the effects of every match. Rules can add to these effects but never remove them. If unset and no rule applies, a match is only recorded on the stored session summary.|
+|criteria|string|Criteria is a natural-language description of what this classifier matches. It is evaluated by the inference model against the session summary and, when available, the per-command analysis.|
+|disabled|boolean|Disabled, if true, excludes the classifier from evaluation without deleting it.|
+|filter|string|Filter is an optional filter expression using Teleport Predicate Language that selects the sessions this classifier applies to. It supports the same language and matching context as the inference policy filter, e.g., `equals(resource.metadata.labels["env"], "prod")`. If empty, the classifier applies to all sessions of matching kinds.|
+|kinds|[]string|Kinds are session kinds matched by this classifier, e.g., "ssh", "k8s", "db".|
+|rules|[][object](#specrules-items)|Rules escalate the response to a match for a subset of sessions. A rule applies when the criteria matched and the rule's own filter and criteria both hold. The top-level actions and the actions of every applicable rule combine: risk level floors combine by taking the highest and toggles combine by OR, so a rule can only add effects and order is not significant.|
+
+### spec.actions
+
+|Field|Type|Description|
+|---|---|---|
+|emit_audit_event|string or integer|EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier. Can be either the string or the integer representation of each option.|
+|flag_for_review|string or integer|FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary. Can be either the string or the integer representation of each option.|
+|risk_level_floor|string or integer|RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary. Can be either the string or the integer representation of each option.|
+
+### spec.rules items
+
+|Field|Type|Description|
+|---|---|---|
+|actions|[object](#specrules-itemsactions)|Actions configures the additional effects of a match to which this rule applies. They combine with the top-level actions and with the actions of every other applicable rule.|
+|criteria|string|Criteria is an optional natural-language refinement of the top-level criteria. It is evaluated by the inference model in the same pass as the top-level criteria, and the rule applies only if both match.|
+|filter|string|Filter is an optional filter expression using Teleport Predicate Language that narrows the sessions this rule applies to. It uses the same language and matching context as the top-level filter and is evaluated in addition to it.|
+|name|string|Name identifies the rule. It must be unique within the classifier and is recorded on the session summary when the rule applies.|
+
+### spec.rules items.actions
+
+|Field|Type|Description|
+|---|---|---|
+|emit_audit_event|string or integer|EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier. Can be either the string or the integer representation of each option.|
+|flag_for_review|string or integer|FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary. Can be either the string or the integer representation of each option.|
+|risk_level_floor|string or integer|RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary. Can be either the string or the integer representation of each option.|
+

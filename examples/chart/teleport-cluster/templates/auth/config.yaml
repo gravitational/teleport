@@ -213,6 +213,14 @@ data:
               - update
               - delete
           - resources:
+              - classifier
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
               - inference_model
             verbs:
               - list
