@@ -44,6 +44,9 @@ type KubeCluster interface {
 	GetStaticLabels() map[string]string
 	// SetStaticLabels sets the kube cluster static labels.
 	SetStaticLabels(map[string]string)
+	// HasDynamicLabels returns true if the resource has at least one dynamic
+	// label entry.
+	HasDynamicLabels() bool
 	// GetDynamicLabels returns the kube cluster dynamic labels.
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the kube cluster dynamic labels.
@@ -264,6 +267,12 @@ func (k *KubernetesClusterV3) GetKubeconfig() []byte {
 // SetKubeconfig sets the kubeconfig.
 func (k *KubernetesClusterV3) SetKubeconfig(cfg []byte) {
 	k.Spec.Kubeconfig = cfg
+}
+
+// HasDynamicLabels returns true if the resource has at least one dynamic
+// label entry.
+func (k *KubernetesClusterV3) HasDynamicLabels() bool {
+	return k != nil && len(k.Spec.DynamicLabels) > 0
 }
 
 // GetDynamicLabels returns the dynamic labels.

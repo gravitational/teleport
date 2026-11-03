@@ -48,6 +48,9 @@ type Application interface {
 	GetStaticLabels() map[string]string
 	// SetStaticLabels sets the app static labels.
 	SetStaticLabels(map[string]string)
+	// HasDynamicLabels returns true if the resource has at least one dynamic
+	// label entry.
+	HasDynamicLabels() bool
 	// GetDynamicLabels returns the app dynamic labels.
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the app dynamic labels.
@@ -81,6 +84,15 @@ type Application interface {
 	IsTCP() bool
 	// IsMCP returns true if this app represents a MCP server.
 	IsMCP() bool
+	// IsStdioMCP returns true if the app is an stdio MCP app.
+	//
+	// An app is considered stdio MCP if:
+	//
+	//  1. It has a non-nil MCP field.
+	//  2. It has either an empty or MCPTransportStdio URI.
+	//
+	// Because of (2), IsStdioMCP may disagree with IsMCP.
+	IsStdioMCP() bool
 	// IsLLM returns true if this app represents an LLM inference endpoint.
 	IsLLM() bool
 	// GetProtocol returns the application protocol.
@@ -238,6 +250,12 @@ func (a *AppV3) SetStaticLabels(sl map[string]string) {
 	a.Metadata.Labels = sl
 }
 
+// HasDynamicLabels returns true if the resource has at least one dynamic
+// label entry.
+func (a *AppV3) HasDynamicLabels() bool {
+	return a != nil && len(a.Spec.DynamicLabels) > 0
+}
+
 // GetDynamicLabels returns the app dynamic labels.
 func (a *AppV3) GetDynamicLabels() map[string]CommandLabel {
 	if a.Spec.DynamicLabels == nil {
@@ -348,6 +366,15 @@ func (a *AppV3) IsTCP() bool {
 // IsMCP returns true if provided uri is an MCP app.
 func (a *AppV3) IsMCP() bool {
 	return IsAppMCP(a.Spec.URI)
+}
+
+// IsStdioMCP returns true if the app is an stdio MCP app.
+//
+// See [Application.IsStdioMCP].
+func (a *AppV3) IsStdioMCP() bool {
+	return a != nil &&
+		a.GetMCP() != nil &&
+		(a.GetURI() == "" || GetMCPServerTransportType(a.GetURI()) == MCPTransportStdio)
 }
 
 // IsLLM returns true if app is an LLM inference endpoint.

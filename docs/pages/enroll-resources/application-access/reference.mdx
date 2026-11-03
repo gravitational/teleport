@@ -120,14 +120,6 @@ spec:
       value: "example"
     - name: "X-External-Trait"
       value: "{{external.env}}"
-  # Optional dynamic labels.
-  dynamic_labels:
-    hostname:
-      command: ["hostname"]
-      period: 1m0s
-    uname:
-      command: ["uname", "-a"]
-      period: 5m0s
 ```
 
 You can create a new `app` resource by running the following commands, which

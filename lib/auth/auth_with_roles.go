@@ -87,6 +87,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
+func errDynamicLabelsNotAllowed(resourceName string) error {
+	return trace.AccessDenied("%s must not have dynamic labels", resourceName)
+}
+
 // serverBase holds the fields common to [ServerWithRoles] and [ScopedServerWithRoles].
 type serverBase struct {
 	authServer *Server
@@ -1138,13 +1142,19 @@ func (a *ScopedServerWithRoles) GetNodes(ctx context.Context, namespace string) 
 }
 
 func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	agentOwned := a.scopedContext.AgentOwnedResourceAction(
+		s.GetScope(),
+		s.GetName(),
+		types.RoleNode,
+	) == nil
 	ruleCtx := a.scopedContext.RuleContext()
+
 	// Note: UpsertNode doesn't allow any namespaces but "default".
 	// The Decision API only checks on the default namespace.
 	if _, err := a.scopedContext.CheckerContext.Decision(ctx, s.GetScope(), func(checker *services.ScopedAccessChecker) error {
 		// The OpenSSH registration join flow uses direct UpsertNode rather than
 		// a control stream, so RoleNode needs permission to self-upsert.
-		if err := a.scopedContext.AgentOwnedResourceAction(s.GetScope(), s.GetName(), types.RoleNode); err == nil {
+		if agentOwned {
 			return nil
 		}
 		return checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Create, scopedaccess.Update)
@@ -1157,6 +1167,10 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 		if apiscopes.Compare(nodeScope, agentScope) != apiscopes.Equivalent {
 			return nil, trace.AccessDenied("node scope %+q does not match agent identity scope %+q", nodeScope, agentScope)
 		}
+	}
+
+	if !agentOwned && s.HasCmdLabels() {
+		return nil, trace.Wrap(errDynamicLabelsNotAllowed("node"))
 	}
 
 	return a.authServer.UpsertNode(ctx, s)
@@ -8094,6 +8108,24 @@ func hasInternalBeamsLabel(labels map[string]string) bool {
 	return false
 }
 
+type labelsResource interface {
+	HasDynamicLabels() bool
+}
+
+func checkNoDynamicLabels(name string, res labelsResource) error {
+	if res.HasDynamicLabels() {
+		return errDynamicLabelsNotAllowed(name)
+	}
+	return nil
+}
+
+func checkNoStdioMCP(app types.Application) error {
+	if app.IsStdioMCP() {
+		return trace.AccessDenied("dynamic apps must not define an stdio MCP")
+	}
+	return nil
+}
+
 // CreateApp creates a new application resource.
 func (a *ScopedServerWithRoles) CreateApp(ctx context.Context, app types.Application) error {
 	ruleCtx := a.scopedContext.RuleContext()
@@ -8107,6 +8139,12 @@ func (a *ScopedServerWithRoles) CreateApp(ctx context.Context, app types.Applica
 	// the correct role see input errors rather than access-denied from
 	// a label mismatch on a malformed app.
 	if err := services.ValidateApp(app, a.authServer); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkNoDynamicLabels("app", app); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkNoStdioMCP(app); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -8144,6 +8182,12 @@ func (a *ScopedServerWithRoles) UpdateApp(ctx context.Context, app types.Applica
 	// Validate before the existence check so a malformed name returns
 	// the input error rather than "doesn't exist".
 	if err := services.ValidateApp(app, a.authServer); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkNoDynamicLabels("app", app); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkNoStdioMCP(app); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -8316,9 +8360,8 @@ func (a *ScopedServerWithRoles) CreateKubernetesCluster(ctx context.Context, clu
 	}); err != nil {
 		return trace.Wrap(err)
 	}
-	// Don't allow discovery service to create clusters with dynamic labels.
-	if a.scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
-		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
+	if err := checkNoDynamicLabels("kubernetes cluster", cluster); err != nil {
+		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.CreateKubernetesCluster(ctx, cluster))
 }
@@ -8361,9 +8404,8 @@ func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, clu
 		return trace.BadParameter("scope of existing kubernetes cluster cannot be changed")
 	}
 
-	// Don't allow discovery service to create clusters with dynamic labels.
-	if a.scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
-		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
+	if err := checkNoDynamicLabels("kubernetes cluster", cluster); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(a.authServer.UpdateKubernetesCluster(ctx, cluster))
@@ -8577,9 +8619,8 @@ func (a *ServerWithRoles) CreateDatabase(ctx context.Context, database types.Dat
 	if err := a.checkAccessToDatabase(database); err != nil {
 		return trace.Wrap(err)
 	}
-	// Don't allow discovery service to create databases with dynamic labels.
-	if a.hasBuiltinRole(types.RoleDiscovery) && len(database.GetDynamicLabels()) > 0 {
-		return trace.AccessDenied("discovered database must not have dynamic labels")
+	if err := checkNoDynamicLabels("database", database); err != nil {
+		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.CreateDatabase(ctx, database))
 }
@@ -8601,9 +8642,8 @@ func (a *ServerWithRoles) UpdateDatabase(ctx context.Context, database types.Dat
 	if err := a.checkAccessToDatabase(database); err != nil {
 		return trace.Wrap(err)
 	}
-	// Don't allow discovery service to create databases with dynamic labels.
-	if a.hasBuiltinRole(types.RoleDiscovery) && len(database.GetDynamicLabels()) > 0 {
-		return trace.AccessDenied("discovered database must not have dynamic labels")
+	if err := checkNoDynamicLabels("database", database); err != nil {
+		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.UpdateDatabase(ctx, database))
 }

@@ -46,6 +46,8 @@ type Server interface {
 	GetNamespace() string
 	// GetLabels returns server's static label key pairs
 	GetLabels() map[string]string
+	// HasCmdLabels returns true if the resource has at least one cmd label entry.
+	HasCmdLabels() bool
 	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]CommandLabel
 	// SetCmdLabels sets command labels.
@@ -373,9 +375,14 @@ func (s *ServerV2) SetStaticLabels(sl map[string]string) {
 	s.Metadata.Labels = sl
 }
 
+// HasCmdLabels returns true if the resource has at least one cmd label entry.
+func (s *ServerV2) HasCmdLabels() bool {
+	return s != nil && len(s.Spec.CmdLabels) > 0
+}
+
 // GetCmdLabels returns command labels
 func (s *ServerV2) GetCmdLabels() map[string]CommandLabel {
-	if s.Spec.CmdLabels == nil {
+	if s == nil || s.Spec.CmdLabels == nil {
 		return nil
 	}
 	return V2ToLabels(s.Spec.CmdLabels)

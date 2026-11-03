@@ -150,7 +150,20 @@ func (s *TLSServer) onDelete(ctx context.Context, cluster types.KubeCluster) err
 }
 
 func (s *TLSServer) matcher(cluster types.KubeCluster) bool {
-	return services.MatchResourceLabels(s.ResourceMatchers, cluster.GetAllLabels())
+	if !services.MatchResourceLabels(s.ResourceMatchers, cluster.GetAllLabels()) {
+		return false
+	}
+
+	if cluster.HasDynamicLabels() {
+		s.log.ErrorContext(
+			context.Background(),
+			"Refusing to register kube cluster with dynamic labels",
+			"name", cluster.GetName(),
+		)
+		return false
+	}
+
+	return true
 }
 
 // monitoredKubeClusters is a collection of clusters from different sources

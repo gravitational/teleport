@@ -128,19 +128,11 @@ spec:
   # Endpoint URI of the target MCP server.
   # Use "mcp+http://" and "mcp+https://" as scheme for streamable HTTP MCP servers.
   # Use "mcp+sse+http://" and "mcp+sse+https://" as scheme for SSE MCP servers.
-  # Leave it empty or use "mcp+stdio://" for stdio MCP servers.
   # For streamable HTTP MCP servers, the path in the URI is used when the MCP
   # client requests "/" but is not appended to requests for other paths.
   uri: "mcp+http://localhost:12345/mcp"
 
   mcp:
-    # Command to launch stdio-based MCP servers.
-    command: "docker"
-    # Args to execute with the command.
-    args: ["run", "-i", "--rm", "mcp/everything"]
-    # Name of the host user account under which the command will be
-    # executed. Required for stdio-based MCP servers.
-    run_as_host_user: "docker"
     # OAuth settings for streamable HTTP MCP servers that require their own
     # OAuth login. "tsh mcp login" uses these values when the user does not
     # set the matching flags. Teleport does not enforce them.

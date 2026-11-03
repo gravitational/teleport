@@ -76,10 +76,15 @@ The following values are used to indicate the type of the database endpoint:
 
 ## Manual and dynamic registration
 
-Static labels and dynamic labels can be specified in `labels` and
-`dynamic_labels` fields respectively in database definition. See the
-[configuration reference](../../../reference/deployment/config.mdx#database-service)
-for more information.
+Databases configured statically in `db_service.databases` can use both static
+labels and command-based dynamic labels. Specify them in the `labels` and
+`dynamic_labels` fields respectively.
+
+Dynamically registered `database` resources support static labels only. Specify
+them in `metadata.labels`.
+
+For more information about static Database Service configuration, see the
+[configuration reference](../../../reference/deployment/config.mdx#database-service).
 
 ## Database Service on Amazon EC2
 

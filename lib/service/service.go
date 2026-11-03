@@ -7460,28 +7460,21 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		// When the app_service itself is running on Teleport Cloud, then we reject any app
-		// with dynamic labels, which allow for code execution.
-		// This is primarily for the beams use case, where the only apps we expect
-		// to see are those created by `tsh beams publish`.
-		runningOnBeams, _ := apiutils.ParseBool(os.Getenv(teleport.BeamsRuntimeEnvVar))
-
 		appServer, err := app.New(process.ExitContext(), &app.Config{
-			Clock:                       process.Config.Clock,
-			AuthClient:                  conn.Client,
-			AccessPoint:                 accessPoint,
-			HostID:                      conn.HostUUID(),
-			Hostname:                    process.Config.Hostname,
-			GetRotation:                 process.GetRotation,
-			Apps:                        applications,
-			CloudLabels:                 process.cloudLabels,
-			ResourceMatchers:            process.Config.Apps.ResourceMatchers,
-			OnHeartbeat:                 process.OnHeartbeat(teleport.ComponentApp),
-			ConnectedProxyGetter:        proxyGetter,
-			ConnectionsHandler:          connectionsHandler,
-			InventoryHandle:             process.inventoryHandle,
-			IgnoreAppsWithCommandLabels: runningOnBeams,
-			ScopePin:                    scopePin,
+			Clock:                process.Config.Clock,
+			AuthClient:           conn.Client,
+			AccessPoint:          accessPoint,
+			HostID:               conn.HostUUID(),
+			Hostname:             process.Config.Hostname,
+			GetRotation:          process.GetRotation,
+			Apps:                 applications,
+			CloudLabels:          process.cloudLabels,
+			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
+			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
+			ConnectedProxyGetter: proxyGetter,
+			ConnectionsHandler:   connectionsHandler,
+			InventoryHandle:      process.inventoryHandle,
+			ScopePin:             scopePin,
 		})
 		if err != nil {
 			return trace.Wrap(err)

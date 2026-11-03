@@ -234,7 +234,20 @@ func (s *Server) matcher(database types.Database) bool {
 
 	// Database resources created via CLI, API, or discovery service are
 	// filtered by resource matchers.
-	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database.GetAllLabels())
+	if !services.MatchResourceLabels(s.cfg.ResourceMatchers, database.GetAllLabels()) {
+		return false
+	}
+
+	if database.HasDynamicLabels() {
+		s.log.ErrorContext(
+			context.Background(),
+			"Refusing to register database with dynamic labels",
+			"db_name", database.GetName(),
+		)
+		return false
+	}
+
+	return true
 }
 
 func (s *Server) applyAWSResourceMatcherSettings(database types.Database) {

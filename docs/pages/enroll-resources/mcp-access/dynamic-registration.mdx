@@ -43,51 +43,27 @@ dynamically.
 
 ## Creating a MCP server
 
-The following example configures Teleport to proxy the "Everything" MCP server
-by launching it through Docker. This example requires Docker to be installed
-on the Application Service host.
+The following example configures Teleport to proxy a streamable HTTP MCP server:
 
 ```yaml
 kind: app
 version: v3
 metadata:
-  name: everything
-  description: The Everything MCP server
+  name: example-mcp
+  description: An example MCP server
   labels:
     env: dev
 spec:
-  mcp:
-    # Command to launch stdio-based MCP servers.
-    command: "docker"
-    # Args to execute with the command.
-    args: ["run", "-i", "--rm", "mcp/everything"]
-    # Name of the host user account under which the command will be
-    # executed. Required for stdio-based MCP servers.
-    run_as_host_user: "teleport-mcp"
-```
-
-The `run_as_host_user` field is required for stdio-based MCP servers. The
-specified user must exist on the Application Service host before you create the
-resource. If the host user does not exist, the Application Service logs an error
-and the MCP server fails to start.
-
-Create a dedicated system user for running MCP servers:
-
-```code
-$ sudo useradd -r -s /bin/bash teleport-mcp
+  uri: "mcp+https://mcp.example.com/mcp"
 ```
 
 <Admonition
-  type="warning"
-  title="Treat this permission as host access"
+  type="note"
+  title="Stdio MCP servers require static configuration"
 >
-
-Anyone who can create or update MCP server `app` resources can run arbitrary
-commands on the Application Service host, with up to the privileges of the
-account running the Teleport process. Read
-[Security considerations](#security-considerations) before you enable dynamic
-registration.
-
+To run an MCP server that uses the stdio transport, add it to
+`app_service.apps` in the Application Service's static configuration. See the
+[MCP Access reference](reference.mdx#configuration).
 </Admonition>
 
 See the full resource spec [reference](reference.mdx).
@@ -118,57 +94,5 @@ will unregister and stop proxying it.
 To delete the resource, run:
 
 ```code
-$ tctl rm app/everything
+$ tctl rm app/example-mcp
 ```
-
-## Security considerations
-
-### Creating `app` resources grants command execution on the host
-
-Anyone who can create or update an `app` resource can execute arbitrary commands
-on the Application Service hosts that proxy it. For MCP servers, Teleport runs
-the `command` and `args` fields as the account set in `run_as_host_user`. This
-risk isn't new with MCP servers. Dynamic labels on `app` and `db` resources also
-run commands on the host that proxies the resource.
-
-These commands run with up to the same privileges as the account running the
-Teleport process. If Teleport runs as `root`, a resource editor can set
-`run_as_host_user` to any account on the host, including `root`. If Teleport
-runs as an unprivileged account that can't switch users, commands can't gain
-more privileges than that account has.
-
-Grant permission to create or update `app` resources only to users you would
-trust with direct access to the Application Service hosts that could run them.
-
-### Limiting the impact
-
-The most effective way to limit what a resource editor can reach is to limit
-what the Application Service host can reach. Run the Application Service in a
-dedicated, isolated environment, such as its own virtual machine or Kubernetes
-pod. Don't run it on the same host as the Auth Service or Proxy Service.
-
-For further isolation, run the Teleport process as an unprivileged account
-instead of `root`. This caps the privileges available to any command an `app`
-resource launches.
-
-Using a dedicated, low-privilege account for `run_as_host_user`, as this guide
-does above, keeps MCP server processes separate from other workloads on the
-host. It doesn't stop a resource editor from specifying a more privileged
-account when Teleport runs as `root`.
-
-### Docker group membership
-
-Membership in the host's `docker` group grants effective root access, because
-it allows mounting the host filesystem into a container. Whether this changes
-your exposure depends on how you run Teleport.
-
-If Teleport runs as `root`, which is common for systemd deployments, a resource
-editor can already run commands as `root` or as a `docker` group member, so
-adding the `run_as_host_user` account to the `docker` group doesn't expand
-access.
-
-If Teleport runs as an unprivileged account with no access to the `docker`
-group, adding the `run_as_host_user` account to that group gives resource
-editors a path to root. In that setup, consider configuring [Rootless
-Docker](https://docs.docker.com/engine/security/rootless/) for the account or
-using a pre-approved wrapper script instead of exposing raw Docker execution.

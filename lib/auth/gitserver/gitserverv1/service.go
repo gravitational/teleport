@@ -112,6 +112,9 @@ func (s *Service) CreateGitServer(ctx context.Context, req *pb.CreateGitServerRe
 	if _, err := s.authorize(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := checkNoCmdLabels(req.GetServer()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := s.checkIntegration(ctx, req.GetServer()); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -174,6 +177,9 @@ func (s *Service) UpdateGitServer(ctx context.Context, req *pb.UpdateGitServerRe
 	if _, err := s.authorize(ctx, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := checkNoCmdLabels(req.GetServer()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := s.checkIntegration(ctx, req.GetServer()); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,6 +192,9 @@ func (s *Service) UpdateGitServer(ctx context.Context, req *pb.UpdateGitServerRe
 
 func (s *Service) UpsertGitServer(ctx context.Context, req *pb.UpsertGitServerRequest) (*types.ServerV2, error) {
 	if _, err := s.authorize(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := checkNoCmdLabels(req.GetServer()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := s.checkIntegration(ctx, req.GetServer()); err != nil {
@@ -253,6 +262,13 @@ func (s *Service) checkIntegration(ctx context.Context, server *types.ServerV2) 
 			return trace.BadParameter("allow_protocols %v of git server does not match allow_protocols %v of integration %q",
 				serverSpec.AllowProtocols, igSpec.AllowProtocols, ig.GetName())
 		}
+	}
+	return nil
+}
+
+func checkNoCmdLabels(server *types.ServerV2) error {
+	if len(server.GetCmdLabels()) > 0 {
+		return trace.AccessDenied("git_server must not have dynamic labels")
 	}
 	return nil
 }

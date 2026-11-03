@@ -222,15 +222,21 @@ func (s *Server) matcher(app types.Application) bool {
 		return false
 	}
 
-	if s.c.IgnoreAppsWithCommandLabels {
-		if len(app.GetDynamicLabels()) > 0 {
-			s.log.WarnContext(
-				context.Background(),
-				"refusing to register app with dynamic labels",
-				"app_name", app.GetName(),
-			)
-			return false
-		}
+	switch {
+	case app.HasDynamicLabels():
+		s.log.ErrorContext(
+			context.Background(),
+			"Refusing to register app with dynamic labels",
+			"app_name", app.GetName(),
+		)
+		return false
+	case app.IsStdioMCP():
+		s.log.ErrorContext(
+			context.Background(),
+			"Refusing to register stdio MCP app",
+			"app_name", app.GetName(),
+		)
+		return false
 	}
 
 	return true

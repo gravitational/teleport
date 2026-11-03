@@ -79,11 +79,9 @@ $ sudo useradd --system --no-create-home teleport-mcp
   type="warning"
   title="Security warning: Docker group privileges"
 >
-Avoid adding this account to the host's `docker` group. If this host is later
-enabled for [dynamic MCP server registration](../dynamic-registration.mdx),
-group membership would give anyone who can create or update `app` resources
-effective root access to the host, since Docker group membership allows
-mounting the host filesystem into a container. Run Docker in
+Avoid adding this account to the host's `docker` group. Docker group membership
+can give the stdio MCP server process effective root access to the host by
+allowing it to mount the host filesystem into a container. Run Docker in
 [Rootless mode](https://docs.docker.com/engine/security/rootless/) for the
 `teleport-mcp` user instead, or use a pre-approved wrapper script in place of
 raw Docker execution.

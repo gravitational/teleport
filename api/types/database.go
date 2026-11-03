@@ -47,6 +47,9 @@ type Database interface {
 	GetStaticLabels() map[string]string
 	// SetStaticLabels sets the database static labels.
 	SetStaticLabels(map[string]string)
+	// HasDynamicLabels returns true if the resource has at least one dynamic
+	// label entry.
+	HasDynamicLabels() bool
 	// GetDynamicLabels returns the database dynamic labels.
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the database dynamic labels.
@@ -252,6 +255,12 @@ func (d *DatabaseV3) GetStaticLabels() map[string]string {
 // SetStaticLabels sets the database static labels.
 func (d *DatabaseV3) SetStaticLabels(sl map[string]string) {
 	d.Metadata.Labels = sl
+}
+
+// HasDynamicLabels returns true if the resource has at least one dynamic
+// label entry.
+func (d *DatabaseV3) HasDynamicLabels() bool {
+	return d != nil && len(d.Spec.DynamicLabels) > 0
 }
 
 // GetDynamicLabels returns the database dynamic labels.
