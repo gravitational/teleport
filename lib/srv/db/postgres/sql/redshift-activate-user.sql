@@ -11,10 +11,10 @@ BEGIN
     -- it, otherwise provision a new one.
     IF EXISTS (SELECT user_id FROM svv_user_grants WHERE user_name = username AND admin_option = false AND role_name = 'teleport-auto-user') THEN
         -- If the user has active connections, make sure the provided roles
-        -- match what the user currently has. Update to pg_stat_activity is
-        -- delayed for a few hundred ms. Use stv_sessions instead:
-        -- https://docs.aws.amazon.com/redshift/latest/dg/r_STV_SESSIONS.html
-        IF EXISTS (SELECT user_name FROM stv_sessions WHERE user_name = CONCAT('IAM:', username)) THEN
+        -- match what the user currently has. Use the user ID because
+        -- stv_sessions truncates IAM-prefixed usernames to 50 characters.
+        -- https://docs.aws.amazon.com/redshift/latest/dg/SYS_SESSION_HISTORY.html
+        IF EXISTS (SELECT 1 FROM sys_session_history WHERE user_id = (SELECT usesysid FROM pg_user WHERE usename = username) AND status = 'active') THEN
           SELECT INTO cur_roles_length COUNT(role_name) FROM svv_user_grants WHERE user_name = username AND admin_option=false AND role_name != 'teleport-auto-user';
           IF roles_length != cur_roles_length THEN
             RAISE EXCEPTION 'TP002: User has active connections and roles have changed';

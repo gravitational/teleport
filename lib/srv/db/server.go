@@ -1331,10 +1331,11 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Users:             s.cfg.CloudUsers,
 		GetUserProvisioner: func(aub common.AutoUsers) *common.UserProvisioner {
 			return &common.UserProvisioner{
-				AuthClient: s.cfg.AuthClient,
-				Backend:    aub,
-				Log:        sessionCtx.Log,
-				Clock:      s.cfg.Clock,
+				CloseContext: s.connContext,
+				AuthClient:   s.cfg.AuthClient,
+				Backend:      aub,
+				Log:          sessionCtx.Log,
+				Clock:        s.cfg.Clock,
 			}
 		},
 		UpdateProxiedDatabase: s.updateProxiedDatabase,

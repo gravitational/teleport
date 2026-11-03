@@ -245,9 +245,14 @@ func (e *Engine) connectAsAdminUser(ctx context.Context, sessionCtx *common.Sess
 		sessionCtx.Database.GetAdminUser().Name,
 		defaultSchema(sessionCtx),
 	)
-	conn, err := e.connect(ctx, adminSessionCtx)
+	connector, err := e.newConnector(adminSessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	connector.closeOnCancel = true
+	conn, err := connector.connect(ctx, adminSessionCtx.GetExpiry(), nil)
+	if err != nil {
+		return nil, common.ConvertConnectError(err, adminSessionCtx)
 	}
 	return &clientConn{
 		Conn: conn,
