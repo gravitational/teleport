@@ -646,6 +646,7 @@ func getSystemRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.Enforcemen
 
 // TraitMapForEnforcementPoint generates the map of traits applicable at a given enforcement point for a given pin.
 func TraitMapForEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint) wrappers.Traits {
+	// build aggregate trait map with respect to descending scopes of origins and ascending scopes of effect
 	traits := make(map[string][]string)
 	for roleNode := range enumerateRoleNodesForEnforcementPoint(pin, point) {
 		for _, trait := range roleNode.GetTraits() {
@@ -654,6 +655,29 @@ func TraitMapForEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoin
 		}
 	}
 
+	// Deduplicate the final map as its own phase so we can try and reduce the amount of map allocations. Instead of
+	// allocating new slices for the deduplicated trait values, we shift unique values in-place towards the start of the
+	// slice as they're encountered. Starting at 0, the end of the deduplicated sub-slice is tracked as "offset" and
+	// denotes where the next unique value will be moved. This preserves the original order and allows existing trait values
+	// for each key to be sliced down down to their bottom, deduplicated elements.
+	valueSet := make(map[string]struct{})
+	for key, values := range traits {
+		var offset int
+		for _, value := range values {
+			if _, ok := valueSet[value]; ok {
+				continue
+			}
+			valueSet[value] = struct{}{}
+			values[offset] = value
+			offset++
+		}
+		// clear any remaining duplicate strings so they can potentially be freed
+		clear(values[offset:])
+		traits[key] = values[:offset]
+
+		// clear the value set so we can attempt to reuse the memory for the next trait key
+		clear(valueSet)
+	}
 	return traits
 }
 
