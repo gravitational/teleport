@@ -60,6 +60,21 @@ func (s *Service) createGitHubAuthRequestForUser(ctx context.Context, in *pb.Cre
 		return nil, trace.Wrap(err)
 	}
 
+	// Check against the unmapped identity, if the user is a remote user
+	// the mapped identity will not have some of the below fields populated.
+	unmappedIdent := authCtx.UnmappedIdentity.GetIdentity()
+	if unmappedIdent.DisallowReissue {
+		return nil, trace.AccessDenied("access denied: identity is not allowed to reissue certificates")
+	} else if unmappedIdent.Impersonator != "" {
+		return nil, trace.AccessDenied("access denied: impersonated user cannot create GitHub auth request")
+	} else if unmappedIdent.IsDelegationSession() {
+		return nil, trace.AccessDenied("access denied: delegation session cannot create GitHub auth request")
+	} else if unmappedIdent.IsBot() {
+		return nil, trace.AccessDenied("access denied: bot cannot create GitHub auth request")
+	} else if !authz.IsLocalOrRemoteUser(*authCtx) {
+		return nil, trace.AccessDenied("access denied: system user cannot create GitHub auth request")
+	}
+
 	s.cfg.Log.DebugContext(ctx, "Creating GitHub auth request for authenticated user.",
 		"user", authCtx.User.GetName(),
 		"git_server", gitServer.GetName(),
@@ -113,11 +128,15 @@ func (s *Service) createGitHubAuthRequestForTest(ctx context.Context, in *pb.Cre
 }
 
 func (s *Service) createGitHubAuthRequestForIntegration(ctx context.Context, authCtx *authz.Context, req *types.GithubAuthRequest, connectorID, integration string) (*types.GithubAuthRequest, error) {
+	// The cert TTL should be taken from the mapped identity which will
+	// have an adjusted TTL if the user is a remote user.
+	identity := authCtx.Identity.GetIdentity()
+
 	req.ConnectorID = connectorID
 	req.Integration = integration
 	req.AuthenticatedUser = authCtx.User.GetName()
-	req.CertTTL = authCtx.Identity.GetIdentity().Expires.Sub(s.cfg.clock.Now())
-	req.ClientLoginIP = authCtx.Identity.GetIdentity().LoginIP
+	req.CertTTL = identity.Expires.Sub(s.cfg.clock.Now())
+	req.ClientLoginIP = identity.LoginIP
 
 	// More params of req will get updated and checked by
 	// s.cfg.GitHubAuthRequestCreator.
