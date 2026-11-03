@@ -49,6 +49,7 @@ locals {
       workspace_id    = azurerm_log_analytics_workspace.this[0].workspace_id
       key_fingerprint = nonsensitive(sha256(azurerm_log_analytics_workspace.this[0].primary_shared_key))
     } : null
+    subnet_id = var.subnet_id
   })), 0, 8)
 }
 
@@ -58,7 +59,8 @@ resource "azurerm_container_group" "teleport_agent" {
   location            = var.location
   resource_group_name = var.resource_group_name
   os_type             = "Linux"
-  ip_address_type     = "None"
+  ip_address_type     = var.subnet_id == null ? "None" : "Private"
+  subnet_ids          = var.subnet_id == null ? null : [var.subnet_id]
   restart_policy      = "Always"
   tags                = var.apply_azure_tags
 
@@ -91,6 +93,18 @@ resource "azurerm_container_group" "teleport_agent" {
       base64encode(yamlencode(local.teleport_config)),
     ]
     environment_variables = local.teleport_environment
+
+    # ACI requires a port declaration when subnet_id is specified.
+    # Teleport uses an outbound reverse tunnel and does not listen on this port.
+    # The port number 49151 is the highest non-reserved port according to Azure docs:
+    # https://learn.microsoft.com/en-us/azure/container-instances/container-instances-faq#does-the-aci-service-reserve-ports-for-service-functionality-
+    dynamic "ports" {
+      for_each = var.subnet_id == null ? [] : [49151]
+      content {
+        port     = ports.value
+        protocol = "TCP"
+      }
+    }
   }
 
   lifecycle {
