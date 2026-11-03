@@ -2047,6 +2047,16 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 		return nil, trace.Wrap(err)
 	}
 
+	// External Audit Storage only supports S3.
+	// Newer versions of Teleport validate on write, but we re-check here so that
+	// EAS config written by an older version can't send session recordings to
+	// local disk instead of the customer's bucket.
+	if externalAuditStorage.IsUsed() && uri.Scheme != teleport.SchemeS3 {
+		return nil, trace.BadParameter(
+			"External Audit Storage session_recordings_uri must use the %q scheme, got %q",
+			teleport.SchemeS3, uri.Scheme)
+	}
+
 	switch uri.Scheme {
 	case teleport.SchemeGCS:
 		config := gcssessions.Config{}

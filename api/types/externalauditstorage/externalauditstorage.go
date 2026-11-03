@@ -128,6 +128,9 @@ var (
 	matchS3Prefix = regexp.MustCompile(`^[a-zA-Z0-9!_.*'()/-]{0,512}$`).MatchString
 )
 
+// S3Scheme is the only URI scheme accepted in External Audit Storage specs.
+const S3Scheme = "s3"
+
 // ValidateS3URI validates a URI indicating an S3 bucket and prefix for storing
 // audit logs (session recordings or events).
 func ValidateS3URI(uri string) error {
@@ -144,6 +147,9 @@ func ValidateS3URI(uri string) error {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return trace.BadParameter("S3 URI failed to parse")
+	}
+	if u.Scheme != S3Scheme {
+		return trace.BadParameter("S3 URI scheme must be %q, got %q", S3Scheme, u.Scheme)
 	}
 	if !matchS3BucketName(u.Host) {
 		return trace.BadParameter("S3 bucket name %q includes illegal special character", u.Host)
