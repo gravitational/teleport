@@ -684,14 +684,15 @@ integration's identity as a URI subject alternative name (SAN):
 AWS exposes the SAN to IAM as the `aws:PrincipalTag/x509SAN/URI` condition key.
 Every certificate chains to the same trust anchor, so a role that does not check
 the SAN can be assumed with a certificate issued for any integration in any
-scope. [Require the SAN](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/trust-model.html#trust-policy) in the trust policy of every role a scoped integration uses to emulate scoping isolation.
-
+scope. [Require the SAN](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/trust-model.html#trust-policy) in the trust policy of every role a scoped integration uses to emulate scoping isolation. It is _highly_ recommended that aws admins add the condition on all existing
+AWS trust policies set up prior to scoping to ensure that they do not accidentally break scope isolation
+on AWS.
 #### Step 1/4. Create the trust anchor, sync profile, and sync role
 
 Generate the setup script:
 
 ```code
-$ curl -o awsra-trust-anchor.sh 'https://teleport.example.com/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=aws-ra&trustAnchor=teleport-aws-ra&syncProfile=teleport-aws-ra-sync&syncRole=teleport-aws-ra-sync'
+$ curl -o awsra-trust-anchor.sh 'https://teleport.example.com/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=aws-ra&integrationScope=%2Fexamples%2Fbasic&trustAnchor=teleport-aws-ra&syncProfile=teleport-aws-ra-sync&syncRole=teleport-aws-ra-sync'
 ```
 
 Run it with AWS credentials for the target account. The script downloads
@@ -703,6 +704,7 @@ you can also run directly. Export the certificate authority with
 $ teleport integration configure awsra-trust-anchor \
   --cluster=teleport.example.com \
   --name=aws-ra \
+  --scope=/examples/basic \
   --trust-anchor=teleport-aws-ra \
   --sync-profile=teleport-aws-ra-sync \
   --sync-role=teleport-aws-ra-sync \

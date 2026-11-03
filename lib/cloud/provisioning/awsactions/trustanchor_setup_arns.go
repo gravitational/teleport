@@ -20,6 +20,7 @@ package awsactions
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 )
 
@@ -40,18 +42,21 @@ func TrustAnchorSetUpARNs(
 	trustAnchorName string,
 	profileName string,
 	roleName string,
+	integrationURISAN string,
 	output io.Writer,
 ) (*provisioning.Action, error) {
 
 	type trustAnchorARNs struct {
-		TrustAnchorName string
-		ProfileName     string
-		RoleName        string
+		TrustAnchorName   string
+		ProfileName       string
+		RoleName          string
+		IntegrationURISAN string
 	}
 	details, err := formatDetails(trustAnchorARNs{
-		TrustAnchorName: trustAnchorName,
-		ProfileName:     profileName,
-		RoleName:        roleName,
+		TrustAnchorName:   trustAnchorName,
+		ProfileName:       profileName,
+		RoleName:          roleName,
+		IntegrationURISAN: integrationURISAN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -86,6 +91,11 @@ func TrustAnchorSetUpARNs(
 			summaryBuilder.WriteString(aws.ToString(profileDetails.ProfileArn) + "\n")
 			summaryBuilder.WriteString(aws.ToString(roleDetails.Role.Arn) + "\n")
 			summaryBuilder.WriteString("=================================================\n\n")
+			if integrationURISAN != "" {
+				summaryBuilder.WriteString("Require this URI SAN in the trust policy of every role the integration grants access to:\n\n")
+				fmt.Fprintf(&summaryBuilder, "  %q: %q\n\n", awslib.ConditionKeyRolesAnywhereURISAN, integrationURISAN)
+				fmt.Fprintf(&summaryBuilder, "To stop other scoped integrations from using the sync role, also add it to the trust policy of the %q role.\n\n", roleName)
+			}
 
 			_, err = io.WriteString(output, summaryBuilder.String())
 			if err != nil {
