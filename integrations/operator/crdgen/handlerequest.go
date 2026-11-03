@@ -186,6 +186,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			},
 		},
 		{name: "DatabaseV3", opts: []resourceSchemaOption{withVersionOverride(types.V3)}},
+		{name: "DynamicWindowsDesktopV1"},
 		{name: "SAMLConnectorV2", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
 		{name: "SAMLIdPServiceProviderV1", opts: []resourceSchemaOption{withVersionOverride(types.V1)}},
 		{name: "OIDCConnectorV3", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},

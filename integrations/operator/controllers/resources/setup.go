@@ -49,6 +49,7 @@ var supportedReconcilers = []ReconcilerFactory{
 	NewClassifierV1Reconciler,
 	NewCrownJewelV1Reconciler,
 	NewDatabaseV3Reconciler,
+	NewDynamicWindowsDesktopV1Reconciler,
 	NewGithubConnectorReconciler,
 	NewInferenceModelReconciler,
 	NewInferencePolicyReconciler,

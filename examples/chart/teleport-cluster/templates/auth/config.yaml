@@ -75,6 +75,8 @@ data:
           "*": ["*"]
         db_labels:
           "*": ["*"]
+        windows_desktop_labels:
+          "*": ["*"]
         rules:
           - resources:
               - role
@@ -286,6 +288,14 @@ data:
               - delete
           - resources:
               - scoped_role_assignment
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - dynamic_windows_desktop
             verbs:
               - list
               - create
