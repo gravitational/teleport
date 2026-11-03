@@ -736,6 +736,8 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
+	warnAWSOIDCIntegrationsUsingS3Issuer(ctx, asrv)
+
 	if lib.IsInsecureDevMode() {
 		const warningMessage = "Starting teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
@@ -856,6 +858,38 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 		asrv.logger.WarnContext(ctx, "An attempt to clean up unused HSM or KMS CA keys has failed unexpectedly", "error", err)
 	}
 	return nil
+}
+
+// awsOIDCS3IssuerIntegrations returns the names of AWS OIDC integrations that still use the deprecated issuer_s3_uri field.
+// Scoped AWS OIDC integrations cannot set this field, so only unscoped integrations need to be checked.
+func awsOIDCS3IssuerIntegrations(ctx context.Context, asrv *Server) ([]string, error) {
+	var names []string
+	igs := asrv.Services.RangeIntegrations(ctx, integrationpb.ListIntegrationsRequest_builder{
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+	}.Build())
+	for ig, err := range igs {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if spec := ig.GetAWSOIDCIntegrationSpec(); spec != nil && spec.IssuerS3URI != "" {
+			names = append(names, ig.GetName())
+		}
+	}
+	return names, nil
+}
+
+// warnAWSOIDCIntegrationsUsingS3Issuer logs a warning naming any AWS OIDC integration still configured with the deprecated issuer_s3_uri field.
+// This is purely informational and never fails Auth server startup.
+func warnAWSOIDCIntegrationsUsingS3Issuer(ctx context.Context, asrv *Server) {
+	names, err := awsOIDCS3IssuerIntegrations(ctx, asrv)
+	if err != nil {
+		asrv.logger.WarnContext(ctx, "Failed to list integrations while checking for deprecated AWS OIDC S3 issuers", "error", err)
+		return
+	}
+	if len(names) == 0 {
+		return
+	}
+	asrv.logger.WarnContext(ctx, "Found AWS OIDC integrations configured with the deprecated issuer_s3_uri field. Those integrations will not work after upgrading Teleport to v19. Visit the Web UI and migrate them now.", "integrations", names)
 }
 
 func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID) (*keystore.UsableKeysResult, [][]byte, error) {
