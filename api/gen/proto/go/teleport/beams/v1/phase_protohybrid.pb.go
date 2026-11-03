@@ -1038,7 +1038,11 @@ type PhaseBuildOperation struct {
 	SuppressRebuilds []string `protobuf:"bytes,13,rep,name=suppress_rebuilds,json=suppressRebuilds,proto3" json:"suppress_rebuilds,omitempty"`
 	// BuildType records how this build Beam should start. Provisioning recovery
 	// uses the same type so file-copy builds never start configured services.
-	BuildType     PhaseBuildType `protobuf:"varint,14,opt,name=build_type,json=buildType,proto3,enum=teleport.beams.v1.PhaseBuildType" json:"build_type,omitempty"`
+	BuildType PhaseBuildType `protobuf:"varint,14,opt,name=build_type,json=buildType,proto3,enum=teleport.beams.v1.PhaseBuildType" json:"build_type,omitempty"`
+	// Initiator is the authenticated username that requested this operation.
+	// Its build Beam allows this user to connect in addition to the Phase owner.
+	// Recovery preserves it. Scheduled operations leave it empty.
+	Initiator     string `protobuf:"bytes,15,opt,name=initiator,proto3" json:"initiator,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1166,6 +1170,13 @@ func (x *PhaseBuildOperation) GetBuildType() PhaseBuildType {
 	return PhaseBuildType_PHASE_BUILD_TYPE_UNSPECIFIED
 }
 
+func (x *PhaseBuildOperation) GetInitiator() string {
+	if x != nil {
+		return x.Initiator
+	}
+	return ""
+}
+
 func (x *PhaseBuildOperation) SetId(v string) {
 	x.Id = v
 }
@@ -1220,6 +1231,10 @@ func (x *PhaseBuildOperation) SetSuppressRebuilds(v []string) {
 
 func (x *PhaseBuildOperation) SetBuildType(v PhaseBuildType) {
 	x.BuildType = v
+}
+
+func (x *PhaseBuildOperation) SetInitiator(v string) {
+	x.Initiator = v
 }
 
 func (x *PhaseBuildOperation) HasStartedAt() bool {
@@ -1286,6 +1301,10 @@ type PhaseBuildOperation_builder struct {
 	// BuildType records how this build Beam should start. Provisioning recovery
 	// uses the same type so file-copy builds never start configured services.
 	BuildType PhaseBuildType
+	// Initiator is the authenticated username that requested this operation.
+	// Its build Beam allows this user to connect in addition to the Phase owner.
+	// Recovery preserves it. Scheduled operations leave it empty.
+	Initiator string
 }
 
 func (b0 PhaseBuildOperation_builder) Build() *PhaseBuildOperation {
@@ -1306,6 +1325,7 @@ func (b0 PhaseBuildOperation_builder) Build() *PhaseBuildOperation {
 	x.Origin = b.Origin
 	x.SuppressRebuilds = b.SuppressRebuilds
 	x.BuildType = b.BuildType
+	x.Initiator = b.Initiator
 	return m0
 }
 
@@ -1704,7 +1724,7 @@ const file_teleport_beams_v1_phase_proto_rawDesc = "" +
 	"\fpublished_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vpublishedAt\x12/\n" +
 	"\x13upstream_generation\x18\x04 \x01(\tR\x12upstreamGeneration\x12!\n" +
 	"\foperation_id\x18\x05 \x01(\tR\voperationId\x12+\n" +
-	"\x11suppress_rebuilds\x18\x06 \x03(\tR\x10suppressRebuilds\"\xc0\x05\n" +
+	"\x11suppress_rebuilds\x18\x06 \x03(\tR\x10suppressRebuilds\"\xde\x05\n" +
 	"\x13PhaseBuildOperation\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -1723,7 +1743,8 @@ const file_teleport_beams_v1_phase_proto_rawDesc = "" +
 	"\x06origin\x18\f \x01(\tR\x06origin\x12+\n" +
 	"\x11suppress_rebuilds\x18\r \x03(\tR\x10suppressRebuilds\x12@\n" +
 	"\n" +
-	"build_type\x18\x0e \x01(\x0e2!.teleport.beams.v1.PhaseBuildTypeR\tbuildType\"\xc6\x01\n" +
+	"build_type\x18\x0e \x01(\x0e2!.teleport.beams.v1.PhaseBuildTypeR\tbuildType\x12\x1c\n" +
+	"\tinitiator\x18\x0f \x01(\tR\tinitiator\"\xc6\x01\n" +
 	"\x17PhasePendingPublication\x12\x16\n" +
 	"\x06digest\x18\x01 \x01(\tR\x06digest\x12\x1e\n" +
 	"\n" +

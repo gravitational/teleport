@@ -1481,6 +1481,13 @@ const (
 	// granting access to the owner's other Beams.
 	PhaseOwnerLabel = BeamsInternalLabelPrefix + "phase-owner"
 
+	// PhaseBuildInitiatorLabel is the label used to track the user who initiated
+	// the phase build running in a given beam. It is used in role label matchers
+	// to ensure interactively creating a phase from within a beam works - i.e.
+	// the beam's delegated identity is allowed to SSH into the beam node even
+	// though build beams are owned by the user at the root of the delegation chain.
+	PhaseBuildInitiatorLabel = BeamsInternalLabelPrefix + "phase-build-initiator"
+
 	// BeamAliasLabel is the label used to track the alias of the Beam a
 	// resource belongs to.
 	BeamAliasLabel = BeamsInternalLabelPrefix + "alias"

@@ -194,6 +194,10 @@ message PhaseBuildOperation {
   // BuildType records how this build Beam should start. Provisioning recovery
   // uses the same type so file-copy builds never start configured services.
   PhaseBuildType build_type = 14;
+  // Initiator is the authenticated username that requested this operation.
+  // Its build Beam allows this user to connect in addition to the Phase owner.
+  // Recovery preserves it. Scheduled operations leave it empty.
+  string initiator = 15;
 }
 
 // PhaseBuildType selects what a build Beam does before its snapshot is saved.

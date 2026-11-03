@@ -940,6 +940,7 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 	allowLLMApps := fmt.Sprintf(`labels[%q] == %q`, types.BeamAppTypeLabel, types.SubKindLLM)
 
 	allowOwned := beamOwnerLabelsExpression()
+	allowInitiated := fmt.Sprintf(`labels[%q] == user.metadata.name`, types.PhaseBuildInitiatorLabel)
 
 	// Phases keep their root user or bot owner when created inside a Beam.
 	// This trait is derived from the authenticated delegation chain.
@@ -971,10 +972,14 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 					allowLLMApps,
 					allowOwned,
 				),
-				NodeLabelsExpression: allowOwned,
+				NodeLabelsExpression: or(
+					allowOwned,
+					allowInitiated,
+				),
 				BeamLabelsExpression: or(
 					allowOwned,
 					allowOwnedPhases,
+					allowInitiated,
 				),
 				Rules: []types.Rule{
 					{
