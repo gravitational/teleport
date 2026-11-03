@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // certReissueClientWait is a duration for which Kube HTTP middleware will wait for cert reissuing until
@@ -120,6 +121,10 @@ type KubeMiddleware struct {
 	certsMu sync.RWMutex
 	// certs is a map by cluster name of Kubernetes client certs.
 	certs KubeClientCerts
+
+	// routedCertOnly holds the clusters that may only use a cert routed to themselves.
+	// It is fixed at construction and only read.
+	routedCertOnly set.Set[KubeClusterKey]
 }
 
 type KubeMiddlewareConfig struct {
@@ -130,6 +135,11 @@ type KubeMiddlewareConfig struct {
 	Logger       *slog.Logger
 	CloseContext context.Context
 
+	// RoutedCertOnly holds the clusters that may only use a cert routed to themselves, never the shared unrouted cert.
+	// Their per-session MFA requirement is unknown, and that cert carries no MFA state.
+	// A request for one of them reissues a routed cert.
+	RoutedCertOnly set.Set[KubeClusterKey]
+
 	// Relay signals that the middleware should provide the appropriate SNI
 	// override to connect to the Kube forwarder of a Relay rather than the one
 	// of a Proxy.
@@ -139,13 +149,14 @@ type KubeMiddlewareConfig struct {
 // NewKubeMiddleware creates a new KubeMiddleware.
 func NewKubeMiddleware(cfg KubeMiddlewareConfig) LocalProxyHTTPMiddleware {
 	return &KubeMiddleware{
-		certs:        cfg.Certs,
-		certReissuer: cfg.CertReissuer,
-		headless:     cfg.Headless,
-		clock:        cfg.Clock,
-		logger:       cfg.Logger,
-		closeContext: cfg.CloseContext,
-		relay:        cfg.Relay,
+		certs:          cfg.Certs,
+		certReissuer:   cfg.CertReissuer,
+		headless:       cfg.Headless,
+		clock:          cfg.Clock,
+		logger:         cfg.Logger,
+		closeContext:   cfg.CloseContext,
+		relay:          cfg.Relay,
+		routedCertOnly: cfg.RoutedCertOnly,
 	}
 }
 
@@ -279,7 +290,8 @@ func (m *KubeMiddleware) getCert(teleportCluster, kubeCluster string) (cert tls.
 	if cert, ok := m.certs[KubeClusterKey{TeleportCluster: teleportCluster, KubeCluster: kubeCluster}]; ok {
 		return cert, kubeCluster, nil
 	}
-	if cert, ok := m.certs[KubeClusterKey{TeleportCluster: teleportCluster}]; ok {
+	if cert, ok := m.certs[KubeClusterKey{TeleportCluster: teleportCluster}]; ok &&
+		!m.routedCertOnly.Contains(KubeClusterKey{TeleportCluster: teleportCluster, KubeCluster: kubeCluster}) {
 		return cert, "", nil
 	}
 	return tls.Certificate{}, kubeCluster, trace.NotFound("no client cert found for teleport cluster %q kube cluster %q", teleportCluster, kubeCluster)

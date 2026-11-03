@@ -679,6 +679,12 @@ func (c *ClusterClient) issueUserCertsWithMFA(ctx context.Context, dial dialAuth
 		}
 	}
 
+	// MFA is required, and no reusable MFA response was provided, so perform the ceremony to get a new single-use certificate.
+	log.DebugContext(ctx, "MFA is required, performing MFA ceremony")
+	result := &IssueUserCertsWithMFAResult{
+		MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+	}
+
 	// The cluster holding the target has answered by now, so record it and spare the ceremony from asking again.
 	params.MFACheck = &proto.IsMFARequiredResponse{
 		Required:    true,
@@ -686,19 +692,18 @@ func (c *ClusterClient) issueUserCertsWithMFA(ctx context.Context, dial dialAuth
 	}
 
 	// Perform the MFA ceremony and add the new credential to the KeyRing.
-	result, err := c.performSessionMFACeremony(ctx, certClient, params, keyRing)
+	ceremonyResult, err := c.performSessionMFACeremony(ctx, certClient, params, keyRing)
+	if ceremonyResult != nil {
+		// A ceremony that ran before the issuance failed still yields a reusable response.
+		result.ReusableMFAResponse = ceremonyResult.ReusableMFAResponse
+	}
 	if err != nil {
-		return &IssueUserCertsWithMFAResult{
-			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
-		}, trace.Wrap(err)
+		return result, trace.Wrap(err)
 	}
 
 	log.DebugContext(ctx, "Issued single-use user certificate after an MFA check")
-	return &IssueUserCertsWithMFAResult{
-		KeyRing:             keyRing,
-		MFARequired:         proto.MFARequired_MFA_REQUIRED_YES,
-		ReusableMFAResponse: result.ReusableMFAResponse,
-	}, nil
+	result.KeyRing = keyRing
+	return result, nil
 }
 
 // PerformSessionMFARootClient is a subset of Auth methods required for MFA.
@@ -852,16 +857,19 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	certsReq.MFAResponse = mfaResp
 	certsReq.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
 	log.DebugContext(ctx, "Issuing single-use certificate from unary GenerateUserCerts")
-	newCerts, err := rootClient.GenerateUserCerts(ctx, *certsReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	keyRing := params.KeyRing
 	var reusableMFAResponse *proto.MFAAuthenticateResponse
 	if allowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
 		reusableMFAResponse = mfaResp
 	}
+
+	newCerts, err := rootClient.GenerateUserCerts(ctx, *certsReq)
+	if err != nil {
+		// The ceremony itself succeeded, so the response is still worth handing back.
+		return &PerformSessionMFACeremonyResult{ReusableMFAResponse: reusableMFAResponse}, trace.Wrap(err)
+	}
+
+	keyRing := params.KeyRing
 
 	// Nothing more to do.
 	if keyRing == nil {

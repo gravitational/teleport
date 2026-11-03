@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"text/template"
 
@@ -349,9 +350,15 @@ type kubeLocalProxy struct {
 
 func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters, originalKubeConfig *clientcmdapi.Config, port, overrideContext string) (*kubeLocalProxy, error) {
 	certIssuer := newKubeCertIssuer(tc)
-	certs, err := certIssuer.LoadOrIssueCerts(cf.Context, clusters)
+	certs, unserved, err := certIssuer.LoadOrIssueCerts(cf.Context, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if len(unserved) > 0 {
+		fmt.Fprintf(cf.ProxyStatusOutput(),
+			"No Kubernetes server is serving these clusters: %s\nThe proxy starts without their certificates and issues one on the first request.\n",
+			strings.Join(unservedNames(clusters, unserved), ", "))
 	}
 
 	// TODO for best performance, avoid loading the entire profile. profile is
@@ -390,12 +397,13 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 	}
 
 	kubeMiddleware := alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
-		Certs:        certs,
-		CertReissuer: kubeProxy.reissueCert,
-		Headless:     cf.Headless,
-		Logger:       logger,
-		CloseContext: cf.Context,
-		Relay:        tc.RelayAddr != "",
+		Certs:          certs,
+		RoutedCertOnly: unserved,
+		CertReissuer:   kubeProxy.reissueCert,
+		Headless:       cf.Headless,
+		Logger:         logger,
+		CloseContext:   cf.Context,
+		Relay:          tc.RelayAddr != "",
 	})
 
 	if tc.RelayAddr != "" {
