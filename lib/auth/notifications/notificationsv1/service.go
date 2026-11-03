@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -194,6 +195,15 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 
 	globalNotifsStream := stream.Slice[*notificationsv1.GlobalNotification](nil)
 	if globalKey != "" || !found {
+		getReviewChecker := sync.OnceValues(func() (*services.ReviewPermissionChecker, error) {
+			identity := authCtx.Identity.GetIdentity()
+			checker, err := services.NewReviewPermissionChecker(ctx, s.backend, username, &identity)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &checker, nil
+		})
+
 		globalNotifsStream = stream.FilterMap(
 			s.globalNotificationCache.StreamGlobalNotifications(ctx, globalKey),
 			func(gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, bool) {
@@ -206,7 +216,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 					return nil, false
 				}
 
-				if !s.matchGlobalNotification(ctx, authCtx, gn, notificationStatesMap) {
+				if !s.matchGlobalNotification(ctx, authCtx, getReviewChecker, gn, notificationStatesMap) {
 					return nil, false
 				}
 				return gn, true
@@ -295,7 +305,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 	return response, nil
 }
 
-func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Context, gn *notificationsv1.GlobalNotification, notificationStatesMap map[string]notificationsv1.NotificationState) bool {
+func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Context, getReviewChecker func() (*services.ReviewPermissionChecker, error), gn *notificationsv1.GlobalNotification, notificationStatesMap map[string]notificationsv1.NotificationState) bool {
 	// If the user has dismissed this notification, return false.
 	if notificationStatesMap[gn.GetMetadata().GetName()] == notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED {
 		return false
@@ -344,7 +354,7 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 
 		var results []bool
 		for _, roleConditions := range roleConditionsList {
-			match, err := s.matchRoleConditions(ctx, authCtx, roleConditions)
+			match, err := s.matchRoleConditions(authCtx, getReviewChecker, roleConditions)
 			if err != nil {
 				slog.WarnContext(ctx, "Encountered error while matching RoleConditions", "role_conditions", roleConditions, "error", err)
 				return false
@@ -374,7 +384,7 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 	return false
 }
 
-func (s *Service) matchRoleConditions(ctx context.Context, authCtx *authz.Context, rc *types.RoleConditions) (bool, error) {
+func (s *Service) matchRoleConditions(authCtx *authz.Context, getReviewChecker func() (*services.ReviewPermissionChecker, error), rc *types.RoleConditions) (bool, error) {
 	if len(rc.Logins) > 0 {
 		userLogins := authCtx.Checker.GetAllLogins()
 		var matchedLogin bool
@@ -410,13 +420,7 @@ func (s *Service) matchRoleConditions(ctx context.Context, authCtx *authz.Contex
 	}
 
 	if rc.ReviewRequests != nil {
-		identity := authCtx.Identity.GetIdentity()
-		checker, err := services.NewReviewPermissionChecker(
-			ctx,
-			s.backend,
-			authCtx.User.GetName(),
-			&identity,
-		)
+		checker, err := getReviewChecker()
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
