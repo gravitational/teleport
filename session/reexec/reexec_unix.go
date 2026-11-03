@@ -36,7 +36,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -339,7 +338,8 @@ func runCommand() (exitErr error, err error) {
 		err := osPack.startNewParker(
 			parkerCtx,
 			cmd.SysProcAttr.Credential,
-			c.Login, &systemUser{u: localUser})
+			c.Login, &systemUser{u: localUser},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1043,27 +1043,9 @@ func openFileAsUser(localUser *user.User, path string) (file *os.File, err error
 		return nil, trace.Errorf("opening files as a user is only possible in a reexec context")
 	}
 
-	uid, err := strconv.Atoi(localUser.Uid)
+	credential, err := host.GetHostUserCredential(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	gid, err := strconv.Atoi(localUser.Gid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	strIDs, err := hostuser.GroupIds(localUser)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	suppGids := make([]int, len(strIDs))
-	for i, strID := range strIDs {
-		gid, err := strconv.Atoi(strID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		suppGids[i] = gid
 	}
 
 	prevUID := os.Geteuid()
@@ -1073,10 +1055,34 @@ func openFileAsUser(localUser *user.User, path string) (file *os.File, err error
 		return nil, trace.Wrap(err)
 	}
 
+	var suppGIDs []int
+	if len(credential.Groups) > 0 {
+		suppGIDs = make([]int, len(credential.Groups))
+		for i, v := range credential.Groups {
+			suppGIDs[i] = int(v)
+		}
+	}
+	slices.Sort(prevSuppGIDs)
+	slices.Sort(suppGIDs)
+
+	var uidChanged bool
+	var gidChanged bool
+	var suppGIDsChanged bool
 	defer func() {
-		uidErr := syscall.Seteuid(prevUID)
-		gidErr := syscall.Setegid(prevGID)
-		suppGIDsErr := syscall.Setgroups(prevSuppGIDs)
+		var uidErr error
+		var gidErr error
+		var suppGIDsErr error
+
+		if uidChanged {
+			uidErr = syscall.Seteuid(prevUID)
+		}
+		if gidChanged {
+			gidErr = syscall.Setegid(prevGID)
+		}
+		if suppGIDsChanged {
+			suppGIDsErr = syscall.Setgroups(prevSuppGIDs)
+		}
+
 		if uidErr != nil || gidErr != nil || suppGIDsErr != nil {
 			file.Close()
 			slog.ErrorContext(context.Background(), "cannot proceed with invalid effective credentials", "uid_err", uidErr, "gid_err", gidErr, "supp_gids_err", suppGIDsErr, "error", err)
@@ -1084,14 +1090,23 @@ func openFileAsUser(localUser *user.User, path string) (file *os.File, err error
 		}
 	}()
 
-	if err := syscall.Setgroups(suppGids); err != nil {
-		return nil, trace.Wrap(err)
+	if !credential.NoSetGroups && !slices.Equal(prevSuppGIDs, suppGIDs) {
+		if err := syscall.Setgroups(suppGIDs); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		suppGIDsChanged = true
 	}
-	if err := syscall.Setegid(gid); err != nil {
-		return nil, trace.Wrap(err)
+	if int(credential.Gid) != prevGID {
+		if err := syscall.Setegid(int(credential.Gid)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		gidChanged = true
 	}
-	if err := syscall.Seteuid(uid); err != nil {
-		return nil, trace.Wrap(err)
+	if int(credential.Uid) != prevUID {
+		if err := syscall.Seteuid(int(credential.Uid)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		uidChanged = true
 	}
 
 	file, err = safefile.OpenNoFollow(path)
