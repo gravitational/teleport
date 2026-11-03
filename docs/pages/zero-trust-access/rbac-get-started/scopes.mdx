@@ -92,8 +92,8 @@ the exhaustive list of scoped features; features that are not listed here should
 be assumed unsupported in scoped mode.
 
 - The `scoped_role` resource for describing scoped permissions.
-- The `scoped_role_assignment` resource for assigning scoped roles to users
-  and Bots.
+- The `scoped_role_assignment` resource for assigning scoped roles and traits
+  to users and Bots.
 - The `scoped_token` resource for joining Agents at a specific scope.
 - Scope pinning, allowing a user to log in at a scope and create a session
   whose privileges are limited to the target scope.
@@ -111,7 +111,7 @@ be assumed unsupported in scoped mode.
   These integrations are created with `tctl` or Terraform, and the AWS setup scripts; the
   Web UI does not support them yet.
 - Scoped Access Lists that can be managed by scoped administrators, used to
-  grant scoped roles to groups of users, and synchronized with a SCIM provider.
+  grant scoped roles and traits to groups of users, and synchronized with a SCIM provider.
 - Scoped Bots for Machine and Workload Identity (MWI), supporting both
   identity output and SSH access.
 - Scoped Workload Identity resources for issuing SPIFFE credentials to
@@ -169,7 +169,8 @@ spec:
   assignable_scopes:
     - /examples
   kube:
-    groups: [cluster-admin]
+    groups:
+      - '{{internal.kubernetes_groups}}'
     labels:
       - name: '*'
         values: ['*']
@@ -178,9 +179,10 @@ spec:
         namespace: '*'
         api_group: '*'
         name: '*'
-        verbs: ['*']
+        verbs: ['{{external.kubernetes_verbs}}']
   ssh:
-    logins: [ubuntu]
+    logins:
+      - '{{internal.logins}}'
     labels:
       - name: '*'
         values: ['*']
@@ -221,6 +223,15 @@ spec:
   assignments:
     - role: /examples::example-admin
       scope: /examples/basic
+  traits:
+    - scope: /examples/basic
+      traits:
+        - key: logins
+          values: [ubuntu]
+        - key: kubernetes_groups
+          values: [cluster-admin]
+        - key: kubernetes_verbs
+          values: ['*']
 version: v1
 EOF
 ```
@@ -1061,7 +1072,7 @@ to scoped Access Lists:
    member list's scope is equal to or an ancestor of the parent list's scope.
 1. An Access List can only be added as an owner of another Access List if the
    owner list's scope is equal to or an ancestor of the owned list's scope.
-1. A scoped Access List (or an unscoped list that grants any scoped roles) may
+1. A scoped Access List (or an unscoped list that grants any scoped roles or traits) may
    not contain member requirements or owner requirements.
 
 Any attempt to create an Access List violating these rules will be rejected by
@@ -1071,6 +1082,7 @@ For an example Access List with scope `/examples/basic`:
 
 1. It can only grant scoped roles defined in `/examples/basic` or `/examples` or `/`.
 1. It can only grant scoped roles at `/examples/basic` or `/examples/basic/**`.
+1. It can only grant scoped traits at `/examples/basic` or `/examples/basic/**`.
 1. It can only have member Access Lists that are unscoped or have scope `/examples/basic` or `/examples` or `/`.
 1. It can only have owner Access Lists that are unscoped or have scope `/examples/basic` or `/examples` or `/`.
 1. It may not contain any member or owner requirements.
@@ -1239,7 +1251,9 @@ spec: {}
 ```
 
 Grant the Bot privileges through a scoped role assignment, identifying the
-Bot by its scope-qualified name in `spec.bot`:
+Bot by its scope-qualified name in `spec.bot`. This assignment also grants
+a scoped `logins` trait that can be used in the `/staging::staging-ssh-access`
+role using `{{internal.logins}}`:
 
 ```yaml
 kind: scoped_role_assignment
@@ -1253,6 +1267,11 @@ spec:
   assignments:
     - role: /staging::staging-ssh-access
       scope: /staging
+  traits:
+    - scope: /staging
+      traits:
+        - key: logins
+          values: [ubuntu]
 ```
 
 Create a scoped token that the Bot will use to authenticate. The example
@@ -1448,14 +1467,14 @@ spec:
   assignable_scopes:
     - /examples
   kube:
-    groups: [cluster-admin]
+    groups: ['{{internal.kubernetes_groups}}']
     labels:
       - name: '*'
         values: ['*']
     resources:
       - kind: '*'
-        namespace: '*'
         api_group: '*'
+        namespace: '*'
         name: '*'
         verbs: ['*']
 version: v1
@@ -1956,3 +1975,264 @@ $ tsh kube ls
 Kube Cluster Name Labels Scope Selected
 ----------------- ------ ----- --------
 ```
+
+## Scoped traits
+
+Scoped traits can be assigned alongside scoped roles using scoped role
+assignments or Access Lists. They are similarly assigned at a designated scope
+and interact with scoped roles through the same template system supported by
+unscoped roles.
+
+### Templated roles
+
+Templates in scoped roles use the same `{{internal.<key>}}` and
+`{{external.<key>}}` syntax as unscoped roles. They behave identically to their
+unscoped counterparts with two exceptions:
+- The `external` namespace can not be used with `internal` keys (e.g. `logins`,
+  `kubernetes_groups`)
+- Trait values can not be accessed using any namespaces other than `internal`
+  and `external`. This differs from unscoped roles that implicitly treat
+  unrecognized namespaces as `external` under the hood. The special
+  `{{user.metadata.name}}` template can still be be used to interpolate the
+  username for the logged in user.
+
+The following example defines a scoped role with templated values for
+`spec.ssh.logins`, `spec.kube.groups`, and `spec.kube.resources`:
+
+```yaml
+kind: scoped_role
+version: v1
+scope: /examples
+metadata:
+  name: templated-user
+spec:
+  assignable_scopes:
+    - /examples
+    - /examples/basic
+  ssh:
+    logins: ['{{internal.logins}}']
+    labels:
+      - name: '*'
+        values: ['*']
+  kube:
+    groups: ['{{internal.kubernetes_groups}}']
+    labels:
+      - name: '*'
+        values: ['*']
+    resources:
+      - kind: '*'
+        api_group: '*'
+        namespace: '*'
+        name: '*'
+        verbs: ['{{external.kubernetes_verbs}}']
+```
+
+### Assigning scoped traits
+
+Scoped traits can be assigned using scoped role assignments:
+
+```yaml
+kind: scoped_role_assignment
+sub_kind: dynamic
+version: v1
+scope: /examples
+spec:
+  user: alice
+  assignments:
+    - role: /examples::templated-user
+      scope: /examples/basic
+  traits:
+    - scope: /examples/basic
+      traits:
+        - key: logins
+          values: [ubuntu]
+        - key: kubernetes_groups
+          values: [cluster-admin]
+        - key: kubernetes_verbs
+          values: ['*']
+```
+
+This assignment grants `logins=ubuntu`, `kubernetes_groups=cluster-admin`, and
+`kubernetes_verbs=*` at the `/examples/basic` scope. Traits follow scope
+isolation rules in that they can only apply to roles being evaluated at or
+below their assigned scope. This means that a trait assigned at
+`/examples/basic` will not be visible when evaluating a role assigned at
+`/examples` or `/examples/other`.
+
+Scoped role and trait assignments each have a Scope of Origin and a Scope of
+Effect. The Scope of Origin is where the roles or traits are assigned from and
+is determined by the `scoped_role_assignment.scope` field. This dictates the
+authority of the assignment relative to others. The Scope of Effect is where
+roles or traits are effective at and is determined by the `scope` field of each
+`assignments` or `traits` entry;
+`scoped_role_assignment.spec.assignments[].scope` and `scoped_role_assignment.spec.traits[].scope`.
+
+Scoped traits are aggregated hierarchically based on their Scope of Origin and
+Scope of Effect. For example, the same set of traits can be achieved even
+if some of them are assigned at a higher Scope of Effect:
+
+```yaml
+kind: scoped_role_assignment
+sub_kind: dynamic
+version: v1
+scope: /examples
+spec:
+  user: alice
+  assignments:
+    - role: /examples::templated-user
+      scope: /examples/basic
+  traits:
+    - scope: /examples
+      traits:
+        - key: logins
+          values: [ubuntu]
+    - scope: /examples/basic
+      traits:
+        - key: kubernetes_groups
+          values: [cluster-admin]
+        - key: kubernetes_verbs
+          values: ['*']
+```
+
+When evaluating the assigned `templated-user` role at `/examples/basic`, the
+trait map used still includes `logins`, `kubernetes_groups`, and
+`kubernetes_verbs`. Trait values are also additive, so if we were to assign the
+following:
+
+```yaml
+traits:
+  - scope: /examples
+    traits:
+      - key: logins
+        values: [ubuntu]
+  - scope: /examples/basic
+    traits:
+      - key: kubernetes_groups
+        values: [cluster-admin]
+      - key: kubernetes_verbs
+        values: ['*']
+      - key: logins
+        values: [root]
+```
+
+Then the resulting `logins` trait would contain `[root, ubuntu]`. Notice that
+the trait value assigned at a more specific Scope of Effect appears earlier in
+the value list. This is enforced behavior that ensures trait value order is
+always deterministic. In the rare case that value order matters during an
+access decision, the most specifically scoped trait value "wins". However, this
+ordering only applies within a Scope of Origin. Trait values assigned from
+a higher authority Scope of Origin will always appear before those assigned in
+lower authority scopes. For example:
+
+```yaml
+kind: scoped_role_assignment
+sub_kind: dynamic
+version: v1
+scope: /examples
+spec:
+  user: alice
+  traits:
+    - scope: /examples
+      traits:
+        - key: logins
+          values: [ubuntu]
+    - scope: /examples/basic
+      traits:
+        - key: kubernetes_groups
+          values: [cluster-admin]
+        - key: kubernetes_verbs
+          values: ['*']
+---
+kind: scoped_role_assignment
+sub_kind: dynamic
+version: v1
+scope: /examples/basic
+spec:
+  user: alice
+  assignments:
+    - role: /examples::templated-user
+      scope: /examples/basic
+  traits:
+    - scope: /examples/basic
+      traits:
+        - key: logins
+          values: [root]
+```
+
+When evaluating the `templated-user` role assigned at `/examples/basic`, all
+three traits are still present and `logins` still contains both `ubuntu` and
+`root`. However, their ordering is now `[ubuntu, root]`. Despite `root`
+appearing in a more specific Scope of Effect (e.g. `/examples/basic`), the
+`ubuntu` value appears in the `scoped_role_assignment` originating from
+`/examples`. Which is a higher authority scope than the `/examples/basic` scope
+assigned to the second `scoped_role_assignment`.
+
+#### Access Lists
+
+Scoped traits can be assigned from scoped Access Lists:
+
+```yaml
+kind: access_list
+version: v1
+scope: /examples
+metadata:
+  name: access-list-with-traits
+spec:
+  title: "Access List with traits"
+  owners:
+    - name: bob
+      membership_kind: MEMBERSHIP_KIND_USER
+  grants:
+    scoped_roles:
+      - scope: /examples/basic
+        role: /examples::templated-user
+    scoped_traits:
+      - scope: /examples/basic
+        traits:
+          kubernetes_groups: [cluster-admin]
+          kubernetes_verbs: ['*']
+          logins: [ubuntu]
+  audit:
+    recurrence:
+      frequency: 6months
+```
+
+This Access List will materialize into the equivalent `scoped_role_assignment`
+for all members of the list:
+
+```yaml
+kind: scoped_role_assignment
+sub_kind: materialized
+version: v1
+scope: /examples
+spec:
+  user: alice
+  assignments:
+    - role: /examples::templated-user
+      scope: /examples/basic
+  traits:
+    - scope: /examples/basic
+      traits:
+        - key: logins
+          values: [ubuntu]
+        - key: kubernetes_groups
+          values: [cluster-admin]
+        - key: kubernetes_verbs
+          values: ['*']
+```
+
+Note that the Access List's scope is the Scope of Origin for the resulting
+assignment. Because Access Lists are materialized into scoped role assignments,
+all of the same rules for aggregating and applying scoped traits apply.
+
+### Unscoped traits
+
+Unscoped traits are also supported by scoped roles. They can still be defined
+on Teleport Users, within an IdP, or the result of a Login Rule. Unscoped
+traits are treated as the "root" of the trait map when evaluating a scoped
+role. Scoped traits can append to keys defined by unscoped traits, but the
+unscoped trait values will always appear first. This is consistent with trait
+values from higher authority Scopes of Origin being preferred over lower scope
+traits. Critically, unscoped traits will always be applied to every scoped role
+evaluation. If a certain trait should only be used within a specific set of
+scopes, that trait should never be assigned as an unscoped trait.
