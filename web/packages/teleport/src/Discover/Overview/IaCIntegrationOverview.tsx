@@ -115,9 +115,12 @@ export function IaCIntegrationOverview() {
             </ButtonIcon>
           </HoverTooltip>
           <Flex flexDirection="column">
-            <Text bold fontSize={6}>
-              {stats.name}
-            </Text>
+            <Flex alignItems="center" gap={2} flexWrap="wrap">
+              <Text bold fontSize={6}>
+                {stats.name}
+              </Text>
+              <IntegrationScanStatus stats={stats} />
+            </Flex>
             {roleArn && (
               <Text typography="body3" color="text.slightlyMuted">
                 {roleArn}
@@ -136,18 +139,6 @@ export function IaCIntegrationOverview() {
 }
 
 function OverviewContent({ stats }: { stats: IntegrationWithSummary }) {
-  const [nowMs, setNowMs] = useState(Date.now);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 30_000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, []);
-
   const hasIssues = stats.unresolvedUserTasks > 0;
   const isAzure = stats.subKind === IntegrationKind.AzureOidc;
 
@@ -155,28 +146,12 @@ function OverviewContent({ stats }: { stats: IntegrationWithSummary }) {
     <Flex flexDirection="column" gap={4}>
       <CardsContainer>
         {isAzure ? (
-          <ResourceTypeCard
-            resourceType="azurevm"
-            summary={stats.azurevm}
-            nowMs={nowMs}
-          />
+          <ResourceTypeCard resourceType="azurevm" summary={stats.azurevm} />
         ) : (
           <>
-            <ResourceTypeCard
-              resourceType="ec2"
-              summary={stats.awsec2}
-              nowMs={nowMs}
-            />
-            <ResourceTypeCard
-              resourceType="rds"
-              summary={stats.awsrds}
-              nowMs={nowMs}
-            />
-            <ResourceTypeCard
-              resourceType="eks"
-              summary={stats.awseks}
-              nowMs={nowMs}
-            />
+            <ResourceTypeCard resourceType="ec2" summary={stats.awsec2} />
+            <ResourceTypeCard resourceType="rds" summary={stats.awsrds} />
+            <ResourceTypeCard resourceType="eks" summary={stats.awseks} />
           </>
         )}
       </CardsContainer>
@@ -224,6 +199,57 @@ function IntegrationHealthCard({
 
       {hasIssues && <ActivityTab stats={stats} />}
     </Card>
+  );
+}
+
+function IntegrationScanStatus({ stats }: { stats: IntegrationWithSummary }) {
+  const [nowMs, setNowMs] = useState(Date.now);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 30_000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const scanState = getScanState(stats);
+
+  if (scanState.state === 'waiting') {
+    return null;
+  }
+
+  if (
+    scanState.state === 'scanning' ||
+    scanState.nextScanAt.getTime() <= nowMs
+  ) {
+    return (
+      <StatusBadge kind="info" variant="filled-tonal" icon={SpinningSyncIcon}>
+        Rescanning now...
+      </StatusBadge>
+    );
+  }
+
+  const remainingMs = scanState.nextScanAt.getTime() - nowMs;
+
+  return (
+    <Flex alignItems="center" gap={2} color="text.slightlyMuted">
+      <Flex alignItems="center" gap={1}>
+        <Clock size="small" />
+        <Text typography="body3">
+          Next scan in{' '}
+          {formatDistanceStrict(0, remainingMs, {
+            unit: 'minute',
+            roundingMethod: 'ceil',
+          })}
+        </Text>
+      </Flex>
+      <Text typography="body3">
+        · Last scan {formatRelativeDate(scanState.lastScan)}
+      </Text>
+    </Flex>
   );
 }
 
@@ -284,15 +310,12 @@ function getResourceScanState(
 function ResourceTypeCard({
   resourceType,
   summary,
-  nowMs,
 }: {
   resourceType: ResourceType;
   summary: ResourceTypeSummary | undefined;
-  nowMs: number;
 }) {
   const config = RESOURCE_TYPE_CONFIG[resourceType];
   const isConfigured = summary && summary.rulesCount > 0;
-  const scanState = getResourceScanState(summary);
 
   if (!isConfigured) {
     return (
@@ -322,50 +345,6 @@ function ResourceTypeCard({
   const enrollmentPercent = discovered > 0 ? (enrolled / discovered) * 100 : 0;
   const isFullyEnrolled = discovered > 0 && enrolled === discovered;
 
-  const renderScanBadge = () => {
-    switch (scanState.state) {
-      case 'waiting':
-        return null;
-      case 'scanning':
-        return (
-          <StatusBadge
-            kind="info"
-            variant="filled-tonal"
-            icon={SpinningSyncIcon}
-          >
-            Rescanning now...
-          </StatusBadge>
-        );
-      case 'completed': {
-        const remainingMs = scanState.nextScanAt.getTime() - nowMs;
-        if (remainingMs > 0) {
-          return (
-            <Flex alignItems="center" gap={1} color="text.slightlyMuted">
-              <Clock size="small" />
-              <Text typography="body3">
-                Next scan in{' '}
-                {formatDistanceStrict(0, remainingMs, {
-                  unit: 'minute',
-                  roundingMethod: 'ceil',
-                })}
-              </Text>
-            </Flex>
-          );
-        }
-        // Countdown expired, show rescanning state while waiting for backend to confirm
-        return (
-          <StatusBadge
-            kind="info"
-            variant="filled-tonal"
-            icon={SpinningSyncIcon}
-          >
-            Rescanning now...
-          </StatusBadge>
-        );
-      }
-    }
-  };
-
   return (
     <ResourceCard>
       <Flex alignItems="center" justifyContent="space-between" mb={3}>
@@ -375,7 +354,6 @@ function ResourceTypeCard({
             {config.label}
           </Text>
         </Flex>
-        {renderScanBadge()}
       </Flex>
 
       <CardDivider />
@@ -400,13 +378,6 @@ function ResourceTypeCard({
           $isComplete={isFullyEnrolled}
         />
       </ProgressBar>
-
-      {scanState.state === 'completed' &&
-        scanState.nextScanAt.getTime() - nowMs > 0 && (
-          <Text typography="body3" color="text.slightlyMuted" mt={2}>
-            Last scan {formatRelativeDate(scanState.lastScan)}
-          </Text>
-        )}
     </ResourceCard>
   );
 }
