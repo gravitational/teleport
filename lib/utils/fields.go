@@ -37,8 +37,8 @@ func (f Fields) GetString(key string) string {
 	if !found {
 		return ""
 	}
-	s, _ := val.(string)
-	return s
+	str, _ := getString(val)
+	return str
 }
 
 // GetStrings returns a slice-of-strings representation of a field.
@@ -47,19 +47,33 @@ func (f Fields) GetStrings(key string) []string {
 	if !found {
 		return nil
 	}
+	res, _ := getStrings(val)
+	return res
+}
+
+func getString(value any) (string, bool) {
+	str, ok := value.(string)
+	return str, ok
+}
+
+func getStrings(val any) ([]string, bool) {
 	strings, ok := val.([]string)
 	if ok {
-		return strings
+		return strings, true
 	}
-	slice, _ := val.([]interface{})
+	slice, ok := val.([]any)
+	if !ok {
+		return nil, false
+	}
 	res := make([]string, 0, len(slice))
 	for _, v := range slice {
-		s, ok := v.(string)
-		if ok {
-			res = append(res, s)
+		s, ok := getString(v)
+		if !ok {
+			return nil, false
 		}
+		res = append(res, s)
 	}
-	return res
+	return res, true
 }
 
 // GetInt returns an int representation of a field.
@@ -143,13 +157,19 @@ func ToFieldsCondition(expr *types.WhereExpr) (FieldsCondition, error) {
 		left, right := expr.Contains.L, expr.Contains.R
 		switch {
 		case left.Field != "" && right.Field != "":
-			return func(f Fields) bool { return slices.Contains(f.GetStrings(left.Field), f.GetString(right.Field)) }, nil
+			return func(f Fields) bool {
+				value, ok := getString(f[right.Field])
+				return ok && slices.Contains(f.GetStrings(left.Field), value)
+			}, nil
 		case left.Literal != nil && right.Field != "":
-			if ss, ok := left.Literal.([]string); ok {
-				return func(f Fields) bool { return slices.Contains(ss, f.GetString(right.Field)) }, nil
+			if ss, ok := getStrings(left.Literal); ok {
+				return func(f Fields) bool {
+					value, ok := getString(f[right.Field])
+					return ok && slices.Contains(ss, value)
+				}, nil
 			}
 		case left.Field != "" && right.Literal != nil:
-			if s, ok := right.Literal.(string); ok {
+			if s, ok := getString(right.Literal); ok {
 				return func(f Fields) bool { return slices.Contains(f.GetStrings(left.Field), s) }, nil
 			}
 		}
@@ -165,9 +185,57 @@ func fieldsEqual(a, b any) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
 	}
-	at, bt := reflect.TypeOf(a), reflect.TypeOf(b)
-	if at == nil || at != bt || !at.Comparable() {
+	aStrings, aIsStrings := getStrings(a)
+	bStrings, bIsStrings := getStrings(b)
+	if aIsStrings || bIsStrings {
+		return aIsStrings && bIsStrings && slices.Equal(aStrings, bStrings)
+	}
+
+	aString, aIsString := getString(a)
+	bString, bIsString := getString(b)
+	if aIsString || bIsString {
+		return aIsString && bIsString && aString == bString
+	}
+
+	return fieldsEqualFallback(a, b)
+}
+
+func fieldsEqualFallback(a, b any) bool {
+	aType, bType := reflect.TypeOf(a), reflect.TypeOf(b)
+	if aType != bType {
 		return false
 	}
-	return a == b
+
+	if aType.Comparable() {
+		return a == b
+	}
+
+	switch aType.Kind() {
+	case reflect.Slice:
+		aSlice, bSlice := reflect.ValueOf(a), reflect.ValueOf(b)
+		if aSlice.Len() != bSlice.Len() {
+			return false
+		}
+		for i := 0; i < aSlice.Len(); i++ {
+			if !fieldsEqual(aSlice.Index(i).Interface(), bSlice.Index(i).Interface()) {
+				return false
+			}
+		}
+		return true
+	case reflect.Map:
+		aMap, bMap := reflect.ValueOf(a), reflect.ValueOf(b)
+		if aMap.Len() != bMap.Len() {
+			return false
+		}
+		iter := aMap.MapRange()
+		for iter.Next() {
+			bValue := bMap.MapIndex(iter.Key())
+			if !bValue.IsValid() || !fieldsEqual(iter.Value().Interface(), bValue.Interface()) {
+				return false
+			}
+		}
+		return true
+	}
+
+	return false
 }

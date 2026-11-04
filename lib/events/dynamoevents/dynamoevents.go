@@ -1064,19 +1064,23 @@ func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
 }
 
 func getExprFilter(filter searchEventsFilter) *string {
-	var filterConds []string
+	var eventTypeExpr string
 	if len(filter.eventTypes) > 0 {
-		typeList := eventFilterList(len(filter.eventTypes))
-		filterConds = append(filterConds, fmt.Sprintf("EventType IN %s", typeList))
+		eventTypeExpr = fmt.Sprintf("EventType IN %s", eventFilterList(len(filter.eventTypes)))
 	}
-	if filter.condExpr != "" {
-		filterConds = append(filterConds, filter.condExpr)
+
+	switch {
+	case eventTypeExpr == "" && filter.condExpr == "":
+		return nil
+	case eventTypeExpr == "":
+		return aws.String(filter.condExpr)
+	case filter.condExpr == "":
+		return aws.String(eventTypeExpr)
+	default:
+		// The condition must stay grouped so its ORs do not escape the event
+		// type filter.
+		return aws.String(fmt.Sprintf("%s AND (%s)", eventTypeExpr, filter.condExpr))
 	}
-	var filterExpr *string
-	if len(filterConds) > 0 {
-		filterExpr = aws.String(strings.Join(filterConds, " AND "))
-	}
-	return filterExpr
 }
 
 func getSubPageCheckpoint(e *event) (string, error) {
