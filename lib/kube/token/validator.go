@@ -21,13 +21,14 @@ package token
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	josejwt "github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	v1 "k8s.io/api/authentication/v1"
@@ -39,6 +40,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 	tokenclaims "github.com/gravitational/teleport/lib/kube/token/claims"
 	"github.com/gravitational/teleport/lib/oidc"
 )
@@ -126,7 +128,7 @@ func (v *TokenReviewValidator) getClient(_ context.Context) (kubernetes.Interfac
 // Bound tokens always have audiences and the list will not be empty.
 // Legacy tokens don't have audiences, the result will be an empty list and no error.
 func unsafeGetTokenAudiences(token string) ([]string, error) {
-	jwt, err := josejwt.ParseSigned(token)
+	jwt, err := jwt.ParseSigned(token, libjwt.AllowedJWKSAlgorithms)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -270,30 +272,41 @@ func ValidateTokenWithJWKS(
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	jwt, err := josejwt.ParseSigned(token)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing jwt")
-	}
-
 	jwks := jose.JSONWebKeySet{}
 	if err := json.Unmarshal(jwksData, &jwks); err != nil {
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
+	algs, filteredKeys := libjwt.FilterAllowedAlgorithmsFromJWKS(jwks)
+	if len(algs) == 0 {
+		return nil, trace.BadParameter("static_jwks contains no keys with a usable signature algorithm")
+	}
+
+	tok, err := jwt.ParseSigned(token, algs)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing jwt")
+	}
+
 	claims := tokenclaims.ServiceAccountClaims{}
-	if err := jwt.Claims(jwks, &claims); err != nil {
+	if err := tok.Claims(filteredKeys, &claims); err != nil {
+		if errors.Is(err, jose.ErrJWKSKidNotFound) {
+			// ValidateTokenWithJWKS has no context.Context of its own to
+			// thread through to the logger.
+			log.WarnContext(context.TODO(),
+				"unable to match incoming jwt to a key in the provided jwks: the token's `kid` is either absent or does not match any provided key",
+				"error", err,
+			)
+		}
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
 
 	leeway := time.Second * 10
-	err = claims.ValidateWithLeeway(josejwt.Expected{
+	err = claims.ValidateWithLeeway(jwt.Expected{
 		// We don't need to check the subject or other claims here.
 		// Anything related to matching the token against ProvisionToken
 		// allow rules is left to the discretion of `lib/auth`.
-		Audience: []string{
-			clusterName,
-		},
-		Time: now,
+		AnyAudience: jwt.Audience{clusterName},
+		Time:        now,
 	}, leeway)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating jwt claims")

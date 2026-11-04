@@ -32,7 +32,7 @@ import (
 	armpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/digitorus/pkcs7"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/provision"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -146,7 +147,7 @@ type AzureJoinConfig struct {
 
 func azureVerifyFuncFromOIDCVerifier(clientID string) AzureVerifyTokenFunc {
 	return func(ctx context.Context, rawIDToken string) (*AccessTokenClaims, error) {
-		token, err := jwt.ParseSigned(rawIDToken)
+		token, err := jwt.ParseSigned(rawIDToken, libjwt.AllowedJWKSAlgorithms)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -316,9 +317,9 @@ func verifyVMIdentity(
 	}
 
 	expectedClaims := jwt.Expected{
-		Issuer:   expectedIssuer,
-		Audience: jwt.Audience{AzureAccessTokenAudience},
-		Time:     requestStart,
+		Issuer:      expectedIssuer,
+		AnyAudience: jwt.Audience{AzureAccessTokenAudience},
+		Time:        requestStart,
 	}
 
 	if err := tokenClaims.asJWTClaims().Validate(expectedClaims); err != nil {

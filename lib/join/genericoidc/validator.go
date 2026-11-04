@@ -18,23 +18,17 @@ package genericoidc
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/elliptic"
-	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"maps"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
-	josejwt "github.com/go-jose/go-jose/v4/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
@@ -44,38 +38,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/provision"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/oidc"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("genericoidc"))
-
-// acceptableStaticJWKSAlgs is a list of algorithms considered acceptable for
-// static_jwks verification attempts. This only includes asymmetric algorithms,
-// see also:
-// - https://trufflesecurity.com/blog/stop-recommending-jwts
-// - https://datatracker.ietf.org/doc/html/rfc8725#section-2.1
-// This list isn't passed directly to jose, instead we compute the intersection
-// of this set and the set of algorithms specified in the static_jwks keys.
-// Additionally, note that all of these algorithms are technically allowable for
-// verification in FIPS builds, however some may be rejected by BoringCrypto
-// (especially EdDSA) or may qualify as allowed but legacy verification
-// (RS* /PS* < 2048).
-var acceptableStaticJWKSAlgs = map[jose.SignatureAlgorithm]struct{}{
-	jose.RS256: {},
-	jose.RS384: {},
-	jose.RS512: {},
-
-	jose.PS256: {},
-	jose.PS384: {},
-	jose.PS512: {},
-
-	jose.ES256: {},
-	jose.ES384: {},
-	jose.ES512: {},
-
-	jose.EdDSA: {},
-}
 
 const (
 	// httpTimeout is a limit on the amount of time any single HTTP request can
@@ -206,12 +174,12 @@ func (v *IDTokenValidator) validateStaticJWKS(
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	algs, filteredKeys := filterAllowedAlgorithmsFromJWKS(jwks)
+	algs, filteredKeys := libjwt.FilterAllowedAlgorithmsFromJWKS(jwks)
 	if len(algs) == 0 {
 		return nil, trace.BadParameter("static_jwks contains no keys with a usable signature algorithm")
 	}
 
-	parsed, err := josejwt.ParseSigned(string(idToken), algs)
+	parsed, err := jwt.ParseSigned(string(idToken), algs)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing jwt")
 	}
@@ -222,7 +190,7 @@ func (v *IDTokenValidator) validateStaticJWKS(
 	// unambiguous) key, which will then fail validation. We'll fail on that for
 	// now, and can reconsider if we encounter an IdP in the wild that does
 	// this.
-	stdClaims := josejwt.Claims{}
+	stdClaims := jwt.Claims{}
 	claims := IDTokenClaims{}
 	if err := parsed.Claims(filteredKeys, &stdClaims, &claims); err != nil {
 		if errors.Is(err, jose.ErrJWKSKidNotFound) {
@@ -251,9 +219,9 @@ func (v *IDTokenValidator) validateStaticJWKS(
 	}
 
 	leeway := time.Second * 10
-	err = stdClaims.ValidateWithLeeway(josejwt.Expected{
+	err = stdClaims.ValidateWithLeeway(jwt.Expected{
 		Issuer:      spec.Issuer,
-		AnyAudience: josejwt.Audience{spec.Audience},
+		AnyAudience: jwt.Audience{spec.Audience},
 		Time:        now,
 	}, leeway)
 	if err != nil {
@@ -261,73 +229,6 @@ func (v *IDTokenValidator) validateStaticJWKS(
 	}
 
 	return &claims, nil
-}
-
-// allowedAlgorithmsFromJWKS computes the list of algorithms we should pass to
-// jose, by computing the intersection of our allowed algorithms
-// (acceptableStaticJWKSAlgs) and the algorithms in the `static_jwks` keys.
-func filterAllowedAlgorithmsFromJWKS(jwks jose.JSONWebKeySet) ([]jose.SignatureAlgorithm, jose.JSONWebKeySet) {
-	filteredSet := jose.JSONWebKeySet{
-		Keys: []jose.JSONWebKey{},
-	}
-
-	candidates := make(map[jose.SignatureAlgorithm]struct{})
-	for _, key := range jwks.Keys {
-		if key.Use != "" && key.Use != "sig" {
-			// If "use" is set and it isn't for signing, don't try to include
-			// it. "sig" is a well known value per
-			// https://datatracker.ietf.org/doc/html/rfc7517#section-4.2
-			// Note that we honor `use` here but don't check `key_ops`. This
-			// mirrors zitadel/oidc, and in practice since go-jose/v4 drops the
-			// field, it isn't worth re-parsing for what is not a realistic
-			// exploit path especially given the nature of static_jwks keys.
-			continue
-		}
-
-		acceptable := false
-		alg := jose.SignatureAlgorithm(key.Algorithm)
-		if _, ok := acceptableStaticJWKSAlgs[alg]; ok {
-			candidates[alg] = struct{}{}
-			acceptable = true
-		} else if key.Algorithm == "" {
-			// `alg` is optional, so if not specified, include based on the key
-			// type
-			// https://datatracker.ietf.org/doc/html/rfc7517#section-4.4
-			switch k := key.Key.(type) {
-			case *rsa.PublicKey:
-				// Note, technically ambiguous between 256/384/512, but without
-				// a hint we have to guess, and RS256 is mandated.
-				candidates[jose.RS256] = struct{}{}
-				acceptable = true
-			case *ecdsa.PublicKey:
-				switch k.Curve {
-				case elliptic.P256():
-					candidates[jose.ES256] = struct{}{}
-					acceptable = true
-				case elliptic.P384():
-					candidates[jose.ES384] = struct{}{}
-					acceptable = true
-				case elliptic.P521():
-					// P521 -> ES512 (confusingly)
-					// https://datatracker.ietf.org/doc/html/rfc7518#section-3.4
-					candidates[jose.ES512] = struct{}{}
-					acceptable = true
-				}
-			case ed25519.PublicKey:
-				candidates[jose.EdDSA] = struct{}{}
-				acceptable = true
-			}
-
-			// If nothing matches, it's a no-op, it certainly wouldn't appear in
-			// our list.
-		}
-
-		if acceptable {
-			filteredSet.Keys = append(filteredSet.Keys, key)
-		}
-	}
-
-	return slices.Collect(maps.Keys(candidates)), filteredSet
 }
 
 // evaluateGenericOIDCRules evaluates all types of user-defined rules on a

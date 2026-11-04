@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -84,7 +84,7 @@ func (s *KubernetesSigner) GetMarshaledJWKS() (string, error) {
 }
 
 func (s *KubernetesSigner) signWithClaims(claims interface{}) (string, error) {
-	token, err := jwt.Signed(s.signer).Claims(claims).CompactSerialize()
+	token, err := jwt.Signed(s.signer).Claims(claims).Serialize()
 	return token, trace.Wrap(err)
 }
 
