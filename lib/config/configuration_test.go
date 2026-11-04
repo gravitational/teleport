@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -837,6 +838,10 @@ func TestApplyConfig(t *testing.T) {
 
 	require.Equal(t, 7*time.Minute+35*time.Second, cfg.ShutdownDelay)
 
+	require.Equal(t, metadata.CloudEnvironmentDiscoveryConfig{
+		DisabledEnvironments: []string{"aws", "azure"},
+	}, cfg.CloudEnvironmentDiscovery)
+
 	u2fCAFromFile, err := os.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cfg.Auth.Preference, &types.AuthPreferenceV2{
@@ -1470,6 +1475,78 @@ func TestParseCachePolicy(t *testing.T) {
 		out, err := tc.in.Parse()
 		require.NoError(t, err, comment)
 		require.Equal(t, out, tc.out, comment)
+	}
+}
+
+func TestParseCloudEnvironmentDiscovery(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		desc      string
+		in        CloudEnvironmentDiscoveryConfig
+		out       metadata.CloudEnvironmentDiscoveryConfig
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			desc:      "unset enables every check",
+			in:        CloudEnvironmentDiscoveryConfig{},
+			out:       metadata.CloudEnvironmentDiscoveryConfig{},
+			assertErr: require.NoError,
+		},
+		{
+			desc:      "enabled yes enables every check",
+			in:        CloudEnvironmentDiscoveryConfig{EnabledFlag: "yes"},
+			out:       metadata.CloudEnvironmentDiscoveryConfig{},
+			assertErr: require.NoError,
+		},
+		{
+			desc:      "enabled no disables every check",
+			in:        CloudEnvironmentDiscoveryConfig{EnabledFlag: "no"},
+			out:       metadata.CloudEnvironmentDiscoveryConfig{Disabled: true},
+			assertErr: require.NoError,
+		},
+		{
+			desc:      "enabled false disables every check",
+			in:        CloudEnvironmentDiscoveryConfig{EnabledFlag: "false"},
+			out:       metadata.CloudEnvironmentDiscoveryConfig{Disabled: true},
+			assertErr: require.NoError,
+		},
+		{
+			desc: "disabled providers are normalized",
+			in:   CloudEnvironmentDiscoveryConfig{DisabledProviders: []string{"AWS", " gcp "}},
+			out: metadata.CloudEnvironmentDiscoveryConfig{
+				DisabledEnvironments: []string{"aws", "gcp"},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			desc: "invalid enabled flag is rejected",
+			in:   CloudEnvironmentDiscoveryConfig{EnabledFlag: "maybe"},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+				require.ErrorContains(t, err, "cloud_environment_discovery.enabled")
+			},
+		},
+		{
+			desc: "unsupported provider is rejected",
+			in:   CloudEnvironmentDiscoveryConfig{DisabledProviders: []string{"aws", "oci"}},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+				require.ErrorContains(t, err, "oci")
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+			out, err := tc.in.Parse()
+			tc.assertErr(t, err)
+			if err != nil {
+				return
+			}
+			require.Equal(t, tc.out, out)
+		})
 	}
 }
 

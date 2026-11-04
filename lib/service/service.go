@@ -146,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
@@ -684,6 +685,10 @@ type TeleportProcess struct {
 
 	// inventoryHandle is the downstream inventory control handle for this instance.
 	inventoryHandle inventory.DownstreamHandle
+
+	// metadataFetcher fetches the instance metadata reported to the Auth
+	// Service, honoring the configured cloud environment discovery settings.
+	metadataFetcher *metadata.Fetcher
 
 	// instanceConnector contains the instance-level connector. this is created asynchronously
 	// and may not exist for some time if cert migrations are necessary.
@@ -1467,11 +1472,19 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		return hello, nil
 	}
 
+	process.metadataFetcher, err = metadata.NewFetcher(metadata.FetcherConfig{
+		CloudEnvironmentDiscovery: cfg.CloudEnvironmentDiscovery,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "building instance metadata fetcher")
+	}
+
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
 	process.inventoryHandle, err = inventory.NewDownstreamHandle(
 		process.makeInventoryControlStreamWhenReady,
 		getHello,
+		inventory.WithMetadataGetter(process.metadataFetcher.Get),
 		inventory.WithDownstreamClock(process.Clock),
 		inventory.WithAuditQueueStatusGetter(process.AuditQueueStatus),
 		inventory.WithAuditQueueStatusSignal(process.auditQueueStatusSignalC),
@@ -3865,6 +3878,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
 			regular.SetStoragePresenceService(storagePresence),
 			regular.SetInventoryControlHandle(process.inventoryHandle),
+			regular.SetMetadataGetter(process.metadataFetcher.Get),
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),

@@ -71,6 +71,10 @@ type HeartbeatV2Config[T any] struct {
 	DisruptionAnnounceInterval time.Duration
 	// PollInterval is the interval at which checks for change are performed (optional).
 	PollInterval time.Duration
+	// GetMetadata fetches the instance metadata used to enrich the heartbeat
+	// (optional, only used by the SSH server heartbeat). Defaults to
+	// [metadata.Get].
+	GetMetadata metadata.Getter
 }
 
 func (c *HeartbeatV2Config[T]) Check() error {
@@ -91,7 +95,10 @@ func NewSSHServerHeartbeat(cfg HeartbeatV2Config[*types.ServerV2]) (*HeartbeatV2
 	}
 
 	inner := &sshServerHeartbeatV2{
-		getMetadata: metadata.Get,
+		getMetadata: cfg.GetMetadata,
+	}
+	if inner.getMetadata == nil {
+		inner.getMetadata = metadata.Get
 	}
 	inner.getServer = func(ctx context.Context) (*types.ServerV2, error) {
 		server, err := cfg.GetResource(ctx)
@@ -589,7 +596,7 @@ type heartbeatV2Driver interface {
 // fetching the metadata takes longer than the context. If the metadata is
 // immediately available, it shall be returned even if the context passed in is
 // already done.
-type metadataGetter func(ctx context.Context) (*metadata.Metadata, error)
+type metadataGetter = metadata.Getter
 
 // sshServerHeartbeatV2 is the heartbeatV2 implementation for ssh servers.
 type sshServerHeartbeatV2 struct {

@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -101,6 +102,11 @@ type Config struct {
 
 	// AuditQueue configures the audit log event queue.
 	AuditQueue AuditQueueConfig
+
+	// CloudEnvironmentDiscovery controls which cloud environment checks are
+	// performed when gathering the instance metadata reported to the Auth
+	// Service. The zero value enables every check.
+	CloudEnvironmentDiscovery metadata.CloudEnvironmentDiscoveryConfig
 
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig
@@ -886,6 +892,10 @@ func ValidateConfig(cfg *Config) error {
 
 	if cfg.DataDir == "" {
 		return trace.BadParameter("config: please supply data directory")
+	}
+
+	if err := cfg.CloudEnvironmentDiscovery.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "config: invalid cloud environment discovery configuration")
 	}
 
 	if cfg.Auth.Enabled {

@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/auditqueue"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -711,6 +712,43 @@ type Global struct {
 	// AuditQueue is used for configuration options for the audit log event
 	// queue.
 	AuditQueue AuditQueueConfig `yaml:"audit_queue,omitempty"`
+
+	// CloudEnvironmentDiscovery controls which cloud environment checks are
+	// performed when gathering the instance metadata reported to the Auth
+	// Service.
+	CloudEnvironmentDiscovery CloudEnvironmentDiscoveryConfig `yaml:"cloud_environment_discovery,omitempty"`
+}
+
+// CloudEnvironmentDiscoveryConfig is the 'cloud_environment_discovery' section
+// of the 'teleport' config block. It controls the probes Teleport sends to
+// cloud provider instance metadata endpoints in order to detect the cloud
+// environment the instance is running in.
+type CloudEnvironmentDiscoveryConfig struct {
+	// EnabledFlag enables or disables all cloud environment checks. Enabled
+	// by default.
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// DisabledProviders lists the cloud providers whose checks should be
+	// skipped. Valid values are "aws", "gcp" and "azure".
+	DisabledProviders []string `yaml:"disabled_providers,omitempty"`
+}
+
+// Parse parses [metadata.CloudEnvironmentDiscoveryConfig] from Teleport config.
+func (c *CloudEnvironmentDiscoveryConfig) Parse() (metadata.CloudEnvironmentDiscoveryConfig, error) {
+	out := metadata.CloudEnvironmentDiscoveryConfig{}
+	for _, provider := range c.DisabledProviders {
+		out.DisabledEnvironments = append(out.DisabledEnvironments, strings.ToLower(strings.TrimSpace(provider)))
+	}
+	if c.EnabledFlag != "" {
+		enabled, err := apiutils.ParseBool(c.EnabledFlag)
+		if err != nil {
+			return out, trace.BadParameter("invalid cloud_environment_discovery.enabled %q: %v", c.EnabledFlag, err)
+		}
+		out.Disabled = !enabled
+	}
+	if err := out.CheckAndSetDefaults(); err != nil {
+		return out, trace.BadParameter("invalid cloud_environment_discovery.disabled_providers: %v", err)
+	}
+	return out, nil
 }
 
 // AuditQueueConfig is used to control the audit log event queue.

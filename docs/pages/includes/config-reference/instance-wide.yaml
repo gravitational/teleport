@@ -151,6 +151,19 @@ teleport:
   # negative, no delay is applied.
   #shutdown_delay: "0s"
 
+  # Teleport detects the cloud environment the instance is running in (AWS,
+  # GCP or Azure) by probing each provider's instance metadata endpoint on
+  # startup. The result is reported to the Auth Service as part of the
+  # instance metadata. Use this section to skip some or all of these probes,
+  # for example when the instance is known not to run in a cloud environment
+  # or when link-local metadata traffic is blocked or audited.
+  # cloud_environment_discovery:
+  #   # Set to "no" to disable every cloud environment check. Defaults to "yes".
+  #   enabled: yes
+  #   # Cloud providers whose checks should be skipped. Valid values are
+  #   # "aws", "gcp" and "azure".
+  #   disabled_providers: ["aws"]
+
   # Teleport can limit the number of connections coming from each client
   # IP address to avoid abuse. These limits are enforced separately for
   # each service (Auth, Proxy, SSH, Kubernetes, Database, Windows

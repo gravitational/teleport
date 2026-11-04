@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -64,8 +65,67 @@ type Metadata struct {
 	CloudMetadata *types.CloudMetadata
 }
 
+// Cloud environment identifiers advertised in [Metadata.CloudEnvironment].
+const (
+	// CloudEnvironmentAWS identifies instances running on AWS.
+	CloudEnvironmentAWS = "aws"
+	// CloudEnvironmentGCP identifies instances running on GCP.
+	CloudEnvironmentGCP = "gcp"
+	// CloudEnvironmentAzure identifies instances running on Azure.
+	CloudEnvironmentAzure = "azure"
+)
+
+// SupportedCloudEnvironments lists every cloud environment that the metadata
+// fetcher is able to detect.
+var SupportedCloudEnvironments = []string{
+	CloudEnvironmentAWS,
+	CloudEnvironmentGCP,
+	CloudEnvironmentAzure,
+}
+
+// CloudEnvironmentDiscoveryConfig controls which cloud environment checks are
+// performed when fetching the instance metadata. Each check issues HTTP
+// requests to the provider's instance metadata endpoint, which may be
+// undesirable in some environments (e.g. where link-local traffic is blocked
+// or audited, or where the instance is known not to run on any cloud).
+//
+// The zero value enables every check.
+type CloudEnvironmentDiscoveryConfig struct {
+	// Disabled skips every cloud environment check when true.
+	Disabled bool
+	// DisabledEnvironments lists the cloud environments whose checks should
+	// be skipped. Valid values are listed in [SupportedCloudEnvironments].
+	DisabledEnvironments []string
+}
+
+// CheckAndSetDefaults validates the configuration.
+func (c *CloudEnvironmentDiscoveryConfig) CheckAndSetDefaults() error {
+	for _, env := range c.DisabledEnvironments {
+		if !slices.Contains(SupportedCloudEnvironments, env) {
+			return trace.BadParameter("unsupported cloud environment %q, supported values are: %s",
+				env, strings.Join(SupportedCloudEnvironments, ", "))
+		}
+	}
+	return nil
+}
+
+// enabled reports whether the check for the given cloud environment should
+// run.
+func (c *CloudEnvironmentDiscoveryConfig) enabled(env string) bool {
+	if c == nil {
+		return true
+	}
+	if c.Disabled {
+		return false
+	}
+	return !slices.Contains(c.DisabledEnvironments, env)
+}
+
 // fetchConfig contains the configuration used by the FetchMetadata method.
 type fetchConfig struct {
+	// cloudDiscovery controls which cloud environment checks are performed.
+	// A nil value enables every check.
+	cloudDiscovery *CloudEnvironmentDiscoveryConfig
 	// getenv is the method called to retrieve an environment
 	// variable.
 	// It is configurable so that it can be mocked in tests.
@@ -123,7 +183,7 @@ func (c *fetchConfig) setDefaults() {
 	if c.fetchCloudMetadata == nil {
 		c.fetchCloudMetadata = func(ctx context.Context, cloudEnvironment string) *types.CloudMetadata {
 			switch cloudEnvironment {
-			case "aws":
+			case CloudEnvironmentAWS:
 				iid, err := aws.GetEC2InstanceIdentityDocument(ctx)
 				if err != nil {
 					return nil
@@ -280,27 +340,40 @@ func (c *fetchConfig) fetchContainerOrchestrator(ctx context.Context) string {
 	return fmt.Sprintf("kubernetes-%s", version.GitVersion)
 }
 
-// fetchCloudEnvironment returns aws, gpc or azure if the instance is running on
-// such cloud environments.
+// fetchCloudEnvironment returns aws, gcp or azure if the instance is running on
+// such cloud environments. Checks disabled via [CloudEnvironmentDiscoveryConfig]
+// are skipped entirely, so no request is made to the corresponding metadata
+// endpoint.
 func (c *fetchConfig) fetchCloudEnvironment(ctx context.Context) string {
+	type check struct {
+		env string
+		f   func(context.Context) bool
+	}
+	allChecks := []check{
+		{CloudEnvironmentAWS, c.awsHTTPGetSuccess},
+		{CloudEnvironmentGCP, c.gcpHTTPGetSuccess},
+		{CloudEnvironmentAzure, c.azureHTTPGetSuccess},
+	}
+
+	checks := make([]check, 0, len(allChecks))
+	for _, chk := range allChecks {
+		if c.cloudDiscovery.enabled(chk.env) {
+			checks = append(checks, chk)
+		}
+	}
+	if len(checks) == 0 {
+		return ""
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	// kick off 3 checks in parallel, at most 1 will succeed
-	checks := []struct {
-		env string
-		f   func(context.Context) bool
-	}{
-		{"aws", c.awsHTTPGetSuccess},
-		{"gcp", c.gcpHTTPGetSuccess},
-		{"azure", c.azureHTTPGetSuccess},
-	}
-
+	// kick off the enabled checks in parallel, at most 1 will succeed
 	cloudEnv := make(chan string, len(checks))
-	for _, check := range checks {
+	for _, chk := range checks {
 		go func() {
-			if check.f(ctx) {
-				cloudEnv <- check.env
+			if chk.f(ctx) {
+				cloudEnv <- chk.env
 			} else {
 				cloudEnv <- ""
 			}

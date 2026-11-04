@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/proxy"
@@ -101,6 +102,9 @@ type Server struct {
 	limiter     *limiter.Limiter
 
 	inventoryHandle inventory.DownstreamHandle
+
+	// getMetadata fetches the instance metadata used to enrich heartbeats.
+	getMetadata metadata.Getter
 
 	// labels are static labels.
 	labels map[string]string
@@ -778,6 +782,15 @@ func SetInventoryControlHandle(handle inventory.DownstreamHandle) ServerOption {
 	}
 }
 
+// SetMetadataGetter sets the function used to fetch the instance metadata
+// that enriches the server's heartbeats.
+func SetMetadataGetter(getter metadata.Getter) ServerOption {
+	return func(s *Server) error {
+		s.getMetadata = getter
+		return nil
+	}
+}
+
 // SetTracerProvider sets the tracer provider.
 func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 	return func(s *Server) error {
@@ -1053,6 +1066,7 @@ func New(
 			InventoryHandle: s.inventoryHandle,
 			GetResource:     s.getServerInfo,
 			OnHeartbeat:     s.onHeartbeat,
+			GetMetadata:     s.getMetadata,
 		})
 	} else {
 		s.logger.DebugContext(ctx, "starting legacy heartbeat")

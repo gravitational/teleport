@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -404,4 +405,186 @@ func TestFetchCloudEnvironment(t *testing.T) {
 			require.Equal(t, tc.expected, c.fetchCloudEnvironment(context.Background()))
 		})
 	}
+}
+
+func TestFetchCloudEnvironmentDisabledChecks(t *testing.T) {
+	t.Parallel()
+
+	// alwaysOn is an httpDo implementation that reports every provider as
+	// present and records which metadata endpoints were contacted.
+	newRecorder := func() (func(*http.Request, bool) (*http.Response, error), func() []string) {
+		var mu sync.Mutex
+		var hosts []string
+		httpDo := func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
+			mu.Lock()
+			hosts = append(hosts, req.URL.Host)
+			mu.Unlock()
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("token")),
+			}, nil
+		}
+		return httpDo, func() []string {
+			mu.Lock()
+			defer mu.Unlock()
+			return append([]string(nil), hosts...)
+		}
+	}
+
+	const (
+		awsAzureHost = "169.254.169.254"
+		gcpHost      = "metadata.google.internal"
+	)
+
+	testCases := []struct {
+		desc             string
+		cfg              *CloudEnvironmentDiscoveryConfig
+		expected         []string
+		forbiddenHosts   []string
+		expectNoRequests bool
+	}{
+		{
+			desc:     "nil config enables every check",
+			cfg:      nil,
+			expected: []string{CloudEnvironmentAWS, CloudEnvironmentGCP, CloudEnvironmentAzure},
+		},
+		{
+			desc:     "zero config enables every check",
+			cfg:      &CloudEnvironmentDiscoveryConfig{},
+			expected: []string{CloudEnvironmentAWS, CloudEnvironmentGCP, CloudEnvironmentAzure},
+		},
+		{
+			desc:             "disabled skips every check without any request",
+			cfg:              &CloudEnvironmentDiscoveryConfig{Disabled: true},
+			expected:         []string{""},
+			expectNoRequests: true,
+		},
+		{
+			desc: "disabled takes precedence over disabled environments",
+			cfg: &CloudEnvironmentDiscoveryConfig{
+				Disabled:             true,
+				DisabledEnvironments: []string{CloudEnvironmentAWS},
+			},
+			expected:         []string{""},
+			expectNoRequests: true,
+		},
+		{
+			desc:           "disabling aws and azure leaves only gcp",
+			cfg:            &CloudEnvironmentDiscoveryConfig{DisabledEnvironments: []string{CloudEnvironmentAWS, CloudEnvironmentAzure}},
+			expected:       []string{CloudEnvironmentGCP},
+			forbiddenHosts: []string{awsAzureHost},
+		},
+		{
+			desc:           "disabling gcp leaves aws and azure",
+			cfg:            &CloudEnvironmentDiscoveryConfig{DisabledEnvironments: []string{CloudEnvironmentGCP}},
+			expected:       []string{CloudEnvironmentAWS, CloudEnvironmentAzure},
+			forbiddenHosts: []string{gcpHost},
+		},
+		{
+			desc:             "disabling every environment individually skips every check",
+			cfg:              &CloudEnvironmentDiscoveryConfig{DisabledEnvironments: SupportedCloudEnvironments},
+			expected:         []string{""},
+			expectNoRequests: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+
+			httpDo, requestedHosts := newRecorder()
+			c := &fetchConfig{
+				httpDo:         httpDo,
+				cloudDiscovery: tc.cfg,
+			}
+			env := c.fetchCloudEnvironment(context.Background())
+			require.Contains(t, tc.expected, env)
+
+			hosts := requestedHosts()
+			if tc.expectNoRequests {
+				require.Empty(t, hosts, "no metadata endpoint should have been contacted")
+			}
+			for _, forbidden := range tc.forbiddenHosts {
+				require.NotContains(t, hosts, forbidden)
+			}
+		})
+	}
+}
+
+func TestCloudEnvironmentDiscoveryConfigCheckAndSetDefaults(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		desc      string
+		cfg       CloudEnvironmentDiscoveryConfig
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			desc:      "zero value is valid",
+			cfg:       CloudEnvironmentDiscoveryConfig{},
+			assertErr: require.NoError,
+		},
+		{
+			desc:      "supported environments are valid",
+			cfg:       CloudEnvironmentDiscoveryConfig{DisabledEnvironments: SupportedCloudEnvironments},
+			assertErr: require.NoError,
+		},
+		{
+			desc: "unsupported environment is rejected",
+			cfg:  CloudEnvironmentDiscoveryConfig{DisabledEnvironments: []string{"aws", "digitalocean"}},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+				require.ErrorContains(t, err, "digitalocean")
+			},
+		},
+		{
+			desc: "environment names are case sensitive",
+			cfg:  CloudEnvironmentDiscoveryConfig{DisabledEnvironments: []string{"AWS"}},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+			tc.assertErr(t, tc.cfg.CheckAndSetDefaults())
+		})
+	}
+}
+
+func TestNewFetcher(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewFetcher(FetcherConfig{})
+	require.NoError(t, err)
+
+	_, err = NewFetcher(FetcherConfig{
+		CloudEnvironmentDiscovery: CloudEnvironmentDiscoveryConfig{
+			DisabledEnvironments: []string{"not-a-cloud"},
+		},
+	})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+}
+
+func TestFetcherGetCachesResult(t *testing.T) {
+	t.Parallel()
+
+	f := newFetcher(FetcherConfig{
+		CloudEnvironmentDiscovery: CloudEnvironmentDiscoveryConfig{Disabled: true},
+	})
+
+	first, err := f.Get(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	require.Empty(t, first.CloudEnvironment)
+	require.Nil(t, first.CloudMetadata)
+
+	// A done context must not prevent cached metadata from being returned.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	second, err := f.Get(ctx)
+	require.NoError(t, err)
+	require.Same(t, first, second)
 }

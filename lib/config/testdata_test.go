@@ -97,6 +97,8 @@ teleport:
     output: stderr
     severity: INFO
   shutdown_delay: "7m35s"
+  cloud_environment_discovery:
+    disabled_providers: ["aws", "Azure"]
   connection_limits:
     max_connections: 90
     max_users: 91

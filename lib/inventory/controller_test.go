@@ -1714,7 +1714,7 @@ func testUpdateLabels(t *testing.T) {
 		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
 			return upstreamHello, nil
 		},
-		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+		WithMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 			return nil, context.Canceled
 		}),
 	)
@@ -1787,7 +1787,7 @@ func testAgentMetadata(t *testing.T) {
 		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
 			return upstreamHello, nil
 		},
-		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+		WithMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 			return &metadata.Metadata{
 				OS:                    "llamaOS",
 				OSVersion:             "1.2.3",
@@ -1895,7 +1895,7 @@ func testInstanceStatus(t *testing.T, supportsInstanceStatus, expectStatus bool)
 		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
 			return upstreamHello, nil
 		},
-		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+		WithMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 			return &metadata.Metadata{}, nil
 		}),
 		WithAuditQueueStatusGetter(func(ctx context.Context) *types.AuditQueueStatus {
@@ -2005,7 +2005,7 @@ func TestGoodbye(t *testing.T) {
 					return upstreamHello, nil
 				},
 				WithDownstreamClock(clock),
-				withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+				WithMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 					return nil, context.Canceled
 				}),
 			)
@@ -2529,7 +2529,7 @@ func testGetSender(t *testing.T) {
 		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
 			return upstreamHello, nil
 		},
-		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+		WithMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 			return nil, context.Canceled
 		}),
 	)

@@ -673,6 +673,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.AuditQueue = auditQueue
 
+	cloudEnvironmentDiscovery, err := fc.CloudEnvironmentDiscovery.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.CloudEnvironmentDiscovery = cloudEnvironmentDiscovery
+
 	cfg.ShutdownDelay = time.Duration(fc.ShutdownDelay)
 
 	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC

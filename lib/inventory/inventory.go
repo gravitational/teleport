@@ -98,7 +98,7 @@ type DownstreamSender interface {
 }
 
 type downstreamHandleOptions struct {
-	metadataGetter         func(ctx context.Context) (*metadata.Metadata, error)
+	metadataGetter         metadata.Getter
 	auditQueueStatusGetter func(ctx context.Context) *types.AuditQueueStatus
 	auditQueueStatusSignal <-chan struct{}
 	clock                  clockwork.Clock
@@ -115,7 +115,9 @@ func (options *downstreamHandleOptions) SetDefaults() {
 
 type DownstreamHandleOption func(c *downstreamHandleOptions)
 
-func withMetadataGetter(getter func(ctx context.Context) (*metadata.Metadata, error)) DownstreamHandleOption {
+// WithMetadataGetter overrides the function used to fetch the instance
+// metadata sent in the upstream hello. Defaults to [metadata.Get].
+func WithMetadataGetter(getter metadata.Getter) DownstreamHandleOption {
 	return func(opts *downstreamHandleOptions) {
 		opts.metadataGetter = getter
 	}
@@ -200,7 +202,7 @@ type downstreamHandle struct {
 	closeContext           context.Context
 	cancel                 context.CancelFunc
 	upstreamSSHLabels      map[string]string
-	metadataGetter         func(ctx context.Context) (*metadata.Metadata, error)
+	metadataGetter         metadata.Getter
 	auditQueueStatusGetter func(ctx context.Context) *types.AuditQueueStatus
 	auditQueueStatusSignal <-chan struct{}
 	clock                  clockwork.Clock
