@@ -22,13 +22,25 @@ Teleport Identity Security alerts help you detect and respond to security threat
 This page describes the available detection categories for Identity Security
 alerts and covers frequently asked questions.
 
-All detections are pre-configured and currently cannot be modified. The severity levels (Critical, High, Medium, Low) are defined by the Identity Security team based on the potential impact of each detection.
+<SkillsBanner />
+
+## Deploying and accessing alerts
+
+Alerts are powered by the Identity Activity Center, which is included and
+managed by Teleport for Teleport Enterprise Cloud tenants with Identity
+Security. If you run a self-hosted Teleport Enterprise cluster with Identity
+Security enabled, you must deploy the supporting AWS infrastructure yourself;
+see [Self-Hosting Identity Activity
+Center](../access-graph/identity-activity-center.mdx).
+
+To view active alerts, navigate to **Identity Security** > **Alerts** in the
+Teleport Web UI.
 
 ![Alerts](../../../img/access-graph/alerts.png)
 
-To view active alerts, navigate to **Identity Security** > **Alerts** in the Teleport Web UI.
-<SkillsBanner />
 ## Detection categories
+
+All detections are pre-configured and currently cannot be modified. The severity levels (Critical, High, Medium, Low) are defined by the Identity Security team based on the potential impact of each detection.
 
 Each category below represents an integrated service where Teleport monitors for security events and suspicious activities pulled from various integration audit logs. The detections within each category are further organized by severity level to help you prioritize your security response efforts.
 
@@ -133,13 +145,10 @@ This feature is planned for future release.
 ### How can I request new detection types?
 For new detection requests based on customer needs, [reach out to the Identity Security Team](https://goteleport.com/contact-us/). Customer feedback is welcomed and helps prioritize new detection development.
 
-## How do I deploy Identity Security Alerts?
-Teleport Identity Security is a separately licensed product available to Teleport Enterprise customers. To deploy Identity Security, follow the instructions in [Self-Host Teleport Security - Identity Activity Center](../access-graph/identity-activity-center.mdx).
-
-
 ## Next steps
 
 
 - Review the [Investigate](./investigate.mdx) documentation to learn about exploring identity-related activity
 - To review these detections from the terminal, see [Investigate detections from the CLI](../cli/detections.mdx)
 - Configure [integrations](../integrations/integrations.mdx) to expand detection coverage
+- If you run a self-hosted Teleport Enterprise cluster, deploy the infrastructure that powers alerts by following [Self-Hosting Identity Activity Center](../access-graph/identity-activity-center.mdx)
