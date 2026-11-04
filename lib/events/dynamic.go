@@ -669,6 +669,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.ClassifierCreate{}
 	case ClassifierUpdateEvent:
 		e = &events.ClassifierUpdate{}
+	case ClassifierDisabledEvent:
+		e = &events.ClassifierDisabled{}
+	case ClassifierEnabledEvent:
+		e = &events.ClassifierEnabled{}
 	case ClassifierMatchedEvent:
 		e = &events.ClassifierMatched{}
 	case ClassifierDeleteEvent:

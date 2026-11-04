@@ -3142,6 +3142,14 @@ func (m *ClassifierUpdate) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *ClassifierDisabled) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *ClassifierEnabled) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *ClassifierDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }

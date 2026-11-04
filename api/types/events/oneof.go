@@ -1112,6 +1112,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ClassifierUpdate{
 			ClassifierUpdate: e,
 		}
+	case *ClassifierDisabled:
+		out.Event = &OneOf_ClassifierDisabled{
+			ClassifierDisabled: e,
+		}
+	case *ClassifierEnabled:
+		out.Event = &OneOf_ClassifierEnabled{
+			ClassifierEnabled: e,
+		}
 	case *ClassifierMatched:
 		out.Event = &OneOf_ClassifierMatched{ClassifierMatched: e}
 	case *ClassifierDelete:

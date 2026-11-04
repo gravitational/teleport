@@ -1112,6 +1112,10 @@ const (
 	ClassifierUpdateEvent = "classifier.update"
 	// ClassifierDeleteEvent is emitted when a classifier resource is deleted.
 	ClassifierDeleteEvent = "classifier.delete"
+	// ClassifierDisabledEvent is emitted when a classifier resource is disabled.
+	ClassifierDisabledEvent = "classifier.disabled"
+	// ClassifierEnabledEvent is emitted when a classifier resource is enabled.
+	ClassifierEnabledEvent = "classifier.enabled"
 	// ClassifierMatchedEvent is emitted when a classifier matches a session.
 	ClassifierMatchedEvent = "classifier.matched"
 

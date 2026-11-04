@@ -2917,6 +2917,29 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Classifier [${name}] failed to be deleted by [${user}]`,
   },
+  [eventCodes.CLASSIFIER_DISABLED]: {
+    type: 'classifier.disabled',
+    desc: 'Classifier Disabled',
+    format: ({ name, user }) =>
+      `Classifier [${name}] was disabled by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_DISABLED_FAILURE]: {
+    type: 'classifier.disabled',
+    desc: 'Classifier Disable Failed',
+    format: ({ name, user }) =>
+      `Classifier [${name}] failed to be disabled by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_ENABLED]: {
+    type: 'classifier.enabled',
+    desc: 'Classifier Enabled',
+    format: ({ name, user }) => `Classifier [${name}] was enabled by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_ENABLED_FAILURE]: {
+    type: 'classifier.enabled',
+    desc: 'Classifier Enable Failed',
+    format: ({ name, user }) =>
+      `Classifier [${name}] failed to be enabled by [${user}]`,
+  },
   [eventCodes.CLASSIFIER_MATCHED]: {
     type: 'classifier.matched',
     desc: 'Classifier Matched',

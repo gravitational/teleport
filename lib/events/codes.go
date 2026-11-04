@@ -997,6 +997,14 @@ const (
 	ClassifierDeleteFailureCode = "INF016E"
 	// ClassifierMatchedCode identifies a classifier match.
 	ClassifierMatchedCode = "INF017I"
+	// ClassifierDisabledCode is the classifier disabled event code.
+	ClassifierDisabledCode = "INF018I"
+	// ClassifierDisabledFailureCode is the classifier disabled failure event code.
+	ClassifierDisabledFailureCode = "INF018E"
+	// ClassifierEnabledCode is the classifier enabled event code.
+	ClassifierEnabledCode = "INF019I"
+	// ClassifierEnabledFailureCode is the classifier enabled failure event code.
+	ClassifierEnabledFailureCode = "INF019E"
 
 	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
 	CertAuthOverrideCreateCode = "TCO01I"

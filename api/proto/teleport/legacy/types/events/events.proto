@@ -5951,6 +5951,8 @@ message OneOf {
     events.OAuthProxyAccess OAuthProxyAccess = 285;
     events.AWSRolesAnywhereCredentialsGenerated AWSRolesAnywhereCredentialsGenerated = 286;
     events.GitAccess GitAccess = 287;
+    events.ClassifierDisabled ClassifierDisabled = 288;
+    events.ClassifierEnabled ClassifierEnabled = 289;
   }
 }
 
@@ -11618,11 +11620,9 @@ message ClassifierCreate {
     (gogoproto.jsontag) = ""
   ];
 
-  // Payload contains the classifier data.
-  google.protobuf.Struct Payload = 6 [
-    (gogoproto.jsontag) = "payload,omitempty",
-    (gogoproto.casttype) = "Struct"
-  ];
+  // Payload was removed before release.
+  reserved "Payload";
+  reserved 6;
 }
 
 // ClassifierUpdate is emitted when a classifier is updated.
@@ -11662,10 +11662,84 @@ message ClassifierUpdate {
     (gogoproto.jsontag) = ""
   ];
 
-  // Payload contains the classifier data.
-  google.protobuf.Struct Payload = 6 [
-    (gogoproto.jsontag) = "payload,omitempty",
-    (gogoproto.casttype) = "Struct"
+  // Payload was removed before release.
+  reserved "Payload";
+  reserved 6;
+}
+
+// ClassifierDisabled is emitted when a classifier is disabled.
+message ClassifierDisabled {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether disabling the classifier was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// ClassifierEnabled is emitted when a classifier is enabled.
+message ClassifierEnabled {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether enabling the classifier was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
   ];
 }
 

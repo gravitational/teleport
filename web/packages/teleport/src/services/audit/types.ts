@@ -414,6 +414,10 @@ export const eventCodes = {
   CLASSIFIER_DELETE: 'INF016I',
   CLASSIFIER_DELETE_FAILURE: 'INF016E',
   CLASSIFIER_MATCHED: 'INF017I',
+  CLASSIFIER_DISABLED: 'INF018I',
+  CLASSIFIER_DISABLED_FAILURE: 'INF018E',
+  CLASSIFIER_ENABLED: 'INF019I',
+  CLASSIFIER_ENABLED_FAILURE: 'INF019E',
   CERT_AUTH_OVERRIDE_CREATE: 'TCO01I',
   CERT_AUTH_OVERRIDE_UPDATE: 'TCO02I',
   CERT_AUTH_OVERRIDE_UPSERT: 'TCO03I',
@@ -2572,6 +2576,22 @@ export type RawEvents = {
   >;
   [eventCodes.CLASSIFIER_DELETE_FAILURE]: RawEvent<
     typeof eventCodes.CLASSIFIER_DELETE_FAILURE,
+    HasName
+  >;
+  [eventCodes.CLASSIFIER_DISABLED]: RawEvent<
+    typeof eventCodes.CLASSIFIER_DISABLED,
+    HasName
+  >;
+  [eventCodes.CLASSIFIER_DISABLED_FAILURE]: RawEvent<
+    typeof eventCodes.CLASSIFIER_DISABLED_FAILURE,
+    HasName
+  >;
+  [eventCodes.CLASSIFIER_ENABLED]: RawEvent<
+    typeof eventCodes.CLASSIFIER_ENABLED,
+    HasName
+  >;
+  [eventCodes.CLASSIFIER_ENABLED_FAILURE]: RawEvent<
+    typeof eventCodes.CLASSIFIER_ENABLED_FAILURE,
     HasName
   >;
   [eventCodes.CLASSIFIER_MATCHED]: RawEvent<
