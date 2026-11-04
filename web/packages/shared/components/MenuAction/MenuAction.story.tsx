@@ -61,5 +61,13 @@ export const Menu = () => (
         <MenuItem>Delete…</MenuItem>
       </MenuButton>
     </Flex>
+
+    <Flex flexDirection="column">
+      MenuButton with Clear
+      <MenuButton onClear={() => null}>
+        <MenuItem>Edit…</MenuItem>
+        <MenuItem>Delete…</MenuItem>
+      </MenuButton>
+    </Flex>
   </Flex>
 );

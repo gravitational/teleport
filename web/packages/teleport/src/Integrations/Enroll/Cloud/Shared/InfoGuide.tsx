@@ -16,74 +16,47 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
 import { Info } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
-import { HoverTooltip } from 'design/Tooltip';
-import {
-  ViewModeSwitchButton,
-  ViewModeSwitchContainer,
-} from 'shared/components/Controls/ViewModeSwitch';
-import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { useValidation } from 'shared/components/Validation';
 
-import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel/SlidingSidePanel';
+import {
+  getPanelTitle,
+  ResizableSidePanel,
+  useResizableSidePanel,
+} from 'teleport/components/SlidingSidePanel/ResizableSidePanel';
+import {
+  SidePanelTab,
+  SidePanelTabs,
+} from 'teleport/components/SlidingSidePanel/ResizableSidePanel/SidePanelTab';
 import { TerraformCopyButton } from 'teleport/components/TerraformCopyButton';
-import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 
 import LiveTextEditor from './LiveTextEditor';
 
-const responsivePanelWidth =
-  'clamp(500px, calc(100vw - var(--sidenav-width, 84px) - 800px), 700px)';
-
-export type InfoGuideTab = 'info' | 'terraform' | null;
-
-export const ContentWithSidePanel = styled(Box)<{
-  isPanelOpen: boolean;
-}>`
-  min-width: 650px;
-  margin-right: ${p => (p.isPanelOpen ? responsivePanelWidth : '0')};
-  transition: ${p => (p.isPanelOpen ? 'margin 150ms' : 'margin 300ms')};
-`;
-
-export function useTerraformInfoGuide(defaultTab: InfoGuideTab = 'info') {
-  const [activeInfoGuideTab, setActiveInfoGuideTab] =
-    useState<InfoGuideTab>(defaultTab);
-
-  const isPanelOpen = activeInfoGuideTab !== null;
-
-  const onInfoGuideClick = (section: InfoGuideTab) => {
-    if (activeInfoGuideTab === section) {
-      setActiveInfoGuideTab(null);
-    } else {
-      setActiveInfoGuideTab(section);
-    }
-  };
-
-  return {
-    isPanelOpen,
-    activeInfoGuideTab,
-    setActiveInfoGuideTab,
-    onInfoGuideClick,
-  };
-}
-
-export type TerraformInfoGuideProps = {
+type TerraformInfoGuideProps = {
   terraformConfig: string;
   handleCopy: () => void;
 };
 
-export function TerraformInfoGuide({
+function TerraformInfoGuide({
   terraformConfig,
   handleCopy,
 }: TerraformInfoGuideProps) {
   const validator = useValidation();
 
   return (
-    <Flex mx={-3} flexDirection="column" height="600px" position="sticky">
+    <Flex
+      mx={-3}
+      flexDirection="column"
+      position="sticky"
+      height={'100%'}
+      flex={'1'}
+      minHeight={0}
+    >
       <LiveTextEditor
         data={[{ content: terraformConfig, type: 'terraform' }]}
       />
@@ -108,127 +81,90 @@ export function TerraformInfoGuide({
   );
 }
 
-type InfoGuideTitleProps = {
-  activeSection: 'info' | 'terraform';
-  onSectionChange: (section: 'info' | 'terraform') => void;
-};
+export function ResizableTerraformInfoGuideSidePanel({
+  infoGuideContent,
+  terraformConfig,
+  handleCopy,
+}: {
+  infoGuideContent: ReactNode;
+  terraformConfig: string;
+  handleCopy(): void;
+}) {
+  const sidePanel = useResizableSidePanel();
+  const isTerraformPanelActive =
+    sidePanel.isOpen && sidePanel.activeTab === 'terraform';
 
-function InfoGuideTitle({
-  activeSection,
-  onSectionChange,
-}: InfoGuideTitleProps) {
+  const [lastSeenTerraformConfig, setLastSeenTerraformConfig] =
+    useState(terraformConfig);
+
+  useEffect(() => {
+    if (isTerraformPanelActive) {
+      setLastSeenTerraformConfig(terraformConfig);
+    }
+  }, [isTerraformPanelActive, terraformConfig]);
+
+  const hasUnseenTerraformChanges =
+    !isTerraformPanelActive && terraformConfig !== lastSeenTerraformConfig;
+
   return (
-    <Flex alignItems="center" gap={3}>
-      <InfoGuideTab
-        active={activeSection === 'info'}
-        onClick={() => onSectionChange('info')}
-      >
-        Info Guide
-      </InfoGuideTab>
-      <InfoGuideTab
-        active={activeSection === 'terraform'}
-        onClick={() => onSectionChange('terraform')}
-      >
-        Terraform
-      </InfoGuideTab>
-    </Flex>
+    <>
+      <SidePanelTabs>
+        <SidePanelTab
+          ariaLabel="Info Guide"
+          isActive={sidePanel.isOpen && sidePanel.activeTab === 'info'}
+          onClick={() => sidePanel.toggleTab('info')}
+        >
+          <Info size="small" />
+        </SidePanelTab>
+
+        <SidePanelTab
+          ariaLabel="Terraform Configuration"
+          isActive={sidePanel.isOpen && sidePanel.activeTab === 'terraform'}
+          onClick={() => sidePanel.toggleTab('terraform')}
+        >
+          <Box position="relative">
+            <ResourceIcon name="terraform" width="20px" height="20px" />
+            {hasUnseenTerraformChanges && <NotificationDot />}
+          </Box>
+        </SidePanelTab>
+      </SidePanelTabs>
+      {sidePanel.isOpen && (
+        <ResizableSidePanel
+          title={getPanelTitle(sidePanel.activeTab)}
+          width={sidePanel.width}
+          onWidthChange={sidePanel.updateWidth}
+          onClose={sidePanel.close}
+        >
+          {sidePanel.activeTab === 'info' ? (
+            <Box px={3} pb={3}>
+              {infoGuideContent}
+            </Box>
+          ) : (
+            <TerraformPanelContent px={3} pb={3}>
+              <TerraformInfoGuide
+                terraformConfig={terraformConfig}
+                handleCopy={handleCopy}
+              />
+            </TerraformPanelContent>
+          )}
+        </ResizableSidePanel>
+      )}
+    </>
   );
 }
 
-export const InfoGuideTab = styled(Text)<{ active: boolean }>`
-  cursor: pointer;
-  padding: 4px 8px;
-  border-bottom: 2px solid
-    ${p =>
-      p.active
-        ? p.theme.colors.interactive.solid.primary.default
-        : 'transparent'};
-  color: ${p =>
-    p.active ? p.theme.colors.interactive.solid.primary.default : 'inherit'};
+const TerraformPanelContent = styled(Flex)`
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 `;
 
-type InfoGuideSwitchProps = {
-  activeTab: InfoGuideTab;
-  isPanelOpen: boolean;
-  onSwitch: (activeTab: InfoGuideTab) => void;
-};
-
-export const InfoGuideSwitch = ({
-  activeTab,
-  isPanelOpen,
-  onSwitch,
-}: InfoGuideSwitchProps) => {
-  return (
-    <ViewModeSwitchContainer
-      aria-label="Info Guide Mode Switch"
-      aria-orientation="horizontal"
-      role="radiogroup"
-    >
-      <HoverTooltip tipContent="Info Guide">
-        <ViewModeSwitchButton
-          className={isPanelOpen && activeTab === 'info' ? 'selected' : ''}
-          onClick={() => onSwitch('info')}
-          role="radio"
-          aria-checked={isPanelOpen && activeTab === 'info'}
-          aria-label="Info Guide"
-          first
-        >
-          <Info size="small" color="text.main" />
-        </ViewModeSwitchButton>
-      </HoverTooltip>
-      <HoverTooltip tipContent="Terraform Configuration">
-        <ViewModeSwitchButton
-          className={isPanelOpen && activeTab === 'terraform' ? 'selected' : ''}
-          onClick={() => onSwitch('terraform')}
-          role="radio"
-          aria-checked={isPanelOpen && activeTab === 'terraform'}
-          aria-label="Terraform Configuration"
-          last
-        >
-          <ResourceIcon name="terraform" width="16px" height="16px" />
-        </ViewModeSwitchButton>
-      </HoverTooltip>
-    </ViewModeSwitchContainer>
-  );
-};
-
-type TerraformInfoGuideSidePanelProps = {
-  activeTab: InfoGuideTab;
-  onTabChange: (tab: InfoGuideTab) => void;
-  InfoGuideContent: ReactNode;
-  TerraformContent: ReactNode;
-};
-
-export function TerraformInfoGuideSidePanel({
-  activeTab,
-  onTabChange,
-  InfoGuideContent,
-  TerraformContent,
-}: TerraformInfoGuideSidePanelProps) {
-  return (
-    <SlidingSidePanel
-      css={`
-        && {
-          width: ${responsivePanelWidth};
-        }
-      `}
-      isVisible={activeTab !== null}
-      skipAnimation={false}
-      panelWidth={0}
-      zIndex={zIndexMap.infoGuideSidePanel}
-      slideFrom="right"
-    >
-      <InfoGuideContainer
-        onClose={() => onTabChange(null)}
-        title={
-          <InfoGuideTitle
-            activeSection={activeTab}
-            onSectionChange={onTabChange}
-          />
-        }
-      >
-        {activeTab === 'terraform' ? TerraformContent : InfoGuideContent}
-      </InfoGuideContainer>
-    </SlidingSidePanel>
-  );
-}
+const NotificationDot = styled.span`
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  top: -4px;
+  right: -6px;
+  border-radius: 50%;
+  background-color: ${p => p.theme.colors.interactive.solid.accent.default};
+`;

@@ -28,11 +28,6 @@ import { HoverTooltip } from 'design/Tooltip';
 
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import {
-  ContentWithSidePanel,
-  InfoGuideSwitch,
-  useTerraformInfoGuide,
-} from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
 import { useNoMinWidth } from 'teleport/Main';
 import {
   IntegrationKind,
@@ -41,6 +36,7 @@ import {
 } from 'teleport/services/integrations';
 
 import { SettingsTab } from './SettingsTab';
+import { SettingsTabContainer } from './SettingsTabContainer';
 
 export function IaCIntegrationSettings() {
   const { name, type } = useParams<{ name: string; type: string }>();
@@ -56,61 +52,54 @@ export function IaCIntegrationSettings() {
     enabled: !!name,
   });
 
-  const { activeInfoGuideTab, setActiveInfoGuideTab } = useTerraformInfoGuide();
   useNoMinWidth();
 
   const overviewPath = cfg.getIaCIntegrationRoute(
     type as IntegrationKind,
     name
   );
+  const header = (
+    <Flex alignItems="center" mb={3}>
+      <HoverTooltip placement="bottom" tipContent="Back to Overview">
+        <ButtonIcon as={RouterLink} to={overviewPath} mr={2}>
+          <ArrowLeft size="medium" />
+        </ButtonIcon>
+      </HoverTooltip>
+      <Text bold fontSize={6} mr={2}>
+        {name}: Edit configuration
+      </Text>
+    </Flex>
+  );
 
   if (isLoading) {
     return (
-      <FeatureBox pt={3}>
-        <Flex justifyContent="center" mt={6}>
-          <Indicator delay="long" />
-        </Flex>
+      <FeatureBox px={0}>
+        <SettingsTabContainer>
+          {header}
+          <Flex justifyContent="center" mt={6}>
+            <Indicator delay="long" />
+          </Flex>
+        </SettingsTabContainer>
       </FeatureBox>
     );
   }
 
   if (isError) {
     return (
-      <FeatureBox maxWidth="1400px" pt={3}>
-        <Danger>{error?.message || 'Failed to load integration stats'}</Danger>
+      <FeatureBox px={0}>
+        <SettingsTabContainer>
+          {header}
+          <Danger>
+            {error?.message || 'Failed to load integration stats'}
+          </Danger>
+        </SettingsTabContainer>
       </FeatureBox>
     );
   }
 
-  const isPanelOpen = !!activeInfoGuideTab;
-
   return (
-    <FeatureBox maxWidth="1400px" pt={3}>
-      <ContentWithSidePanel isPanelOpen={isPanelOpen}>
-        <Flex alignItems="center" justifyContent="space-between" mb={3}>
-          <Flex alignItems="center">
-            <HoverTooltip placement="bottom" tipContent="Back to Overview">
-              <ButtonIcon as={RouterLink} to={overviewPath} mr={2}>
-                <ArrowLeft size="medium" />
-              </ButtonIcon>
-            </HoverTooltip>
-            <Text bold fontSize={6} mr={2}>
-              {stats.name}: Edit configuration
-            </Text>
-          </Flex>
-          <InfoGuideSwitch
-            isPanelOpen={isPanelOpen}
-            activeTab={activeInfoGuideTab}
-            onSwitch={setActiveInfoGuideTab}
-          />
-        </Flex>
-
-        <SettingsTab
-          stats={stats}
-          activeInfoGuideTab={activeInfoGuideTab}
-          onInfoGuideTabChange={setActiveInfoGuideTab}
-        />
-      </ContentWithSidePanel>
+    <FeatureBox px={0} hideBottomSpacing>
+      <SettingsTab stats={stats} header={header} />
     </FeatureBox>
   );
 }

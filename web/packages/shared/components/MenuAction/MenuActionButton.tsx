@@ -19,8 +19,8 @@
 import React, { PropsWithChildren, Ref } from 'react';
 import styled from 'styled-components';
 
-import { Button, ButtonBorder } from 'design';
-import { ChevronDown } from 'design/Icon';
+import { Box, Button, ButtonBorder } from 'design';
+import { ChevronDown, Cross } from 'design/Icon';
 import Menu from 'design/Menu';
 
 import { AnchorProps, MenuProps } from './types';
@@ -30,6 +30,12 @@ type Props = MenuProps & {
   buttonProps?: AnchorProps;
   buttonText?: React.ReactNode;
   menuProps?: MenuProps;
+
+  /**
+   * When provided, it replaces the default caret icon
+   * with a clear (x) button.
+   */
+  onClear?: () => void;
 
   // If present, button text is not used, and a square icon button is rendered instead of a border button
   icon?: React.ReactNode;
@@ -79,22 +85,47 @@ class InnerMenuActionIcon extends React.Component<
 
   render() {
     const { open } = this.state;
-    const { children, menuProps, buttonProps, icon } = this.props;
-    return (
-      <>
-        {icon ? (
-          <FilledButtonIcon
-            intent="neutral"
-            ref={e => {
-              this.assignRef(e);
-            }}
-            onClick={this.onOpen}
-            {...buttonProps}
-          >
-            {icon}
-          </FilledButtonIcon>
-        ) : (
-          <ButtonBorder
+    const { children, menuProps, buttonProps, icon, onClear } = this.props;
+
+    let menuBtn = (
+      <ButtonBorder
+        size="small"
+        ref={e => {
+          this.assignRef(e);
+        }}
+        onClick={this.onOpen}
+        {...buttonProps}
+      >
+        {this.props.buttonText || 'Options'}
+        <ChevronDown
+          ml={2}
+          size="small"
+          color={buttonProps?.color || 'text.slightlyMuted'}
+        />
+      </ButtonBorder>
+    );
+
+    if (icon) {
+      menuBtn = (
+        <FilledButtonIcon
+          intent="neutral"
+          ref={e => {
+            this.assignRef(e);
+          }}
+          onClick={this.onOpen}
+          {...buttonProps}
+        >
+          {icon}
+        </FilledButtonIcon>
+      );
+    } else if (onClear) {
+      menuBtn = (
+        <Box
+          css={`
+            display: inline-flex;
+          `}
+        >
+          <ClearableMenuButton
             size="small"
             ref={e => {
               this.assignRef(e);
@@ -103,13 +134,27 @@ class InnerMenuActionIcon extends React.Component<
             {...buttonProps}
           >
             {this.props.buttonText || 'Options'}
-            <ChevronDown
-              ml={2}
-              size="small"
-              color={buttonProps?.color || 'text.slightlyMuted'}
-            />
-          </ButtonBorder>
-        )}
+          </ClearableMenuButton>
+          <ClearButton
+            type="button"
+            size="small"
+            compact
+            aria-label={'clear selection'}
+            disabled={buttonProps?.disabled}
+            onClick={e => {
+              e.stopPropagation();
+              onClear();
+            }}
+          >
+            <Cross size="small" />
+          </ClearButton>
+        </Box>
+      );
+    }
+
+    return (
+      <>
+        {menuBtn}
         <Menu
           getContentAnchorEl={null}
           menuListCss={menuListCss}
@@ -162,4 +207,15 @@ const FilledButtonIcon = styled(Button)`
   width: 32px;
   height: 32px;
   padding: 0;
+`;
+
+const ClearableMenuButton = styled(ButtonBorder)`
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+`;
+
+const ClearButton = styled(ButtonBorder)`
+  border-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 `;

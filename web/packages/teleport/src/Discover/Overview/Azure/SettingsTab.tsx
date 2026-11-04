@@ -17,13 +17,17 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import { Box, Card, Flex, Indicator } from 'design';
 import { Danger, Info } from 'design/Alert';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import Validation from 'shared/components/Validation';
 
+import {
+  ResizablePanelLayout,
+  ResizableSidePanelMainContent,
+} from 'teleport/components/SlidingSidePanel/ResizableSidePanel';
 import { ApplyTerraformSection } from 'teleport/Integrations/Enroll/Cloud/Azure/ApplyTerraformSection';
 import {
   ManagedIdentitySection,
@@ -37,11 +41,7 @@ import {
   VmConfig,
 } from 'teleport/Integrations/Enroll/Cloud/Azure/types';
 import { Divider } from 'teleport/Integrations/Enroll/Cloud/Shared';
-import {
-  InfoGuideTab,
-  TerraformInfoGuide,
-  TerraformInfoGuideSidePanel,
-} from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
+import { ResizableTerraformInfoGuideSidePanel } from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
 import {
   IntegrationAzureOidc,
   IntegrationDiscoveryRule,
@@ -54,6 +54,7 @@ import {
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from '../DeleteIntegrationSection';
+import { SettingsTabContainer } from '../SettingsTabContainer';
 
 // check rules are representable by the settings tab
 const isRepresentable = (rules: IntegrationDiscoveryRule[] = []): boolean => {
@@ -121,12 +122,10 @@ const managedIdentityFromIntegration = (
 
 export function SettingsTab({
   stats,
-  activeInfoGuideTab,
-  onInfoGuideTabChange,
+  header,
 }: {
   stats: IntegrationWithSummary;
-  activeInfoGuideTab: InfoGuideTab | null;
-  onInfoGuideTabChange: (tab: InfoGuideTab) => void;
+  header: ReactNode;
 }) {
   const integrationName = stats.name;
   const { clusterVersion } = useClusterVersion();
@@ -162,14 +161,22 @@ export function SettingsTab({
 
   if (isRulesLoading || isIntegrationLoading) {
     return (
-      <Flex justifyContent="center" mt={6}>
-        <Indicator />
-      </Flex>
+      <SettingsTabContainer>
+        {header}
+        <Flex justifyContent="center" mt={6}>
+          <Indicator />
+        </Flex>
+      </SettingsTabContainer>
     );
   }
 
   if (isIntegrationError || isRulesError) {
-    return <Danger>Failed to load the integration settings.</Danger>;
+    return (
+      <SettingsTabContainer>
+        {header}
+        <Danger>Failed to load the integration settings.</Danger>
+      </SettingsTabContainer>
+    );
   }
 
   const vmConfig = updatedVmConfig ?? vmConfigFromRules(vmRules?.rules);
@@ -189,72 +196,70 @@ export function SettingsTab({
   return (
     <Validation>
       {({ validator }) => (
-        <Flex>
-          <Box flex="1">
-            {hasTerraformOnlyConfiguration && (
-              <Info mb={3}>
-                This integration has a configuration which is unsupported by
-                this form. Please update your Terraform configuration directly.
-              </Info>
-            )}
-            <Card p={4} mb={3}>
-              <Box mb={4}>
-                <IntegrationSection
-                  integrationName={integrationName}
-                  onChange={() => {}}
-                  disabled={true}
-                />
-              </Box>
-              <Divider />
-              <Box>
-                <ManagedIdentitySection
-                  managedIdentity={managedIdentity}
-                  onChange={setManagedIdentity}
+        <ResizablePanelLayout $withHorizontalScroll>
+          <ResizableSidePanelMainContent $minWidth={650}>
+            <SettingsTabContainer>
+              {header}
+              {hasTerraformOnlyConfiguration && (
+                <Info mb={3}>
+                  This integration has a configuration which is unsupported by
+                  this form. Please update your Terraform configuration
+                  directly.
+                </Info>
+              )}
+              <Card p={4} mb={3}>
+                <Box mb={4}>
+                  <IntegrationSection
+                    integrationName={integrationName}
+                    onChange={() => {}}
+                    disabled={true}
+                  />
+                </Box>
+                <Divider />
+                <Box>
+                  <ManagedIdentitySection
+                    managedIdentity={managedIdentity}
+                    onChange={setManagedIdentity}
+                    vmConfig={vmConfig}
+                    onVmChange={setVmConfig}
+                    disabled={false}
+                  />
+                </Box>
+                <Divider />
+                <ResourcesSection
                   vmConfig={vmConfig}
                   onVmChange={setVmConfig}
-                  disabled={false}
+                  allowWildcardSubscriptions={isManagementGroupScope}
                 />
-              </Box>
-              <Divider />
-              <ResourcesSection
-                vmConfig={vmConfig}
-                onVmChange={setVmConfig}
-                allowWildcardSubscriptions={isManagementGroupScope}
-              />
-              <Divider />
-              <ApplyTerraformSection
-                handleCopy={() => {
-                  if (validator.validate() && terraformConfig) {
-                    copyToClipboard(terraformConfig);
-                  }
-                }}
-                integrationExists={true}
-                showVerificationStep={false}
-              />
-            </Card>
+                <Divider />
+                <ApplyTerraformSection
+                  handleCopy={() => {
+                    if (validator.validate() && terraformConfig) {
+                      copyToClipboard(terraformConfig);
+                    }
+                  }}
+                  integrationExists={true}
+                  showVerificationStep={false}
+                />
+              </Card>
 
-            <DeleteIntegrationSection
-              integrationName={integrationName}
-              kind={IntegrationKind.AzureOidc}
-            />
-          </Box>
-
-          <TerraformInfoGuideSidePanel
-            activeTab={activeInfoGuideTab}
-            onTabChange={onInfoGuideTabChange}
-            InfoGuideContent={<InfoGuideContent />}
-            TerraformContent={
-              <TerraformInfoGuide
-                terraformConfig={terraformConfig}
-                handleCopy={() => {
-                  if (validator.validate() && terraformConfig) {
-                    copyToClipboard(terraformConfig);
-                  }
-                }}
+              <DeleteIntegrationSection
+                integrationName={integrationName}
+                kind={IntegrationKind.AzureOidc}
               />
-            }
+            </SettingsTabContainer>
+          </ResizableSidePanelMainContent>
+
+          <ResizableTerraformInfoGuideSidePanel
+            infoGuideContent={<InfoGuideContent />}
+            terraformConfig={terraformConfig}
+            handleCopy={() => {
+              if (validator.validate() && terraformConfig) {
+                copyToClipboard(terraformConfig);
+              }
+            }}
           />
-        </Flex>
+        </ResizablePanelLayout>
       )}
     </Validation>
   );

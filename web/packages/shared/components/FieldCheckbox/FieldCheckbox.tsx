@@ -25,10 +25,12 @@ import Flex from 'design/Flex';
 import LabelInput from 'design/LabelInput';
 import { SpaceProps } from 'design/system';
 import Text from 'design/Text';
+import { fontWeights } from 'design/theme/typography';
 
 interface FieldCheckboxProps extends SpaceProps {
   name?: string;
   label?: React.ReactNode;
+  labelFontWeight?: keyof typeof fontWeights;
   helperText?: React.ReactNode;
   checked?: boolean;
   defaultChecked?: boolean;
@@ -51,6 +53,7 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
     {
       name,
       label,
+      labelFontWeight,
       helperText,
       checked,
       defaultChecked,
@@ -85,7 +88,11 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
               />
             </Box>
             <Box>
-              <Text typography={labelTypography} color={labelColor}>
+              <Text
+                typography={labelTypography}
+                color={labelColor}
+                fontWeight={labelFontWeight}
+              >
                 {label}
               </Text>
               <Text typography={helperTypography} color={helperColor}>

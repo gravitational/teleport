@@ -40,15 +40,17 @@ import {
 
 export function IntegrationEnroll() {
   return (
-    <FeatureBox>
-      <Switch>
-        {getRoutesToEnrollIntegrations()}
-        <Route
-          path={cfg.routes.integrationEnroll}
-          component={IntegrationPicker}
-        />
-      </Switch>
-    </FeatureBox>
+    <Switch>
+      {getRoutesToEnrollIntegrations()}
+      <Route
+        path={cfg.routes.integrationEnroll}
+        render={() => (
+          <FeatureBox>
+            <IntegrationPicker />
+          </FeatureBox>
+        )}
+      />
+    </Switch>
   );
 }
 

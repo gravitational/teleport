@@ -21,7 +21,6 @@ import { Link as InternalLink } from 'react-router-dom';
 
 import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
 import { RadioGroup } from 'design/RadioGroup';
-import { copyToClipboard } from 'design/utils/copyToClipboard';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import {
@@ -30,6 +29,10 @@ import {
   requiredIntegrationName,
 } from 'shared/components/Validation/rules';
 
+import {
+  ResizableSidePanelMainContent,
+  ResizablePanelLayout,
+} from 'teleport/components/SlidingSidePanel/ResizableSidePanel';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
@@ -44,14 +47,9 @@ import {
   Divider,
   useEnrollCloudIntegration,
 } from '../Shared';
-import {
-  TerraformInfoGuideSidePanel,
-  InfoGuideSwitch,
-  useTerraformInfoGuide,
-  ContentWithSidePanel,
-  TerraformInfoGuide,
-} from '../Shared/InfoGuide';
+import { ResizableTerraformInfoGuideSidePanel } from '../Shared/InfoGuide';
 import { RegionSelect } from '../Shared/RegionSelect';
+import { BackBtn } from '../Shared/Shared';
 import { ApplyTerraformSection } from './ApplyTerraformSection';
 import { InfoGuideContent } from './InfoGuide';
 import { azureRegionOptionGroups, azureRegionOptions } from './regions';
@@ -104,101 +102,93 @@ export function EnrollAzure() {
 
   const isManagementGroupScope = managedIdentity.scope === 'managementGroup';
 
-  const {
-    isPanelOpen,
-    activeInfoGuideTab,
-    setActiveInfoGuideTab,
-    onInfoGuideClick,
-  } = useTerraformInfoGuide('info');
-
   return (
     <Validation>
       {({ validator }) => (
-        <Box pt={3}>
-          <ContentWithSidePanel isPanelOpen={isPanelOpen}>
-            <Flex justifyContent="space-between" alignItems="start" mb={1}>
-              <Header>Connect Azure</Header>
-              <InfoGuideSwitch
-                isPanelOpen={isPanelOpen}
-                activeTab={activeInfoGuideTab}
-                onSwitch={onInfoGuideClick}
-              />
-            </Flex>
-            <Subtitle1 mb={3}>
-              Connect your Azure account to automatically discover and enroll
-              resources in your Teleport Cluster.
-            </Subtitle1>
-            <Container flexDirection="column" p={4} mb={3}>
-              <IntegrationSection
-                integrationName={integrationName}
-                onChange={setIntegrationName}
-                disabled={isFetching}
-              />
-              <Divider />
-              <ManagedIdentitySection
-                managedIdentity={managedIdentity}
-                onChange={setManagedIdentity}
-                vmConfig={vmConfig}
-                onVmChange={setVmConfig}
-                disabled={isFetching}
-              />
-              <Divider />
-              <ResourcesSection
-                vmConfig={vmConfig}
-                onVmChange={setVmConfig}
-                allowWildcardSubscriptions={isManagementGroupScope}
-              />
-              <Divider />
-              <ApplyTerraformSection
-                handleCopy={() => {
-                  if (validator.validate() && terraformConfig) {
-                    copyTerraformConfig(terraformConfig);
-                  }
-                }}
-                integrationExists={integrationExists}
-                integrationName={integrationName}
-                handleCheckIntegration={() => {
-                  if (validator.validate()) {
-                    checkIntegration();
-                  }
-                }}
-                handleCancelCheckIntegration={cancelCheckIntegration}
-                isCheckingIntegration={isFetching}
-                checkIntegrationError={isError}
-              />
-            </Container>
-            <Box mb={2}>
-              <CheckIntegrationButton
-                integrationExists={integrationExists}
-                integrationName={integrationName}
-                integrationKind={IntegrationKind.AzureOidc}
-              />
-              <ButtonSecondary
-                ml={3}
-                as={InternalLink}
-                to={cfg.getIntegrationEnrollRoute(null)}
-              >
-                Back
-              </ButtonSecondary>
+        <ResizablePanelLayout $withHorizontalScroll>
+          <ResizableSidePanelMainContent $minWidth={650}>
+            <Box pt={3} pb={5} px={6} maxWidth={930}>
+              <Flex>
+                <BackBtn />
+                <Box>
+                  <Flex
+                    justifyContent="space-between"
+                    alignItems="center"
+                    mb={1}
+                  >
+                    <Header>Connect Azure</Header>
+                  </Flex>
+                  <Subtitle1 mb={3}>
+                    Connect your Azure account to automatically discover and
+                    enroll resources in your Teleport Cluster.
+                  </Subtitle1>
+                </Box>
+              </Flex>
+              <Container flexDirection="column" p={4} mb={3}>
+                <IntegrationSection
+                  integrationName={integrationName}
+                  onChange={setIntegrationName}
+                  disabled={isFetching}
+                />
+                <Divider />
+                <ManagedIdentitySection
+                  managedIdentity={managedIdentity}
+                  onChange={setManagedIdentity}
+                  vmConfig={vmConfig}
+                  onVmChange={setVmConfig}
+                  disabled={isFetching}
+                />
+                <Divider />
+                <ResourcesSection
+                  vmConfig={vmConfig}
+                  onVmChange={setVmConfig}
+                  allowWildcardSubscriptions={isManagementGroupScope}
+                />
+                <Divider />
+                <ApplyTerraformSection
+                  handleCopy={() => {
+                    if (validator.validate() && terraformConfig) {
+                      copyTerraformConfig(terraformConfig);
+                    }
+                  }}
+                  integrationExists={integrationExists}
+                  integrationName={integrationName}
+                  handleCheckIntegration={() => {
+                    if (validator.validate()) {
+                      checkIntegration();
+                    }
+                  }}
+                  handleCancelCheckIntegration={cancelCheckIntegration}
+                  isCheckingIntegration={isFetching}
+                  checkIntegrationError={isError}
+                />
+              </Container>
+              <Box mb={2}>
+                <CheckIntegrationButton
+                  integrationExists={integrationExists}
+                  integrationName={integrationName}
+                  integrationKind={IntegrationKind.AzureOidc}
+                />
+                <ButtonSecondary
+                  ml={3}
+                  as={InternalLink}
+                  to={cfg.getIntegrationEnrollRoute(null)}
+                >
+                  Back
+                </ButtonSecondary>
+              </Box>
             </Box>
-          </ContentWithSidePanel>
-
-          <TerraformInfoGuideSidePanel
-            activeTab={activeInfoGuideTab}
-            onTabChange={setActiveInfoGuideTab}
-            InfoGuideContent={<InfoGuideContent />}
-            TerraformContent={
-              <TerraformInfoGuide
-                terraformConfig={terraformConfig}
-                handleCopy={() => {
-                  if (validator.validate() && terraformConfig) {
-                    copyToClipboard(terraformConfig);
-                  }
-                }}
-              />
-            }
+          </ResizableSidePanelMainContent>
+          <ResizableTerraformInfoGuideSidePanel
+            infoGuideContent={<InfoGuideContent />}
+            terraformConfig={terraformConfig}
+            handleCopy={() => {
+              if (validator.validate() && terraformConfig) {
+                copyTerraformConfig(terraformConfig);
+              }
+            }}
           />
-        </Box>
+        </ResizablePanelLayout>
       )}
     </Validation>
   );
