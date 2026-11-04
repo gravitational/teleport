@@ -123,7 +123,7 @@ func (d *Distributed) Reserve(ctx context.Context, req ReserveRequest) (ReserveI
 	}
 
 	var settleOnce sync.Once
-	return ReserveInfo{OutputTokens: granted.OutputTokens}, func(ctx context.Context, u llmquota.Usage) {
+	return ReserveInfo{OutputTokens: granted.OutputTokens}, func(ctx context.Context, u *llmquota.Usage) {
 		settleOnce.Do(func() {
 			endpoint.settle(ctx, t, granted, u)
 		})
@@ -451,13 +451,21 @@ func (e *endpointState) reserve(
 }
 
 // settle settles tokens consumption using information from the provider.
-func (e *endpointState) settle(ctx context.Context, t time.Time, reserved llmquota.Usage, actual llmquota.Usage) {
+func (e *endpointState) settle(ctx context.Context, t time.Time, reserved llmquota.Usage, actual *llmquota.Usage) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	minute := t.Truncate(time.Minute)
 	usage := e.pending[minute]
-	if err := usage.Add(actual); err != nil {
+
+	// This handles cases where the caller cannot build the actual (settled)
+	// usage. For those cases, instead of discarding the reserved values, we
+	// persist them as they were fully consumed.
+	if actual == nil {
+		actual = &reserved
+	}
+
+	if err := usage.Add(*actual); err != nil {
 		// Add leaves the usage unchanged on overflow, so the consumption of
 		// this request is never reported and the quota under-counts.
 		e.log.ErrorContext(ctx, "failed to record LLM usage, consumption will not be accounted for",

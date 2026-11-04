@@ -63,9 +63,13 @@ type ReserveInfo struct {
 }
 
 // SettleFunc settles a reservation with the usage reported for the request.
-// Settling an empty [Usage] cancels the reservation.
-type SettleFunc func(context.Context, llmquota.Usage)
+// Settling a nil [Usage] settles the reservation as it is, without tokens
+// change. This is useful if the caller doesn't hold the reserved values, but
+// want to settle them.
+//
+// Callers can use zero [Usage] to "cancel" a reservation.
+type SettleFunc func(context.Context, *llmquota.Usage)
 
 // EmptySettleFunc is a no-op [SettleFunc], returned by limiters when there is
 // nothing to settle.
-func EmptySettleFunc(context.Context, llmquota.Usage) {}
+func EmptySettleFunc(context.Context, *llmquota.Usage) {}

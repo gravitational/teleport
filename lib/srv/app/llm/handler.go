@@ -385,10 +385,21 @@ func (h *Handler) handleRequest(
 			resp.OutputTokenCount = rec.OutputTokensCount()
 		}
 		if settleFunc != nil {
-			settleFunc(h.closeContext, llmquota.Usage{
-				InputTokens:  uint(resp.InputTokenCount),
-				OutputTokens: uint(resp.OutputTokenCount),
-			})
+			// In case of error while serving the request, do not refund the
+			// reserved tokens. This avoid scenarios where the provider consumes
+			// a large amount of tokens, but returns an error (for example,
+			// timeout) and this becomes a "free" request.
+			//
+			// TODO(gabrielcorado): only refund for specific errors.
+			var usage *llmquota.Usage
+			if resp.Error == nil {
+				usage = &llmquota.Usage{
+					InputTokens:  uint(resp.InputTokenCount),
+					OutputTokens: uint(resp.OutputTokenCount),
+				}
+			}
+
+			settleFunc(h.closeContext, usage)
 		}
 		if err := sessionCtx.Audit.OnLLMRequest(h.closeContext, sessionCtx, r, req, resp); err != nil {
 			log.ErrorContext(h.closeContext, "failed to emit audit event", "error", err)

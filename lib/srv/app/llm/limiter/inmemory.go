@@ -96,7 +96,7 @@ func (i *InMemory) Reserve(ctx context.Context, req ReserveRequest) (ReserveInfo
 	var settleOnce sync.Once
 
 	// TODO(gabrielcorado): cancel reservations using context.
-	return ReserveInfo{OutputTokens: req.Usage.OutputTokens}, func(ctx context.Context, u llmquota.Usage) {
+	return ReserveInfo{OutputTokens: req.Usage.OutputTokens}, func(ctx context.Context, u *llmquota.Usage) {
 		settleOnce.Do(func() {
 			i.mu.Lock()
 			defer i.mu.Unlock()
@@ -108,14 +108,8 @@ func (i *InMemory) Reserve(ctx context.Context, req ReserveRequest) (ReserveInfo
 			// If the usage is greater than the requested, we should increase the
 			// value stored instead of decreasing. This is already handled by
 			// settleTokens.
-			//
-			// We wrap those into a check if the reported usage is greater than 0
-			// in case the provider or recorder weren't able to extract usage
-			// information. For those cases we want to keep the reservation values.
-			if u.InputTokens > 0 {
+			if u != nil {
 				curr.InputTokens = settleTokens(curr.InputTokens, req.Usage.InputTokens, u.InputTokens)
-			}
-			if u.OutputTokens > 0 {
 				curr.OutputTokens = settleTokens(curr.OutputTokens, req.Usage.OutputTokens, u.OutputTokens)
 			}
 
@@ -153,7 +147,7 @@ func settleTokens(consumed, reserved, reported uint) uint {
 		return math.MaxUint
 	}
 
-	// Giving back more than consumed means the reservation was settled twice.
+	// Giving back more than consumed means the reservation was canceled.
 	if diff := reserved - reported; diff <= consumed {
 		return consumed - diff
 	}
