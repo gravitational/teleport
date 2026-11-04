@@ -167,9 +167,23 @@ func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
 		headings = append(headings, "Owner")
 	}
 
-	headings = append(headings, "URL", "Region", "Phase", "Roles", "Expires")
-
 	table := asciitable.MakeTable(headings)
+	table.AddColumn(asciitable.Column{
+		Title:         "URL",
+		MaxCellLength: 25,
+		FootnoteLabel: "[+]",
+	})
+	table.AddColumn(asciitable.Column{Title: "Region"})
+	table.AddColumn(asciitable.Column{Title: "Phase"})
+	table.AddColumn(asciitable.Column{
+		Title:         "Roles",
+		MaxCellLength: 30,
+		FootnoteLabel: "[+]",
+	})
+	table.AddFootnote("[+]",
+		"Columns are truncated, use '--format=json' or '--format=yaml' to view the full list")
+	table.AddColumn(asciitable.Column{Title: "Expires"})
+
 	for _, beam := range beams {
 		row := []string{beam.ID}
 

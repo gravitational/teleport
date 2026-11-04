@@ -153,11 +153,19 @@ func (c *phaseLSCommand) printInLocation(w io.Writer, phases []*beamsv1.Phase, l
 }
 
 func printPhaseTableInLocation(w io.Writer, phases []formattedPhase, all bool, loc *time.Location) error {
-	headings := []string{"Name", "Upstream", "Strategy", "Status", "Region", "Roles", "Digest", "Last Published"}
+	table := asciitable.MakeTable([]string{"Name", "Upstream", "Strategy", "Status", "Region"})
+	table.AddColumn(asciitable.Column{
+		Title:         "Roles",
+		MaxCellLength: 30,
+		FootnoteLabel: "[+]",
+	})
+	table.AddFootnote("[+]",
+		"Columns are truncated, use '--format=json' or '--format=yaml' to view the full list")
+	table.AddColumn(asciitable.Column{Title: "Digest"})
+	table.AddColumn(asciitable.Column{Title: "Last Published"})
 	if all {
-		headings = append(headings, "Owner")
+		table.AddColumn(asciitable.Column{Title: "Owner"})
 	}
-	table := asciitable.MakeTable(headings)
 	for _, phase := range phases {
 		publishedAt := "-"
 		if phase.PublishedAt != nil {
