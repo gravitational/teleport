@@ -26,6 +26,7 @@ import (
 	"golang.org/x/oauth2"
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/credentialencryption"
@@ -251,7 +252,7 @@ func validateApp(app types.Application, ig types.Integration) error {
 		return trace.BadParameter("no application")
 	case app.Origin() != types.OriginIntegrationOAuthProxy:
 		return trace.BadParameter("not an OAuth Proxy application")
-	case app.GetIntegration() != ig.GetName():
+	case app.GetIntegration() != apiscopes.QualifiedName{Name: ig.GetName(), Scope: ig.GetScope()}.String():
 		return trace.BadParameter("application does not belong to integration")
 	case app.GetURI() != ig.GetOAuthProxyIntegrationSpec().UpstreamUrl:
 		return trace.BadParameter("upstream on application does not match integration")

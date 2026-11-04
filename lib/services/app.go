@@ -753,7 +753,8 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 		Rewrite:            rewriteConfig,
 		InsecureSkipVerify: getTLSInsecureSkipVerify(service.GetAnnotations()),
 		PublicAddr:         getPublicAddr(service.GetAnnotations()),
-	})
+	}, "")
+
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create an app from Kubernetes service")
 	}

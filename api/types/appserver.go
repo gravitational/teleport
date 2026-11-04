@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/iterutils"
 )
@@ -82,20 +83,11 @@ type AppServer interface {
 }
 
 // NewAppServerV3 creates a new app server instance.
-// TODO(williamo/scopes): scope is variadic only so existing
-// callers compile unchanged during the scope migration.
-func NewAppServerV3(meta Metadata, spec AppServerSpecV3, scope ...string) (*AppServerV3, error) {
+func NewAppServerV3(meta Metadata, spec AppServerSpecV3, scope string) (*AppServerV3, error) {
 	s := &AppServerV3{
 		Metadata: meta,
 		Spec:     spec,
-	}
-
-	switch len(scope) {
-	case 0: // unscoped
-	case 1:
-		s.Scope = scope[0]
-	default:
-		return nil, trace.BadParameter("expected at most 1 scope, got %d", len(scope))
+		Scope:    scope,
 	}
 
 	if err := s.CheckAndSetDefaults(); err != nil {
@@ -117,21 +109,26 @@ func NewAppServerV3FromApp(app *AppV3, hostname, hostID string) (*AppServerV3, e
 
 // NewAppServerForAWSOIDCIntegration creates a new AppServer that will be used to grant AWS App Access
 // using the AWSOIDC credentials.
-func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr string, labels map[string]string) (*AppServerV3, error) {
+func NewAppServerForAWSOIDCIntegration(integrationRef apiscopes.QualifiedName, hostID, publicAddr string, labels map[string]string) (*AppServerV3, error) {
 	return NewAppServerV3(Metadata{
-		Name:   integrationName,
+		Name:   integrationRef.Name,
 		Labels: labels,
 	}, AppServerSpecV3{
 		HostID: hostID,
-		App: &AppV3{Metadata: Metadata{
-			Name:   integrationName,
-			Labels: labels,
-		}, Spec: AppSpecV3{
-			URI:         constants.AWSConsoleURL,
-			Integration: integrationName,
-			PublicAddr:  publicAddr,
-		}},
-	})
+		App: &AppV3{
+			Metadata: Metadata{
+				Name:   integrationRef.Name,
+				Labels: labels,
+			},
+			Spec: AppSpecV3{
+				URI: constants.AWSConsoleURL,
+				// Scoped apps reference their integration by scope-qualified name.
+				Integration: integrationRef.String(),
+				PublicAddr:  publicAddr,
+			},
+			Scope: integrationRef.Scope,
+		},
+	}, integrationRef.Scope)
 }
 
 // NewAppServerForOAuthProxyIntegration creates a new AppServer that will be used to proxy requests to a third-party API,
@@ -165,11 +162,12 @@ func NewAppServerForOAuthProxyIntegration(ig Integration, hostID, publicAddr str
 				},
 				Spec: AppSpecV3{
 					URI:         ig.GetOAuthProxyIntegrationSpec().UpstreamUrl,
-					Integration: ig.GetName(),
+					Integration: apiscopes.QualifiedName{Scope: ig.GetScope(), Name: ig.GetName()}.String(),
 					PublicAddr:  publicAddr,
 				},
+				Scope: ig.GetScope(),
 			},
-		},
+		}, ig.GetScope(),
 	)
 }
 

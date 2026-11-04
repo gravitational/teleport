@@ -938,6 +938,7 @@ func (s *Service) deleteOAuthProxyAppServer(ctx context.Context, ig types.Integr
 	if err := s.backend.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
 		HostId: oauthProxyHostID(ig.GetName()),
 		Name:   ig.GetName(),
+		Scope:  ig.GetScope(),
 	}.Build()); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}

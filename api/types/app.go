@@ -148,20 +148,11 @@ type Application interface {
 }
 
 // NewAppV3 creates a new app resource.
-// TODO(williamo/scopes): scope is variadic only so existing
-// callers compile unchanged during the scope migration.
-func NewAppV3(meta Metadata, spec AppSpecV3, scope ...string) (*AppV3, error) {
+func NewAppV3(meta Metadata, spec AppSpecV3, scope string) (*AppV3, error) {
 	app := &AppV3{
 		Metadata: meta,
 		Spec:     spec,
-	}
-
-	switch len(scope) {
-	case 0: // unscoped
-	case 1:
-		app.Scope = scope[0]
-	default:
-		return nil, trace.BadParameter("expected at most 1 scope, got %d", len(scope))
+		Scope:    scope,
 	}
 
 	if err := app.CheckAndSetDefaults(); err != nil {

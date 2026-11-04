@@ -54,7 +54,8 @@ func NewDemoServerApp() (types.Application, error) {
 		Description: "A demo MCP server that shows current user and session information",
 	}, types.AppSpecV3{
 		URI: fmt.Sprintf("%s://%s", types.SchemeMCPStdio, DemoServerName),
-	})
+	}, "")
+
 	return app, trace.Wrap(err)
 }
 
