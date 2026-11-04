@@ -17,6 +17,7 @@ const esModules = [
   'd3-path',
   'internmap',
   '@nivo/bar',
+  '@remix-run/route-pattern',
   'react-error-boundary',
   'react-router',
   'dnd-core',

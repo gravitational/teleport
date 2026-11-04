@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { context, propagation, trace } from '@opentelemetry/api';
 import { ZoneContextManager } from '@opentelemetry/context-zone';
 import {
   CompositePropagator,
@@ -35,8 +36,8 @@ import {
 import {
   BatchSpanProcessor,
   ConsoleSpanExporter,
-} from '@opentelemetry/sdk-trace-base';
-import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+  TracerProvider,
+} from '@opentelemetry/sdk-trace';
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
@@ -61,25 +62,26 @@ export function instantiateTelemetry() {
     })
   );
 
-  const provider = new WebTracerProvider({
+  const provider = new TracerProvider({
     resource: resource,
     spanProcessors: [
-      new BatchSpanProcessor(new ConsoleSpanExporter()),
-      new BatchSpanProcessor(
-        new OTLPTraceExporter({
+      new BatchSpanProcessor({ exporter: new ConsoleSpanExporter() }),
+      new BatchSpanProcessor({
+        exporter: new OTLPTraceExporter({
           timeoutMillis: 15000,
           url: `${window.location.origin}/v1/webapi/traces`,
           concurrencyLimit: 10, // an optional limit on pending requests
           headers: async () => getAuthHeaders(),
-        })
-      ),
+        }),
+      }),
     ],
   });
 
-  provider.register({
-    contextManager: new ZoneContextManager(),
-    propagator: new CompositePropagator({
+  trace.setGlobalTracerProvider(provider);
+  context.setGlobalContextManager(new ZoneContextManager().enable());
+  propagation.setGlobalPropagator(
+    new CompositePropagator({
       propagators: [new B3Propagator(), new W3CTraceContextPropagator()],
-    }),
-  });
+    })
+  );
 }

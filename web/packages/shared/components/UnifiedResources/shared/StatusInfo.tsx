@@ -109,12 +109,11 @@ export function UnhealthyStatusInfo({
           </Alert>
         )}
         <InfoParagraph>
-          {attempt.status === 'success' &&
-            !servers?.length && (
-              // Refresh might be required if all health checks passed
-              // while unified resources page has been stale.
-              <Text bold>No Results. Try refreshing the page.</Text>
-            )}
+          {attempt.status === 'success' && !servers?.length && (
+            // Refresh might be required if all health checks passed
+            // while unified resources page has been stale.
+            <Text bold>No Results. Try refreshing the page.</Text>
+          )}
           {attempt.status === 'success' && servers?.length > 0 && (
             <Box
               css={`
