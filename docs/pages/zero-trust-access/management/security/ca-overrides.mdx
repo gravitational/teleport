@@ -17,22 +17,26 @@ an external trust chain.
 In this guide, you will complete a Certificate Authority Override in your
 Teleport cluster.
 
-<Admonition type="info">
-Certificate Authority Overrides are currently in active development. The
-released feature set is considered stable, but additional CA support and user
-experience improvements are planned for future releases.
+You can override the following CAs:
 
-The current implementation has a few limitations:
+- [`awsra`](#awsra): client certificates that Teleport exchanges for AWS
+  credentials through the AWS IAM Roles Anywhere integration.
+- [`db_client`](#db_client): client certificates Teleport presents to databases.
+- [`saml_idp`](#saml_idp): assertions signed by the Teleport SAML IdP.
+- [`spiffe-tls`](#spiffe-tls): Workload Identity (SPIFFE) X509-SVIDs.
+- [`windows`](#windows): RDP certificates Teleport issues for Windows
+  desktop sessions.
 
-- Only selected CAs are supported.
-- `tctl get cas/windows` only shows the self-signed CA certificate.
-- `tctl auth export` only exports the self-signed CA certificates.
+To learn why some Teleport CAs can't be overridden, see
+[Unsupported CAs](#unsupported-cas).
+
+Overrides have a few limitations:
+
+- `tctl get cas/<ca>` and `tctl auth export` only show the self-signed CA
+  certificates. Use `tctl get ca_overrides` to get override data.
 - `tctl auth rotate` does not account for active overrides. Administrators must
   track active overrides and manually create new overrides at the appropriate
   steps during rotation.
-
-Use `tctl get ca_overrides` to get override data.
-</Admonition>
 
 <Admonition type="warning" title="spiffe-tls requires Teleport 19.0.0 or newer">
 Do not create a `spiffe-tls` override until every Auth Service instance runs
@@ -95,9 +99,6 @@ The `cert_authority_override` resource targets a CA with the following fields:
 
   Assign the `<Var name="ca-override-admin" />` role to the user who will manage
   CA overrides.
-
-- Only the following CAs are currently supported: `db_client`, `saml_idp`,
-  `spiffe-tls`, and `windows`.
 
 - All Auth Service instances and related services, such as Windows Desktop
   Service, Database Service, and Proxy Service instances, must be upgraded to
@@ -183,6 +184,55 @@ proceeding. We recommend retaining trust in the self-signed Teleport CA for a
 grace period, until you have verified normal cluster use.
 
 See below for CA-specific instructions.
+
+### awsra
+
+The `awsra` CA signs the short-lived client certificates that Teleport exchanges
+for AWS credentials through the [AWS IAM Roles Anywhere
+integration](../../../enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere.mdx).
+When the override is enabled, these client certificates are issued under, and
+presented with, the override certificate.
+
+AWS Roles Anywhere requires end-entity and trust anchor certificates to use
+SHA-256 or stronger, so issue your override certificate in step 2 from an
+external CA that meets this requirement. See the AWS documentation on the [trust
+model](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/trust-model.html)
+for details.
+
+Teleport does not send intermediate or root CAs during the credential exchange,
+so the AWS trust anchor must trust the override certificates directly. Use the
+override certificates from step 2, not `tctl auth export --type=awsra`, which
+only ever shows the self-signed Teleport CA. In clusters with a separate HSM key
+per Auth Service instance, include the override certificate for each key.
+
+The [guided setup
+flow](../../../enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere.mdx#use-the-guided-flow-recommended)
+handles this automatically and always advertises the active override
+certificate.
+
+If you are configuring the trust anchor manually, wait until you are ready to
+complete step 5. Replacing the trust anchor's certificates while the override
+is still disabled breaks credential exchange and profile sync immediately,
+rather than when the override is enabled. Perform one of the following
+immediately before enabling the override in step 5:
+
+- Update the existing trust anchor's certificate bundle in place with `aws
+  rolesanywhere update-trust-anchor`. The trust anchor ARN does not change, so
+  `spec.aws_ra.trust_anchor_arn` does not need updating.
+- Create a new trust anchor from the certificate, then point the integration at
+  it by setting `spec.aws_ra.trust_anchor_arn`. If the integration's sync role
+  was created by the guided setup flow, its trust policy only allows the
+  original trust anchor's ARN to assume it; update the trust policy to also
+  allow the new ARN, or use the previous option instead.
+
+After completing both the trust anchor update and step 5, check
+`status.aws_ra.last_profile_sync` on the integration to confirm profile sync
+recovered.
+
+Disabling or removing the override has the same hazard in reverse. Teleport
+reverts to self-signed-CA certificates immediately, so update the trust
+anchor back to the self-signed CA certificate (`tctl auth export
+--type=awsra`) at the same time, or profile sync will break again.
 
 ### db_client
 
@@ -457,3 +507,14 @@ sure that:
 
 Confirm with `tctl get ca_overrides/spiffe-tls`, then exercise the override as
 described in [Step 6/6](#step-66-exercise-the-ca-override).
+
+## Unsupported CAs
+
+The following Teleport CAs can't be overridden.
+
+| CA | Status | Reason |
+|----|--------|--------|
+| `app_client` | Planned | This CA issues app access client certificates. Support for overriding it is planned for a future release. |
+| `db`, `host`, `user` | Not planned | Teleport's own services validate certificates from these CAs. Overriding one would require distributing the new certificate to the Auth Service, Proxy Service, and other relevant services across the cluster. |
+| `bound_keypair`, `jwt`, `oidc_idp`, `okta` | Never supported | These CAs sign JSON Web Tokens and never issue certificates, so there is no certificate for an override to replace. |
+| `openssh` | Never supported | This CA signs SSH certificates rather than X.509 certificates, so there is no certificate for an override to replace. OpenSSH servers trust its signing key directly instead of through a certificate chain. |

@@ -98,6 +98,16 @@ You can reference the AWS Guide [Getting started with IAM Roles Anywhere](https:
    -----END CERTIFICATE-----
    ```
 
+   This export always shows the self-signed Teleport AWS Roles Anywhere CA,
+   even when an [`awsra` CA override](../../../zero-trust-access/management/security/ca-overrides.mdx#awsra)
+   is active. If an override is already active, create the trust anchor from
+   the enabled override certificate instead. To find it, run `tctl get
+   ca_overrides/awsra` and copy the `certificate` value that is not marked
+   `disabled: true`.
+
+   In clusters with a separate HSM key per Auth Service instance, each key has
+   its own override certificate, and the trust anchor must include each one.
+
 1. Navigate to the [Create a trust anchor](https://console.aws.amazon.com/rolesanywhere/home/trust-anchors/create) page in the AWS Console.
 
 1. Fill in the form:
@@ -578,3 +588,11 @@ You can create multiple Teleport roles to grant access to different profiles and
 
 See [Role Access Requests](../../../identity-governance/access-requests/role-requests.mdx)
 to learn how to use Access Requests to manage access to these roles.
+
+### Issue Roles Anywhere certificates from your own CA
+
+By default, Teleport signs the certificates it exchanges for AWS credentials
+with a self-signed CA. In Teleport Enterprise, you can chain them to your
+organization's CA instead. Follow the [Certificate Authority
+Overrides](../../../zero-trust-access/management/security/ca-overrides.mdx)
+guide and use the `awsra` CA type.
