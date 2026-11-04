@@ -31,8 +31,8 @@ import (
 	"strings"
 	"time"
 
-	jose "github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 )
 
 // claims represents public and private claims for a JWT token.
@@ -98,8 +98,21 @@ func getPublicKey(url string, insecureSkipVerify bool) (crypto.PublicKey, error)
 
 // verify will verify the JWT.
 func verify(publicKey crypto.PublicKey, token string) (*claims, error) {
+	// getPublicKey already restricted the fetched key to one of these two
+	// algorithms based on its type, so that's the only one we should accept
+	// here.
+	var alg jose.SignatureAlgorithm
+	switch publicKey.(type) {
+	case *rsa.PublicKey:
+		alg = jose.RS256
+	case *ecdsa.PublicKey:
+		alg = jose.ES256
+	default:
+		return nil, fmt.Errorf("unsupported key type %T", publicKey)
+	}
+
 	// Parse the raw token.
-	t, err := jwt.ParseSigned(token)
+	t, err := jwt.ParseSigned(token, []jose.SignatureAlgorithm{alg})
 	if err != nil {
 		return nil, err
 	}
@@ -117,10 +130,10 @@ func verify(publicKey crypto.PublicKey, token string) (*claims, error) {
 func validate(claims *claims, issuer string, subject string, audience string) error {
 	// Validate the claims on the JWT.
 	expectedClaims := jwt.Expected{
-		Issuer:   issuer,
-		Subject:  subject,
-		Audience: jwt.Audience{audience},
-		Time:     time.Now(),
+		Issuer:      issuer,
+		Subject:     subject,
+		AnyAudience: jwt.Audience{audience},
+		Time:        time.Now(),
 	}
 
 	return claims.Validate(expectedClaims)

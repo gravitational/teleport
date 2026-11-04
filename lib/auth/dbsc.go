@@ -20,17 +20,17 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/go-jose/go-jose/v3"
-	josejwt "github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/jwt"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 type dbscProofClaims struct {
-	josejwt.Claims
+	jwt.Claims
 	Key jose.JSONWebKey `json:"key"`
 }
 
@@ -68,12 +68,8 @@ func (a *Server) signDBSCChallenge(ctx context.Context, sessionID string) (strin
 }
 
 func (a *Server) verifyDBSCResponse(ctx context.Context, rawJWT string, sessionID string) ([]byte, error) {
-	tok, err := josejwt.ParseSigned(rawJWT)
+	tok, err := libjwt.ParseJWTWithDBSCProofHeader(rawJWT)
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing DBSC response JWT")
-	}
-
-	if err := jwt.ValidateDBSCProofHeader(tok); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -147,7 +143,7 @@ func (a *Server) verifyDBSCChallenge(ctx context.Context, challenge string, sess
 		return trace.Wrap(err, "getting JWT CA")
 	}
 
-	return jwt.VerifyDBSCChallengeWithCA(jwt.VerifyDBSCChallengeParams{
+	return libjwt.VerifyDBSCChallengeWithCA(libjwt.VerifyDBSCChallengeParams{
 		Challenge:   challenge,
 		SessionID:   sessionID,
 		ClusterName: ca.GetClusterName(),
