@@ -30,6 +30,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/client"
@@ -52,6 +53,10 @@ import (
 // - trustAnchor: the name of the Trust Anchor to be created
 // - syncRole: the name of the IAM Role to be created
 // - syncProfile: the name of the IAM Roles Anywhere Profile to be created
+//
+// It accepts the following optional query parameters:
+// - integrationScope: the scope of the integration. If set, the script prints the integration's
+// URI SAN to require in the trust policy of the roles it grants access to.
 func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	ctx := r.Context()
 
@@ -78,6 +83,13 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 		return nil, trace.BadParameter("invalid role %q", syncRoleName)
 	}
 
+	integrationScope := queryParams.Get("integrationScope")
+	if integrationScope != "" {
+		if err := apiscopes.WeakValidate(integrationScope); err != nil {
+			return nil, trace.BadParameter("invalid integrationScope %q", integrationScope)
+		}
+	}
+
 	syncProfileName := queryParams.Get("syncProfile")
 	if syncProfileName == "" {
 		return nil, trace.BadParameter("missing syncProfile param")
@@ -92,7 +104,7 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	}
 
 	// Ensure the IntegrationName is valid.
-	_, err = h.GetProxyClient().GetIntegration(ctx, integrationv1.GetIntegrationRequest_builder{Name: integrationName}.Build())
+	_, err = h.GetProxyClient().GetIntegration(ctx, integrationv1.GetIntegrationRequest_builder{Name: integrationName, Scope: integrationScope}.Build())
 	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -125,11 +137,18 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 		"integration", "configure", "awsra-trust-anchor",
 		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
 		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
+	}
+
+	if integrationScope != "" {
+		argsList = append(argsList, fmt.Sprintf("--scope=%s", shsprintf.EscapeDefaultContext(integrationScope)))
+	}
+
+	argsList = append(argsList,
 		fmt.Sprintf("--trust-anchor=%s", shsprintf.EscapeDefaultContext(trustAnchorName)),
 		fmt.Sprintf("--sync-profile=%s", shsprintf.EscapeDefaultContext(syncProfileName)),
 		fmt.Sprintf("--sync-role=%s", shsprintf.EscapeDefaultContext(syncRoleName)),
 		fmt.Sprintf("--trust-anchor-cert-b64=%s", awsRACACertB64),
-	}
+	)
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		EntrypointArgs: strings.Join(argsList, " "),

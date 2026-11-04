@@ -32,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
@@ -55,6 +56,11 @@ type TrustAnchorConfigureRequest struct {
 	// Used for tagging the created RolesAnywhere Trust Anchor/Profile and IAM Role.
 	IntegrationName string
 
+	// IntegrationScope is the scope of the integration.
+	// Optional. If set, the integration's URI SAN is printed so that it can be
+	// required in the trust policy of the roles the integration grants access to.
+	IntegrationScope string
+
 	// TrustAnchorName is the name of the trust anchor.
 	TrustAnchorName string
 
@@ -71,6 +77,9 @@ type TrustAnchorConfigureRequest struct {
 	AutoConfirm bool
 
 	ownershipTags tags.AWSTags
+
+	// integrationURISAN is the integration's URI SAN.
+	integrationURISAN string
 
 	// stdout is used to override stdout output in tests.
 	stdout io.Writer
@@ -100,6 +109,14 @@ func (r *TrustAnchorConfigureRequest) CheckAndSetDefaults() error {
 
 	if r.SyncRoleName == "" {
 		return trace.BadParameter("role name used for the sync process is required")
+	}
+
+	if r.IntegrationScope != "" {
+		uriSAN, err := IntegrationURISAN(apiscopes.QualifiedName{Scope: r.IntegrationScope, Name: r.IntegrationName})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		r.integrationURISAN = uriSAN.String()
 	}
 
 	r.ownershipTags = defaultResourceCreationTags(r.Cluster, r.IntegrationName)
@@ -226,7 +243,7 @@ func ConfigureRolesAnywhereIAM(ctx context.Context, clt RolesAnywhereIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	trustAnchorSetUpARNsAction, err := awsactions.TrustAnchorSetUpARNs(clt, req.TrustAnchorName, req.SyncProfileName, req.SyncRoleName, req.stdout)
+	trustAnchorSetUpARNsAction, err := awsactions.TrustAnchorSetUpARNs(clt, req.TrustAnchorName, req.SyncProfileName, req.SyncRoleName, req.integrationURISAN, req.stdout)
 	if err != nil {
 		return trace.Wrap(err)
 	}

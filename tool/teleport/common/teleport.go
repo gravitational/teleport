@@ -637,6 +637,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfAWSRATrustAnchor := integrationConfigureCmd.Command("awsra-trust-anchor", "Configure AWS IAM Roles Anywhere Integration by creating resources in AWS.")
 	integrationConfAWSRATrustAnchor.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.Cluster)
 	integrationConfAWSRATrustAnchor.Flag("name", "Integration name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.Name)
+	integrationConfAWSRATrustAnchor.Flag("scope", "Integration scope. If set, adds the integration's URI SAN to require in the trust policy of the roles it grants access to.").StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.Scope)
 	integrationConfAWSRATrustAnchor.Flag("trust-anchor", "AWS Roles Anywhere Trust Anchor name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.TrustAnchor)
 	integrationConfAWSRATrustAnchor.Flag("trust-anchor-cert-b64", "AWS Roles Anywhere Trust Anchor's certificate, encoded in base64.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.TrustAnchorCertBase64)
 	integrationConfAWSRATrustAnchor.Flag("sync-profile", "The AWS IAM Roles Anywhere Profile name to create, which will be used to sync profiles as apps.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.SyncProfile)

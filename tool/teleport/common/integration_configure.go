@@ -308,6 +308,7 @@ func onIntegrationConfAWSRATrustAnchor(ctx context.Context, clf config.CommandLi
 	confReq := awsra.TrustAnchorConfigureRequest{
 		Cluster:               clf.IntegrationConfAWSRATrustAnchorArguments.Cluster,
 		IntegrationName:       clf.IntegrationConfAWSRATrustAnchorArguments.Name,
+		IntegrationScope:      clf.IntegrationConfAWSRATrustAnchorArguments.Scope,
 		TrustAnchorName:       clf.IntegrationConfAWSRATrustAnchorArguments.TrustAnchor,
 		TrustAnchorCertBase64: clf.IntegrationConfAWSRATrustAnchorArguments.TrustAnchorCertBase64,
 		SyncProfileName:       clf.IntegrationConfAWSRATrustAnchorArguments.SyncProfile,

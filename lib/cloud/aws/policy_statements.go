@@ -569,6 +569,10 @@ func StatementForAWSIdentityCenterAccess() *Statement {
 	}
 }
 
+// ConditionKeyRolesAnywhereURISAN is the condition key AWS IAM Roles Anywhere sets from the first URI
+// subject alternative name of the certificate used to create a session.
+const ConditionKeyRolesAnywhereURISAN = "aws:PrincipalTag/x509SAN/URI"
+
 // StatementForAWSRolesAnywhereSyncRoleTrustRelationship returns the Trust Relationship which allows its usage from the given Trust Anchor ARN.
 // See https://docs.aws.amazon.com/rolesanywhere/latest/userguide/getting-started.html#getting-started-step2
 func StatementForAWSRolesAnywhereSyncRoleTrustRelationship(region, accountID, trustAnchorID string) *Statement {

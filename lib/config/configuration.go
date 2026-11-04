@@ -442,6 +442,8 @@ type IntegrationConfAWSRATrustAnchor struct {
 	Cluster string
 	// Name is the integration name.
 	Name string
+	// Scope is the integration scope. Optional, if set the integration's URI SAN is printed.
+	Scope string
 	// TrustAnchor is the AWS IAM Roles Anywhere Trust Anchor name to create.
 	TrustAnchor string
 	// TrustAnchorCertBase64 is trust anchor certificate, encoded in base64.
