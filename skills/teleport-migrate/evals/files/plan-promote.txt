@@ -1,0 +1,4 @@
+state file: /home/eval/.teleport-migrate/source-example-com-target-example-com-0a1b2c3d.json
+9 hosts: 1 blocked, 4 migrated, 3 retired, 1 promoted
+target agents matching no host: 1 (--show unmatched)
+verdict: 1 need an operator

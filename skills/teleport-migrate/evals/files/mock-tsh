@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+
+# Mock tsh binary for teleport-migrate evals. Replays fixtures from the files
+# beside it. `ssh` answers the read-only remote commands the skill runs on a
+# host (`systemctl is-active teleport.service`, which reports the source agent
+# active, `ls` of the install paths, `cat` of the source config) and
+# refuses everything else, so a host-changing step surfaces as a failure the
+# skill has to report.
+
+import os
+import sys
+
+dir = os.path.dirname(os.path.abspath(__file__))
+
+clean = []
+skip = False
+for a in sys.argv[1:]:
+    if skip:
+        skip = False
+        continue
+    if a in ("-i", "--identity", "--proxy"):
+        skip = True
+        continue
+    if a.startswith(("-i=", "--identity=", "--proxy=")):
+        continue
+    clean.append(a)
+args = clean
+
+
+def read(filename):
+    with open(os.path.join(dir, filename)) as f:
+        print(f.read(), end="")
+
+
+def die(msg, code=1):
+    print(msg, file=sys.stderr)
+    sys.exit(code)
+
+
+if args[:1] == ["status"]:
+    # Active profile on the source, a second profile on the target: the
+    # operator is logged in to both, as Setup's identity stage and Rollback's
+    # by-hand target deletion require.
+    print("> Profile URL:   https://source.example.com:443\n  Logged in as:  eval\n  Cluster:       source.example.com\n  Roles:         editor, access, migrate-impersonator\n  Logins:        root\n")
+    print("  Profile URL:   https://target.example.com:443\n  Logged in as:  eval\n  Cluster:       target.example.com\n  Roles:         editor, access, migrate-impersonator\n  Logins:        root")
+elif args[:1] == ["ls"]:
+    if "--format=json" not in args and "json" not in args:
+        die("ERROR: ls must use --format=json in these evals")
+    read("source-nodes.json")
+elif args[:1] == ["ssh"]:
+    # ssh [flags] <user@host> <command...>: the command is every argument
+    # after the host.
+    rest = args[1:]
+    while rest and rest[0].startswith("-"):
+        rest = rest[1:]
+    command = " ".join(rest[1:]).strip()
+    if command == "systemctl is-active teleport.service":
+        print("active")
+    elif command.startswith("ls "):
+        read("host-ls.txt")
+    elif command.startswith("cat "):
+        read("host-config.yaml")
+    else:
+        die(f"mock-tsh: refusing to run on the host during eval: {command}")
+else:
+    die(f"mock-tsh: unrecognized command: {' '.join(args)}")

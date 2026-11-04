@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+
+# Mock curl for teleport-migrate evals. Answers the two kinds of request the
+# skill's Gate makes, and fails every other URL the way `curl -f` does.
+#
+# - https://<host>/webapi/ping: the ping fixture for that host
+#   (source.example.com:443 -> ping-ent.json, hostile.example.com:443 ->
+#   ping-hostile.json, fips.example.com:443 -> ping-fips.json,
+#   mismatch.example.com:443 -> ping-mismatch.json,
+#   fipsstring.example.com:443 -> ping-fips-string.json).
+# - https://cdn.cloud.gravitational.io/<tarball>[.sha256], for the pinned
+#   version and the platforms the CDN publishes: the tarball is built on the
+#   fly and holds <flavor>/teleport, a wrapper that runs mock-teleport, so the
+#   downloaded binary still answers from these fixtures. Its .sha256 is right
+#   for teleport-ent tarballs and wrong for OSS teleport ones: that is the
+#   stateless trigger for the checksum-mismatch eval.
+#
+# Stateless and deterministic: the same request gets the same bytes, so a hash
+# computed from one download matches the next.
+
+import gzip
+import hashlib
+import io
+import os
+import re
+import sys
+import tarfile
+
+dir = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+
+PINGS = {
+    "source.example.com:443": "ping-ent.json",
+    "hostile.example.com:443": "ping-hostile.json",
+    "fips.example.com:443": "ping-fips.json",
+    "mismatch.example.com:443": "ping-mismatch.json",
+    "fipsstring.example.com:443": "ping-fips-string.json",
+}
+CDN = "https://cdn.cloud.gravitational.io/"
+TARBALL = re.compile(
+    r"^(teleport|teleport-ent)-v19\.0\.0-scope-migrate\.2-"
+    r"(darwin-universal|linux-amd64|linux-arm64|linux-amd64-fips|linux-arm64-fips)"
+    r"-bin\.tar\.gz(\.sha256)?$"
+)
+
+
+def fail(code, msg):
+    print(f"curl: ({code}) {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+out, url = None, None
+i = 0
+while i < len(args):
+    a = args[i]
+    if a in ("-o", "--output"):
+        i += 1
+        out = args[i] if i < len(args) else None
+    elif a.startswith("--output="):
+        out = a.split("=", 1)[1]
+    elif a.startswith("-") and not a.startswith("--") and "o" in a[1:]:
+        # A combined short flag ending in o, such as -fsSLo FILE.
+        i += 1
+        out = args[i] if i < len(args) else None
+    elif a.startswith("http://") or a.startswith("https://"):
+        url = a
+    i += 1
+
+if not url:
+    fail(2, "no URL specified")
+if not url.startswith("https://"):
+    fail(1, f"Protocol not supported by this mock: {url}")
+
+
+def tarball(flavor):
+    wrapper = f'#!/bin/sh\nexec "{os.path.join(dir, "mock-teleport")}" "$@"\n'.encode()
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tar:
+        for name, data, mode in (
+            (f"{flavor}/teleport", wrapper, 0o755),
+            (f"{flavor}/VERSION", b"v19.0.0-scope-migrate.2\n", 0o644),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size, info.mode, info.mtime = len(data), mode, 0
+            tar.addfile(info, io.BytesIO(data))
+    gz = io.BytesIO()
+    with gzip.GzipFile(fileobj=gz, mode="wb", mtime=0) as g:
+        g.write(buf.getvalue())
+    return gz.getvalue()
+
+
+body = None
+rest = url[len("https://"):]
+host, _, path = rest.partition("/")
+if path == "webapi/ping" and host in PINGS:
+    with open(os.path.join(dir, PINGS[host]), "rb") as f:
+        body = f.read()
+elif url.startswith(CDN):
+    m = TARBALL.match(url[len(CDN):])
+    if m:
+        flavor, sha = m.group(1), m.group(3)
+        name = url[len(CDN):].removesuffix(".sha256")
+        data = tarball(flavor)
+        if not sha:
+            body = data
+        else:
+            digest = hashlib.sha256(data).hexdigest()
+            if flavor == "teleport":
+                digest = hashlib.sha256(b"not the tarball").hexdigest()
+            body = f"{digest}  {name}\n".encode()
+
+if body is None:
+    fail(22, "The requested URL returned error: 404")
+
+if out:
+    with open(out, "wb") as f:
+        f.write(body)
+else:
+    sys.stdout.buffer.write(body)

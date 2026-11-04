@@ -1,0 +1,12 @@
+source:
+  proxy_server: source.example.com:443
+  identity_file: source_id
+target:
+  proxy_server: target.example.com:443
+  identity_file: target_id
+migrations:
+  - source_labels: team=team-a,env=prod
+    target_scope: /org/team-a/prod
+  - source_labels: team=shared,env=shared
+    target_scope: /org/shared
+state_dir: /tmp/teleport-migrate-eval-team

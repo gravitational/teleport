@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+
+# Mock teleport binary for teleport-migrate evals. Replays fixtures from the
+# files beside it instead of reaching a cluster or a host.
+#
+# Stateless by design: the fixture set is chosen by the config file's basename
+# (config.yaml -> plan.json and plan.txt, config-migrated.yaml ->
+# plan-migrated.*, config-large.yaml -> plan-large.*), and --show filters the
+# hosts of that set. A plan run after an apply therefore still shows the
+# pre-apply state; each eval's prompt fixes the sequence it exercises. For the
+# same reason promote accepts a migrated node as well as a retired one, as if
+# a retire earlier in the eval had landed. The promote scenarios
+# (config-promote*.yaml) share plan-promote.*, and a plan --show=promoted after
+# config-promote.yaml's promote shows the host it promoted.
+
+import json
+import os
+import sys
+
+dir = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+
+
+def flag(name):
+    for i, a in enumerate(args):
+        if a == name and i + 1 < len(args):
+            return args[i + 1]
+        if a.startswith(name + "="):
+            return a.split("=", 1)[1]
+    return None
+
+
+def die(msg, code=1):
+    sys.stdout.flush()
+    print(msg, file=sys.stderr)
+    sys.exit(code)
+
+
+def read(filename):
+    with open(os.path.join(dir, filename)) as f:
+        print(f.read(), end="")
+
+
+def load(filename):
+    with open(os.path.join(dir, filename)) as f:
+        return json.load(f)
+
+
+# teleport reconfigure: copy --input to --output and append the --node-labels
+# value as a label line, so the skill's grep for the pairing label has
+# something to find. Nothing is parsed; the output is not valid config.
+if args[:1] == ["reconfigure"]:
+    src, dst = flag("--input"), flag("--output")
+    if not src or not dst:
+        die("ERROR: --input and --output are required")
+    if not flag("--proxy-server") and not flag("--auth-server"):
+        die("ERROR: one of --proxy-server or --auth-server is required")
+    if os.path.exists(dst) and "--overwrite" not in args:
+        die(f"ERROR: {dst} exists; pass --overwrite to replace it")
+    with open(src) as f:
+        body = f.read()
+    labels = flag("--node-labels")
+    if labels:
+        key, _, value = labels.partition("=")
+        body += f"# added by reconfigure --node-labels\n    {key}: {value}\n"
+    with open(dst, "w") as f:
+        f.write(body)
+    sys.exit(0)
+
+# teleport version: an Enterprise build at the skill's pinned version.
+# mock-teleport-oss overrides the edition through MOCK_TELEPORT_EDITION.
+if args[:1] == ["version"]:
+    edition = "Teleport " if os.environ.get("MOCK_TELEPORT_EDITION") == "oss" else "Teleport Enterprise "
+    print(f"{edition}v19.0.0-scope-migrate.2 git:v19.0.0-scope-migrate.2-0-g1e547928 go1.27.3")
+    sys.exit(0)
+
+if args[:1] != ["migrate"]:
+    die(f"mock-teleport: unrecognized command: {' '.join(args)}")
+
+if "--help" in args:
+    print("usage: teleport migrate --config=CONFIG [<flags>] <command> [<args> ...]")
+    print("""
+Examples:
+
+  Every command reads a migration configuration file:
+
+  > teleport migrate --config migrate.yaml plan
+
+  This configuration moves the source cluster's hosts labeled team=team-a
+  into the target cluster's /org/team-a scope:
+
+  source:
+    proxy_server: old.example.com:443
+    identity_file: ./source-identity
+  target:
+    proxy_server: new.example.com:443
+    identity_file: ./target-identity
+  migrations:
+    - source_labels: team=team-a         # "*" selects every host
+      target_scope: /org/team-a
+  # state_dir: the state file's directory; defaults to ~/.teleport-migrate
+""")
+    sys.exit(0)
+
+cfg = flag("-c") or flag("--config")
+if not cfg:
+    die("ERROR: --config is required")
+scenario = os.path.basename(cfg).removeprefix("config").removesuffix(".yaml")
+# The promote scenarios (config-promote*.yaml) share one fixture set and differ
+# only in how promote answers.
+fixture = "-promote" if scenario.startswith("-promote") else scenario
+if not os.path.exists(os.path.join(dir, f"plan{fixture}.json")):
+    die(f"mock-teleport: no fixture set for config {os.path.basename(cfg)}")
+
+verbs = ("plan", "apply", "rollback", "retire", "promote")
+cmd = next((a for a in args[1:] if a in verbs), "")
+show = flag("--show")
+fmt = flag("--format") or "text"
+doc = load(f"plan{fixture}.json")
+
+
+def find_host(ref):
+    """Like the real findHost: node/<uuid> or node/<hostname>, ID first, then
+    hostnames ignoring case; the errors echo the ref as typed."""
+    name = ref[len("node/"):] if ref.startswith("node/") else ""
+    if not name:
+        die(f'ERROR: --resource takes node/<uuid> or node/<hostname>, got "{ref}"')
+    hosts = doc["hosts"]
+    hits = [h for h in hosts if h["id"] == name] or [h for h in hosts if h["hostname"].lower() == name.lower()]
+    if not hits:
+        die(f'ERROR: no host matches "{ref}"; the source cluster has no node by that ID or hostname under a mapped label set')
+    if len(hits) > 1:
+        die(f'ERROR: "{ref}" matches more than one host; use one of: ' + ", ".join("node/" + h["id"] for h in hits))
+    return hits[0]
+
+
+if cmd == "plan":
+    res = flag("--resource")
+    if res and (state := find_host(res)["state"]) in ("retired", "promoted"):
+        die(f'ERROR: "{res}" is {state}; plan does not preflight retired or promoted hosts')
+    if show is None and fmt == "text":
+        read(f"plan{fixture}.txt")
+        sys.exit(0)
+    # Like the real render, JSON under --show carries the summary and only the
+    # selected list.
+    if show == "unmatched":
+        del doc["hosts"]
+    elif show:
+        if scenario == "-promote" and show == "promoted":
+            # The promote this eval ran landed: ssh.prod-a is a new node, and
+            # its scoped agent is kept as scoped_id.
+            for h in doc["hosts"]:
+                if h["hostname"] == "ssh.prod-a":
+                    h["state"], h["scoped_id"], h["target_id"] = "promoted", h["target_id"], "a9a9a9a9-a9a9-a9a9-a9a9-a9a9a9a9a9a9"
+        doc["hosts"] = [h for h in doc["hosts"] if h["state"] == show]
+        del doc["unmatched_targets"]
+    if fmt == "json":
+        print(json.dumps(doc, indent=2))
+    else:
+        # The real table is not reproduced; the evals parse JSON.
+        rows = doc.get("unmatched_targets", []) if show == "unmatched" else doc["hosts"]
+        for r in rows:
+            print("\t".join([r["hostname"], r.get("state", r.get("scope", "")), r.get("reason", "")]))
+elif cmd in ("apply", "rollback", "retire", "promote"):
+    # The report shape of the real tool: progress on stderr, then
+    # "N <verb>, M failed" and one "  <hostname> (node/<id>): <reason>" line per
+    # failure on stdout; with failures the command then exits 1.
+    if cmd == "retire" and "--confirm" not in args:
+        die("ERROR: retire removes the source agent from the host and the source cluster; pass --confirm")
+    verb, ing, need, states = {
+        "apply": ("migrated", "migrating", "an unstarted or failed host", ("unstarted", "failed")),
+        "rollback": ("rolled back", "rolling back", "a migrated or failed host", ("migrated", "failed")),
+        "retire": ("retired", "retiring", "a migrated host", ("migrated",)),
+        "promote": ("promoted", "promoting", "a retired host", ("retired", "migrated")),
+    }[cmd]
+    res = flag("--resource")
+    if res:
+        h = find_host(res)
+        if h["state"] not in states:
+            die(f'ERROR: "{res}" is not {need}; run plan and check its state')
+        todo = [h]
+    else:
+        todo = [h for h in doc["hosts"] if h["state"] in states]
+        if cmd == "apply":
+            # Stateless: the single-host apply the skill ran first is not
+            # reflected in the fixture, so the fleet is one host smaller.
+            todo = todo[1:]
+        if cmd == "promote" and scenario == "-promote-fleet":
+            # Stateless: the single-host promote of ssh.prod-a landed, so the
+            # fleet run covers the other retired hosts.
+            todo = [h for h in todo if h["state"] == "retired" and h["hostname"] != "ssh.prod-a"]
+    if todo:
+        print(f"{ing} hosts: {len(todo)}", file=sys.stderr)
+    done, failures = 0, []
+    for h in todo:
+        reason = None
+        if cmd == "promote" and scenario == "-promote-fleet":
+            # ssh.prod-a lands alone; in the fleet run no-systemd.shared is
+            # refused for an unshifted port and ssh-app.prod-a lands.
+            reason = {
+                "no-systemd.shared": 'promote failed (exit 1): refusing to promote this host automatically; promote it by hand, or clear what is in the way and promote again rendering the promoted agent\'s config unshifting ssh_service.listen_addr listen address "0.0.0.0:3022" was not shifted by apply',
+            }.get(h["hostname"])
+        elif cmd == "promote" and scenario == "-promote-nojoin":
+            # The promoted agent never reaches the target. Stateless: a retry
+            # fails the same.
+            reason = "waiting for the promoted agent to join; the promoted agent was stopped and disabled again and the scoped agent still serves agent a9a9a9a9-a9a9-a9a9-a9a9-a9a9a9a9a9a9 did not appear in scope /org/team-a/prod in time"
+        elif cmd == "promote" and scenario == "-promote-removal":
+            # The promoted agent joined; removing the scoped install failed, so
+            # the host is promoted with both agents running.
+            reason = "the promoted agent joined, but removing the scoped install failed; remove it by hand: running uninstall: uninstall failed (exit 1): teleport_migrated.service is activating, not stopped; stop it and retry"
+        elif h["id"] == "66666666-6666-6666-6666-666666666666":
+            # web.shared's second host was migrated by hand under the same
+            # suffix, so it carries only the reconfigure label and no command
+            # finds an install it owns.
+            reason = {
+                "apply": None,
+                "rollback": 'uninstall failed (exit 1): the scoped config at "/etc/teleport_migrated.yaml" has no teleport.internal/migrate-source-host-uuid label, so teleport migrate did not install it; remove the scoped install by hand',
+                "retire": f'retire failed (exit 1): no install at teleport_migrated carries target agent {h.get("target_id")}; retire by hand',
+                "promote": "promote failed (exit 1): no scoped install at /opt/teleport/migrated; promote by hand",
+            }[cmd]
+        elif cmd == "apply" and res and h["hostname"] == "ssh-app.prod-a":  # a fleet apply replays no failure
+            reason = "install failed (exit 1): package download timed out"
+        elif cmd == "retire" and set(h.get("preflight", {}).get("services", [])) - {"ssh_service"}:
+            reason = "also runs " + ", ".join(s for s in h["preflight"]["services"] if s != "ssh_service") + ", whose registration on the target retire cannot confirm yet; retire this host by hand"
+        if reason:
+            failures.append((h["hostname"], h["id"], reason))
+            print(f'{h["hostname"]}: failed: {reason}', file=sys.stderr)
+        else:
+            done += 1
+            print(f'{h["hostname"]}: {verb}', file=sys.stderr)
+    print(f"{done} {verb}, {len(failures)} failed")
+    for name, id, reason in failures:
+        print(f"  {name} (node/{id}): {reason}")
+    if failures:
+        die(f"ERROR: hosts failed: {len(failures)}; see the report above")
+else:
+    die(f"mock-teleport: unrecognized migrate subcommand: {cmd}")

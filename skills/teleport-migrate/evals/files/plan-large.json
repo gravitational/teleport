@@ -1,0 +1,1230 @@
+{
+  "summary": {
+    "state_file": "/home/eval/.teleport-migrate/source-example-com-target-example-com-7e7e7e7e.json",
+    "hosts": 60,
+    "by_state": {
+      "unstarted": 52,
+      "blocked": 5,
+      "failed": 3
+    },
+    "unmatched_targets": 0,
+    "unreachable": 1
+  },
+  "hosts": [
+    {
+      "id": "00000001-0000-4000-8000-000000000001",
+      "hostname": "node-01.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000002-0000-4000-8000-000000000002",
+      "hostname": "node-02.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000003-0000-4000-8000-000000000003",
+      "hostname": "node-03.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000004-0000-4000-8000-000000000004",
+      "hostname": "node-04.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000005-0000-4000-8000-000000000005",
+      "hostname": "node-05.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "blocked",
+      "reason": "teleport-update is not installed; run plan --check to preflight it again",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "error": "teleport-update is not installed; run plan --check to preflight it again",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000006-0000-4000-8000-000000000006",
+      "hostname": "node-06.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000007-0000-4000-8000-000000000007",
+      "hostname": "node-07.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000008-0000-4000-8000-000000000008",
+      "hostname": "node-08.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "failed",
+      "reason": "install failed (exit 1): package download timed out",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000009-0000-4000-8000-000000000009",
+      "hostname": "node-09.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000010-0000-4000-8000-000000000010",
+      "hostname": "node-10.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000011-0000-4000-8000-000000000011",
+      "hostname": "node-11.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "blocked",
+      "reason": "teleport-update is not installed; run plan --check to preflight it again",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "error": "teleport-update is not installed; run plan --check to preflight it again",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000012-0000-4000-8000-000000000012",
+      "hostname": "node-12.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000013-0000-4000-8000-000000000013",
+      "hostname": "node-13.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000014-0000-4000-8000-000000000014",
+      "hostname": "node-14.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000015-0000-4000-8000-000000000015",
+      "hostname": "node-15.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000016-0000-4000-8000-000000000016",
+      "hostname": "node-16.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000017-0000-4000-8000-000000000017",
+      "hostname": "node-17.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000018-0000-4000-8000-000000000018",
+      "hostname": "node-18.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000019-0000-4000-8000-000000000019",
+      "hostname": "node-19.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000020-0000-4000-8000-000000000020",
+      "hostname": "node-20.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000021-0000-4000-8000-000000000021",
+      "hostname": "node-21.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000022-0000-4000-8000-000000000022",
+      "hostname": "node-22.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000023-0000-4000-8000-000000000023",
+      "hostname": "node-23.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "blocked",
+      "reason": "512 MB free under \"/var/lib\", 1250 MB needed; run plan --check to preflight it again",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "error": "512 MB free under \"/var/lib\", 1250 MB needed; run plan --check to preflight it again",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000024-0000-4000-8000-000000000024",
+      "hostname": "node-24.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000025-0000-4000-8000-000000000025",
+      "hostname": "node-25.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000026-0000-4000-8000-000000000026",
+      "hostname": "node-26.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000027-0000-4000-8000-000000000027",
+      "hostname": "node-27.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000028-0000-4000-8000-000000000028",
+      "hostname": "node-28.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000029-0000-4000-8000-000000000029",
+      "hostname": "node-29.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000030-0000-4000-8000-000000000030",
+      "hostname": "node-30.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "failed",
+      "reason": "install failed (exit 1): package download timed out",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000031-0000-4000-8000-000000000031",
+      "hostname": "node-31.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000032-0000-4000-8000-000000000032",
+      "hostname": "node-32.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000033-0000-4000-8000-000000000033",
+      "hostname": "node-33.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000034-0000-4000-8000-000000000034",
+      "hostname": "node-34.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000035-0000-4000-8000-000000000035",
+      "hostname": "node-35.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000036-0000-4000-8000-000000000036",
+      "hostname": "node-36.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000037-0000-4000-8000-000000000037",
+      "hostname": "node-37.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "blocked",
+      "reason": "no systemd on the host; run plan --check to preflight it again",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "error": "no systemd on the host; run plan --check to preflight it again",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000038-0000-4000-8000-000000000038",
+      "hostname": "node-38.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000039-0000-4000-8000-000000000039",
+      "hostname": "node-39.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000040-0000-4000-8000-000000000040",
+      "hostname": "node-40.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000041-0000-4000-8000-000000000041",
+      "hostname": "node-41.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000042-0000-4000-8000-000000000042",
+      "hostname": "node-42.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000043-0000-4000-8000-000000000043",
+      "hostname": "node-43.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000044-0000-4000-8000-000000000044",
+      "hostname": "node-44.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000045-0000-4000-8000-000000000045",
+      "hostname": "node-45.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000046-0000-4000-8000-000000000046",
+      "hostname": "node-46.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000047-0000-4000-8000-000000000047",
+      "hostname": "node-47.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000048-0000-4000-8000-000000000048",
+      "hostname": "node-48.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000049-0000-4000-8000-000000000049",
+      "hostname": "node-49.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "blocked",
+      "reason": "unreachable: dial tcp 10.0.3.49:22: i/o timeout; run plan --check to preflight it again",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ],
+        "error": "unreachable: dial tcp 10.0.3.49:22: i/o timeout; run plan --check to preflight it again",
+        "unreachable": true
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000050-0000-4000-8000-000000000050",
+      "hostname": "node-50.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000051-0000-4000-8000-000000000051",
+      "hostname": "node-51.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000052-0000-4000-8000-000000000052",
+      "hostname": "node-52.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "failed",
+      "reason": "install failed (exit 1): package download timed out",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000053-0000-4000-8000-000000000053",
+      "hostname": "node-53.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000054-0000-4000-8000-000000000054",
+      "hostname": "node-54.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000055-0000-4000-8000-000000000055",
+      "hostname": "node-55.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000056-0000-4000-8000-000000000056",
+      "hostname": "node-56.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000057-0000-4000-8000-000000000057",
+      "hostname": "node-57.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000058-0000-4000-8000-000000000058",
+      "hostname": "node-58.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000059-0000-4000-8000-000000000059",
+      "hostname": "node-59.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "prod"
+      },
+      "target_scope": "/org/team-b/prod",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+      "id": "00000060-0000-4000-8000-000000000060",
+      "hostname": "node-60.team-b",
+      "labels": {
+        "team": "team-b",
+        "env": "dev"
+      },
+      "target_scope": "/org/team-b/dev",
+      "state": "unstarted",
+      "preflight": {
+        "at": "2026-10-19T09:00:00Z",
+        "config_path": "/etc/teleport.yaml",
+        "data_dir": "/var/lib/teleport",
+        "join_method": "token",
+        "services": [
+          "ssh_service"
+        ]
+      },
+      "updated_at": "2026-10-19T09:00:00Z"
+    }
+  ],
+  "unmatched_targets": []
+}
