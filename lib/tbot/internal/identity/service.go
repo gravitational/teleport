@@ -164,11 +164,12 @@ func (s *Service) GetGenerator() (*identity.Generator, error) {
 	defer s.mu.Unlock()
 
 	return identity.NewGenerator(identity.GeneratorConfig{
-		Client:      s.client,
-		BotIdentity: s.facade,
-		FIPS:        s.cfg.FIPS,
-		Insecure:    s.cfg.Connection.Insecure,
-		Scoped:      s.cfg.Scoped,
+		LongLivedClient: s.client,
+		ClientBuilder:   s.clientBuilder,
+		BotIdentity:     s.facade,
+		FIPS:            s.cfg.FIPS,
+		Insecure:        s.cfg.Connection.Insecure,
+		Scoped:          s.cfg.Scoped,
 		Logger: s.log.With(
 			teleport.ComponentKey,
 			teleport.Component(teleport.ComponentTBot, "identity-generator"),
