@@ -168,6 +168,77 @@ function Enable-Node {
     }
 }
 
+function Install-WiX {
+    <#
+    .SYNOPSIS
+        Installs the WiX Toolset CLI (and its UI extension) into the supplied
+        toolchain dir. Used to build the teleport-update.exe MSI installer.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $ToolchainDir
+    )
+    begin {
+
+        $WixHash = "F30EF0C74E2A986126539C5780BE93AC24E8136EAF723B1937B26272703AE173"
+        $WixUIExtHash = "5CE7F958B6A2B57BCB98C19615C5A3DA46976A6E78A6AF055FDEF99E9E9E8F06"
+        $PackageName  = "wix"
+        $ExtensionName = "WixToolset.UI.wixext"
+        $Version      = "5.0.2" # v5 to avoid license changes in v6
+        $TargetDir    = "$ToolchainDir\wix"
+
+        Write-Host "::group::Installing WiX Toolset to $ToolchainDir..."
+        if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+            throw "dotnet CLI not found on PATH; the .NET SDK is required to install the WiX toolset"
+        }
+        New-Item -Path "$ToolchainDir" -ItemType Directory -Force | Out-Null
+        dotnet tool install $PackageName --tool-path $TargetDir --version $Version
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
+
+        $NuPkg="$TargetDir/.store/wix/$Version/wix/$Version/wix.$Version.nupkg"
+        $ActualHash = (Get-FileHash -Path "$NuPkg" -Algorithm SHA256).Hash
+
+        if ($ActualHash -ine $WixHash) {
+            throw "Hash validation failed, WiX package potentially compromised"
+        }
+
+        Enable-WiX -ToolchainDir "$ToolchainDir"
+
+        $env:WIX_EXTENSION="$TargetDir\ext"
+
+        wix extension add -g "$ExtensionName/$Version"
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
+
+        $ActualHash = (Get-FileHash -Path "$env:USERPROFILE\.wix\extensions\$ExtensionName\$Version\wixext5\$ExtensionName.dll" -Algorithm SHA256).Hash
+
+        if ($ActualHash -ine $WixUIExtHash) {
+            throw "Hash validation failed, WiX extension potentially compromised"
+        }
+
+        Write-Host "::endgroup::"
+    }
+}
+
+function Enable-WiX {
+    <#
+    .SYNOPSIS
+        Adds the WiX toolchain to the system search path
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $ToolchainDir
+    )
+    begin {
+        $Env:Path = "$ToolchainDir/wix;$Env:Path"
+    }
+}
+
 function Install-WasmDeps {
     <#
     .SYNOPSIS
@@ -244,19 +315,50 @@ function Compile-Message-File {
 function Get-Relcli {
     <#
     .SYNOPSIS
-        Downloads relcli
+        Downloads relcli and verifies it against a pinned SHA256 digest.
+    .DESCRIPTION
+        relcli is fetched from a public CDN and then executed directly, so TLS
+        is otherwise the only thing between this build and an attacker-supplied
+        executable. The build job can mint OIDC tokens for the Windows code
+        signing and managed updates KMS roles, which makes arbitrary code
+        execution here equivalent to signing authority over released artifacts,
+        so the digest is checked before relcli.exe is ever run. The expected
+        digest is pinned next to RELCLI_VERSION in e/.environments/common.yaml.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [string] $Url,
         [Parameter(Mandatory)]
-        [string] $Workspace
+        [string] $Workspace,
+        [Parameter(Mandatory)]
+        [string] $ExpectedSha256
     )
-    begin {
-        New-Item -Path "$Workspace" -ItemType Directory -Force | Out-Null
-        Invoke-WebRequest $url -UseBasicParsing -OutFile "$Workspace\relcli.exe"
+
+    if ([string]::IsNullOrWhiteSpace($ExpectedSha256)) {
+        throw "No pinned relcli SHA256 digest was given, refusing to run an unverified relcli"
     }
+    $PinnedSHA256 = $ExpectedSha256.Trim().ToLowerInvariant()
+    if ($PinnedSHA256 -notmatch '^[0-9a-f]{64}$') {
+        throw "Pinned relcli digest must be a SHA256 hex digest, got: $ExpectedSha256"
+    }
+
+    New-Item -Path "$Workspace" -ItemType Directory -Force | Out-Null
+    $RelcliPath = "$Workspace\relcli.exe"
+    # Download to a staging path so a digest mismatch cannot leave a runnable
+    # relcli.exe behind for a later step to pick up.
+    $DownloadPath = "$Workspace\relcli.exe.download"
+    Remove-Item -Path $RelcliPath, $DownloadPath -Force -ErrorAction SilentlyContinue
+    Invoke-WebRequest $Url -UseBasicParsing -OutFile "$DownloadPath"
+
+    $ActualSHA256 = Get-SHA256Hex -Path "$DownloadPath"
+    if ($ActualSHA256 -ne $PinnedSHA256) {
+        Remove-Item -Path $DownloadPath -Force -ErrorAction SilentlyContinue
+        throw "Checksum verification for relcli.exe failed! Expected $PinnedSHA256 but got $ActualSHA256"
+    }
+
+    Move-Item -Path $DownloadPath -Destination $RelcliPath -Force
+    Write-Host "Verified relcli.exe against pinned SHA256 digest $PinnedSHA256"
 }
 
 function Generate-Artifacts {
@@ -273,7 +375,7 @@ function Generate-Artifacts {
     )
 
     $SearchPath = Join-Path -Path $ArtifactDirectory -ChildPath *
-    Get-ChildItem -Path $SearchPath -Include "*.exe","*.zip" | ForEach-Object {
+    Get-ChildItem -Path $SearchPath -Include "*.exe","*.zip","*.msi" | ForEach-Object {
         switch -Wildcard ($_.Name) {
             "Teleport Connect Setup*.exe" {
                 $description = "Teleport Connect"
@@ -281,6 +383,10 @@ function Generate-Artifacts {
             }
             "teleport-windows-auth-setup*.exe" {
                 $description = "Teleport Authentication Package"
+                Break
+            }
+            "teleport-update*.msi" {
+                $description = "Teleport Updater (Windows installer)"
                 Break
             }
             "teleport-binaries*.zip" {
@@ -350,6 +456,8 @@ function Install-BuildRequirements {
         Install-Go -GoVersion "$GoVersion" -ToolchainDir "$InstallDirectory"
 
         Install-WasmDeps
+
+        Install-WiX -ToolchainDir "$InstallDirectory"
     }
     Write-Host $("All build requirements installed in {0:g}" -f $CommandDuration)
 }
@@ -811,6 +919,106 @@ function Build-Teleport
     return "$SignedBinaryPath"
 }
 
+function Build-TeleportUpdate {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $ArtifactDirectory,
+        [Parameter(Mandatory)]
+        [string] $TeleportVersion
+    )
+
+    $BinaryName = "teleport-update.exe"
+    $BuildDirectory = "$TeleportSourceDirectory\build"
+    $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+    $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
+
+    # The updater verifies detached artifact signatures using public keys baked in at build time.
+    # Production builds must provide the primary and backup keys; set TELEPORT_UPDATE_DEV_BUILD=1
+    # for unsigned dev builds (verification must then be disabled at runtime).
+    if ((-not $env:TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 -or -not $env:TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64) -and $env:TELEPORT_UPDATE_DEV_BUILD -ne "1") {
+        throw "TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 and TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64 must be set when building teleport-update (or set TELEPORT_UPDATE_DEV_BUILD=1 for unsigned dev builds)"
+    }
+    $SignatureKeyLDFlags = "-X main.artifactSignaturePublicKeyB64=$env:TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 " +
+        "-X main.artifactSignatureBackupPublicKeyB64=$env:TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64 " +
+        "-X main.artifactSignatureAdditionalPublicKeyB64=$env:TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64 " +
+        "-X main.artifactSignatureAdditionalBackupPublicKeyB64=$env:TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64"
+
+    $CommandDuration = Measure-Block {
+        Write-Host "::group::Building teleport-update..."
+        $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
+        # The updater is built without cgo, matching the Makefile.
+        $PreviousCgoEnabled = $env:CGO_ENABLED
+        $env:CGO_ENABLED = "0"
+        try {
+            go build -tags "grpcnotrace" -trimpath -buildvcs=false -ldflags "-s -w $BuildTypeLDFlags $SignatureKeyLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\teleport-update"
+        } finally {
+            $env:CGO_ENABLED = $PreviousCgoEnabled
+        }
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
+        Write-Host "::endgroup::"
+
+        Write-Host "::group::Signing teleport-update..."
+        Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
+        Write-Host "::endgroup::"
+    }
+    Write-Host $("Built teleport-update in {0:g}" -f $CommandDuration)
+
+    return "$SignedBinaryPath"  # This is needed for bundling the zip archive
+}
+
+function Build-TeleportUpdateInstaller {
+    <#
+    .SYNOPSIS
+    Builds and signs the WiX MSI installer for teleport-update.exe.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $ArtifactDirectory,
+        [Parameter(Mandatory)]
+        [string] $TeleportVersion,
+        [Parameter(Mandatory)]
+        [string] $SignedTeleportUpdateBinaryPath,
+        [Parameter(Mandatory)]
+        [string] $MsgFileDllPath
+    )
+
+    # MSI ProductVersion only supports Major.Minor.Build (numeric, Major/Minor
+    # <= 255, Build <= 65535), so any pre-release suffix must be dropped.
+    $MsiVersion = ($TeleportVersion -split '-')[0]
+
+    $WixSourceDirectory = "$TeleportSourceDirectory\build.assets\windows\wix"
+    $BuildDirectory = "$TeleportSourceDirectory\build"
+    $UnsignedMSIPath = "$BuildDirectory\unsigned-teleport-update.msi"
+    $MSIName = "teleport-update-v$TeleportVersion-windows-amd64.msi"
+
+    $CommandDuration = Measure-Block {
+        Write-Host "::group::Building teleport-update installer..."
+        wix build -arch x64 -ext WixToolset.UI.wixext `
+            -d "TeleportUpdateExePath=$SignedTeleportUpdateBinaryPath" `
+            -d "TeleportVersion=$MsiVersion" `
+            -d "ConfigSamplePath=$WixSourceDirectory\teleport.yaml.sample" `
+            -d "MsgFileDllPath=$MsgFileDllPath" `
+            -out "$UnsignedMSIPath" `
+            "$WixSourceDirectory\teleport-update.wxs"
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
+        Write-Host "::endgroup::"
+
+        Write-Host "::group::Signing teleport-update installer..."
+        Invoke-SignBinary -UnsignedBinaryPath "$UnsignedMSIPath" -SignedBinaryPath "$ArtifactDirectory\$MSIName"
+        Write-Host "::endgroup::"
+    }
+    Write-Host $("Built teleport-update installer in {0:g}" -f $CommandDuration)
+}
 
 function Package-Artifacts {
     [CmdletBinding()]
@@ -828,7 +1036,11 @@ function Package-Artifacts {
         [Parameter(Mandatory)]
         [string] $SignedTBotBinaryPath,
         [Parameter(Mandatory)]
-        [string] $SignedTeleportBinaryPath
+        [string] $SignedTeleportBinaryPath,
+        [Parameter(Mandatory)]
+        [string] $SignedTeleportUpdateBinaryPath,
+        [Parameter(Mandatory)]
+        [string] $MsgFileDllPath
     )
 
     $CommandDuration = Measure-Block {
@@ -842,6 +1054,8 @@ function Package-Artifacts {
         Out-File -FilePath "$PackageDirectory\VERSION" -InputObject "v$TeleportVersion"
         Compress-Archive -Path "$PackageDirectory\*" -DestinationPath "$ArtifactDirectory\teleport-v$TeleportVersion-windows-amd64-bin.zip"
         Copy-Item -Path "$SignedTeleportBinaryPath" -Destination "$PackageDirectory"
+        Copy-Item -Path "$SignedTeleportUpdateBinaryPath" -Destination "$PackageDirectory"
+        Copy-Item -Path "$MsgFileDllPath" -Destination "$PackageDirectory"
         Compress-Archive -Path "$PackageDirectory\*" -DestinationPath "$ArtifactDirectory\teleport-binaries-v$TeleportVersion-windows-amd64-bin.zip"
     }
     Write-Host $("Created archive in {0:g}" -f $CommandDuration)
@@ -859,15 +1073,16 @@ function Build-Connect {
         [Parameter(Mandatory)]
         [string] $TeleportVersion,
         [Parameter(Mandatory)]
-        [string] $SignedTshBinaryPath
+        [string] $SignedTshBinaryPath,
+        [Parameter(Mandatory)]
+        [string] $MsgFileDllPath
     )
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building Teleport Connect..."
         Install-Wintun -InstallDir "$TeleportSourceDirectory\wintun"
-        Compile-Message-File -MessageFile "$TeleportSourceDirectory\lib\utils\log\eventlog\msgfile.mc" -CompileDir "$TeleportSourceDirectory\msgfile"
         $env:CONNECT_WINTUN_DLL_PATH = "$TeleportSourceDirectory\wintun\wintun.dll"
-        $env:CONNECT_MSGFILE_DLL_PATH = "$TeleportSourceDirectory\msgfile\msgfile.dll"
+        $env:CONNECT_MSGFILE_DLL_PATH = "$MsgFileDllPath"
         $env:CONNECT_TSH_BIN_PATH = "$SignedTshBinaryPath"
         pnpm install --frozen-lockfile
         pnpm build-term
@@ -1009,6 +1224,25 @@ function Build-Artifacts {
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion"
 
+    # Build the Teleport updater
+    $SignedTeleportUpdateBinaryPath = Build-TeleportUpdate `
+        -TeleportSourceDirectory "$TeleportSourceDirectory" `
+        -ArtifactDirectory "$ArtifactDirectory" `
+        -TeleportVersion "$TeleportVersion"
+
+    # Compile the Event Log message file DLL, shared by the teleport-binaries
+    # zip, the teleport-update MSI, and Teleport Connect.
+    Compile-Message-File -MessageFile "$TeleportSourceDirectory\lib\utils\log\eventlog\msgfile.mc" -CompileDir "$TeleportSourceDirectory\msgfile"
+    $MsgFileDllPath = "$TeleportSourceDirectory\msgfile\msgfile.dll"
+
+    # Build the teleport-update MSI installer
+    Build-TeleportUpdateInstaller `
+        -TeleportSourceDirectory "$TeleportSourceDirectory" `
+        -ArtifactDirectory "$ArtifactDirectory" `
+        -TeleportVersion "$TeleportVersion" `
+        -SignedTeleportUpdateBinaryPath "$SignedTeleportUpdateBinaryPath" `
+        -MsgFileDllPath "$MsgFileDllPath"
+
     # Create archive
     Package-Artifacts `
         -TeleportSourceDirectory "$TeleportSourceDirectory" `
@@ -1017,14 +1251,17 @@ function Build-Artifacts {
         -SignedTshBinaryPath "$SignedTshBinaryPath" `
         -SignedTctlBinaryPath "$SignedTctlBinaryPath" `
         -SignedTBotBinaryPath "$SignedTBotBinaryPath" `
-        -SignedTeleportBinaryPath "$SignedTeleportBinaryPath"
+        -SignedTeleportBinaryPath "$SignedTeleportBinaryPath" `
+        -SignedTeleportUpdateBinaryPath "$SignedTeleportUpdateBinaryPath" `
+        -MsgFileDllPath "$MsgFileDllPath"
 
     # Build Teleport Connect
     Build-Connect `
         -TeleportSourceDirectory "$TeleportSourceDirectory" `
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion" `
-        -SignedTshBinaryPath "$SignedTshBinaryPath"
+        -SignedTshBinaryPath "$SignedTshBinaryPath" `
+        -MsgFileDllPath "$MsgFileDllPath"
 
     # Build Windows Authentication Package
     Build-WindowsAuthenticationPackage `

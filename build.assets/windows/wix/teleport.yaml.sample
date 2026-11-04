@@ -1,0 +1,15 @@
+version: v3
+teleport:
+  data_dir: C:\Program Files\Teleport\data
+  proxy_server: <proxy address>:443
+  join_params:
+    method: token
+    token_name: <token>
+ssh_service:
+  enabled: false
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+windows_desktop_service:
+  enabled: true

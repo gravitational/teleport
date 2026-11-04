@@ -54,6 +54,14 @@ const (
 	{{- else }}
 	{{- .Package }}{{ if .Enterprise }}-ent{{ end }}-v{{ .Version }}-{{ .OS }}-{{ .Arch }}{{ if .FIPS }}-fips{{ end }}-bin.tar.gz
 	{{- end }}`
+	DefaultAgentCDNURITemplate = `{{ .BaseURL }}/
+	{{- if eq .OS "darwin" }}
+	{{- .Package }}{{ if and .Enterprise (eq .Package "teleport") }}-ent{{ end }}-{{ .Version }}.pkg
+	{{- else if eq .OS "windows" }}
+	{{- .Package }}-binaries-v{{ .Version }}-{{ .OS }}-amd64-bin.zip
+	{{- else }}
+	{{- .Package }}{{ if .Enterprise }}-ent{{ end }}-v{{ .Version }}-{{ .OS }}-{{ .Arch }}{{ if .FIPS }}-fips{{ end }}-bin.tar.gz
+	{{- end }}`
 	// BaseURLEnvVar allows to override base URL for the Teleport package URL via env var.
 	BaseURLEnvVar = "TELEPORT_CDN_BASE_URL"
 )

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Teleport
+ Copyright (C) 2026 Gravitational, Inc.
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU Affero General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License for more details.
+
+ You should have received a copy of the GNU Affero General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <!--
+    UpgradeCode is fixed and must stay the same, or future installers will
+    stop recognizing prior installs and will install side-by-side instead of
+    upgrading them.
+  -->
+  <Package Name="Teleport Updater"
+           Manufacturer="Gravitational, Inc."
+           Version="$(var.TeleportVersion)"
+           UpgradeCode="BE29D191-D26C-452E-AAC7-FBD657E34A56"
+           Scope="perMachine">
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of Teleport Updater is already installed." />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Teleport">
+        <Component Id="TeleportUpdate">
+          <File Id="TeleportUpdateExe"
+                Source="$(var.TeleportUpdateExePath)"
+                Name="teleport-update.exe"
+                KeyPath="yes" />
+
+          <Environment Id="PathBinFolder"
+                       Name="PATH"
+                       Value="[INSTALLFOLDER]bin"
+                       Part="last"
+                       Action="set"
+                       System="yes" />
+                       
+          <Environment Id="PathInstallFolder"
+                       Name="PATH"
+                       Value="[INSTALLFOLDER]"
+                       Part="last"
+                       Action="set"
+                       System="yes" />
+        </Component>
+        <Component Id="TeleportConfigSample">
+          <File Id="TeleportYamlSample" Source="$(var.ConfigSamplePath)" Name="teleport.yaml.sample" KeyPath="yes" />
+        </Component>
+        <Component Id="TeleportUpdateMsgFile">
+          <File Id="TeleportUpdateMsgFileDll" Source="$(var.MsgFileDllPath)" Name="msgfile.dll" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Main">
+      <ComponentRef Id="TeleportUpdate" />
+      <ComponentRef Id="TeleportConfigSample" />
+      <ComponentRef Id="TeleportUpdateMsgFile" />
+    </Feature>
+
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT"
+              Value="Setup is complete. Create C:\Program Files\Teleport\teleport.yaml, then run &quot;teleport-update enable --proxy &lt;proxy-address&gt;&quot; as Administrator to enable managed updates for this agent." />
+    <!-- Required by WixUI_InstallDir, even though InstallDirDlg is skipped below. -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <UI>
+      <ui:WixUI Id="WixUI_InstallDir" />
+
+      <!-- Skip LicenseAgreementDlg and InstallDirDlg: Welcome -> VerifyReady and back -->
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg"
+                 Order="99" Condition="NOT Installed" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg"
+                 Order="99" Condition="NOT Installed" />
+    </UI>
+  </Package>
+</Wix>

@@ -156,7 +156,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			ReservedFreeTmpDisk:        reservedFreeDisk,
 			ReservedFreeInstallDisk:    reservedFreeDisk,
 			ValidateBinary:             validator.IsBinary,
-			Template:                   autoupdate.DefaultCDNURITemplate,
+			Template:                   autoupdate.DefaultAgentCDNURITemplate,
 			ArtifactSignatureVerifiers: cfg.ArtifactSignatureVerifiers,
 		},
 		TeleportProcess:      createTeleportProcess(ns, teleportDebugClient, cfg.Log),
