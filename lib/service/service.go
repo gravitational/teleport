@@ -5504,7 +5504,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	alpnRouter, reverseTunnelALPNRouter, appHTTPSTunnelHandler := setupALPNRouter(listeners, serverTLSConfig, cfg, conn.ClusterName())
+	if routeFreeApps, _ := apiutils.ParseBool(os.Getenv(appcommon.AppForwardedIdentityEnvVar)); routeFreeApps {
+		logger.WarnContext(process.ExitContext(), "TELEPORT_UNSTABLE_APP_FORWARDED_IDENTITY is set. The Proxy takes App connections whose certificate does not include a RouteToApp. This is not ready for production use.")
+	}
+	alpnRouter, reverseTunnelALPNRouter, appHandlers := setupALPNRouter(listeners, serverTLSConfig, cfg, conn.ClusterName())
 	alpnAddr := ""
 	if listeners.alpn != nil {
 		alpnAddr = listeners.alpn.Addr().String()
@@ -5807,8 +5810,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if appHTTPSTunnelHandler != nil {
-		appHTTPSTunnelHandler.SetTLSConfig(tlsConfigWeb)
+	if appHandlers.httpsTunnel != nil {
+		appHandlers.httpsTunnel.SetTLSConfig(tlsConfigWeb)
 	}
 
 	var proxyRouter *proxy.Router
@@ -6058,6 +6061,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		webHandler, err := web.NewHandler(webConfig, web.SetClock(process.Clock))
 		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		// Route-free App connections reach apps over the reverse tunnel. The
+		// ALPN router doesn't serve before the web service is built, so every
+		// web connection meets the route-free App handler.
+		if tsrv != nil && appHandlers.web != nil {
+			routeFree, err := webapp.NewRouteFreeHandler(webapp.RouteFreeConfig{
+				Next:        appHandlers.webListener,
+				ClusterName: clusterName,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			appHandlers.web.Set(routeFree.HandleConnection)
 		}
 
 		webServer, err = web.NewServer(web.ServerConfig{
@@ -6997,9 +7014,21 @@ func (process *TeleportProcess) setupALPNTLSConfigForWeb(tlsConfig *tls.Config, 
 	return tlsConfig, nil
 }
 
-func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *servicecfg.Config, clusterName string) (router, rtRouter *alpnproxy.Router, appHTTPSTunnelHandler *webapp.HTTPSTunnelHandler) {
+// alpnAppHandlers are the handlers setupALPNRouter adds to the ALPN router for
+// App Access on the web listener. Each needs config that only exists once the
+// web service is built.
+type alpnAppHandlers struct {
+	httpsTunnel *webapp.HTTPSTunnelHandler
+	// web takes the web listener's connections. It hands them straight to the
+	// web listener until the route-free App handler is set in front of it.
+	web *alpnproxy.ConnectionHandlerWrapper
+	// webListener hands a connection to the web listener.
+	webListener alpnproxy.ConnectionHandler
+}
+
+func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *servicecfg.Config, clusterName string) (router, rtRouter *alpnproxy.Router, appHandlers alpnAppHandlers) {
 	if listeners.web == nil || cfg.Proxy.DisableALPNSNIListener {
-		return nil, nil, nil
+		return nil, nil, alpnAppHandlers{}
 	}
 	// ALPN proxy service will use web listener where listener.web will be overwritten by alpn wrapper
 	// that allows to dispatch the http/1.1 and h2 traffic to webService.
@@ -7042,22 +7071,30 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 
 	if !cfg.Proxy.DisableWebService {
 		webWrapper := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
+		// The web service sets the route-free App handler in front of the web
+		// listener once it can build it.
+		appHandlers.web = &alpnproxy.ConnectionHandlerWrapper{}
+		appHandlers.web.Set(webWrapper.HandleConnection)
+		appHandlers.webListener = webWrapper.HandleConnection
 		router.Add(alpnproxy.HandlerDecs{
 			MatchFunc: alpnproxy.MatchByProtocol(
 				alpncommon.ProtocolHTTP,
 				alpncommon.ProtocolHTTP2,
 				acme.ALPNProto,
 			),
-			Handler:    webWrapper.HandleConnection,
+			Handler:    appHandlers.web.HandleConnection,
 			ForwardTLS: false,
 		})
 		listeners.web = webWrapper
 
 		// tlsConfigWeb is set later via SetTLSConfig as it's not available yet.
-		appHTTPSTunnelHandler = webapp.NewHTTPSTunnelHandler(webWrapper.HandleConnection, clusterName)
+		// Tunneled connections go straight to the web listener, not through
+		// the route-free App handler, since their outer certificate is what
+		// serves them.
+		appHandlers.httpsTunnel = webapp.NewHTTPSTunnelHandler(webWrapper.HandleConnection, clusterName)
 		router.Add(alpnproxy.HandlerDecs{
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolAppHTTPS),
-			Handler:   appHTTPSTunnelHandler.HandleConnection,
+			Handler:   appHandlers.httpsTunnel.HandleConnection,
 		})
 	}
 	// grpcPublicListener is a listener that does not enforce mTLS authentication.
@@ -7113,7 +7150,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	router.AddDBTLSHandler(webTLSDB.HandleConnection)
 	listeners.db.tls = webTLSDB
 
-	return router, rtRouter, appHTTPSTunnelHandler
+	return router, rtRouter, appHandlers
 }
 
 // waitForAppDepend waits until all dependencies for an application service
@@ -7430,7 +7467,7 @@ func (process *TeleportProcess) initApps() {
 			}
 		}
 
-		acceptForwardedIdentity, _ := apiutils.ParseBool(os.Getenv("TELEPORT_UNSTABLE_APP_FORWARDED_IDENTITY"))
+		acceptForwardedIdentity, _ := apiutils.ParseBool(os.Getenv(appcommon.AppForwardedIdentityEnvVar))
 		if acceptForwardedIdentity {
 			logger.WarnContext(process.ExitContext(), "TELEPORT_UNSTABLE_APP_FORWARDED_IDENTITY is set. The Application Service accepts client identities forwarded by the Proxy. This is not ready for production use.")
 		}

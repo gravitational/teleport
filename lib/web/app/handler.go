@@ -173,6 +173,13 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 
 // ServeHTTP hands the request to the request router.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// The Proxy decided what a route-free connection may reach when it took
+	// the connection, so none of the router's app session handling applies to
+	// its requests.
+	if conn, ok := resolvedConnFromRequest(r); ok {
+		serveResolved(w, r, conn, h.logger)
+		return
+	}
 	h.router.ServeHTTP(w, r)
 }
 
