@@ -37,8 +37,8 @@ func (f Fields) GetString(key string) string {
 	if !found {
 		return ""
 	}
-	s, _ := val.(string)
-	return s
+	str, _ := getString(val)
+	return str
 }
 
 // GetStrings returns a slice-of-strings representation of a field.
@@ -49,6 +49,11 @@ func (f Fields) GetStrings(key string) []string {
 	}
 	res, _ := getStrings(val)
 	return res
+}
+
+func getString(value any) (string, bool) {
+	str, ok := value.(string)
+	return str, ok
 }
 
 func getStrings(val any) ([]string, bool) {
@@ -62,12 +67,75 @@ func getStrings(val any) ([]string, bool) {
 	}
 	res := make([]string, 0, len(slice))
 	for _, v := range slice {
-		s, ok := v.(string)
-		if ok {
-			res = append(res, s)
+		s, ok := getString(v)
+		if !ok {
+			return nil, false
 		}
+		res = append(res, s)
 	}
 	return res, true
+}
+
+func fieldsEqual(a, b any) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	aStrings, aIsStrings := getStrings(a)
+	bStrings, bIsStrings := getStrings(b)
+	if aIsStrings || bIsStrings {
+		return aIsStrings && bIsStrings && slices.Equal(aStrings, bStrings)
+	}
+
+	aString, aIsString := getString(a)
+	bString, bIsString := getString(b)
+	if aIsString || bIsString {
+		return aIsString && bIsString && aString == bString
+	}
+
+	return fieldsEqualFallback(a, b)
+}
+
+func fieldsEqualFallback(a, b any) bool {
+	aType, bType := reflect.TypeOf(a), reflect.TypeOf(b)
+	if aType != bType {
+		return false
+	}
+
+	if aType.Comparable() {
+		return a == b
+	}
+
+	switch {
+	case aType.Kind() == reflect.Slice:
+		aSlice, bSlice := reflect.ValueOf(a), reflect.ValueOf(b)
+		if aSlice.Len() != bSlice.Len() {
+			return false
+		}
+		for i := 0; i < aSlice.Len(); i++ {
+			if !fieldsEqual(aSlice.Index(i).Interface(), bSlice.Index(i).Interface()) {
+				return false
+			}
+		}
+		return true
+	case aType.Kind() == reflect.Map:
+
+		if aType.Kind() == reflect.Map {
+			aMap, bMap := reflect.ValueOf(a), reflect.ValueOf(b)
+			if aMap.Len() != bMap.Len() {
+				return false
+			}
+			iter := aMap.MapRange()
+			for iter.Next() {
+				bValue := bMap.MapIndex(iter.Key())
+				if !bValue.IsValid() || !fieldsEqual(iter.Value().Interface(), bValue.Interface()) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+
+	return false
 }
 
 // GetInt returns an int representation of a field.
@@ -112,8 +180,11 @@ func (f Fields) Get(key string) (any, bool) {
 }
 
 func (f Fields) GetMapEntry(mapRef *types.WhereExpr2) (any, bool) {
+	if mapRef == nil || mapRef.L == nil || mapRef.R == nil {
+		return nil, false
+	}
 	field := mapRef.L.Field
-	key, ok := mapRef.R.Literal.(string)
+	key, ok := getString(mapRef.R.Literal)
 	if !ok {
 		return nil, false
 	}
@@ -161,7 +232,8 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 			ToFieldsConditionConfig{
 				Expr:    e.R,
 				CanView: cfg.CanView,
-			})
+			},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -191,20 +263,15 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if !ok {
 					return false
 				}
-				strs, ok := val.(string)
-				if !ok {
+				var other any
+				if right.Field != "" {
+					other = f[right.Field]
+				} else if right.Literal != nil {
+					other = right.Literal
+				} else {
 					return false
 				}
-				var strsVals string
-				if right.Field != "" {
-					strsVals = f.GetString(right.Field)
-				} else if right.Literal != nil {
-					strsVals, ok = right.Literal.(string)
-					if !ok {
-						return false
-					}
-				}
-				return strs == strsVals
+				return fieldsEqual(val, other)
 			}, nil
 		case right.MapRef != nil:
 			return func(f Fields) bool {
@@ -212,20 +279,15 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if !ok {
 					return false
 				}
-				str, ok := val.(string)
-				if !ok {
+				var other any
+				if left.Field != "" {
+					other = f[left.Field]
+				} else if left.Literal != nil {
+					other = left.Literal
+				} else {
 					return false
 				}
-				var strsVals string
-				if left.Field != "" {
-					strsVals = f.GetString(left.Field)
-				} else if left.Literal != nil {
-					strsVals, ok = left.Literal.(string)
-					if !ok {
-						return false
-					}
-				}
-				return str == strsVals
+				return fieldsEqual(other, val)
 			}, nil
 		case left.Field != "" && right.Field != "":
 			return func(f Fields) bool { return fieldsEqual(f[left.Field], f[right.Field]) }, nil
@@ -250,9 +312,12 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				}
 				var strsVals string
 				if right.Field != "" {
-					strsVals = f.GetString(right.Field)
+					strsVals, ok = getString(f[right.Field])
+					if !ok {
+						return false
+					}
 				} else if right.Literal != nil {
-					strsVals, ok = right.Literal.(string)
+					strsVals, ok = getString(right.Literal)
 					if !ok {
 						return false
 					}
@@ -265,7 +330,7 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				if !ok {
 					return false
 				}
-				str, ok := val.(string)
+				str, ok := getString(val)
 				if !ok {
 					return false
 				}
@@ -281,13 +346,19 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 				return slices.Contains(strsVals, str)
 			}, nil
 		case left.Field != "" && right.Field != "":
-			return func(f Fields) bool { return slices.Contains(f.GetStrings(left.Field), f.GetString(right.Field)) }, nil
+			return func(f Fields) bool {
+				value, ok := getString(f[right.Field])
+				return ok && slices.Contains(f.GetStrings(left.Field), value)
+			}, nil
 		case left.Literal != nil && right.Field != "":
 			if ss, ok := getStrings(left.Literal); ok {
-				return func(f Fields) bool { return slices.Contains(ss, f.GetString(right.Field)) }, nil
+				return func(f Fields) bool {
+					value, ok := getString(f[right.Field])
+					return ok && slices.Contains(ss, value)
+				}, nil
 			}
 		case left.Field != "" && right.Literal != nil:
-			if s, ok := right.Literal.(string); ok {
+			if s, ok := getString(right.Literal); ok {
 				return func(f Fields) bool { return slices.Contains(f.GetStrings(left.Field), s) }, nil
 			}
 		}
@@ -418,20 +489,6 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 	}
 
 	return nil, trace.BadParameter("failed to convert expression %q to FieldsCondition", expr)
-}
-
-// fieldsEqual reports whether a and b are equal, without panicking when
-// their dynamic type is not comparable (e.g. a []any or map[string]any
-// decoded from a JSON-encoded session event field).
-func fieldsEqual(a, b any) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	at, bt := reflect.TypeOf(a), reflect.TypeOf(b)
-	if at == nil || at != bt || !at.Comparable() {
-		return false
-	}
-	return a == b
 }
 
 func containsAll(slice []string, items []string) bool {
