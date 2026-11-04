@@ -236,15 +236,22 @@ The Teleport users created by the synchronization process or SCIM provisioning
 all inherit their username from the upstream Okta organization, and are given a
 default role of `okta-requester`.
 
-The `okta-requester` role allows the user to log into Teleport, but grants no
-default access to Teleport resources. The Teleport admin can use Access Requests
-and Access Lists to grant access to Teleport resources as they see fit, once the
-user is imported.
+The `okta-requester` role allows requesting JIT access to Okta-originated Teleport
+resources (see [App and Group Sync](./app-and-group-sync.mdx)), but does not grant any
+standing access. The Teleport admin can use Access Requests and Access Lists to grant
+access to Teleport resources as they see fit, once the user is imported. Default role
+assignment can be disabled with `tctl edit plugins/okta` by setting
+`okta.sync_settings.disable_assign_default_roles: true` and setting custom Okta SAML
+connector role mapping.
 
 ## User traits
 
-All non-empty values in the Okta User/AppUser profile are converted to Teleport
-user traits. For example, an imported Okta user might look like this:
+All non-empty values in the Okta User/AppUser profile are converted to Teleport user
+traits and prefixed with `okta/`. The only non-prefixed traits are `username` and
+`groups`. The `username` and `groups` traits are set only if the Okta connector
+contains role mappings for those traits.
+
+For example, an imported Okta user might look like this:
 
 ```yaml
 kind: user
@@ -257,6 +264,13 @@ roles:
   - okta-requester
 spec:
   traits:
+    # note that "username" and "groups" mappings are set only if the SAML connector
+    # contains role mappings based on those traits.
+    username:
+      - hiro@enzos-pizza.com
+    groups:
+      - Drivers
+      - Everyone
     okta/email:
       - hiro@enzos-pizza.com
     okta/firstName:
@@ -267,9 +281,48 @@ spec:
       - hiro@enzos-pizza.com
 ```
 
-Teleport administrators can then use these traits as conditions in Access Lists
-in order to grant (or deny) the Okta-derived Teleport users access to Teleport
+Teleport administrators can then use these traits as eligibility conditions in Access
+Lists in order to grant (or deny) the Okta-derived Teleport users access to Teleport
 resources.
+
+## Traits derived from SAML assertions and Login Rules
+
+Added in Teleport v19.0.0.
+
+When a user managed by Okta User Sync successfully logs in with a SAML connector,
+Teleport stores traits from the SAML assertion and the traits produced by [Login
+Rules](../../../zero-trust-access/sso/login-rules/login-rules.mdx) on the user's
+Teleport resource as described in the [User traits](#user-traits) section. User Sync
+retains these traits while the credentials issued by that login are expected to remain
+valid. This prevents the next synchronization from immediately replacing traits that
+are available only at login.
+
+Teleport calculates the login traits retention deadline from the login time and the
+TTL of the credentials issued by that login. After the deadline passes,
+the next synchronization removes traits that are not supplied by the current
+Okta profile or otherwise managed by User Sync.
+
+**Note:** In the edge case where a user's roles are updated during the SAML login
+flow, the login traits retention deadline may not be exactly equal to the generated
+certificate TTL. The login traits are cleared only during the next Okta User Sync
+reconciliation, which may start with a delay of up to 30 minutes.
+
+The following limitations apply:
+
+- User Sync always refreshes all traits with the `okta/` prefix from the current Okta
+  profile. It does not retain `okta/` prefixed login traits.  This is because SAML
+  login flow retains `okta/` prefixed traits. This ensures that removed Okta profile
+  attributes do not remain on the Teleport user forever.
+- `username` and `groups` traits are retained, but for backward compatibility reasons
+  they are replaced with the values from the Okta API if a role mapping for those
+  traits exists in the SAML connector.
+- Each successful SAML login replaces the recorded login time and session TTL.  A
+  subsequent login with a shorter TTL can therefore shorten the retention deadline,
+  even while a session from an earlier login remains valid.  With concurrent logins,
+  the recorded login is not guaranteed to be the most recent one.
+- Logging out or locking the user does not shorten the retention period.
+- Teleport supports login traits retention from version v19.0.0 onwards. Login traits
+  are preserved only for SAML logins successfully completed on upgraded clusters.
 
 ## User deletion
 
