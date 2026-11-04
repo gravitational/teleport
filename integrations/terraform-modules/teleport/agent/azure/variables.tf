@@ -119,6 +119,27 @@ variable "container_group_use_name_prefix" {
   type        = bool
 }
 
+variable "subnet_id" {
+  description = <<EOD
+When setting up access to private AKS clusters, set subnet_id to the resource ID of the subnet which will host the Azure Container Instance.
+The subnet must be delegated to Microsoft.ContainerInstance/containerGroups and have access to
+- the Teleport Proxy Service (var.teleport_proxy_addr)
+- the Teleport image registry at https://public.ecr.aws/
+- Azure Resource Manager at https://management.azure.com/ (HTTPS/TCP 443) to read cluster details and fetch credentials
+- the target AKS API endpoints (DNS resolution and connectivity)
+
+This module does not provision these networking resources.
+When omitted or null, no subnet is specified on the container groups.
+EOD
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.subnet_id == null ? true : trimspace(var.subnet_id) != ""
+    error_message = "subnet_id must be a non-empty subnet resource ID, or null to omit network placement."
+  }
+}
+
 variable "environment_vars" {
   default     = {}
   description = "Environment variables to set on the Teleport Azure Container Instance."

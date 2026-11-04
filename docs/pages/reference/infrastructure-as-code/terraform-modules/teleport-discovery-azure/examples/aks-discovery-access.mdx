@@ -152,6 +152,14 @@ module "azure_agent" {
 
   container_group_name = "teleport-aks-access"
 
+  # When setting up access to private AKS clusters, set subnet_id to the resource ID of the subnet which will host the Azure Container Instance.
+  # The subnet must be delegated to Microsoft.ContainerInstance/containerGroups and have access to
+  # - the Teleport Proxy Service (var.teleport_proxy_addr)
+  # - the Teleport image registry at https://public.ecr.aws/
+  # - Azure Resource Manager at https://management.azure.com/ (HTTPS/TCP 443) to read cluster details and fetch credentials
+  # - the target AKS API endpoints (DNS resolution and connectivity)
+  # subnet_id = <subnet_id>
+
   # Keep the labels in sync with the configuration in the discovery module under the azure_matchers.
   kubernetes_service = {
     enabled = true
