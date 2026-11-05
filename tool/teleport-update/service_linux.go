@@ -1,5 +1,3 @@
-//go:build !windows
-
 /*
  * Teleport
  * Copyright (C) 2026  Gravitational, Inc.
