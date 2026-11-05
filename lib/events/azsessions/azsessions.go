@@ -399,7 +399,10 @@ func (h *Handler) uploadBlob(
 		opt(&cfg)
 	}
 
-	usOpts := blockblob.UploadStreamOptions{}
+	const maxConcurrency = 4 // Arbitrary. Less than SDK defaults, more than before.
+	usOpts := blockblob.UploadStreamOptions{
+		Concurrency: maxConcurrency,
+	}
 	if !cfg.overwrite {
 		usOpts.AccessConditions = &blobDoesNotExist
 	}
