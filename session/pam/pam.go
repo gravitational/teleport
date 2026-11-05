@@ -37,6 +37,7 @@ package pam
 // extern int _pam_end(void *, pam_handle_t *, int);
 // extern int _pam_authenticate(void *, pam_handle_t *, int);
 // extern int _pam_acct_mgmt(void *, pam_handle_t *, int);
+// extern int _pam_setcred(void *, pam_handle_t *, int);
 // extern int _pam_open_session(void *, pam_handle_t *, int);
 // extern int _pam_close_session(void *, pam_handle_t *, int);
 // extern char **_pam_getenvlist(void *handle, pam_handle_t *pamh);
@@ -52,13 +53,17 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/user"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/session/logconstants"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
@@ -212,7 +217,7 @@ func readCallback(index C.int, e C.int) *C.char {
 
 // registerHandler will register a instance of *PAM with the package level
 // handlers to support callbacks from C.
-func registerHandler(p *PAM) int {
+func registerHandler(p *PAMContext) int {
 	handlerMu.Lock()
 	defer handlerMu.Unlock()
 
@@ -265,9 +270,9 @@ func init() {
 	}
 }
 
-// PAM is used to create a PAM context and initiate PAM transactions to check
+// PAMContext is used to create a PAMContext context and initiate PAMContext transactions to check
 // the users account and open/close a session.
-type PAM struct {
+type PAMContext struct {
 	// pamh is a handle to the PAM transaction state.
 	pamh *C.pam_handle_t
 
@@ -290,11 +295,14 @@ type PAM struct {
 	// report errors to the user.
 	stderr io.Writer
 
+	// cLogin is the *nix login that that is being used.
+	login string
+
 	// service_name is the name of the PAM policy to use.
 	service_name *C.char
 
-	// login is the *nix login that that is being used.
-	login *C.char
+	// cLogin is the login as a C string.
+	cLogin *C.char
 
 	// handlerIndex is the index to the package level handler map.
 	handlerIndex int
@@ -306,7 +314,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *pamcfg.PAMConfig) (*PAM, error) {
+func Open(config *pamcfg.PAMConfig) (*PAMContext, error) {
 	if config == nil {
 		return nil, trace.BadParameter("PAM configuration is required.")
 	}
@@ -315,18 +323,19 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p := &PAM{
+	p := &PAMContext{
 		pamh:   nil,
 		stdin:  config.Stdin,
 		stdout: config.Stdout,
 		stderr: config.Stderr,
+		login:  config.Login,
 	}
 
 	// Both config.ServiceName and config.Username convert between Go strings to
 	// C strings. Since the C strings are allocated on the heap in Go code, this
 	// memory must be released (and will be on the call to the Close method).
 	p.service_name = C.CString(config.ServiceName)
-	p.login = C.CString(config.Login)
+	p.cLogin = C.CString(config.Login)
 
 	// C code does not know that this PAM context exists. To ensure the
 	// conversation function can get messages to the right context, a handle
@@ -338,7 +347,7 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 	// Create and initialize a PAM context. The pam_start function will
 	// allocate pamh if needed and the pam_end function will release any
 	// allocated memory.
-	p.retval = C._pam_start(pamHandle, p.service_name, p.login, p.conv, &p.pamh)
+	p.retval = C._pam_start(pamHandle, p.service_name, p.cLogin, p.conv, &p.pamh)
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError(p.retval)
 	}
@@ -378,52 +387,189 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 		}
 	}
 
-	// Trigger the "account" PAM hooks for this login.
-	//
-	// Check that the *nix account is valid. Checking an account varies based off
-	// the PAM modules used in the account stack. Typically this consists of
-	// checking if the account is expired or has access restrictions.
-	//
-	// Note: This function does not perform any authentication!
-	retval := C._pam_acct_mgmt(pamHandle, p.pamh, 0)
-	if retval != C.PAM_SUCCESS {
-		return nil, p.codeToError(retval)
+	return p, nil
+}
+
+// Account triggers the "account" PAM hooks for this login.
+//
+// Check that the *nix account is valid. Checking an account varies based off
+// the PAM modules used in the account stack. Typically this consists of
+// checking if the account is expired or has access restrictions.
+//
+// Note: This function does not perform any authentication!
+func (p *PAMContext) Account() error {
+	p.retval = C._pam_acct_mgmt(pamHandle, p.pamh, 0)
+	if p.retval != C.PAM_SUCCESS {
+		return p.codeToError(p.retval)
+	}
+	return nil
+}
+
+// Authenticate triggers the "auth" PAM hooks for this login.
+//
+// These would perform any extra authentication steps configured in the PAM
+// stack, like per-session 2FA.
+func (p *PAMContext) Authenticate() error {
+	p.retval = C._pam_authenticate(pamHandle, p.pamh, 0)
+	if p.retval != C.PAM_SUCCESS {
+		return p.codeToError(p.retval)
+	}
+	return nil
+}
+
+// Session is a PAM session, created by pam_open_session. It must be closed
+// when finished.
+type Session struct {
+	pamCtx *PAMContext
+	// targetGroups is the list of group IDs to assume when starting the session.
+	// It is valid for this list to be empty, so only a nil slice indicates that
+	// setgroups should not be called.
+	targetGroups []int
+	// originalGroups is the list of group IDs to return to when the session closes.
+	originalGroups []int
+}
+
+func getUserGroups(u *user.User) ([]int, error) {
+	groupIDStrings, err := u.GroupIds()
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	groupIDs := make([]int, 0, len(groupIDStrings))
+	for _, gidStr := range groupIDStrings {
+		gid, err := strconv.Atoi(gidStr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		groupIDs = append(groupIDs, gid)
+	}
+	return groupIDs, nil
+}
+
+func (p *PAMContext) newSession() (*Session, error) {
+	s := &Session{
+		pamCtx: p,
+	}
+	// setgroups is discouraged on mac, so we won't try.
+	if runtime.GOOS == "darwin" {
+		return s, nil
+	}
+	// Check if setgroups will be necessary.
+	self, err := user.Current()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	selfGroupIDs, err := os.Getgroups()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	slices.Sort(selfGroupIDs)
+
+	target, err := user.Lookup(s.pamCtx.login)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// If the session is for us, no need to change groups.
+	if target.Uid == self.Uid && target.Gid == self.Gid {
+		return s, nil
+	}
+	targetGroupIDs, err := getUserGroups(target)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	slices.Sort(targetGroupIDs)
+	if slices.Equal(selfGroupIDs, targetGroupIDs) {
+		return s, nil
+	}
+	s.originalGroups = selfGroupIDs
+	s.targetGroups = targetGroupIDs
+	return s, nil
+}
+
+// SetGroups updates credentials for an exec command so it will have the
+// correct groups.
+func (s *Session) SetGroups(cred *syscall.Credential) {
+	if s.targetGroups == nil || cred.NoSetGroups {
+		return
+	}
+	cred.Groups = make([]uint32, 0, len(s.targetGroups))
+	for _, gid := range s.targetGroups {
+		cred.Groups = append(cred.Groups, uint32(gid))
+	}
+}
+
+// OpenSession triggers the "session" PAM hooks for this login.
+//
+// Open a user session. Opening a session varies based off the PAM modules
+// used in the "session" stack. Opening a session typically consists of
+// printing the MOTD, mounting a home directory, updating auth.log.
+func (p *PAMContext) OpenSession() (*Session, error) {
+	sess, err := p.newSession()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if config.UsePAMAuth {
-		// Trigger the "auth" PAM hooks for this login.
-		//
-		// These would perform any extra authentication steps configured in the PAM
-		// stack, like per-session 2FA.
-		retval = C._pam_authenticate(pamHandle, p.pamh, 0)
-		if retval != C.PAM_SUCCESS {
-			return nil, p.codeToError(retval)
+	// If pam_group.so is in use, it will expect the caller to already have the
+	// user's supplementary groups. Assume them now.
+	if sess.targetGroups != nil {
+		if err := unix.Setgroups(sess.targetGroups); err != nil {
+			return nil, trace.ConvertSystemError(err)
 		}
 	}
 
-	// Trigger the "session" PAM hooks for this login.
-	//
-	// Open a user session. Opening a session varies based off the PAM modules
-	// used in the "session" stack. Opening a session typically consists of
-	// printing the MOTD, mounting a home directory, updating auth.log.
-	p.retval = C._pam_open_session(pamHandle, p.pamh, 0)
+	p.retval = C._pam_setcred(pamHandle, p.pamh, C.PAM_ESTABLISH_CRED)
 	if p.retval != C.PAM_SUCCESS {
 		return nil, p.codeToError(p.retval)
 	}
+	if sess.targetGroups != nil {
+		// If pam_group.so added groups, save them.
+		newGroups, err := os.Getgroups()
+		if err != nil {
+			_ = C._pam_setcred(pamHandle, p.pamh, C.PAM_DELETE_CRED)
+			if sess.originalGroups != nil {
+				_ = unix.Setgroups(sess.originalGroups)
+			}
+			return nil, trace.ConvertSystemError(err)
+		}
+		sess.targetGroups = newGroups
+	}
 
-	return p, nil
+	p.retval = C._pam_open_session(pamHandle, p.pamh, 0)
+	if p.retval != C.PAM_SUCCESS {
+		_ = C._pam_setcred(pamHandle, p.pamh, C.PAM_DELETE_CRED)
+		if sess.originalGroups != nil {
+			_ = unix.Setgroups(sess.originalGroups)
+		}
+		return nil, p.codeToError(p.retval)
+	}
+	return sess, nil
+}
+
+// Close closes the PAM session. Closing a session can entail anything from
+// unmounting a home directory and updating auth.log.
+func (s *Session) Close() error {
+	p := s.pamCtx
+	errors := make([]error, 0, 3)
+	if retval := C._pam_close_session(pamHandle, p.pamh, 0); retval != C.PAM_SUCCESS {
+		p.retval = retval
+		errors = append(errors, p.codeToError(p.retval))
+	}
+	if retval := C._pam_setcred(pamHandle, p.pamh, C.PAM_DELETE_CRED); retval != C.PAM_SUCCESS {
+		if p.retval == 0 {
+			p.retval = retval
+		}
+		errors = append(errors, p.codeToError(retval))
+	}
+	if s.originalGroups != nil {
+		if err := unix.Setgroups(s.originalGroups); err != nil {
+			errors = append(errors, err)
+		}
+	}
+	return trace.NewAggregate(errors...)
 }
 
 // Close will close the session, the PAM context, and release any allocated
 // memory.
-func (p *PAM) Close() error {
-	// Close the PAM session. Closing a session can entail anything from
-	// unmounting a home directory and updating auth.log.
-	p.retval = C._pam_close_session(pamHandle, p.pamh, 0)
-	if p.retval != C.PAM_SUCCESS {
-		return p.codeToError(p.retval)
-	}
-
+func (p *PAMContext) Close() error {
 	// Unregister handler index at the package level.
 	unregisterHandler(p.handlerIndex)
 
@@ -444,7 +590,7 @@ func (p *PAM) Close() error {
 //	It should be noted that this memory will never be free()'d by libpam.
 //	Once obtained by a call to pam_getenvlist, it is the responsibility
 //	of the calling application to free() this memory.
-func (p *PAM) Environment() []string {
+func (p *PAMContext) Environment() []string {
 	// Get list of additional environment variables requested from PAM.
 	pam_envlist := C._pam_getenvlist(pamHandle, p.pamh)
 	defer C.free(unsafe.Pointer(pam_envlist))
@@ -468,7 +614,7 @@ func (p *PAM) Environment() []string {
 
 // free will end the PAM transaction (which itself will free memory) and
 // then manually free any other memory allocated.
-func (p *PAM) free() {
+func (p *PAMContext) free() {
 	// Only free memory one time to prevent double free bugs.
 	p.once.Do(func() {
 		// Terminate the PAM transaction.
@@ -486,13 +632,13 @@ func (p *PAM) free() {
 
 		// Release strings that were allocated when opening the PAM context.
 		C.free(unsafe.Pointer(p.service_name))
-		C.free(unsafe.Pointer(p.login))
+		C.free(unsafe.Pointer(p.cLogin))
 	})
 }
 
 // writeStream will write to the output stream (stdout or stderr or
 // equivalent).
-func (p *PAM) writeStream(stream int, s string) (int, error) {
+func (p *PAMContext) writeStream(stream int, s string) (int, error) {
 	writer := p.stdout
 	if stream == syscall.Stderr {
 		writer = p.stderr
@@ -511,7 +657,7 @@ func (p *PAM) writeStream(stream int, s string) (int, error) {
 // readStream will read from the input stream (stdin or equivalent).
 // TODO(russjones): At some point in the future if this becomes an issue, we
 // should consider supporting echo = false.
-func (p *PAM) readStream(echo bool) (string, error) {
+func (p *PAMContext) readStream(echo bool) (string, error) {
 	// Limit the reader in case stdin is from /dev/zero or other infinite
 	// source.
 	reader := bufio.NewReader(io.LimitReader(p.stdin, int64(C.PAM_MAX_RESP_SIZE)-1))
@@ -524,10 +670,7 @@ func (p *PAM) readStream(echo bool) (string, error) {
 }
 
 // codeToError returns a human readable string from the PAM error.
-func (p *PAM) codeToError(returnValue C.int) error {
-	// If an error is being returned, free any memory that was allocated.
-	defer p.free()
-
+func (p *PAMContext) codeToError(returnValue C.int) error {
 	// Error strings are not allocated on the heap, so memory does not need
 	// released.
 	err := C._pam_strerror(pamHandle, p.pamh, returnValue)

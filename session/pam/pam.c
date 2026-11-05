@@ -210,6 +210,18 @@ int _pam_acct_mgmt(void *handle, pam_handle_t *pamh, int flags)
     return (f)(pamh, flags);
 }
 
+int _pam_setcred(void *handle, pam_handle_t *pamh, int flags)
+{
+    int (*f)(pam_handle_t *, int);
+
+    f = dlsym(handle, "pam_setcred");
+    if (f == NULL) {
+        return PAM_ABORT;
+    }
+
+    return (f)(pamh, flags);
+}
+
 int _pam_open_session(void *handle, pam_handle_t *pamh, int flags)
 {
     int (*f)(pam_handle_t *, int);

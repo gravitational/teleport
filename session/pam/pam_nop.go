@@ -20,30 +20,50 @@
 
 package pam
 
-import "github.com/gravitational/teleport/session/pam/pamcfg"
+import (
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+)
 
 var buildHasPAM, systemHasPAM bool
 
-// PAM is used to create a PAM context and initiate PAM transactions to checks
+// PAMContext is used to create a PAM context and initiate PAM transactions to checks
 // the users account and open/close a session.
-type PAM struct {
+type PAMContext struct {
 }
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *pamcfg.PAMConfig) (*PAM, error) {
-	return &PAM{}, nil
+func Open(config *pamcfg.PAMConfig) (*PAMContext, error) {
+	return &PAMContext{}, nil
 }
 
 // Close will close the session, the PAM context, and release any allocated
 // memory.
-func (p *PAM) Close() error {
+func (p *PAMContext) Close() error {
 	return nil
 }
 
 // Environment returns the PAM environment variables associated with a PAM
 // handle.
-func (p *PAM) Environment() []string {
+func (p *PAMContext) Environment() []string {
+	return nil
+}
+
+func (p *PAMContext) Account() error {
+	return nil
+}
+
+func (p *PAMContext) Authenticate() error {
+	return nil
+}
+
+type Session struct{}
+
+func (p *PAMContext) OpenSession() (*Session, error) {
+	return &Session{}, nil
+}
+
+func (s *Session) Close() error {
 	return nil
 }
 

@@ -418,12 +418,7 @@ func GetHostUserCredential(localUser *user.User) (*syscall.Credential, error) {
 
 // MaybeSetCommandCredentialAsUser sets process credentials if the UID/GID of the
 // requesting user are different from the process (Teleport).
-func MaybeSetCommandCredentialAsUser(ctx context.Context, cmd *exec.Cmd, requestUser *user.User, logger *slog.Logger) error {
-	credential, err := GetHostUserCredential(requestUser)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func MaybeSetCommandCredentialAsUser(ctx context.Context, cmd *exec.Cmd, credential *syscall.Credential, logger *slog.Logger) error {
 	if os.Getuid() == int(credential.Uid) && os.Getgid() == int(credential.Gid) {
 		logger.DebugContext(ctx, "Creating process with ambient credentials",
 			"uid", credential.Uid,

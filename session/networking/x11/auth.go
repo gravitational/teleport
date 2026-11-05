@@ -95,12 +95,12 @@ type XAuthCommand struct {
 
 // NewXAuthCommand reate a new "xauth" command. xauthFile can be
 // optionally provided to run the xauth command against a specific xauth file.
-func NewXAuthCommand(ctx context.Context, xauthFile string) *XAuthCommand {
+func NewXAuthCommand(ctx context.Context, xauthBin, xauthFile string) *XAuthCommand {
 	var args []string
 	if xauthFile != "" {
 		args = []string{"-f", xauthFile}
 	}
-	return &XAuthCommand{exec.CommandContext(ctx, "xauth", args...)}
+	return &XAuthCommand{exec.CommandContext(ctx, xauthBin, args...)}
 }
 
 // ReadEntry runs "xauth list" to read the first xauth entry for the given display.
@@ -192,12 +192,6 @@ func (x *XAuthCommand) output() ([]byte, error) {
 	}
 
 	return out, nil
-}
-
-// CheckXAuthPath checks if xauth is runnable in the current environment.
-func CheckXAuthPath() error {
-	_, err := exec.LookPath("xauth")
-	return trace.Wrap(err)
 }
 
 // ReadAndRewriteXAuthPacket reads the initial xauth packet from an XServer request. The xauth packet has 2 parts:

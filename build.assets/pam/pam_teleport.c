@@ -86,3 +86,9 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **ar
     pam_info(pamh, "pam_sm_authenticate OK");
     return PAM_SUCCESS;
 }
+
+int pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const char **argv)
+{
+    pam_info(pamh, "pam_sm_setcred OK");
+    return PAM_SUCCESS;
+}

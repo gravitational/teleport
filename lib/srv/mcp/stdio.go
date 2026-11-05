@@ -242,7 +242,11 @@ func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioSe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := hostutils.MaybeSetCommandCredentialAsUser(ctx, cmd, hostUser, logger); err != nil {
+	cred, err := hostutils.GetHostUserCredential(hostUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := hostutils.MaybeSetCommandCredentialAsUser(ctx, cmd, cred, logger); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
