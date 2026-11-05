@@ -511,3 +511,20 @@ $ tsh bench postgres --rate=32 --duration=2m --db-user=alice --db-name=mydb mydb
 ```
 
 To measure memory usage under concurrent sessions, use your existing database tooling or clients to open simultaneous connections and run representative queries while monitoring the Database Service process.
+
+## Teleport Bouncer Service resource utilization
+
+<Admonition type="warning" title="Note">
+We're actively developing the Teleport Bouncer Service. These numbers are
+preliminary, and we'll update them with formal load test results when the
+service becomes generally available in December 2026.
+</Admonition>
+
+The Teleport Bouncer Service's capacity depends on how many sessions are active
+at the same time, not on how many resources it fronts. To handle more
+concurrent sessions, scale horizontally by adding Bouncer Service instances.
+
+As a starting point, we recommend deploying the Teleport Bouncer Service on two
+instances for high availability, each with 8 vCPUs and 32 GiB of memory. On
+AWS, this corresponds to the m8i.2xlarge instance type. If session
+establishment latency increases, scale horizontally by adding more instances.
