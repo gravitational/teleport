@@ -18,7 +18,6 @@
 
 import path from 'node:path';
 
-import { resolveTeleportColor } from '@gravitational/design-system';
 import {
   app,
   autoUpdater,
@@ -119,10 +118,11 @@ export class WindowsManager {
       y: windowState.y,
       width: windowState.width,
       height: windowState.height,
-      backgroundColor: resolveTeleportColor(
-        'colors.levels.sunken',
-        nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-      ),
+      backgroundColor: nativeTheme.shouldUseDarkColors
+        ? // Hardcode colors.levels.sunken values to avoid importing
+          // the entire design system into the main process.
+          '#0C143D'
+        : '#F1F2F4',
       minWidth: 490,
       minHeight: 300,
       show: false,
