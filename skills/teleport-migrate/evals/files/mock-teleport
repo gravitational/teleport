@@ -71,7 +71,7 @@ if args[:1] == ["reconfigure"]:
 # mock-teleport-oss overrides the edition through MOCK_TELEPORT_EDITION.
 if args[:1] == ["version"]:
     edition = "Teleport " if os.environ.get("MOCK_TELEPORT_EDITION") == "oss" else "Teleport Enterprise "
-    print(f"{edition}v19.0.0-scope-migrate.2 git:v19.0.0-scope-migrate.2-0-g1e547928 go1.27.3")
+    print(f"{edition}v19.0.0-scope-migrate.4 git:v19.0.0-scope-migrate.4-0-g0716bfec9 go1.27.3")
     sys.exit(0)
 
 if args[:1] != ["migrate"]:
@@ -216,7 +216,7 @@ elif cmd in ("apply", "rollback", "retire", "promote"):
                 "apply": None,
                 "rollback": 'uninstall failed (exit 1): the scoped config at "/etc/teleport_migrated.yaml" has no teleport.internal/migrate-source-host-uuid label, so teleport migrate did not install it; remove the scoped install by hand',
                 "retire": f'retire failed (exit 1): no install at teleport_migrated carries target agent {h.get("target_id")}; retire by hand',
-                "promote": "promote failed (exit 1): no scoped install at /opt/teleport/migrated; promote by hand",
+                "promote": "promote failed (exit 1): refusing to promote this host automatically; promote it by hand, or clear what is in the way and promote again no scoped install at /opt/teleport/migrated",
             }[cmd]
         elif cmd == "apply" and res and h["hostname"] == "ssh-app.prod-a":  # a fleet apply replays no failure
             reason = "install failed (exit 1): package download timed out"

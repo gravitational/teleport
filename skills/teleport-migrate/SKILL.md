@@ -82,7 +82,7 @@ The skill uses this build of `teleport` when the workstation's does not fit:
 
 | Pin | Value |
 |-----|-------|
-| Version | `19.0.0-scope-migrate.2` |
+| Version | `19.0.0-scope-migrate.4` |
 | CDN base | `https://cdn.cloud.gravitational.io` |
 
 TODO: this pins the early-access dev build. Replace it with the first release
@@ -167,7 +167,9 @@ it with `rm -rf -- <dir>` when the session's work ends, on success or failure.
    6. Set `$TELEPORT` to `<bin>/teleport` and run the help check from step 2
       on it.
 4. Say in the opening sentences which binary the session uses: the
-   operator's, or the pinned version, its edition, and `<bin>/teleport`.
+   operator's, or the pinned version, its edition, and the full path it was
+   extracted to, `<bin>` resolved (never the `<bin>` or `<state_dir>`
+   placeholder).
 
 Only `teleport` is downloaded. `tsh` and `tctl` stay as the operator has them;
 Gate step 2 checks them.
@@ -218,7 +220,9 @@ These rules hold in every procedure:
 - Rollback, Retire and Promote change hosts too: confirm every run, naming its
   hosts; Retire and Promote start with one `--resource`. Even when the request
   pre-answers, name the host, its scope and UUID and what is about to change
-  before any command that changes something.
+  before any command that changes something. The reply then opens with that
+  statement, as the confirmation taken from the request, and reports the
+  result after it; a reply that only reports what ran does not show it.
 - A pre-answer such as "yes to each step" covers Rollback's by-hand steps once
   the host listing is shown in the reply; stop at the first refusal. It never
   covers Retire.
@@ -256,7 +260,9 @@ tokens Plan names, so it can run again after Plan.
 
 Inventory both clusters and preflight every source host without changing
 either cluster (each host keeps a downloaded `teleport` binary), with
-`references/plan.md`. End with the verdict and the host table.
+`references/plan.md`. End with the verdict and the host table. When the
+reply offers a next step, it offers `apply` on one ready host, named with its
+UUID, never the fleet: the first apply of a session is one `--resource`.
 
 ### Apply
 

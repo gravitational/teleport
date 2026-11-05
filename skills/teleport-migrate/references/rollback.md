@@ -117,12 +117,13 @@ pre-answer such as "yes to each step" covers these confirmations once the
 listing is shown: put what was read on the host in the reply, then proceed
 step by step (Retire's rule is stricter). Even with a pre-answered yes, the
 reply first names the host, its scope and UUID and what is about to change,
-then runs it. Each listed command runs in its own call, never joined to the
+then runs it, and after the last step says the source agent was not touched.
+Each listed command runs in its own call, never joined to the
 next with `&&` or `;`, and issued only after the previous one's result is
 back, never two in parallel or in one batch of tool calls. A refused or
 failing one ends the run: stop, quote the line whole, and in the reply list
 the remaining steps in order for the operator to run, including step 2's
-`tctl rm node <scope>::<target_id>` under the operator's profile (when
+`$TCTL --auth-server <target_proxy> rm node <target_scope>::<target_id>` under the operator's profile (when
 `target_id` is set) and the token removal. For `runner` =
 hand off, the same commands go to the user as a block, minus `$TSH … ssh`,
 for their own transport.
@@ -179,8 +180,10 @@ $TCTL -i <target_identity> --auth-server <target_proxy> scoped tokens rm <scope>
 ```
 
 The target node expires with its heartbeat once the agent is stopped; waiting
-is the default and needs no command. When the user wants it gone now,
-including when the host side is already done and only the node is left, the
+is the default and needs no command. For a host still in `migrated` or
+`failed`, `rollback --resource` removes the node and the token as well, and
+returns the host to `unstarted`, so run Rollback instead of this step. When
+the user wants the node gone now and the command refuses the host, the
 deletion runs under the operator's own `tsh` profile, with no `-i`. First run
 `$TSH status` and check that a profile is logged in to `<target_proxy>`:
 

@@ -28,7 +28,7 @@ contains every item:
 3. What goes: `teleport.service`, the config it starts with (the host's
    `preflight.config_path`), the data dir that config names
    (`preflight.data_dir`; the source identity goes with it), and the source
-   node.
+   node. The scoped agent stays as the host's only agent.
 4. Config management (Ansible, Puppet, Chef) must already manage the scoped
    agent's files, `/etc/teleport_migrated.yaml` and `teleport_migrated.service`,
    and no longer the source's; a run that still writes `/etc/teleport.yaml` or

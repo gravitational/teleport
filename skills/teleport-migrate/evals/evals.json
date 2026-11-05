@@ -409,9 +409,9 @@
         "Before the retire ran, the reply stated what retire removes on ssh.prod-a and that it cannot be undone, and took the prompt's explicit yes (naming ssh.prod-a and acknowledging it cannot be undone) as the consent.",
         "Exactly one mock-teleport migrate retire was executed, carrying --confirm and --resource 'node/ssh.prod-a' (or 'node/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'); none ran without --resource.",
         "Exactly one mock-teleport migrate promote was executed, after the retire, carrying --resource 'node/ssh.prod-a' (or its node/<uuid>); none ran without --resource.",
-        "Before the promote, the reply names the host, its scope and UUID, says sessions through the agent are cut for a few seconds and that a failed move reverts itself, and names journalctl -u teleport-update-promote as the record on the host.",
-        "The reply says the promote must not be interrupted (an early stop reverts the move).",
-        "The reply reports '1 retired, 0 failed' and '1 promoted, 0 failed', and that ssh.prod-a now runs as teleport.service from /etc/teleport.yaml with its host UUID unchanged and is in state promoted.",
+        "Before the promote, the reply names the host, its scope and UUID, and says that sessions through the scoped agent end and that the host comes back as a new node with a new host UUID in the same scope.",
+        "Before the promote, the reply says that a promoted agent that does not join is stopped again, with the scoped agent still serving.",
+        "The reply reports '1 retired, 0 failed' and '1 promoted, 0 failed', and that ssh.prod-a now runs as teleport.service from /etc/teleport.yaml and is in state promoted.",
         "No rollback, mock-tsh ssh or mock-tctl rm was executed."
       ]
     },
@@ -458,12 +458,12 @@
       ],
       "assertions": [
         "mock-curl fetched https://source.example.com:443/webapi/ping, and its edition and fips were read with jq or python3, before any CDN request.",
-        "mock-curl fetched https://cdn.cloud.gravitational.io/teleport-ent-v19.0.0-scope-migrate.2-darwin-universal-bin.tar.gz and the same name with .sha256, and no other tarball.",
+        "mock-curl fetched https://cdn.cloud.gravitational.io/teleport-ent-v19.0.0-scope-migrate.4-darwin-universal-bin.tar.gz and the same name with .sha256, and no other tarball.",
         "A shasum -a 256 -c or sha256sum -c check ran on the downloaded tarball before any tar command.",
-        "tar extracted only teleport-ent/teleport, into /tmp/teleport-migrate-eval-fetch/bin/19.0.0-scope-migrate.2/ (the config's state_dir).",
+        "tar extracted only teleport-ent/teleport, into /tmp/teleport-migrate-eval-fetch/bin/19.0.0-scope-migrate.4/ (the config's state_dir).",
         "The downloaded binary's migrate --help ran, and migrate plan ran with the downloaded binary, never with mock-teleport-oss.",
         "No tsh or tctl was downloaded or replaced; the gate's tctl status and tctl version still ran with evals/files/mock-tctl.",
-        "The reply's opening says the skill downloaded teleport 19.0.0-scope-migrate.2, Enterprise edition, and names the path it put it in."
+        "The reply's opening says the skill downloaded teleport 19.0.0-scope-migrate.4, Enterprise edition, and names the path it put it in."
       ]
     },
     {
@@ -522,7 +522,7 @@
         "evals/files/ping-mismatch.json"
       ],
       "assertions": [
-        "mock-curl fetched https://cdn.cloud.gravitational.io/teleport-v19.0.0-scope-migrate.2-darwin-universal-bin.tar.gz and its .sha256 (the OSS build, since the cluster reports oss and mock-teleport is Enterprise).",
+        "mock-curl fetched https://cdn.cloud.gravitational.io/teleport-v19.0.0-scope-migrate.4-darwin-universal-bin.tar.gz and its .sha256 (the OSS build, since the cluster reports oss and mock-teleport is Enterprise).",
         "A shasum -a 256 -c or sha256sum -c check ran, and it failed.",
         "No tar ran and no migrate plan ran.",
         "The reply quotes the checksum failure whole and says nothing was extracted.",

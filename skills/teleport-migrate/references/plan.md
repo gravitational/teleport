@@ -100,7 +100,8 @@ Match on the prefix. Reasons are printed by the tool and copied here from
 `lib/web/scripts/oneoff/oneoff.sh`, `curl` and `tar`. `<…>` marks a value the tool fills in. A reason from
 the preflight itself (the host's own checks, the fetch, `ssh access denied`
 and `unreachable`; not the timeout) ends with
-`; run plan --check to preflight it again`, which the table leaves out. `Next` is one
+`; run plan --check to preflight it again`, which this table leaves out; the
+reply's host table quotes every reason whole, that suffix included. `Next` is one
 of: `apply`; `plan --check` (preflight again, with `--resource 'node/<uuid>'`
 for one host); `Hand-migrate`; `Setup`; `fix mappings`; `wait`; `report`.
 
@@ -117,7 +118,7 @@ for one host); `Hand-migrate`; `Setup`; `fix mappings`; `wait`; `report`.
 | `join method bound_keypair uses a static key (static_key_path); pre-register a key in a scoped token in <scope>, and join the host by hand` | static bound keypair | Hand-migrate |
 | `join method <m> is not supported by the tool` | unknown method | Hand-migrate |
 | `join_params token_name "<x>" is not a valid scope-qualified name` / `join method <m> has no token name in join_params` | the host's config is malformed for a scoped join | fix `join_params` on the host, `plan --check` |
-| `no systemd on the host` | preflight | Hand-migrate (no-systemd variant) |
+| `no systemd on the host` | the tool installs the scoped agent with `teleport-update` as the systemd unit `teleport_migrated.service`, so a host without systemd cannot take it; the source agent's own unit is not involved | Hand-migrate (no-systemd variant) |
 | `teleport does not run under teleport.service; migrate this host by hand` | `teleport.service` exists but has no `ExecStart` | Hand-migrate |
 | `systemctl show teleport.service failed: <systemctl's error>; migrate this host by hand` | systemctl could not ask systemd about the unit | Hand-migrate |
 | `systemd did not load teleport.service (LoadState=<state>); migrate this host by hand` | `not-found`: the agent runs under another unit name or none, as on an agentless OpenSSH server; another state: systemd could not load the unit | Hand-migrate |

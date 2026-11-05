@@ -38,7 +38,7 @@ PINGS = {
 }
 CDN = "https://cdn.cloud.gravitational.io/"
 TARBALL = re.compile(
-    r"^(teleport|teleport-ent)-v19\.0\.0-scope-migrate\.2-"
+    r"^(teleport|teleport-ent)-v19\.0\.0-scope-migrate\.4-"
     r"(darwin-universal|linux-amd64|linux-arm64|linux-amd64-fips|linux-arm64-fips)"
     r"-bin\.tar\.gz(\.sha256)?$"
 )
@@ -78,7 +78,7 @@ def tarball(flavor):
     with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tar:
         for name, data, mode in (
             (f"{flavor}/teleport", wrapper, 0o755),
-            (f"{flavor}/VERSION", b"v19.0.0-scope-migrate.2\n", 0o644),
+            (f"{flavor}/VERSION", b"v19.0.0-scope-migrate.4\n", 0o644),
         ):
             info = tarfile.TarInfo(name)
             info.size, info.mode, info.mtime = len(data), mode, 0
