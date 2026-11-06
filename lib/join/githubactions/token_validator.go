@@ -21,13 +21,15 @@ package githubactions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	josejwt "github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/oidc"
 )
 
@@ -92,34 +94,43 @@ func ValidateTokenWithJWKS(
 	jwksData []byte,
 	token string,
 ) (*IDTokenClaims, error) {
-	parsed, err := josejwt.ParseSigned(token)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing jwt")
-	}
-
 	jwks := jose.JSONWebKeySet{}
 	if err := json.Unmarshal(jwksData, &jwks); err != nil {
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	stdClaims := josejwt.Claims{}
-	if err := parsed.Claims(jwks, &stdClaims); err != nil {
+	algs, filteredKeys := libjwt.FilterAllowedAlgorithmsFromJWKS(jwks)
+	if len(algs) == 0 {
+		return nil, trace.BadParameter("static_jwks contains no keys with a usable signature algorithm")
+	}
+
+	parsed, err := jwt.ParseSigned(token, algs)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing jwt")
+	}
+
+	stdClaims := jwt.Claims{}
+	if err := parsed.Claims(filteredKeys, &stdClaims); err != nil {
+		if errors.Is(err, jose.ErrJWKSKidNotFound) {
+			log.WarnContext(context.TODO(),
+				"unable to match incoming jwt to a key in the provided jwks: the token's `kid` is either absent or does not match any provided key",
+				"error", err,
+			)
+		}
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
 
 	leeway := time.Second * 10
-	err = stdClaims.ValidateWithLeeway(josejwt.Expected{
-		Audience: []string{
-			audience,
-		},
-		Time: now,
+	err = stdClaims.ValidateWithLeeway(jwt.Expected{
+		AnyAudience: jwt.Audience{audience},
+		Time:        now,
 	}, leeway)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating standard claims")
 	}
 
 	claims := IDTokenClaims{}
-	if err := parsed.Claims(jwks, &claims); err != nil {
+	if err := parsed.Claims(filteredKeys, &claims); err != nil {
 		return nil, trace.Wrap(err, "validating custom claims")
 	}
 
