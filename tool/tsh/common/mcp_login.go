@@ -46,6 +46,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	usercredpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client"
@@ -90,6 +91,10 @@ type mcpOAuthLoginConfig struct {
 	Automatic bool
 	// Stdin lets the user paste the redirect URL back when running headless.
 	Stdin prompt.Reader
+	// ExchangeCode is a func rather than a TeleportClient so the login flow doesn't
+	// depend on a client it only needs for this one call. If it's nil, tsh does the
+	// exchange and stores tokens locally.
+	ExchangeCode func(context.Context, *usercredpb.ExchangeMCPOAuthCodeRequest) error
 }
 
 type mcpLoginCommand struct {
@@ -164,6 +169,21 @@ func (c *mcpLoginCommand) run() error {
 		Stdout:          c.cf.Stdout(),
 		Stderr:          c.cf.Stderr(),
 		Stdin:           prompt.Stdin(),
+		ExchangeCode: func(ctx context.Context, req *usercredpb.ExchangeMCPOAuthCodeRequest) error {
+			// the Proxy only reads stored tokens from the root cluster's Auth
+			if rootCluster, err := tc.RootClusterName(ctx); err != nil {
+				return trace.Wrap(err)
+			} else if tc.SiteName != "" && tc.SiteName != rootCluster {
+				return trace.NotImplemented("MCP OAuth tokens for leaf cluster apps are stored locally")
+			}
+			clusterClient, err := tc.ConnectToCluster(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer clusterClient.Close()
+			_, err = clusterClient.AuthClient.UserExternalCredentialClient().ExchangeMCPOAuthCode(ctx, req)
+			return trace.Wrap(err)
+		},
 	}))
 }
 
@@ -180,6 +200,7 @@ func newMCPOAuthReauthorizeFunc(dialer *client.MCPServerDialer, appName, credent
 			return trace.Wrap(err)
 		}
 		fmt.Fprintf(output, "Stored OAuth credentials for MCP server %q have expired; opening a browser to log in again.\n", appName)
+		// this only runs for tokens stored on this machine, so it keeps them here
 		return trace.Wrap(runMCPOAuthLogin(ctx, mcpOAuthLoginConfig{
 			Dialer:            dialer,
 			App:               app,
@@ -402,6 +423,31 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 	if err := checkMCPOAuthCallbackIssuer(query, metadata.Issuer); err != nil {
 		return trace.Wrap(err)
 	}
+	if cfg.ExchangeCode != nil {
+		parsedAuthURL, err := url.Parse(authURL)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		stored, err := storeMCPOAuthTokensInCluster(ctx, cfg, usercredpb.ExchangeMCPOAuthCodeRequest_builder{
+			AppName:       cfg.App.GetName(),
+			AppScope:      cfg.App.GetScope(),
+			AppUri:        resourceURI,
+			ClientId:      oauthHandler.GetClientID(),
+			ClientSecret:  oauthHandler.GetClientSecret(),
+			TokenEndpoint: metadata.TokenEndpoint,
+			RedirectUri:   redirectURI,
+			Code:          query.Get("code"),
+			CodeVerifier:  codeVerifier,
+			Resource:      parsedAuthURL.Query().Get("resource"),
+		}.Build())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if stored {
+			fmt.Fprintln(cfg.Stdout, "Authorization complete")
+			return nil
+		}
+	}
 
 	if err := oauthHandler.ProcessAuthorizationResponse(ctx, query.Get("code"), query.Get("state"), codeVerifier); err != nil {
 		return trace.Wrap(err)
@@ -430,6 +476,27 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 		fmt.Fprintf(cfg.Stdout, "MCP server %q is ready — restart your MCP clients if already running.\n", cfg.App.GetName())
 	}
 	return nil
+}
+
+// storeMCPOAuthTokensInCluster returns false if the cluster is too old to store the
+// tokens, and the caller can still use the code to store them locally. The caller
+// holds the credentials file lock.
+// TODO(avatus): DELETE IN v20.0.0, the fallback to storing tokens locally
+func storeMCPOAuthTokensInCluster(ctx context.Context, cfg mcpOAuthLoginConfig, req *usercredpb.ExchangeMCPOAuthCodeRequest) (bool, error) {
+	if err := cfg.ExchangeCode(ctx, req); trace.IsNotImplemented(err) {
+		fmt.Fprintln(cfg.Stderr, "This cluster can't store MCP OAuth tokens, storing them on this machine instead.")
+		return false, nil
+	} else if err != nil {
+		return false, trace.Wrap(err)
+	}
+	// otherwise tsh would keep sending the local token instead of the one in Auth
+	err := withMCPOAuthMutationLock(ctx, cfg.LockPath, func() error {
+		if err := os.Remove(cfg.CredentialsPath); err != nil && !os.IsNotExist(err) {
+			return trace.ConvertSystemError(err)
+		}
+		return nil
+	})
+	return true, trace.Wrap(err)
 }
 
 // mcpOAuthCallbackHandler keeps the first authorization response that carries

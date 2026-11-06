@@ -553,6 +553,9 @@ const (
 	// external services.
 	KindUserExternalCredentials = "user_external_credentials"
 
+	// KindMCPOAuthCredential is a user's OAuth credential for an MCP server.
+	KindMCPOAuthCredential = "mcp_oauth_credential"
+
 	// KindHealthCheckConfig is the resource for health check configuration.
 	KindHealthCheckConfig = "health_check_config"
 
