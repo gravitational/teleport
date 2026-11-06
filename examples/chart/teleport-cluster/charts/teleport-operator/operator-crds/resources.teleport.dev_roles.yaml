@@ -154,6 +154,26 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  delegation:
+                    description: Delegation specifies how users are allowed to delegate
+                      their privileges to other identities (e.g. Beams or AI Agents).
+                    nullable: true
+                    properties:
+                      roles:
+                        description: Roles is a list of roles that users are permitted
+                          to delegate to another identity (e.g. bot or beam), if they
+                          are held by the delegator.  It's important to note that
+                          allowing a user to delegate a subset of their roles is,
+                          in effect, permitting them to "drop" their other roles and
+                          any permission-limiting effects they might have. To mitigate
+                          this, we do not allow users to drop roles containing any
+                          deny conditions, but it's worth considering options with
+                          more subtle effects (e.g. `options.client_idle_timeout`).
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   desktop_groups:
                     description: DesktopGroups is a list of groups for created desktop
                       users to be added to
@@ -819,6 +839,26 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  delegation:
+                    description: Delegation specifies how users are allowed to delegate
+                      their privileges to other identities (e.g. Beams or AI Agents).
+                    nullable: true
+                    properties:
+                      roles:
+                        description: Roles is a list of roles that users are permitted
+                          to delegate to another identity (e.g. bot or beam), if they
+                          are held by the delegator.  It's important to note that
+                          allowing a user to delegate a subset of their roles is,
+                          in effect, permitting them to "drop" their other roles and
+                          any permission-limiting effects they might have. To mitigate
+                          this, we do not allow users to drop roles containing any
+                          deny conditions, but it's worth considering options with
+                          more subtle effects (e.g. `options.client_idle_timeout`).
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   desktop_groups:
                     description: DesktopGroups is a list of groups for created desktop
                       users to be added to
@@ -1786,6 +1826,26 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  delegation:
+                    description: Delegation specifies how users are allowed to delegate
+                      their privileges to other identities (e.g. Beams or AI Agents).
+                    nullable: true
+                    properties:
+                      roles:
+                        description: Roles is a list of roles that users are permitted
+                          to delegate to another identity (e.g. bot or beam), if they
+                          are held by the delegator.  It's important to note that
+                          allowing a user to delegate a subset of their roles is,
+                          in effect, permitting them to "drop" their other roles and
+                          any permission-limiting effects they might have. To mitigate
+                          this, we do not allow users to drop roles containing any
+                          deny conditions, but it's worth considering options with
+                          more subtle effects (e.g. `options.client_idle_timeout`).
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   desktop_groups:
                     description: DesktopGroups is a list of groups for created desktop
                       users to be added to
@@ -2451,6 +2511,26 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  delegation:
+                    description: Delegation specifies how users are allowed to delegate
+                      their privileges to other identities (e.g. Beams or AI Agents).
+                    nullable: true
+                    properties:
+                      roles:
+                        description: Roles is a list of roles that users are permitted
+                          to delegate to another identity (e.g. bot or beam), if they
+                          are held by the delegator.  It's important to note that
+                          allowing a user to delegate a subset of their roles is,
+                          in effect, permitting them to "drop" their other roles and
+                          any permission-limiting effects they might have. To mitigate
+                          this, we do not allow users to drop roles containing any
+                          deny conditions, but it's worth considering options with
+                          more subtle effects (e.g. `options.client_idle_timeout`).
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   desktop_groups:
                     description: DesktopGroups is a list of groups for created desktop
                       users to be added to

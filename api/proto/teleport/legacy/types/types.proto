@@ -4443,6 +4443,10 @@ message RoleConditions {
   // BeamLabelsExpression is a predicate expression used to allow/deny access
   // to beams.
   string BeamLabelsExpression = 51 [(gogoproto.jsontag) = "beam_labels_expression,omitempty"];
+
+  // Delegation specifies how users are allowed to delegate their privileges to
+  // other identities (e.g. Beams or AI Agents).
+  DelegationConditions Delegation = 54 [(gogoproto.jsontag) = "delegation,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -4771,6 +4775,20 @@ message ImpersonateConditions {
   repeated string Roles = 2 [(gogoproto.jsontag) = "roles,omitempty"];
   // Where specifies optional advanced matcher
   string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
+}
+
+// DelegationConditions specifies how users are allowed to delegate their
+// privileges to other identities (e.g. Beams and AI Agents).
+message DelegationConditions {
+  // Roles is a list of roles that users are permitted to delegate to another
+  // identity (e.g. bot or beam), if they are held by the delegator.
+  //
+  // It's important to note that allowing a user to delegate a subset of their
+  // roles is, in effect, permitting them to "drop" their other roles and any
+  // permission-limiting effects they might have. To mitigate this, we do not
+  // allow users to drop roles containing any deny conditions, but it's worth
+  // considering options with more subtle effects (e.g. `options.client_idle_timeout`).
+  repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
 }
 
 // BoolValue is a wrapper around bool, used in cases
