@@ -293,8 +293,11 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				sshStream.errorC <- trace.Wrap(err)
-				agentStream.errorC <- trace.Wrap(err)
+				// Close the receive channels only after all preceding frames have
+				// been queued. Receivers will drain those frames before observing
+				// the terminal stream error.
+				sshStream.closeRecv(err)
+				agentStream.closeRecv(err)
 				return
 			}
 
@@ -338,7 +341,7 @@ func (a addr) String() string {
 // channel that is fed by the multiplexer.
 type sshStream struct {
 	incomingC chan []byte
-	errorC    chan error
+	recvErr   error
 	requestFn func(payload []byte) *transportv1pb.ProxySSHRequest
 	closedC   chan struct{}
 	wLock     *sync.Mutex
@@ -352,7 +355,6 @@ func newSSHStreams(stream transportv1pb.TransportService_ProxySSHClient, cancel 
 
 	ssh = &sshStream{
 		incomingC: make(chan []byte, 10),
-		errorC:    make(chan error, 1),
 		stream:    stream,
 		requestFn: func(payload []byte) *transportv1pb.ProxySSHRequest {
 			return &transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
@@ -364,7 +366,6 @@ func newSSHStreams(stream transportv1pb.TransportService_ProxySSHClient, cancel 
 
 	agent = &sshStream{
 		incomingC: make(chan []byte, 10),
-		errorC:    make(chan error, 1),
 		stream:    stream,
 		requestFn: func(payload []byte) *transportv1pb.ProxySSHRequest {
 			return &transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
@@ -377,13 +378,17 @@ func newSSHStreams(stream transportv1pb.TransportService_ProxySSHClient, cancel 
 	return ssh, agent
 }
 
+func (s *sshStream) closeRecv(err error) {
+	s.recvErr = trace.Wrap(err)
+	close(s.incomingC)
+}
+
 func (s *sshStream) Recv() ([]byte, error) {
-	select {
-	case err := <-s.errorC:
-		return nil, trace.Wrap(err)
-	case frame := <-s.incomingC:
-		return frame, nil
+	frame, ok := <-s.incomingC
+	if !ok {
+		return nil, trace.Wrap(s.recvErr)
 	}
+	return frame, nil
 }
 
 func (s *sshStream) Send(frame []byte) error {
