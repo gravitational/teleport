@@ -4,7 +4,7 @@
 
 ** Not yet released **
 
-### Breaking changes
+### Breaking changes and deprecations
 
 #### Kubernetes proxy subresource access
 
@@ -103,6 +103,16 @@ After migrating, run `tctl integrations test <name>` to verify the integration.
 
 To temporarily continue using an S3 issuer in v19, start all Auth Service instances with `TELEPORT_UNSTABLE_LEGACY_S3_AWSOIDC_ISSUER=true`.
 Support for S3 issuers and this environment variable will be removed in v20.
+
+### Deprecation notice for Access Monitoring
+
+The Access Monitoring feature in Teleport Identity Governance is
+deprecated as of Teleport 19. Its functionality is now available
+in Teleport Identity Security through Identity Activity Center and
+the new Identity Security CLI.
+
+The Access Monitoring UI will be removed in a future 19.x release,
+and the `tctl` commands and backend will be removed in Teleport 20.
 
 ## 18.5.0 (12/04/25)
 
