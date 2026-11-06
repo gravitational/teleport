@@ -38,6 +38,8 @@ LIBBPF_VER := 1.2.2
 
 FOUND_LIBBPF :=
 
+# Only probe for libbpf on targets that support BPF.
+ifneq (,$(filter $(OS)/$(ARCH),linux/amd64 linux/arm64))
 ifneq (,$(wildcard /usr/libbpf-$(LIBBPF_VER)))
 FOUND_LIBBPF := true
 LIBBPF_INCLUDES := -I/usr/libbpf-$(LIBBPF_VER)/include
@@ -49,6 +51,7 @@ else ifneq (,$(shell $(PKGCONF) --exists 'libbpf = $(LIBBPF_VER)' && echo true))
 FOUND_LIBBPF := true
 LIBBPF_INCLUDES := $(shell $(PKGCONF) --cflags libbpf)
 LIBBPF_LIBS := $(shell $(PKGCONF) --libs --static libbpf)
+endif
 endif
 
 # Is this build targeting the same OS & architecture it is being compiled on, or
