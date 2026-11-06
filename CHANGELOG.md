@@ -1,5 +1,28 @@
 # Changelog
 
+## 17.7.34 (11/6/26)
+
+Release 17.7.33 was skipped due to a build pipeline issue.
+
+Teleport 17.7.34 contains the following bug fixes and improvements:
+
+* Updated Teleport's brotli dependency, resolving GHSA-c9gr-gmg4-2vqv.
+* Fixed a crash in the Auth Service when a certificate authority stored in the backend could not be parsed.
+* Fixed DynamoDB-backed session searches to keep RBAC OR expressions grouped and safely evaluate non-scalar session fields.
+* Fixed an issue where Windows authentication would fail with Teleport-managed non-AD users.
+* Fixed a bug in the compaction of audit logs emitted by Windows Desktop sessions that could cause compaction to hang indefinitely and/or cause unbounded CPU usage.
+* Fixed potential file corruption that can occur when copying files from the target desktop to the local machine from a Desktop Access session's shared directory.
+* Fixed static SPIFFE federation configurations being unnecessarily re-synced.
+* `tbot application proxy` now returns 3xx responses to the client, instead of following them.
+* Fixed Bot kind not being reported accurately in heartbeats.
+* Fixed SSH sessions not being logged in logind on modern Linux systems.
+* Fix potential deadlock/segfault when using libnss-extrausers on Linux agents with user creation enabled.
+* Fixed `tsh scp` failing to spawn a SFTP server if the user home directory was not found. Non-existent files will still fail but absolute paths will be handled gracefully.
+* Updated docker distroless images from debian12 to debian13.
+* Updated CA certificate bundle in every Teleport container image.
+* Fix potential goroutine leak in Kubernetes port forward proxy leading to Proxy and potentially Kube Agent OOM.
+* Fixed an issue where the Jira access plugin created but did not update issues if Jira took more than 5s to answer.
+
 ## 17.7.32 (10/20/26)
 
 This is a private security release. The changelog will be publicly announced in a later version.
