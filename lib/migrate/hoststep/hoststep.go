@@ -56,6 +56,10 @@ const Uninstall = "uninstall"
 // the scoped agent can stand alone.
 const Retire = "retire"
 
+// Promote is the host step that installs a second agent on the default paths
+// beside the scoped agent.
+const Promote = "promote"
+
 // scopedInstallSuffix is the install suffix of the scoped agent.
 const scopedInstallSuffix = "migrated"
 
@@ -68,6 +72,13 @@ const scopedConfigPath = "/etc/teleport_" + scopedInstallSuffix + ".yaml"
 // scopedPIDFileName is the name of the scoped agent's PID file, in the
 // directory of the source agent's.
 const scopedPIDFileName = "teleport_" + scopedInstallSuffix + ".pid"
+
+// promotedPIDFileName is the name of the default agent's PID file, which
+// promote gives the promoted agent in place of scopedPIDFileName.
+const promotedPIDFileName = "teleport.pid"
+
+// scopedUpdaterPath is the scoped install's own teleport-update.
+const scopedUpdaterPath = scopedInstallDir + "/bin/teleport-update"
 
 // scopedInstallDir is the scoped agent's install directory.
 const scopedInstallDir = updaterDir + "/" + scopedInstallSuffix
@@ -94,7 +105,11 @@ const scopedUpdaterService = "teleport-update_" + scopedInstallSuffix + ".servic
 // <step>`, reading the step's JSON request from in and writing its JSON result
 // to out.
 func RunHostStep(ctx context.Context, step string, in io.Reader, out io.Writer) error {
-	h := hostEnv{}
+	exe, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	h := hostEnv{exe: exe}
 	switch step {
 	case Preflight:
 		return runStep(ctx, in, out, h.preflight)
@@ -104,6 +119,8 @@ func RunHostStep(ctx context.Context, step string, in io.Reader, out io.Writer) 
 		return runStep(ctx, in, out, h.uninstall)
 	case Retire:
 		return runStep(ctx, in, out, h.retire)
+	case Promote:
+		return runStep(ctx, in, out, h.promote)
 	}
 	return trace.BadParameter("unknown host step %q", step)
 }
@@ -121,11 +138,16 @@ func runStep[Request, Response any](ctx context.Context, in io.Reader, out io.Wr
 	return trace.Wrap(json.NewEncoder(out).Encode(response))
 }
 
-// hostEnv is the host a step runs on. rootPath is prefixed to every file path
-// a step uses, but not to the commands it runs, which are found on PATH; it is
-// "" on a real host.
+// hostEnv is the host a step runs on.
 type hostEnv struct {
+	// rootPath is prefixed to every file path a step uses, but not to the
+	// commands it runs, which are found on PATH. It is "" on a real host and a
+	// temporary directory in tests; it is not the root of any installation.
 	rootPath string
+	// exe is the teleport binary running the step. On a real host that is the
+	// copy the tool downloaded into /var/cache/teleport-migrate/<version>/, not
+	// the binary of the source, scoped or promoted installation.
+	exe string
 }
 
 // path returns p under the host's root.
@@ -292,12 +314,14 @@ func IsMintedJoinMethod(method string) bool {
 	return method == string(types.JoinMethodToken) || method == string(types.JoinMethodBoundKeypair)
 }
 
-// checkScopedConfigOwner refuses unless the scoped config on the host targets
-// wantProxy and labels the scoped agent with wantSourceHost. remedy ends the
-// refusal of another migration's config, saying what to do instead; a config
-// without the tool's label can only be removed by hand.
-func (h hostEnv) checkScopedConfigOwner(wantProxy, wantSourceHost, remedy string) error {
-	existing, err := h.readAgentConfig(scopedConfigPath)
+// checkConfigOwner refuses unless the config at configPath, which the
+// install named kind (scoped or promoted) runs from, targets wantProxy and
+// labels its agent with wantSourceHost. remedy, when set, ends the refusal of
+// another migration's config, saying what to do instead. With byHand, the label a
+// by-hand migration's teleport reconfigure sets also counts; without it, a
+// config without the tool's label can only be removed by hand.
+func (h hostEnv) checkConfigOwner(kind, configPath, wantProxy, wantSourceHost, remedy string, byHand bool) error {
+	existing, err := h.readAgentConfig(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -312,11 +336,24 @@ func (h hostEnv) checkScopedConfigOwner(wantProxy, wantSourceHost, remedy string
 		proxy = cmp.Or(existing.AuthServer, strings.Join(existing.AuthServers, ","))
 	}
 	sourceHost := existing.SSH.Labels[SourceHostLabel]
+	if sourceHost == "" && byHand {
+		sourceHost = existing.SSH.Labels[types.ReconfigureSourceUUIDLabel]
+	}
 	if sourceHost == "" {
-		return trace.CompareFailed("the scoped config at %q has no %s label, so teleport migrate did not install it; remove the scoped install by hand", scopedConfigPath, SourceHostLabel)
+		labels := SourceHostLabel
+		if byHand {
+			labels = SourceHostLabel + " or " + types.ReconfigureSourceUUIDLabel
+		}
+		if remedy == "" {
+			return trace.CompareFailed("the %s config at %q has no %s label, so this migration did not install it", kind, configPath, labels)
+		}
+		return trace.CompareFailed("the %s config at %q has no %s label, so teleport migrate did not install it; remove the %s install by hand", kind, configPath, labels, kind)
 	}
 	if proxy != wantProxy || sourceHost != wantSourceHost {
-		return trace.CompareFailed("the scoped config at %q belongs to another migration (proxy %q, source host %q); %s", scopedConfigPath, proxy, sourceHost, remedy)
+		if remedy == "" {
+			return trace.CompareFailed("the %s config at %q belongs to another migration (proxy %q, source host %q)", kind, configPath, proxy, sourceHost)
+		}
+		return trace.CompareFailed("the %s config at %q belongs to another migration (proxy %q, source host %q); %s", kind, configPath, proxy, sourceHost, remedy)
 	}
 	return nil
 }

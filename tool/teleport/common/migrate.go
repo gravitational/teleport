@@ -107,6 +107,14 @@ func onMigrateRetire(ctx context.Context, f *migrateFlags) error {
 	})
 }
 
+// onMigratePromote runs `teleport migrate promote`. Hosts that failed are
+// listed in the report and make the command exit non-zero.
+func onMigratePromote(ctx context.Context, f *migrateFlags) error {
+	return withMigrator(ctx, f, func(ctx context.Context, m *migrate.Migrator) error {
+		return reportOutcome(m.Promote(ctx, migrate.PromoteOptions{Resource: f.resource}))
+	})
+}
+
 // reportOutcome prints a non-nil report, including the partial one that comes
 // back with an error, and returns err, or an error counting the failed hosts
 // when err is nil and the report lists any.

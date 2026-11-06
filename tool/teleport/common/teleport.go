@@ -505,6 +505,8 @@ Examples:
 	migrateRetireCmd := migrateCmd.Command("retire", "Remove the source agent from migrated hosts and from the source cluster.").Hidden()
 	migrateRetireCmd.Flag("confirm", "Confirm that retire removes the source agent and cannot be undone.").BoolVar(&migrateFlags.confirm)
 	migrateRetireCmd.Flag("resource", "Retire only this host: node/<uuid> or node/<hostname>.").StringVar(&migrateFlags.resource)
+	migratePromoteCmd := migrateCmd.Command("promote", "Replace the scoped agent on retired hosts with a new agent on teleport.service, /etc/teleport.yaml and the default data directory.").Hidden()
+	migratePromoteCmd.Flag("resource", "Promote only this host: node/<uuid> or node/<hostname>.").StringVar(&migrateFlags.resource)
 	migrateHostCmd := migrateCmd.Command("host", "Run one migration step on this host, reading the request on stdin.").Hidden()
 	migrateHostCmd.Arg("step", "The step to run.").Required().StringVar(&migrateFlags.hostStep)
 
@@ -851,6 +853,8 @@ Examples:
 		err = onMigrateRollback(ctx, &migrateFlags)
 	case migrateRetireCmd.FullCommand():
 		err = onMigrateRetire(ctx, &migrateFlags)
+	case migratePromoteCmd.FullCommand():
+		err = onMigratePromote(ctx, &migrateFlags)
 	case migrateHostCmd.FullCommand():
 		err = onMigrateHost(ctx, &migrateFlags)
 	case dumpNodeConfigure.FullCommand():

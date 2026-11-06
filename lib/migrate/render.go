@@ -153,12 +153,12 @@ func renderVerdict(w io.Writer, summary *Summary) error {
 		_, err := fmt.Fprintf(w, "verdict: %s\n", strings.Join(parts, ", "))
 		return trace.Wrap(err)
 	}
-	migrated, retired := summary.ByState[stateMigrated], summary.ByState[stateRetired]
-	if retired == 0 {
+	migrated, retired, promoted := summary.ByState[stateMigrated], summary.ByState[stateRetired], summary.ByState[statePromoted]
+	if retired == 0 && promoted == 0 {
 		_, err := fmt.Fprintf(w, "verdict: all %d hosts migrated\n", total)
 		return trace.Wrap(err)
 	}
-	_, err := fmt.Fprintf(w, "verdict: all %d hosts resolved (%d migrated, %d retired)\n", total, migrated, retired)
+	_, err := fmt.Fprintf(w, "verdict: all %d hosts resolved (%d migrated, %d retired, %d promoted)\n", total, migrated, retired, promoted)
 	return trace.Wrap(err)
 }
 

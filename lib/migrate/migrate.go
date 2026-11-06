@@ -239,8 +239,9 @@ func (m *Migrator) hostsInStates(ref, need string, states ...string) ([]*host, e
 func (m *Migrator) act(ctx context.Context, verb string, hosts []*host, timeout time.Duration, fn func(context.Context, *host) (*outcome, error)) (*Report, error) {
 	report := &Report{Verb: verb}
 	for result := range forEachHost(ctx, hosts, timeout, fn) {
-		// After the caller's cancel only successes are kept.
-		if result.err != nil && ctx.Err() != nil {
+		// After the caller's cancel only results that carry an outcome are
+		// kept, such as a promote whose agent had already joined.
+		if result.err != nil && ctx.Err() != nil && result.value == nil {
 			continue
 		}
 		h := result.host

@@ -109,7 +109,7 @@ func (r applyRun) migrateHost(ctx context.Context, h *host) (string, error) {
 		return "", trace.BadParameter("host has not passed preflight; run plan --check --resource node/%s", h.ID)
 	}
 	m := r.m
-	credential, err := m.issueJoinCredential(ctx, h)
+	credential, err := m.issueJoinCredential(ctx, h, mintedTokenName(h.TargetScope, h.ID))
 	if err != nil {
 		return "", trace.Wrap(err, "issuing the join credential")
 	}
@@ -140,13 +140,13 @@ type joinCredential struct {
 	registrationSecret string
 }
 
-// issueJoinCredential returns the credential h's scoped agent joins with. For
-// the token and bound_keypair methods it mints a token for h and returns its
-// secret. Any other method proves the host's cloud or hardware identity, so
-// its token can't be minted per host: the operator creates it in h's target
-// scope under the source token's name, plan checks it is there, and this
-// returns that name with no secret.
-func (m *Migrator) issueJoinCredential(ctx context.Context, h *host) (joinCredential, error) {
+// issueJoinCredential returns the credential an agent for h joins the target
+// with. For the token and bound_keypair methods it mints the token called name
+// for h and returns its secret. Any other method proves the host's cloud or
+// hardware identity, so its token can't be minted per host: the operator
+// creates it in h's target scope under the source token's name, plan checks it
+// is there, and this returns that name with no secret.
+func (m *Migrator) issueJoinCredential(ctx context.Context, h *host, name string) (joinCredential, error) {
 	if !hoststep.IsMintedJoinMethod(h.Preflight.JoinMethod) {
 		tokenName, err := parseTokenName(h.Preflight.TokenName)
 		if err != nil {
@@ -154,11 +154,10 @@ func (m *Migrator) issueJoinCredential(ctx context.Context, h *host) (joinCreden
 		}
 		return joinCredential{tokenName: scopes.QualifiedName{Scope: h.TargetScope, Name: tokenName.Name}}, nil
 	}
-	token, err := m.mintToken(ctx, h)
+	token, err := m.mintToken(ctx, h, name)
 	if err != nil {
 		return joinCredential{}, trace.Wrap(err)
 	}
-	name := token.GetMetadata().GetName()
 	if h.Preflight.JoinMethod == string(types.JoinMethodBoundKeypair) {
 		registrationSecret := token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret()
 		if registrationSecret == "" {
@@ -183,10 +182,9 @@ func mintedTokenName(scope, hostID string) string {
 	return "migrate-" + hex.EncodeToString(sum[:8])
 }
 
-// mintToken creates h's scoped token, replacing one an earlier attempt left
-// behind, which may be spent or expired.
-func (m *Migrator) mintToken(ctx context.Context, h *host) (*joiningv1.ScopedToken, error) {
-	name := mintedTokenName(h.TargetScope, h.ID)
+// mintToken creates h's scoped token called name, replacing one an earlier
+// attempt left behind, which may be spent or expired.
+func (m *Migrator) mintToken(ctx context.Context, h *host, name string) (*joiningv1.ScopedToken, error) {
 	token, err := m.newToken(h, name)
 	if err != nil {
 		return nil, trace.Wrap(err)

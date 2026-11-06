@@ -96,6 +96,17 @@ func (m *Migrator) readSource(ctx context.Context) (sourceInventory, error) {
 	return inventory, nil
 }
 
+// labeledSourceHost returns the source host UUID n is labeled as migrated
+// from, or "": both tool labels with the source cluster label naming
+// sourceCluster, or types.ReconfigureSourceUUIDLabel, which teleport
+// reconfigure stamps on its own.
+func labeledSourceHost(n node, sourceCluster string) string {
+	if id := n.Labels[hoststep.SourceHostLabel]; id != "" && n.Labels[hoststep.SourceClusterLabel] == sourceCluster {
+		return id
+	}
+	return n.Labels[types.ReconfigureSourceUUIDLabel]
+}
+
 // readTarget reads every node in the target cluster and the scoped tokens in
 // each migration's target scope, and indexes the nodes labeled as migrated
 // from a source host, so pairing can find a host's scoped agent by the host's
@@ -112,9 +123,7 @@ func (m *Migrator) readTarget(ctx context.Context) (targetInventory, error) {
 			return targetInventory{}, trace.Wrap(err)
 		}
 		inventory.nodesByID[n.ID] = n
-		if id := n.Labels[hoststep.SourceHostLabel]; id != "" && n.Labels[hoststep.SourceClusterLabel] == sourceCluster {
-			inventory.nodesBySourceLabel[id] = append(inventory.nodesBySourceLabel[id], n)
-		} else if id := n.Labels[types.ReconfigureSourceUUIDLabel]; id != "" {
+		if id := labeledSourceHost(n, sourceCluster); id != "" {
 			inventory.nodesBySourceLabel[id] = append(inventory.nodesBySourceLabel[id], n)
 		}
 		if len(inventory.nodesByID)%progressEvery == 0 {
@@ -176,7 +185,7 @@ func isSameScope(a, b string) bool { return scopes.Compare(a, b) == scopes.Equiv
 //     one, or a new unstarted one, with the node's current hostname and labels
 //     and the mapping's target scope.
 //   - A previous record whose node has left the source is kept unchanged if
-//     it is migrated or retired; any other is dropped.
+//     it is migrated, retired or promoted; any other is dropped.
 //   - A previous record whose node is still in the source but no mapping
 //     selects it any more is dropped.
 func (m *Migrator) selectHosts(previous map[string]*host, source sourceInventory, now time.Time) map[string]*host {
@@ -208,8 +217,9 @@ func (m *Migrator) selectHosts(previous map[string]*host, source sourceInventory
 			continue
 		}
 		// A down host with nothing done to it is not worth tracking. Retire
-		// deletes the source node, so a retired host is always here.
-		if old.State == stateMigrated || old.State == stateRetired {
+		// deletes the source node, so a retired or promoted host is always
+		// here.
+		if old.State == stateMigrated || old.State == stateRetired || old.State == statePromoted {
 			kept := *old
 			kept.Labels = maps.Clone(kept.Labels)
 			hosts[id] = &kept
@@ -226,6 +236,7 @@ const targetGoneReason = "target agent no longer present"
 // command concludes it.
 type outcome struct {
 	targetID  string
+	scopedID  string
 	matchedBy string
 	state     string
 	reason    string
@@ -235,10 +246,11 @@ type outcome struct {
 // when the result does, so it shows when the host's state last changed rather
 // than when plan last ran.
 func (h *host) setOutcome(o outcome, now time.Time) {
-	if h.TargetID == o.targetID && h.MatchedBy == o.matchedBy && h.State == o.state && h.Reason == o.reason {
+	if h.TargetID == o.targetID && h.ScopedID == o.scopedID && h.MatchedBy == o.matchedBy && h.State == o.state && h.Reason == o.reason {
 		return
 	}
 	h.TargetID = o.targetID
+	h.ScopedID = o.scopedID
 	h.MatchedBy = o.matchedBy
 	h.State = o.state
 	h.Reason = o.reason
@@ -464,21 +476,22 @@ func parseTokenName(name string) (scopes.QualifiedName, error) {
 // the migration did not put there. It returns each host's outcome keyed by host
 // UUID and the unclaimed agents sorted by ID. Hosts are visited in ID order, so
 // a target two hosts point at goes to the lower ID and blocks the other. A
-// retired host gets no outcome: its agent is its only one, so it keeps its
-// pairing, and no other host can claim that agent. It does not change hosts.
+// retired or promoted host gets no outcome: its agent is its only one, so it
+// keeps its pairing, and no other host can claim that agent. It does not change
+// hosts.
 func (m *Migrator) pairHosts(hosts map[string]*host, target targetInventory) (outcomes map[string]outcome, unmatched []targetAgent) {
 	outcomes = make(map[string]outcome, len(hosts))
 	// claimedBy maps a target agent ID to the host paired with it.
 	claimedBy := make(map[string]string)
 	ids := slices.Sorted(maps.Keys(hosts))
 	for _, id := range ids {
-		if h := hosts[id]; h.State == stateRetired && h.TargetID != "" {
+		if h := hosts[id]; (h.State == stateRetired || h.State == statePromoted) && h.TargetID != "" {
 			claimedBy[h.TargetID] = id
 		}
 	}
 	for _, id := range ids {
 		h := hosts[id]
-		if h.State == stateRetired {
+		if h.State == stateRetired || h.State == statePromoted {
 			continue
 		}
 		result := pairHost(h, target)
@@ -547,7 +560,7 @@ type PlanOptions struct {
 	Check bool
 	// Optional: empty preflights every eligible host. Otherwise, node/<uuid> or
 	// node/<hostname> preflights only that host, even when it has a preflight
-	// or is migrated; a retired host is refused.
+	// or is migrated; a retired or promoted host is refused.
 	Resource string
 }
 
@@ -612,11 +625,11 @@ func (m *Migrator) summarize() *Summary {
 	return summary
 }
 
-// needsPreflight reports whether plan preflights h: never when it is retired,
-// since its source agent is gone; otherwise when it has no preflight yet, or
-// when check is set.
+// needsPreflight reports whether plan preflights h: never when it is retired
+// or promoted, since its source agent is gone; otherwise when it has no
+// preflight yet, or when check is set.
 func needsPreflight(h *host, check bool) bool {
-	return h.State != stateRetired && (h.Preflight == nil || check)
+	return h.State != stateRetired && h.State != statePromoted && (h.Preflight == nil || check)
 }
 
 // preflightProgressEvery is how many preflights finish between progress lines.
@@ -638,8 +651,8 @@ func (m *Migrator) preflightHosts(ctx context.Context, opts PlanOptions) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if h.State == stateRetired {
-			return trace.NotFound("%q is %s; plan does not preflight retired hosts", opts.Resource, h.State)
+		if h.State == stateRetired || h.State == statePromoted {
+			return trace.NotFound("%q is %s; plan does not preflight retired or promoted hosts", opts.Resource, h.State)
 		}
 		hosts = []*host{h}
 	} else {

@@ -49,12 +49,13 @@ const (
 	stateFailed    = "failed"
 	stateMigrated  = "migrated"
 	stateRetired   = "retired"
+	statePromoted  = "promoted"
 )
 
 // states returns every host state in display order. It is a function, not a
 // package-level slice, so no caller can reorder or extend the set.
 func states() []string {
-	return []string{stateUnstarted, stateBlocked, stateFailed, stateMigrated, stateRetired}
+	return []string{stateUnstarted, stateBlocked, stateFailed, stateMigrated, stateRetired, statePromoted}
 }
 
 // host is one source host the migration tracks.
@@ -71,9 +72,14 @@ type host struct {
 	State string `json:"state"`
 	// Reason says why the host sits in State, for the states that need one.
 	Reason string `json:"reason,omitempty"`
-	// TargetID is the host UUID of the scoped agent on the target that this
-	// host is paired with.
+	// TargetID is the host UUID of the agent on the target that this host is
+	// paired with: the scoped agent apply installed, or once the host is
+	// promoted, the promoted agent.
 	TargetID string `json:"target_id,omitempty"`
+	// ScopedID is the host UUID of the scoped agent a promote replaced, so a
+	// promoted host records its whole chain: ID, then ScopedID, then TargetID.
+	// It is empty until the host is promoted.
+	ScopedID string `json:"scoped_id,omitempty"`
 	// MatchedBy names the evidence that pairs the host with TargetID.
 	MatchedBy string `json:"matched_by,omitempty"`
 	// Preflight is what the last preflight read off the host, nil until one ran.

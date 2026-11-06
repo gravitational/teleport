@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -188,9 +189,9 @@ func (r *sshHosts) Close() error { return trace.Wrap(r.cluster.Close()) }
 
 // newHostBinary returns the oneoff script params that run this build's
 // version, edition and FIPS mode of teleport from the host's cache, downloading
-// it from baseURL first; EntrypointArgs is set per step. Like teleport-update,
-// it refuses a baseURL without TLS: nothing else checks the binary hosts run
-// as root.
+// it and teleport-update from baseURL first; EntrypointArgs is set per step.
+// Like teleport-update, it refuses a baseURL without TLS: nothing else checks
+// the binary hosts run as root.
 func newHostBinary(baseURL string) (oneoff.OneOffScriptParams, error) {
 	if !strings.HasPrefix(strings.ToLower(baseURL), "https://") {
 		return oneoff.OneOffScriptParams{}, trace.BadParameter("TELEPORT_CDN_BASE_URL %s must use TLS (https://)", baseURL)
@@ -215,14 +216,26 @@ func newHostBinary(baseURL string) (oneoff.OneOffScriptParams, error) {
 // maxQuotedOutput bounds how much of an undecodable result an error quotes.
 const maxQuotedOutput = 200
 
+// stepExitError is a host step that ran and exited non-zero.
+type stepExitError struct {
+	step   string
+	code   int
+	stderr string
+}
+
+// Error names the step, its exit code and its stderr.
+func (e *stepExitError) Error() string {
+	return fmt.Sprintf("%s failed (exit %d): %s", e.step, e.code, e.stderr)
+}
+
 // runHostStep runs `teleport migrate host <step>` on hostID through the
 // oneoff script, with request as JSON on stdin, and decodes the step's JSON
 // output into result. A refused login stays an AccessDenied and an output
 // overflow a LimitExceeded; a run cut short by ctx's deadline wraps
 // context.DeadlineExceeded, and any other transport failure is a
-// ConnectionProblem. A non-zero exit is an error that names the step, its exit
-// code and its stderr, without the oneoff script's lines before the step's own
-// and with the CLI's colors and "ERROR: " prefix removed.
+// ConnectionProblem. A non-zero exit is a *stepExitError, its stderr without
+// the oneoff script's lines before the step's own and with the CLI's colors
+// and "ERROR: " prefix removed.
 func (m *Migrator) runHostStep(ctx context.Context, hosts hostRunner, hostID, step string, request, result any) error {
 	body, err := json.Marshal(request)
 	if err != nil {
@@ -257,7 +270,7 @@ func (m *Migrator) runHostStep(ctx context.Context, hosts hostRunner, hostID, st
 			_, stderr, _ = strings.Cut(stderr[i:], "\n")
 		}
 		stderr = strings.TrimPrefix(strings.TrimSpace(sgrEscape.ReplaceAllString(stderr, "")), "ERROR: ")
-		return trace.Errorf("%s failed (exit %d): %s", step, run.ExitCode, stderr)
+		return trace.Wrap(&stepExitError{step: step, code: run.ExitCode, stderr: stderr})
 	}
 	// Decode only the step's JSON: a FIPS build's lib/client writes a screen
 	// clear after the remote output when the session closes.

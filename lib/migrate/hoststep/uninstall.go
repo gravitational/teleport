@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -35,6 +36,16 @@ type UninstallRequest struct {
 	Proxy string `json:"proxy"`
 	// SourceHostUUID is the source agent the scoped agent replaces.
 	SourceHostUUID string `json:"source_host_uuid"`
+	// Promote is set when promote runs this step, after the promoted agent has
+	// joined, to remove the scoped install. It changes three things:
+	//   - A scoped install from a by-hand migration is accepted. Its config
+	//     carries the teleport.dev/reconfigure-source-uuid label instead of the
+	//     tool's own.
+	//   - A refusal gives only the reason. Rollback's advice would be wrong
+	//     here, and promote adds its own.
+	//   - The fetch cache is removed last. Nothing on the host needs it once
+	//     the host is promoted.
+	Promote bool `json:"promote,omitempty"`
 }
 
 // uninstall removes the scoped agent's install, once the scoped config proves
@@ -47,25 +58,37 @@ type UninstallRequest struct {
 // place. The config goes last, so a removal cut short leaves it for a person
 // to find. The lock file stays: removing it while an install waits on it would
 // let a later install lock a new file beside the waiting one. The fetch cache
-// stays, so a later apply reuses it.
+// stays for a later apply, unless promote is the caller.
 func (h hostEnv) uninstall(ctx context.Context, req UninstallRequest) (struct{}, error) {
 	// teleport-update uninstall can leave a disabled unit file behind, which
 	// does not count as an install.
 	if !slices.ContainsFunc([]string{scopedConfigPath, scopedDataDir, scopedInstallDir}, h.exists) {
 		return struct{}{}, nil
 	}
+	// remedy ends a refusal with rollback's advice. Promote's caller gives its
+	// own, so under promote a refusal is only the reason.
+	remedy := func(advice string) string {
+		if req.Promote {
+			return ""
+		}
+		return "; " + advice
+	}
 	if !h.exists(scopedConfigPath) {
-		return struct{}{}, trace.CompareFailed("nothing at %s proves the install under teleport_migrated is this migration's; roll it back by hand", scopedConfigPath)
+		return struct{}{}, trace.CompareFailed("nothing at %s proves the install under teleport_migrated is this migration's%s", scopedConfigPath, remedy("roll it back by hand"))
 	}
 	unlock, err := utils.FSTryWriteLock(h.path(scopedConfigPath + ".lock"))
 	if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
-		return struct{}{}, trace.AlreadyExists("another migrate command is installing on this host; wait for it, then roll back")
+		return struct{}{}, trace.AlreadyExists("another migrate command is installing on this host%s", remedy("wait for it, then roll back"))
 	}
 	if err != nil {
 		return struct{}{}, trace.Wrap(err, "locking %q", scopedConfigPath+".lock")
 	}
 	defer unlock()
-	if err := h.checkScopedConfigOwner(req.Proxy, req.SourceHostUUID, "roll it back by hand"); err != nil {
+	ownerRemedy := "roll it back by hand"
+	if req.Promote {
+		ownerRemedy = ""
+	}
+	if err := h.checkConfigOwner("scoped", scopedConfigPath, req.Proxy, req.SourceHostUUID, ownerRemedy, req.Promote); err != nil {
 		return struct{}{}, trace.Wrap(err)
 	}
 	units := []string{scopedUpdaterTimer, scopedUpdaterService, scopedUnit}
@@ -77,7 +100,7 @@ func (h hostEnv) uninstall(ctx context.Context, req UninstallRequest) (struct{},
 		// updater service is a oneshot, which systemd reports as activating, not
 		// active, while an update runs.
 		if err := runCommand(ctx, "systemctl", "stop", unit); err != nil {
-			return struct{}{}, trace.Wrap(err, "stopping %s; stop it, then roll back", unit)
+			return struct{}{}, trace.Wrap(err, "stopping %s%s", unit, remedy("stop it, then roll back"))
 		}
 		if err := runCommand(ctx, "systemctl", "disable", unit); err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -96,11 +119,11 @@ func (h hostEnv) uninstall(ctx context.Context, req UninstallRequest) (struct{},
 	}
 	if h.exists(scopedInstallDir) {
 		updater := "teleport-update"
-		if bundled := h.path(path.Join(scopedInstallDir, "bin/teleport-update")); isExecutable(bundled) {
+		if bundled := h.path(scopedUpdaterPath); isExecutable(bundled) {
 			updater = bundled
 		}
 		if err := runCommand(ctx, updater, "--install-suffix", scopedInstallSuffix, "uninstall"); err != nil {
-			return struct{}{}, trace.Wrap(err, "teleport-update uninstall failed with %s stopped and disabled; run teleport-update --install-suffix %s uninstall by hand, then roll back", scopedUnit, scopedInstallSuffix)
+			return struct{}{}, trace.Wrap(err, "teleport-update uninstall failed with %s stopped and disabled%s", scopedUnit, remedy("run teleport-update --install-suffix "+scopedInstallSuffix+" uninstall by hand, then roll back"))
 		}
 	}
 	if err := os.RemoveAll(h.path(scopedDataDir)); err != nil {
@@ -109,5 +132,26 @@ func (h hostEnv) uninstall(ctx context.Context, req UninstallRequest) (struct{},
 	if err := os.Remove(h.path(scopedConfigPath)); err != nil && !os.IsNotExist(err) {
 		return struct{}{}, trace.ConvertSystemError(err)
 	}
+	if req.Promote {
+		h.removeFetchCache()
+	}
 	return struct{}{}, nil
+}
+
+// removeFetchCache removes the fetch cache directory this binary runs from,
+// which no later step on the host needs, and the cache root once it is empty.
+// A binary run from anywhere else is left alone. A failure is a warning on
+// stderr, not an error, since the step's real work is already done and a rerun
+// could not resume.
+func (h hostEnv) removeFetchCache() {
+	dir := filepath.Dir(h.exe)
+	if filepath.Dir(dir) != h.path(CacheRoot) {
+		return
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		fmt.Fprintf(os.Stderr, "removing the fetch cache %s: %v\n", dir, err)
+		return
+	}
+	// Remove fails while another version's dir remains, which is fine.
+	_ = os.Remove(filepath.Dir(dir))
 }
