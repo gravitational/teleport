@@ -23,6 +23,7 @@ package app
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"net"
 	"sync"
@@ -33,11 +34,14 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -553,7 +557,7 @@ func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
 	// Snapshot the current app set before the RPC call. close()
 	// clears s.apps under the write lock before canceling
 	// closeContext, so snapshotting early ensures we see the full
-	// set even if close() runs during GetApplicationServers.
+	// set even if close() runs during findOrphanedAppServers.
 	s.mu.RLock()
 	currentApps := make(map[string]bool, len(s.apps))
 	for name := range s.apps {
@@ -561,37 +565,83 @@ func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
 	}
 	s.mu.RUnlock()
 
-	servers, err := s.c.AuthClient.GetApplicationServers(ctx, apidefaults.Namespace)
-	if err != nil {
-		s.log.WarnContext(ctx, "Failed to list app servers for orphan cleanup.", "error", err)
-		return
-	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	defer context.AfterFunc(s.closeContext, cancel)()
 
-	for _, server := range servers {
-		if s.closeContext.Err() != nil {
+	for orphan, err := range findOrphanedAppServers(ctx, s.c.AuthClient, s.c.HostID, currentApps) {
+		if ctx.Err() != nil {
 			return
 		}
-		if server.GetHostID() != s.c.HostID {
-			continue
+		if err != nil {
+			s.log.WarnContext(ctx, "Failed to list app servers for orphan cleanup.", "error", err)
+			return
 		}
-		// Skip app servers managed by other components (e.g. AWS
-		// OIDC integration servers upserted by the proxy web
-		// handler). In all-in-one deployments these share our
-		// HostID but are not part of the app service's app set.
-		if server.GetApp().GetIntegration() != "" {
-			continue
-		}
-		name := server.GetApp().GetName()
-		if currentApps[name] {
-			continue
-		}
-		if err := s.removeAppServer(ctx, scopes.QualifiedName{Name: name, Scope: server.GetScope()}); err != nil {
+		if err := s.removeAppServer(ctx, orphan); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
 			if !trace.IsNotFound(err) {
-				s.log.WarnContext(ctx, "Failed to remove orphaned app server.", "app", name, "error", err)
+				s.log.WarnContext(ctx, "Failed to remove orphaned app server.", "app", orphan.Name, "error", err)
 			}
 			continue
 		}
-		s.log.InfoContext(ctx, "Removed orphaned app server on startup.", "app", name)
+		s.log.InfoContext(ctx, "Removed orphaned app server on startup.", "app", orphan.Name)
+	}
+}
+
+// findOrphanedAppServers yields the name and scope of each app server
+// registered for hostID whose app is not in currentApps. It skips app servers
+// whose app has an integration. If listing the app servers fails, it yields the
+// error and stops.
+func findOrphanedAppServers(ctx context.Context, clt apiclient.GetResourcesClient, hostID string, currentApps map[string]bool) iter.Seq2[scopes.QualifiedName, error] {
+	req := &proto.ListResourcesRequest{
+		Namespace:    apidefaults.Namespace,
+		ResourceType: types.KindAppServer,
+		Limit:        int32(apidefaults.DefaultChunkSize),
+	}
+	// pageFunc ignores the page size. GetResourcePage halves req.Limit while a
+	// page is too large for one gRPC message, and pageFunc reuses req, so the
+	// smaller limit stays for the next pages.
+	pageFunc := func(ctx context.Context, _ int, pageToken string) ([]types.AppServer, string, error) {
+		req.StartKey = pageToken
+		page, err := apiclient.GetResourcePage[types.AppServer](ctx, clt, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		// An empty page ends paging even if it has a next key, so an auth
+		// server that returns an empty page with a next key cannot make this
+		// loop forever.
+		if len(page.Resources) == 0 {
+			return nil, "", nil
+		}
+		return page.Resources, page.NextKey, nil
+	}
+
+	return func(yield func(scopes.QualifiedName, error) bool) {
+		for server, err := range clientutils.Resources(ctx, pageFunc) {
+			if err != nil {
+				yield(scopes.QualifiedName{}, trace.Wrap(err))
+				return
+			}
+			if server.GetHostID() != hostID {
+				continue
+			}
+			// Skip app servers managed by other components (e.g. AWS
+			// OIDC integration servers upserted by the proxy web
+			// handler). In all-in-one deployments these share hostID
+			// but are not part of the app service's app set.
+			if server.GetApp().GetIntegration() != "" {
+				continue
+			}
+			name := server.GetApp().GetName()
+			if currentApps[name] {
+				continue
+			}
+			if !yield(scopes.QualifiedName{Name: name, Scope: server.GetScope()}, nil) {
+				return
+			}
+		}
 	}
 }
 
