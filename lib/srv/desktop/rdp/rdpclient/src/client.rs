@@ -192,11 +192,7 @@ impl Client {
         }
 
         let pending_resize = Arc::new(Mutex::new(PendingResize {
-            pending_resize: Some((
-                params.screen_width as u32,
-                params.screen_height as u32,
-                params.screen_scale as u32,
-            )),
+            pending_resize: None,
         }));
 
         let pending_resize_clone = pending_resize.clone();
@@ -1481,17 +1477,21 @@ fn rdp_scale_factor(scale: u32) -> Option<u32> {
 }
 
 fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> Config {
-    let initial_width = params.screen_width as u32;
-    let initial_height = params.screen_height as u32;
-    let (width, height) = MonitorLayoutEntry::adjust_display_size(initial_width, initial_height);
-    if width != initial_width || height != initial_height {
+    // MS-RDPEDISP 2.2.2.2.1
+    // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpedisp/ea2de591-9203-42cd-9908-be7a55237d1c
+    // Both width and height "MUST be greater than or equal to 200 pixels and less than or equal to 8192 pixels"
+    // and width "MUST NOT be an odd value".
+    // MS-RDPBCGR is less specific about the required ranges for width and height, but we'll hold ourselves to
+    // the more strict requirements of MS-RDPEDISP.
+    let height = params.screen_height.clamp(200, 8192);
+    let width = params.screen_width.clamp(200, 8192);
+    let width = width - width % 2;
+
+    if width != params.screen_width || height != params.screen_height {
         debug!("Adjusted screen size to [{:?}x{:?}]", width, height);
     }
     Config {
-        desktop_size: DesktopSize {
-            width: params.screen_width,
-            height: params.screen_height,
-        },
+        desktop_size: DesktopSize { width, height },
         enable_tls: true,
         enable_credssp: params.ad && params.nla,
         enable_audio_playback: false,
