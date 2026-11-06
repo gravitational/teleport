@@ -23,23 +23,29 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/x509"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	headerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
+	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-const userExternalCredentialsPrefix = "user_external_credentials"
+const (
+	userExternalCredentialsPrefix = "user_external_credentials"
+	mcpOAuthCredentialsPrefix     = "mcp_oauth_credentials"
+)
 
 // UserExternalCredentialsService manages user external credentials.
 type UserExternalCredentialsService struct {
-	service *generic.ServiceWrapper[*pb.UserExternalCredentials]
+	service             *generic.ServiceWrapper[*pb.UserExternalCredentials]
+	mcpOAuthCredentials *generic.ScopeAwareServiceWrapper[*pb.MCPOAuthCredential]
 }
 
 // NewUserExternalCredentialsService returns a new UserExternalCredentialsService.
@@ -55,7 +61,19 @@ func NewUserExternalCredentialsService(b backend.Backend) (*UserExternalCredenti
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &UserExternalCredentialsService{service: service}, nil
+	mcpOAuthCredentials, err := generic.NewScopeAwareServiceWrapper(generic.ScopeAwareServiceWrapperConfig[*pb.MCPOAuthCredential]{
+		Backend:               b,
+		ResourceKind:          types.KindMCPOAuthCredential,
+		UnscopedBackendPrefix: backend.NewKey(mcpOAuthCredentialsPrefix),
+		ScopedBackendPrefix:   backend.NewKey(scopedPrefix, mcpOAuthCredentialsPrefix),
+		MarshalFunc:           services.MarshalProtoResource[*pb.MCPOAuthCredential],
+		UnmarshalFunc:         services.UnmarshalProtoResource[*pb.MCPOAuthCredential],
+		ValidateFunc:          validateMCPOAuthCredential,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &UserExternalCredentialsService{service: service, mcpOAuthCredentials: mcpOAuthCredentials}, nil
 }
 
 func validateUserExternalCredentials(resource *pb.UserExternalCredentials) error {
@@ -244,4 +262,70 @@ func (s *UserExternalCredentialsService) ListUserExternalCredentials(ctx context
 	}
 	prefix := backendKeyForUserExternalCredentials(filter)
 	return s.service.WithPrefix(prefix.Components()...).ListResources(ctx, pageSize, pageToken)
+}
+
+func validateMCPOAuthCredential(resource *pb.MCPOAuthCredential) error {
+	if resource.GetKind() != types.KindMCPOAuthCredential {
+		return trace.BadParameter("invalid kind %q", resource.GetKind())
+	}
+	if resource.GetMetadata().GetName() == "" {
+		return trace.BadParameter("missing app name")
+	}
+	if len(resource.GetSpec().GetEncrypted()) == 0 {
+		return trace.BadParameter("missing encrypted credential")
+	}
+	return nil
+}
+
+// mcpOAuthCredentialService returns the service for a user's credentials for apps
+// in the scope.
+func (s *UserExternalCredentialsService) mcpOAuthCredentialService(user, scope string) (*generic.ServiceWrapper[*pb.MCPOAuthCredential], error) {
+	service, err := s.mcpOAuthCredentials.WithScopePrefix(scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return service.WithPrefix(user), nil
+}
+
+// GetMCPOAuthCredential returns a user's encrypted OAuth credential for an MCP
+// server.
+func (s *UserExternalCredentialsService) GetMCPOAuthCredential(ctx context.Context, user string, app apiscopes.QualifiedName) ([]byte, error) {
+	service, err := s.mcpOAuthCredentialService(user, app.Scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	credential, err := service.GetResource(ctx, app.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return credential.GetSpec().GetEncrypted(), nil
+}
+
+// UpsertMCPOAuthCredential stores a user's encrypted OAuth credential for an
+// MCP server.
+func (s *UserExternalCredentialsService) UpsertMCPOAuthCredential(ctx context.Context, user string, app apiscopes.QualifiedName, encrypted []byte) error {
+	service, err := s.mcpOAuthCredentialService(user, app.Scope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = service.UpsertResource(ctx, pb.MCPOAuthCredential_builder{
+		Kind:     types.KindMCPOAuthCredential,
+		Version:  types.V1,
+		Metadata: headerpb.Metadata_builder{Name: app.Name}.Build(),
+		Spec:     pb.MCPOAuthCredentialSpec_builder{Encrypted: encrypted}.Build(),
+		Scope:    app.Scope,
+	}.Build())
+	return trace.Wrap(err)
+}
+
+// RunWhileMCPOAuthCredentialLocked runs fn while holding a lock on a user's
+// credential for an MCP server.
+func (s *UserExternalCredentialsService) RunWhileMCPOAuthCredentialLocked(ctx context.Context, user string, app apiscopes.QualifiedName, fn func(context.Context) error) error {
+	service, err := s.mcpOAuthCredentialService(user, app.Scope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(service.RunWhileLocked(ctx, service.BackendKey(app.Name).Components(), time.Minute, func(ctx context.Context, _ backend.Backend) error {
+		return fn(ctx)
+	}))
 }

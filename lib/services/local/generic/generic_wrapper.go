@@ -19,6 +19,7 @@ package generic
 import (
 	"context"
 	"iter"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -189,6 +190,11 @@ func (s *ServiceWrapper[T]) Resources(ctx context.Context, startKey, endKey stri
 // MakeBackendItem returns a backend.Item for the given resource.
 func (s *ServiceWrapper[T]) MakeBackendItem(resource T) (backend.Item, error) {
 	return s.service.MakeBackendItem(newResourceMetadataAdapter(resource))
+}
+
+// RunWhileLocked runs fn while holding a backend lock.
+func (s *ServiceWrapper[T]) RunWhileLocked(ctx context.Context, lockNameComponents []string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
+	return trace.Wrap(s.service.RunWhileLocked(ctx, lockNameComponents, ttl, fn))
 }
 
 // BackendKey returns a backend.Key for the resource with the given name.

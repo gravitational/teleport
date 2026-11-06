@@ -68,6 +68,9 @@ type transportConfig struct {
 	// integrationAppHandler is used to handle App proxy requests for Apps that are configured to use an Integration.
 	// Instead of proxying the connection to an AppService, the app is immediately proxied from the Proxy.
 	integrationAppHandler ServerHandler
+
+	// mcpOAuthClient gets the access tokens Auth stores for MCP servers.
+	mcpOAuthClient mcpOAuthCredentialClient
 }
 
 // Check validates configuration.
@@ -115,9 +118,14 @@ type transport struct {
 
 	// tr is used for forwarding http connections.
 	tr http.RoundTripper
+	// mcpOAuthTr only has connections opened by requests with our token, since the
+	// App Service picks the app URI once per connection.
+	mcpOAuthTr http.RoundTripper
 
 	// clientTLSConfig is the TLS config used for mutual authentication.
 	clientTLSConfig *tls.Config
+
+	mcpOAuthToken mcpOAuthToken
 }
 
 // newTransport creates a new transport.
@@ -143,6 +151,7 @@ func newTransport(c *transportConfig) (*transport, error) {
 	tr.TLSClientConfig = t.clientTLSConfig
 
 	t.tr = tr
+	t.mcpOAuthTr = tr.Clone()
 	return t, nil
 }
 
@@ -161,8 +170,13 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	tr := t.tr
+	if t.setMCPOAuthHeader(r) {
+		tr = t.mcpOAuthTr
+	}
+
 	// Forward the request to the target application.
-	resp, err := t.tr.RoundTrip(r)
+	resp, err := tr.RoundTrip(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,6 +184,9 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if resp.Header.Get(common.TeleportAppErrorCodeHeader) == string(common.AppErrorCodeSessionInvalid) {
 		resp.Body.Close()
 		return nil, ErrInvalidAppSession
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		t.invalidateMCPOAuthToken()
 	}
 
 	// When proxying app in leaf cluster, the app will have PublicAddr

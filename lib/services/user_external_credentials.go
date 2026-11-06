@@ -21,12 +21,18 @@ package services
 import (
 	"context"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	userexternalcredentialsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
+	"github.com/gravitational/teleport/api/scopes"
 )
+
+// MCPOAuthRefreshWindow is how long before expiry Auth refreshes an MCP OAuth
+// token. Proxies drop a cached token at the same point to pick up the new one.
+const MCPOAuthRefreshWindow = 5 * time.Minute
 
 // UserExternalCredentials manages user external credentials for encrypted
 // credential storage.
@@ -37,6 +43,16 @@ type UserExternalCredentials interface {
 	GetUserExternalCredentials(ctx context.Context, keyID *userexternalcredentialsv1.EncryptionKeyID) (*userexternalcredentialsv1.UserExternalCredentials, error)
 	DeleteUserExternalCredentials(ctx context.Context, keyID *userexternalcredentialsv1.EncryptionKeyID) error
 	ListUserExternalCredentials(ctx context.Context, pageSize int, pageToken string, filter *userexternalcredentialsv1.EncryptionKeyID) ([]*userexternalcredentialsv1.UserExternalCredentials, string, error)
+
+	// GetMCPOAuthCredential returns a user's encrypted OAuth credential for an
+	// MCP server.
+	GetMCPOAuthCredential(ctx context.Context, user string, app scopes.QualifiedName) ([]byte, error)
+	// UpsertMCPOAuthCredential stores a user's encrypted OAuth credential for an
+	// MCP server.
+	UpsertMCPOAuthCredential(ctx context.Context, user string, app scopes.QualifiedName, encrypted []byte) error
+	// RunWhileMCPOAuthCredentialLocked runs fn while holding a lock on a user's
+	// credential for an MCP server.
+	RunWhileMCPOAuthCredentialLocked(ctx context.Context, user string, app scopes.QualifiedName, fn func(context.Context) error) error
 }
 
 // MakeUserEncryptionKeyID derives a deterministic encryption key ID from the

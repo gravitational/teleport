@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/userexternalcredentials"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib/safetransport"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -104,6 +105,11 @@ type ServiceConfig struct {
 	Emitter apievents.Emitter
 	// httpClient is the client for calling external services, e.g. GitHub.
 	httpClient *http.Client
+	// mcpHTTPClient is used to call the token endpoints of MCP servers. Users
+	// choose those endpoints so it can only dial public addresses.
+	// TODO(avatus): remove once httpClient becomes a safe transport in
+	// https://github.com/gravitational/core/pull/3203
+	mcpHTTPClient *http.Client
 }
 
 // Service implements the UserExternalCredentialService gRPC service.
@@ -153,6 +159,18 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		httpClient.Transport = cfg.UpstreamTransport
 	}
 	cfg.httpClient = httpClient
+
+	mcpTransport, err := safetransport.New()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg.mcpHTTPClient = &http.Client{
+		Transport: mcpTransport,
+		Timeout:   defaults.HTTPRequestTimeout,
+		// token requests carry the code, verifier, refresh token and client secret in
+		// the body, which a 307 or 308 would send on to the new location
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 
 	// A per-user limit for decrypt calls for peace of mind. Callers are expected
 	// to cache decrypted credentials per resource for minutes. With 20 calls per

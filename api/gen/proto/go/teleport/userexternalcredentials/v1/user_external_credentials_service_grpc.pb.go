@@ -38,6 +38,8 @@ const (
 	UserExternalCredentialService_RefreshOAuthTokens_FullMethodName            = "/teleport.userexternalcredentials.v1.UserExternalCredentialService/RefreshOAuthTokens"
 	UserExternalCredentialService_DecryptUserExternalCredential_FullMethodName = "/teleport.userexternalcredentials.v1.UserExternalCredentialService/DecryptUserExternalCredential"
 	UserExternalCredentialService_ListUserExternalCredentials_FullMethodName   = "/teleport.userexternalcredentials.v1.UserExternalCredentialService/ListUserExternalCredentials"
+	UserExternalCredentialService_ExchangeMCPOAuthCode_FullMethodName          = "/teleport.userexternalcredentials.v1.UserExternalCredentialService/ExchangeMCPOAuthCode"
+	UserExternalCredentialService_GetMCPOAuthAccessToken_FullMethodName        = "/teleport.userexternalcredentials.v1.UserExternalCredentialService/GetMCPOAuthAccessToken"
 )
 
 // UserExternalCredentialServiceClient is the client API for UserExternalCredentialService service.
@@ -59,6 +61,12 @@ type UserExternalCredentialServiceClient interface {
 	// ListUserExternalCredentials returns a page of credentials matching the
 	// filter. The user field in the filter is required.
 	ListUserExternalCredentials(ctx context.Context, in *ListUserExternalCredentialsRequest, opts ...grpc.CallOption) (*ListUserExternalCredentialsResponse, error)
+	// ExchangeMCPOAuthCode exchanges an authorization code for an MCP server and
+	// stores the tokens for the caller.
+	ExchangeMCPOAuthCode(ctx context.Context, in *ExchangeMCPOAuthCodeRequest, opts ...grpc.CallOption) (*ExchangeMCPOAuthCodeResponse, error)
+	// GetMCPOAuthAccessToken returns the plaintext access token for the app a user
+	// certificate is routed to. Only proxies may call it.
+	GetMCPOAuthAccessToken(ctx context.Context, in *GetMCPOAuthAccessTokenRequest, opts ...grpc.CallOption) (*GetMCPOAuthAccessTokenResponse, error)
 }
 
 type userExternalCredentialServiceClient struct {
@@ -119,6 +127,26 @@ func (c *userExternalCredentialServiceClient) ListUserExternalCredentials(ctx co
 	return out, nil
 }
 
+func (c *userExternalCredentialServiceClient) ExchangeMCPOAuthCode(ctx context.Context, in *ExchangeMCPOAuthCodeRequest, opts ...grpc.CallOption) (*ExchangeMCPOAuthCodeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExchangeMCPOAuthCodeResponse)
+	err := c.cc.Invoke(ctx, UserExternalCredentialService_ExchangeMCPOAuthCode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userExternalCredentialServiceClient) GetMCPOAuthAccessToken(ctx context.Context, in *GetMCPOAuthAccessTokenRequest, opts ...grpc.CallOption) (*GetMCPOAuthAccessTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMCPOAuthAccessTokenResponse)
+	err := c.cc.Invoke(ctx, UserExternalCredentialService_GetMCPOAuthAccessToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserExternalCredentialServiceServer is the server API for UserExternalCredentialService service.
 // All implementations must embed UnimplementedUserExternalCredentialServiceServer
 // for forward compatibility.
@@ -138,6 +166,12 @@ type UserExternalCredentialServiceServer interface {
 	// ListUserExternalCredentials returns a page of credentials matching the
 	// filter. The user field in the filter is required.
 	ListUserExternalCredentials(context.Context, *ListUserExternalCredentialsRequest) (*ListUserExternalCredentialsResponse, error)
+	// ExchangeMCPOAuthCode exchanges an authorization code for an MCP server and
+	// stores the tokens for the caller.
+	ExchangeMCPOAuthCode(context.Context, *ExchangeMCPOAuthCodeRequest) (*ExchangeMCPOAuthCodeResponse, error)
+	// GetMCPOAuthAccessToken returns the plaintext access token for the app a user
+	// certificate is routed to. Only proxies may call it.
+	GetMCPOAuthAccessToken(context.Context, *GetMCPOAuthAccessTokenRequest) (*GetMCPOAuthAccessTokenResponse, error)
 	mustEmbedUnimplementedUserExternalCredentialServiceServer()
 }
 
@@ -162,6 +196,12 @@ func (UnimplementedUserExternalCredentialServiceServer) DecryptUserExternalCrede
 }
 func (UnimplementedUserExternalCredentialServiceServer) ListUserExternalCredentials(context.Context, *ListUserExternalCredentialsRequest) (*ListUserExternalCredentialsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListUserExternalCredentials not implemented")
+}
+func (UnimplementedUserExternalCredentialServiceServer) ExchangeMCPOAuthCode(context.Context, *ExchangeMCPOAuthCodeRequest) (*ExchangeMCPOAuthCodeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExchangeMCPOAuthCode not implemented")
+}
+func (UnimplementedUserExternalCredentialServiceServer) GetMCPOAuthAccessToken(context.Context, *GetMCPOAuthAccessTokenRequest) (*GetMCPOAuthAccessTokenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMCPOAuthAccessToken not implemented")
 }
 func (UnimplementedUserExternalCredentialServiceServer) mustEmbedUnimplementedUserExternalCredentialServiceServer() {
 }
@@ -275,6 +315,42 @@ func _UserExternalCredentialService_ListUserExternalCredentials_Handler(srv inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserExternalCredentialService_ExchangeMCPOAuthCode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExchangeMCPOAuthCodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserExternalCredentialServiceServer).ExchangeMCPOAuthCode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserExternalCredentialService_ExchangeMCPOAuthCode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserExternalCredentialServiceServer).ExchangeMCPOAuthCode(ctx, req.(*ExchangeMCPOAuthCodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserExternalCredentialService_GetMCPOAuthAccessToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMCPOAuthAccessTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserExternalCredentialServiceServer).GetMCPOAuthAccessToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserExternalCredentialService_GetMCPOAuthAccessToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserExternalCredentialServiceServer).GetMCPOAuthAccessToken(ctx, req.(*GetMCPOAuthAccessTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserExternalCredentialService_ServiceDesc is the grpc.ServiceDesc for UserExternalCredentialService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -301,6 +377,14 @@ var UserExternalCredentialService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListUserExternalCredentials",
 			Handler:    _UserExternalCredentialService_ListUserExternalCredentials_Handler,
+		},
+		{
+			MethodName: "ExchangeMCPOAuthCode",
+			Handler:    _UserExternalCredentialService_ExchangeMCPOAuthCode_Handler,
+		},
+		{
+			MethodName: "GetMCPOAuthAccessToken",
+			Handler:    _UserExternalCredentialService_GetMCPOAuthAccessToken_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

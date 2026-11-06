@@ -711,6 +711,234 @@ func (b0 OAuthTokens_builder) Build() *OAuthTokens {
 	return m0
 }
 
+// MCPOAuthCredential is a user's OAuth credential for an MCP server.
+//
+// Backend path: mcp_oauth_credentials/<user>/<app>, or
+// scoped/mcp_oauth_credentials/<encoded scope>/<user>/<app> for a scoped app.
+type MCPOAuthCredential struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// kind is the resource kind, always "mcp_oauth_credential".
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// sub_kind is the resource sub-kind, currently unused.
+	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	// version is the resource version.
+	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	// metadata is the resource metadata. The name is the name of the MCP server.
+	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// spec is the credential spec.
+	Spec *MCPOAuthCredentialSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	// scope is the scope of the MCP server, empty if it isn't scoped.
+	Scope         string `protobuf:"bytes,6,opt,name=scope,proto3" json:"scope,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MCPOAuthCredential) Reset() {
+	*x = MCPOAuthCredential{}
+	mi := &file_teleport_userexternalcredentials_v1_user_external_credentials_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MCPOAuthCredential) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MCPOAuthCredential) ProtoMessage() {}
+
+func (x *MCPOAuthCredential) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_userexternalcredentials_v1_user_external_credentials_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *MCPOAuthCredential) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *MCPOAuthCredential) GetSubKind() string {
+	if x != nil {
+		return x.SubKind
+	}
+	return ""
+}
+
+func (x *MCPOAuthCredential) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *MCPOAuthCredential) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *MCPOAuthCredential) GetSpec() *MCPOAuthCredentialSpec {
+	if x != nil {
+		return x.Spec
+	}
+	return nil
+}
+
+func (x *MCPOAuthCredential) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *MCPOAuthCredential) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *MCPOAuthCredential) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *MCPOAuthCredential) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *MCPOAuthCredential) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *MCPOAuthCredential) SetSpec(v *MCPOAuthCredentialSpec) {
+	x.Spec = v
+}
+
+func (x *MCPOAuthCredential) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *MCPOAuthCredential) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *MCPOAuthCredential) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *MCPOAuthCredential) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *MCPOAuthCredential) ClearSpec() {
+	x.Spec = nil
+}
+
+type MCPOAuthCredential_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is the resource kind, always "mcp_oauth_credential".
+	Kind string
+	// sub_kind is the resource sub-kind, currently unused.
+	SubKind string
+	// version is the resource version.
+	Version string
+	// metadata is the resource metadata. The name is the name of the MCP server.
+	Metadata *v1.Metadata
+	// spec is the credential spec.
+	Spec *MCPOAuthCredentialSpec
+	// scope is the scope of the MCP server, empty if it isn't scoped.
+	Scope string
+}
+
+func (b0 MCPOAuthCredential_builder) Build() *MCPOAuthCredential {
+	m0 := &MCPOAuthCredential{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Scope = b.Scope
+	return m0
+}
+
+// MCPOAuthCredentialSpec holds the credential.
+type MCPOAuthCredentialSpec struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// encrypted is the credential encrypted by Auth.
+	Encrypted     []byte `protobuf:"bytes,1,opt,name=encrypted,proto3" json:"encrypted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MCPOAuthCredentialSpec) Reset() {
+	*x = MCPOAuthCredentialSpec{}
+	mi := &file_teleport_userexternalcredentials_v1_user_external_credentials_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MCPOAuthCredentialSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MCPOAuthCredentialSpec) ProtoMessage() {}
+
+func (x *MCPOAuthCredentialSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_userexternalcredentials_v1_user_external_credentials_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *MCPOAuthCredentialSpec) GetEncrypted() []byte {
+	if x != nil {
+		return x.Encrypted
+	}
+	return nil
+}
+
+func (x *MCPOAuthCredentialSpec) SetEncrypted(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Encrypted = v
+}
+
+type MCPOAuthCredentialSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// encrypted is the credential encrypted by Auth.
+	Encrypted []byte
+}
+
+func (b0 MCPOAuthCredentialSpec_builder) Build() *MCPOAuthCredentialSpec {
+	m0 := &MCPOAuthCredentialSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Encrypted = b.Encrypted
+	return m0
+}
+
 var File_teleport_userexternalcredentials_v1_user_external_credentials_proto protoreflect.FileDescriptor
 
 const file_teleport_userexternalcredentials_v1_user_external_credentials_proto_rawDesc = "" +
@@ -741,31 +969,44 @@ const file_teleport_userexternalcredentials_v1_user_external_credentials_proto_r
 	"\x11access_token_blob\x18\x01 \x01(\fR\x0faccessTokenBlob\x12,\n" +
 	"\x12refresh_token_blob\x18\x02 \x01(\fR\x10refreshTokenBlob\x12J\n" +
 	"\x13access_token_expiry\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x11accessTokenExpiry\x12L\n" +
-	"\x14refresh_token_expiry\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x12refreshTokenExpiryBrZpgithub.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1;userexternalcredentialsv1b\x06proto3"
+	"\x14refresh_token_expiry\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x12refreshTokenExpiry\"\xfe\x01\n" +
+	"\x12MCPOAuthCredential\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
+	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12O\n" +
+	"\x04spec\x18\x05 \x01(\v2;.teleport.userexternalcredentials.v1.MCPOAuthCredentialSpecR\x04spec\x12\x14\n" +
+	"\x05scope\x18\x06 \x01(\tR\x05scope\"6\n" +
+	"\x16MCPOAuthCredentialSpec\x12\x1c\n" +
+	"\tencrypted\x18\x01 \x01(\fR\tencryptedBrZpgithub.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1;userexternalcredentialsv1b\x06proto3"
 
-var file_teleport_userexternalcredentials_v1_user_external_credentials_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_userexternalcredentials_v1_user_external_credentials_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_userexternalcredentials_v1_user_external_credentials_proto_goTypes = []any{
 	(*UserExternalCredentials)(nil),     // 0: teleport.userexternalcredentials.v1.UserExternalCredentials
 	(*UserExternalCredentialsSpec)(nil), // 1: teleport.userexternalcredentials.v1.UserExternalCredentialsSpec
 	(*EncryptionKeyID)(nil),             // 2: teleport.userexternalcredentials.v1.EncryptionKeyID
 	(*Credential)(nil),                  // 3: teleport.userexternalcredentials.v1.Credential
 	(*OAuthTokens)(nil),                 // 4: teleport.userexternalcredentials.v1.OAuthTokens
-	(*v1.Metadata)(nil),                 // 5: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),       // 6: google.protobuf.Timestamp
+	(*MCPOAuthCredential)(nil),          // 5: teleport.userexternalcredentials.v1.MCPOAuthCredential
+	(*MCPOAuthCredentialSpec)(nil),      // 6: teleport.userexternalcredentials.v1.MCPOAuthCredentialSpec
+	(*v1.Metadata)(nil),                 // 7: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),       // 8: google.protobuf.Timestamp
 }
 var file_teleport_userexternalcredentials_v1_user_external_credentials_proto_depIdxs = []int32{
-	5, // 0: teleport.userexternalcredentials.v1.UserExternalCredentials.metadata:type_name -> teleport.header.v1.Metadata
+	7, // 0: teleport.userexternalcredentials.v1.UserExternalCredentials.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.userexternalcredentials.v1.UserExternalCredentials.spec:type_name -> teleport.userexternalcredentials.v1.UserExternalCredentialsSpec
 	2, // 2: teleport.userexternalcredentials.v1.UserExternalCredentialsSpec.encryption_key_id:type_name -> teleport.userexternalcredentials.v1.EncryptionKeyID
 	3, // 3: teleport.userexternalcredentials.v1.UserExternalCredentialsSpec.credentials:type_name -> teleport.userexternalcredentials.v1.Credential
 	4, // 4: teleport.userexternalcredentials.v1.Credential.oauth:type_name -> teleport.userexternalcredentials.v1.OAuthTokens
-	6, // 5: teleport.userexternalcredentials.v1.OAuthTokens.access_token_expiry:type_name -> google.protobuf.Timestamp
-	6, // 6: teleport.userexternalcredentials.v1.OAuthTokens.refresh_token_expiry:type_name -> google.protobuf.Timestamp
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	8, // 5: teleport.userexternalcredentials.v1.OAuthTokens.access_token_expiry:type_name -> google.protobuf.Timestamp
+	8, // 6: teleport.userexternalcredentials.v1.OAuthTokens.refresh_token_expiry:type_name -> google.protobuf.Timestamp
+	7, // 7: teleport.userexternalcredentials.v1.MCPOAuthCredential.metadata:type_name -> teleport.header.v1.Metadata
+	6, // 8: teleport.userexternalcredentials.v1.MCPOAuthCredential.spec:type_name -> teleport.userexternalcredentials.v1.MCPOAuthCredentialSpec
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_userexternalcredentials_v1_user_external_credentials_proto_init() }
@@ -782,7 +1023,7 @@ func file_teleport_userexternalcredentials_v1_user_external_credentials_proto_in
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_userexternalcredentials_v1_user_external_credentials_proto_rawDesc), len(file_teleport_userexternalcredentials_v1_user_external_credentials_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
