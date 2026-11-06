@@ -322,6 +322,8 @@ func (a *AppV3) SupportsIntegration() bool {
 	switch a.GetProtocol() {
 	case ApplicationProtocolHTTP:
 		return a.IsAWSConsole() || a.HasOAuthProxyOrigin()
+	case ApplicationProtocolLLM:
+		return a.GetLLM() != nil && a.GetLLM().Provider == LLMProviderAWSBedrock
 	default:
 		return false
 	}
