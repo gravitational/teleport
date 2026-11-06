@@ -71,6 +71,8 @@ service PresenceService {
 
   // Deletes a specific scoped or unscoped application server.
   rpc DeleteAppServer(DeleteAppServerRequest) returns (DeleteAppServerResponse);
+  // Lists the scoped or unscoped application servers of a single host.
+  rpc ListAppServersForHost(ListAppServersForHostRequest) returns (ListAppServersForHostResponse);
 
   // Gets a specific ssh server resource from the backend.
   rpc GetSSHServer(GetSSHServerRequest) returns (GetSSHServerResponse);
@@ -337,6 +339,27 @@ message DeleteAppServerRequest {
 
 // The response for deleting an application server.
 message DeleteAppServerResponse {}
+
+// The request to list the application servers of a single host.
+message ListAppServersForHostRequest {
+  // HostId is the app server host uuid.
+  string host_id = 1;
+  // Scope is the scope of the application servers to list.
+  string scope = 2;
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 3;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 4;
+}
+
+// The response when listing the application servers of a single host.
+message ListAppServersForHostResponse {
+  // The page of application servers that matched the request.
+  repeated types.AppServerV3 servers = 1;
+  // Token for the next page, or empty if there are no more results.
+  string next_page_token = 2;
+}
 
 // The request for fetching for an SSH server.
 message GetSSHServerRequest {

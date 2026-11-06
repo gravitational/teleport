@@ -1248,6 +1248,10 @@ type Cache interface {
 	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
 	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
 
+	// ListAppServersForHost returns a page of the scoped or unscoped application
+	// servers of a single host, and the token for the next page.
+	ListAppServersForHost(ctx context.Context, req *presencev1.ListAppServersForHostRequest) ([]*types.AppServerV3, string, error)
+
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 

@@ -148,6 +148,9 @@ type Presence interface {
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 	// DeleteAppServer removes a scoped or unscoped application server.
 	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
+	// ListAppServersForHost returns a page of the scoped or unscoped application
+	// servers of a single host, and the token for the next page.
+	ListAppServersForHost(ctx context.Context, req *presencev1.ListAppServersForHostRequest) ([]*types.AppServerV3, string, error)
 
 	// DeleteApplicationServer removes an unscoped application server.
 	//

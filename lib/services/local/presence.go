@@ -1408,6 +1408,25 @@ func (s *PresenceService) DeleteAppServer(ctx context.Context, req *presencev1.D
 	return trace.Wrap(svc.DeleteResource(ctx, req.GetName()))
 }
 
+// ListAppServersForHost returns a page of the scoped or unscoped application servers
+// of a single host, and the token for the next page. The request must set the
+// host ID.
+func (s *PresenceService) ListAppServersForHost(ctx context.Context, req *presencev1.ListAppServersForHostRequest) ([]*types.AppServerV3, string, error) {
+	if req.GetHostId() == "" {
+		return nil, "", trace.BadParameter("host_id: must be specified")
+	}
+	svc, err := appServerServiceForHost(s.appServers, appServerServiceParams{Scope: req.GetScope(), Host: req.GetHostId()})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	servers, nextToken, err := svc.ListResources(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	serversV3, err := services.AppServersV3(servers)
+	return serversV3, nextToken, trace.Wrap(err)
+}
+
 // DeleteApplicationServer removes an unscoped application server.
 //
 // Deprecated: use DeleteAppServer instead. Kept temporarily so

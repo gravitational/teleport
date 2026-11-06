@@ -1719,6 +1719,18 @@ func (c *Client) DeleteAppServer(ctx context.Context, req *presencepb.DeleteAppS
 	return trace.Wrap(err)
 }
 
+// ListAppServersForHost returns a page of the scoped or unscoped application servers
+// of a single host, and the token for the next page. It returns a
+// NotImplemented error if the auth server does not support the call.
+func (c *Client) ListAppServersForHost(ctx context.Context, req *presencepb.ListAppServersForHostRequest) ([]*types.AppServerV3, string, error) {
+	res, err := c.PresenceServiceClient().ListAppServersForHost(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return res.GetServers(), res.GetNextPageToken(), nil
+}
+
 // DeleteAllApplicationServers removes all registered application servers.
 func (c *Client) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
 	_, err := c.grpc.DeleteAllApplicationServers(ctx, &proto.DeleteAllApplicationServersRequest{

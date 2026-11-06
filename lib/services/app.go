@@ -545,6 +545,20 @@ func GetCursorForAppServer(server types.AppServer) string {
 	return scopes.MakeResourceCursorWithHost(server.GetScope(), server.GetHostID(), server.GetName())
 }
 
+// AppServersV3 returns servers as [*types.AppServerV3] values. It returns an
+// error if a server is of another type.
+func AppServersV3(servers []types.AppServer) ([]*types.AppServerV3, error) {
+	out := make([]*types.AppServerV3, 0, len(servers))
+	for _, server := range servers {
+		serverV3, ok := server.(*types.AppServerV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected app server type %T", server)
+		}
+		out = append(out, serverV3)
+	}
+	return out, nil
+}
+
 // GetCursorForApp returns the resource cursor identifying an app in the logical
 // resource stream: "<name>" for unscoped apps and "~scoped/<encoded-scope>/<name>"
 // for scoped apps.

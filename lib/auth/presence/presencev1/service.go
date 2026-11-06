@@ -51,6 +51,7 @@ type cache interface {
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 	GetSSHServer(ctx context.Context, req *presencepb.GetSSHServerRequest) (types.Server, error)
 	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+	ListAppServersForHost(ctx context.Context, req *presencepb.ListAppServersForHostRequest) ([]*types.AppServerV3, string, error)
 	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error)
 	ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error)
@@ -377,6 +378,33 @@ func (s *Service) DeleteAppServer(
 		return nil, trace.Wrap(err)
 	}
 	return presencepb.DeleteAppServerResponse_builder{}.Build(), nil
+}
+
+// ListAppServersForHost returns a page of the app servers of a single host. Only an
+// app agent can call it, for its own host ID and scope.
+func (s *Service) ListAppServersForHost(ctx context.Context, req *presencepb.ListAppServersForHostRequest) (*presencepb.ListAppServersForHostResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetHostId() == "" {
+		return nil, trace.BadParameter("host_id: must be specified")
+	}
+
+	if err := authzCtx.AgentOwnedResourceAction(req.GetScope(), req.GetHostId(), types.RoleApp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, nextToken, err := s.authServer.ListAppServersForHost(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return presencepb.ListAppServersForHostResponse_builder{
+		Servers:       servers,
+		NextPageToken: nextToken,
+	}.Build(), nil
 }
 
 // ListAuthServers returns a page of auth servers.

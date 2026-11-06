@@ -34,8 +34,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -553,7 +551,7 @@ func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
 	// Snapshot the current app set before the RPC call. close()
 	// clears s.apps under the write lock before canceling
 	// closeContext, so snapshotting early ensures we see the full
-	// set even if close() runs during findOrphanedAppServers.
+	// set even if close() runs during orphanedAppServers.
 	s.mu.RLock()
 	currentApps := make(map[string]bool, len(s.apps))
 	for name := range s.apps {
@@ -565,8 +563,12 @@ func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
 	defer cancel()
 	defer context.AfterFunc(s.closeContext, cancel)()
 
-	for orphan, err := range findOrphanedAppServers(ctx, s.c.AuthClient, s.c.HostID, currentApps) {
+	for orphan, err := range orphanedAppServers(ctx, s.c.AuthClient, s.c.HostID, s.c.GetScope(), currentApps) {
 		if ctx.Err() != nil {
+			return
+		}
+		if trace.IsNotImplemented(err) {
+			s.log.WarnContext(ctx, "Auth server does not support ListAppServersForHost, skipping orphan cleanup.")
 			return
 		}
 		if err != nil {
@@ -586,42 +588,21 @@ func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
 	}
 }
 
-// findOrphanedAppServers yields the name and scope of each app server
-// registered for hostID whose app is not in currentApps. It skips app servers
+// appServerClient lists the app servers of one host.
+type appServerClient interface {
+	ListAppServersForHost(ctx context.Context, req *presencev1.ListAppServersForHostRequest) ([]*types.AppServerV3, string, error)
+}
+
+// orphanedAppServers yields the name and scope of each app server registered
+// for hostID and scope whose app is not in currentApps. It skips app servers
 // whose app has an integration. If listing the app servers fails, it yields the
 // error and stops.
-func findOrphanedAppServers(ctx context.Context, clt apiclient.GetResourcesClient, hostID string, currentApps map[string]bool) iter.Seq2[scopes.QualifiedName, error] {
-	req := &proto.ListResourcesRequest{
-		Namespace:    apidefaults.Namespace,
-		ResourceType: types.KindAppServer,
-		Limit:        int32(apidefaults.DefaultChunkSize),
-	}
-	// pageFunc ignores the page size. GetResourcePage halves req.Limit while a
-	// page is too large for one gRPC message, and pageFunc reuses req, so the
-	// smaller limit stays for the next pages.
-	pageFunc := func(ctx context.Context, _ int, pageToken string) ([]types.AppServer, string, error) {
-		req.StartKey = pageToken
-		page, err := apiclient.GetResourcePage[types.AppServer](ctx, clt, req)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		// An empty page ends paging even if it has a next key, so an auth
-		// server that returns an empty page with a next key cannot make this
-		// loop forever.
-		if len(page.Resources) == 0 {
-			return nil, "", nil
-		}
-		return page.Resources, page.NextKey, nil
-	}
-
+func orphanedAppServers(ctx context.Context, clt appServerClient, hostID, scope string, currentApps map[string]bool) iter.Seq2[scopes.QualifiedName, error] {
 	return func(yield func(scopes.QualifiedName, error) bool) {
-		for server, err := range clientutils.Resources(ctx, pageFunc) {
+		for server, err := range appServersForHost(ctx, clt, hostID, scope) {
 			if err != nil {
 				yield(scopes.QualifiedName{}, trace.Wrap(err))
 				return
-			}
-			if server.GetHostID() != hostID {
-				continue
 			}
 			// Skip app servers managed by other components (e.g. AWS
 			// OIDC integration servers upserted by the proxy web
@@ -639,6 +620,22 @@ func findOrphanedAppServers(ctx context.Context, clt apiclient.GetResourcesClien
 			}
 		}
 	}
+}
+
+// appServersForHost yields the app servers registered for hostID and scope. If
+// listing the app servers fails, it yields the error and stops.
+func appServersForHost(ctx context.Context, clt appServerClient, hostID, scope string) iter.Seq2[*types.AppServerV3, error] {
+	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*types.AppServerV3, string, error) {
+		req := presencev1.ListAppServersForHostRequest_builder{
+			HostId:    hostID,
+			Scope:     scope,
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+		}.Build()
+		servers, nextToken, err := clt.ListAppServersForHost(ctx, req)
+		return servers, nextToken, trace.Wrap(err)
+	}
+	return clientutils.Resources(ctx, pageFunc)
 }
 
 // Close will shut the server down and unblock any resources.

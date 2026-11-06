@@ -35,31 +35,32 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PresenceService_GetRemoteCluster_FullMethodName    = "/teleport.presence.v1.PresenceService/GetRemoteCluster"
-	PresenceService_ListRemoteClusters_FullMethodName  = "/teleport.presence.v1.PresenceService/ListRemoteClusters"
-	PresenceService_UpdateRemoteCluster_FullMethodName = "/teleport.presence.v1.PresenceService/UpdateRemoteCluster"
-	PresenceService_DeleteRemoteCluster_FullMethodName = "/teleport.presence.v1.PresenceService/DeleteRemoteCluster"
-	PresenceService_ListReverseTunnels_FullMethodName  = "/teleport.presence.v1.PresenceService/ListReverseTunnels"
-	PresenceService_UpsertReverseTunnel_FullMethodName = "/teleport.presence.v1.PresenceService/UpsertReverseTunnel"
-	PresenceService_DeleteReverseTunnel_FullMethodName = "/teleport.presence.v1.PresenceService/DeleteReverseTunnel"
-	PresenceService_GetRelayServer_FullMethodName      = "/teleport.presence.v1.PresenceService/GetRelayServer"
-	PresenceService_ListRelayServers_FullMethodName    = "/teleport.presence.v1.PresenceService/ListRelayServers"
-	PresenceService_DeleteRelayServer_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteRelayServer"
-	PresenceService_ListAuthServers_FullMethodName     = "/teleport.presence.v1.PresenceService/ListAuthServers"
-	PresenceService_ListProxyServers_FullMethodName    = "/teleport.presence.v1.PresenceService/ListProxyServers"
-	PresenceService_UpsertProxyServer_FullMethodName   = "/teleport.presence.v1.PresenceService/UpsertProxyServer"
-	PresenceService_DeleteProxyServer_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteProxyServer"
-	PresenceService_GetKubeCluster_FullMethodName      = "/teleport.presence.v1.PresenceService/GetKubeCluster"
-	PresenceService_ListKubeClusters_FullMethodName    = "/teleport.presence.v1.PresenceService/ListKubeClusters"
-	PresenceService_DeleteKubeCluster_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteKubeCluster"
-	PresenceService_DeleteKubeServer_FullMethodName    = "/teleport.presence.v1.PresenceService/DeleteKubeServer"
-	PresenceService_DeleteAppServer_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteAppServer"
-	PresenceService_GetSSHServer_FullMethodName        = "/teleport.presence.v1.PresenceService/GetSSHServer"
-	PresenceService_ListSSHServers_FullMethodName      = "/teleport.presence.v1.PresenceService/ListSSHServers"
-	PresenceService_DeleteSSHServer_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteSSHServer"
-	PresenceService_GetApplication_FullMethodName      = "/teleport.presence.v1.PresenceService/GetApplication"
-	PresenceService_ListApplications_FullMethodName    = "/teleport.presence.v1.PresenceService/ListApplications"
-	PresenceService_DeleteApplication_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteApplication"
+	PresenceService_GetRemoteCluster_FullMethodName      = "/teleport.presence.v1.PresenceService/GetRemoteCluster"
+	PresenceService_ListRemoteClusters_FullMethodName    = "/teleport.presence.v1.PresenceService/ListRemoteClusters"
+	PresenceService_UpdateRemoteCluster_FullMethodName   = "/teleport.presence.v1.PresenceService/UpdateRemoteCluster"
+	PresenceService_DeleteRemoteCluster_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteRemoteCluster"
+	PresenceService_ListReverseTunnels_FullMethodName    = "/teleport.presence.v1.PresenceService/ListReverseTunnels"
+	PresenceService_UpsertReverseTunnel_FullMethodName   = "/teleport.presence.v1.PresenceService/UpsertReverseTunnel"
+	PresenceService_DeleteReverseTunnel_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteReverseTunnel"
+	PresenceService_GetRelayServer_FullMethodName        = "/teleport.presence.v1.PresenceService/GetRelayServer"
+	PresenceService_ListRelayServers_FullMethodName      = "/teleport.presence.v1.PresenceService/ListRelayServers"
+	PresenceService_DeleteRelayServer_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteRelayServer"
+	PresenceService_ListAuthServers_FullMethodName       = "/teleport.presence.v1.PresenceService/ListAuthServers"
+	PresenceService_ListProxyServers_FullMethodName      = "/teleport.presence.v1.PresenceService/ListProxyServers"
+	PresenceService_UpsertProxyServer_FullMethodName     = "/teleport.presence.v1.PresenceService/UpsertProxyServer"
+	PresenceService_DeleteProxyServer_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteProxyServer"
+	PresenceService_GetKubeCluster_FullMethodName        = "/teleport.presence.v1.PresenceService/GetKubeCluster"
+	PresenceService_ListKubeClusters_FullMethodName      = "/teleport.presence.v1.PresenceService/ListKubeClusters"
+	PresenceService_DeleteKubeCluster_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteKubeCluster"
+	PresenceService_DeleteKubeServer_FullMethodName      = "/teleport.presence.v1.PresenceService/DeleteKubeServer"
+	PresenceService_DeleteAppServer_FullMethodName       = "/teleport.presence.v1.PresenceService/DeleteAppServer"
+	PresenceService_ListAppServersForHost_FullMethodName = "/teleport.presence.v1.PresenceService/ListAppServersForHost"
+	PresenceService_GetSSHServer_FullMethodName          = "/teleport.presence.v1.PresenceService/GetSSHServer"
+	PresenceService_ListSSHServers_FullMethodName        = "/teleport.presence.v1.PresenceService/ListSSHServers"
+	PresenceService_DeleteSSHServer_FullMethodName       = "/teleport.presence.v1.PresenceService/DeleteSSHServer"
+	PresenceService_GetApplication_FullMethodName        = "/teleport.presence.v1.PresenceService/GetApplication"
+	PresenceService_ListApplications_FullMethodName      = "/teleport.presence.v1.PresenceService/ListApplications"
+	PresenceService_DeleteApplication_FullMethodName     = "/teleport.presence.v1.PresenceService/DeleteApplication"
 )
 
 // PresenceServiceClient is the client API for PresenceService service.
@@ -106,6 +107,8 @@ type PresenceServiceClient interface {
 	DeleteKubeServer(ctx context.Context, in *DeleteKubeServerRequest, opts ...grpc.CallOption) (*DeleteKubeServerResponse, error)
 	// Deletes a specific scoped or unscoped application server.
 	DeleteAppServer(ctx context.Context, in *DeleteAppServerRequest, opts ...grpc.CallOption) (*DeleteAppServerResponse, error)
+	// Lists the scoped or unscoped application servers of a single host.
+	ListAppServersForHost(ctx context.Context, in *ListAppServersForHostRequest, opts ...grpc.CallOption) (*ListAppServersForHostResponse, error)
 	// Gets a specific ssh server resource from the backend.
 	GetSSHServer(ctx context.Context, in *GetSSHServerRequest, opts ...grpc.CallOption) (*GetSSHServerResponse, error)
 	// Lists ssh servers resources from the backend.
@@ -318,6 +321,16 @@ func (c *presenceServiceClient) DeleteAppServer(ctx context.Context, in *DeleteA
 	return out, nil
 }
 
+func (c *presenceServiceClient) ListAppServersForHost(ctx context.Context, in *ListAppServersForHostRequest, opts ...grpc.CallOption) (*ListAppServersForHostResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAppServersForHostResponse)
+	err := c.cc.Invoke(ctx, PresenceService_ListAppServersForHost_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *presenceServiceClient) GetSSHServer(ctx context.Context, in *GetSSHServerRequest, opts ...grpc.CallOption) (*GetSSHServerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSSHServerResponse)
@@ -422,6 +435,8 @@ type PresenceServiceServer interface {
 	DeleteKubeServer(context.Context, *DeleteKubeServerRequest) (*DeleteKubeServerResponse, error)
 	// Deletes a specific scoped or unscoped application server.
 	DeleteAppServer(context.Context, *DeleteAppServerRequest) (*DeleteAppServerResponse, error)
+	// Lists the scoped or unscoped application servers of a single host.
+	ListAppServersForHost(context.Context, *ListAppServersForHostRequest) (*ListAppServersForHostResponse, error)
 	// Gets a specific ssh server resource from the backend.
 	GetSSHServer(context.Context, *GetSSHServerRequest) (*GetSSHServerResponse, error)
 	// Lists ssh servers resources from the backend.
@@ -500,6 +515,9 @@ func (UnimplementedPresenceServiceServer) DeleteKubeServer(context.Context, *Del
 }
 func (UnimplementedPresenceServiceServer) DeleteAppServer(context.Context, *DeleteAppServerRequest) (*DeleteAppServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteAppServer not implemented")
+}
+func (UnimplementedPresenceServiceServer) ListAppServersForHost(context.Context, *ListAppServersForHostRequest) (*ListAppServersForHostResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAppServersForHost not implemented")
 }
 func (UnimplementedPresenceServiceServer) GetSSHServer(context.Context, *GetSSHServerRequest) (*GetSSHServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSSHServer not implemented")
@@ -882,6 +900,24 @@ func _PresenceService_DeleteAppServer_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PresenceService_ListAppServersForHost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAppServersForHostRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).ListAppServersForHost(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_ListAppServersForHost_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).ListAppServersForHost(ctx, req.(*ListAppServersForHostRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PresenceService_GetSSHServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetSSHServerRequest)
 	if err := dec(in); err != nil {
@@ -1072,6 +1108,10 @@ var PresenceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAppServer",
 			Handler:    _PresenceService_DeleteAppServer_Handler,
+		},
+		{
+			MethodName: "ListAppServersForHost",
+			Handler:    _PresenceService_ListAppServersForHost_Handler,
 		},
 		{
 			MethodName: "GetSSHServer",

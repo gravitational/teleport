@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"iter"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"rsc.io/ordered"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
 type appIndex string
@@ -294,4 +296,53 @@ func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName str
 			}
 		}
 	}
+}
+
+// ListAppServersForHost returns a page of the scoped or unscoped application
+// servers of a single host, and the token for the next page. The request must
+// set the host ID.
+func (c *Cache) ListAppServersForHost(ctx context.Context, req *presencev1.ListAppServersForHostRequest) ([]*types.AppServerV3, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAppServersForHost")
+	defer span.End()
+
+	if req.GetHostId() == "" {
+		return nil, "", trace.BadParameter("host_id: must be specified")
+	}
+
+	// Page tokens are app server names. Index keys are the host prefix
+	// followed by the name.
+	prefix := scopes.MakeResourceCursorWithHost(req.GetScope(), req.GetHostId(), "")
+	upstreamListFn := func(ctx context.Context, _ int, _ string) ([]types.AppServer, string, error) {
+		servers, next, err := c.Config.Presence.ListAppServersForHost(ctx, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		if next != "" {
+			next = prefix + next
+		}
+		out := make([]types.AppServer, 0, len(servers))
+		for _, server := range servers {
+			out = append(out, server)
+		}
+		return out, next, nil
+	}
+
+	lister := genericLister[types.AppServer, appServerIndex]{
+		cache:           c,
+		collection:      c.collections.appServers,
+		index:           appServerNameIndex,
+		nextToken:       services.GetCursorForAppServer,
+		defaultPageSize: defaults.DefaultChunkSize,
+		upstreamList:    upstreamListFn,
+	}
+	start := prefix + req.GetPageToken()
+	servers, next, err := lister.listRange(ctx, int(req.GetPageSize()), start, sortcache.NextKey(prefix))
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	serversV3, err := services.AppServersV3(servers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return serversV3, strings.TrimPrefix(next, prefix), nil
 }
