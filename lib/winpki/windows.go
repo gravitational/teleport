@@ -181,12 +181,12 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 		})
 	}
 
-	if req.ActiveDirectorySID != "" {
+	if req.SID != "" {
 		adUserMapping, err := asn1.Marshal(SubjectAltName[ADSid]{
 			otherName[ADSid]{
 				OID: ADUserMappingInternalOID,
 				Value: ADSid{
-					Value: []byte(req.ActiveDirectorySID),
+					Value: []byte(req.SID),
 				},
 			}})
 		if err != nil {
@@ -264,10 +264,10 @@ type GenerateCredentialsRequest struct {
 	TTL time.Duration
 	// ClusterName is the local cluster name
 	ClusterName string
-	// ActiveDirectorySID is the SID of the Windows user
+	// SID is the security ID of the Windows user
 	// specified by Username. If specified (!= ""), it is
 	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
-	ActiveDirectorySID string
+	SID string
 	// CreateUser specifies if Windows user should be created if missing
 	CreateUser bool
 	// Groups are groups that user should be member of

@@ -174,11 +174,11 @@ func (d *dbCertGetter) getCertificate(ctx context.Context, username string) (*ge
 	}
 
 	req := &winpki.GenerateCredentialsRequest{
-		TTL:                time.Minute * 10,
-		Domain:             d.domain,
-		ClusterName:        clusterName.GetClusterName(),
-		Username:           username,
-		ActiveDirectorySID: sid,
+		TTL:         time.Minute * 10,
+		Domain:      d.domain,
+		ClusterName: clusterName.GetClusterName(),
+		Username:    username,
+		SID:         sid,
 	}
 
 	certPEM, keyPEM, caCerts, err := winpki.DatabaseCredentials(ctx, d.auth, req)
