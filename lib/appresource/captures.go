@@ -40,7 +40,7 @@ import (
 // The third example fails for the request path "/", which matches only
 // the slash() branch and binds nothing.
 func validateVars(parsed ast.Expr) error {
-	_, err := checkVars(parsed, set.New[string]())
+	_, err := checkVars(parsed, newCaptureIndex(parsed), nil)
 	return trace.Wrap(err)
 }
 
@@ -52,83 +52,166 @@ func validateVars(parsed ast.Expr) error {
 // bound contains the capture names bound before node evaluates. checkVars
 // returns the capture names guaranteed bound after node evaluated to true,
 // which are passed as bound for the next subexpression.
-func checkVars(node ast.Expr, bound set.Set[string]) (set.Set[string], error) {
+func checkVars(node ast.Expr, index captureIndex, bound captureSet) (captureSet, error) {
 	switch n := ast.Unparen(node).(type) {
 	case *ast.BinaryExpr:
-		boundByX, err := checkVars(n.X, bound) // left operand
+		boundByX, err := checkVars(n.X, index, bound) // left operand
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		switch n.Op {
 		case token.LAND:
-			boundByY, err := checkVars(n.Y, union(bound, boundByX)) // right operand
+			boundByY, err := checkVars(n.Y, index, union(bound, boundByX)) // right operand
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return union(boundByX, boundByY), nil
 		case token.LOR:
-			boundByY, err := checkVars(n.Y, bound)
+			boundByY, err := checkVars(n.Y, index, bound)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return intersect(boundByX, boundByY), nil
 		default: // EQ and NEQ operators (==, !=) guarantee nothing
-			_, err := checkVars(n.Y, bound)
-			return set.New[string](), trace.Wrap(err)
+			_, err := checkVars(n.Y, index, bound)
+			return nil, trace.Wrap(err)
 		}
 	case *ast.UnaryExpr:
-		_, err := checkVars(n.X, bound)
-		return set.New[string](), trace.Wrap(err)
+		_, err := checkVars(n.X, index, bound)
+		return nil, trace.Wrap(err)
 	case *ast.CallExpr:
 		if isPathMatch(n) {
 			// A matcher tree cannot contain a vars.<name> read.
-			return checkCaptureBindings(n.Args[0], set.New[string]())
+			return checkCaptureBindings(n.Args[0], index, set.New[string]())
 		}
 		// The audit wrappers are transparent. They return their third
 		// argument's value and guarantee its captures.
 		if isAuditCall(n) {
 			for _, arg := range n.Args[:2] {
-				if _, err := checkVars(arg, bound); err != nil {
+				if _, err := checkVars(arg, index, bound); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
-			return checkVars(n.Args[2], bound)
+			return checkVars(n.Args[2], index, bound)
 		}
 		// Arguments evaluate before the call binds anything.
 		for _, arg := range n.Args {
-			if _, err := checkVars(arg, bound); err != nil {
+			if _, err := checkVars(arg, index, bound); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
-		return set.New[string](), nil
+		return nil, nil
 	case *ast.SelectorExpr:
 		if id, ok := n.X.(*ast.Ident); ok && id.Name == "vars" {
-			if !bound.Contains(n.Sel.Name) {
+			if i, ok := index[n.Sel.Name]; !ok || !bound.contains(i) {
 				return nil, trace.BadParameter("vars.%s is read before capture %q is guaranteed bound; bind it in a path.match on every branch", n.Sel.Name, n.Sel.Name)
 			}
 		}
-		return set.New[string](), nil
+		return nil, nil
 	case *ast.IndexExpr:
-		if _, err := checkVars(n.X, bound); err != nil {
+		if _, err := checkVars(n.X, index, bound); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		_, err := checkVars(n.Index, bound)
-		return set.New[string](), trace.Wrap(err)
+		_, err := checkVars(n.Index, index, bound)
+		return nil, trace.Wrap(err)
 	default:
-		return set.New[string](), nil
+		return nil, nil
 	}
 }
 
-func union(sets ...set.Set[string]) set.Set[string] {
-	out := set.New[string]()
-	out.Union(sets...)
-	return out
+// captureIndex numbers the capture names of one app_resources_expressions
+// entry from 0.
+type captureIndex map[string]int
+
+// newCaptureIndex returns the index of the capture names in parsed.
+func newCaptureIndex(parsed ast.Expr) captureIndex {
+	index := captureIndex{}
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			if name, ok := captureName(call); ok {
+				if _, seen := index[name]; !seen {
+					index[name] = len(index)
+				}
+			}
+		}
+		return true
+	})
+	return index
 }
 
-func intersect(a, b set.Set[string]) set.Set[string] {
-	out := a.Clone()
-	out.Intersection(b)
-	return out
+// setOf returns the set of names. Each name must be in the index.
+func (idx captureIndex) setOf(names ...string) captureSet {
+	if len(names) == 0 {
+		return nil
+	}
+	s := idx.newSet()
+	for _, name := range names {
+		s.add(idx[name])
+	}
+	return s
+}
+
+// newSet returns an empty set with a bit for each name in the index.
+func (idx captureIndex) newSet() captureSet {
+	return make(captureSet, (len(idx)+63)/64)
+}
+
+// captureSet is a set of capture names, one bit per captureIndex number. A
+// nil set is empty. Every non-nil set of one index has the same length. union
+// and intersect never change their arguments, but union can return one, so
+// change a set in place only when no other caller holds it.
+type captureSet []uint64
+
+// contains returns true when the set has the name numbered i.
+func (s captureSet) contains(i int) bool {
+	return i/64 < len(s) && s[i/64]&(1<<(i%64)) != 0
+}
+
+// add adds the name numbered i. The set must have a bit for i.
+func (s captureSet) add(i int) {
+	s[i/64] |= 1 << (i % 64)
+}
+
+// empty returns true when the set has no names.
+func (s captureSet) empty() bool {
+	for _, w := range s {
+		if w != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// union returns the names in a or b. When one is empty, it returns the other.
+func union(a, b captureSet) captureSet {
+	if b.empty() {
+		return a
+	}
+	if a.empty() {
+		return b
+	}
+	result := slices.Clone(a)
+	for i, w := range b {
+		result[i] |= w
+	}
+	return result
+}
+
+// intersect returns the names in both a and b, or nil when there are none.
+func intersect(a, b captureSet) captureSet {
+	if a.empty() || b.empty() {
+		return nil
+	}
+	var result captureSet
+	for i := range a {
+		if w := a[i] & b[i]; w != 0 {
+			if result == nil {
+				result = make(captureSet, len(a))
+			}
+			result[i] = w
+		}
+	}
+	return result
 }
 
 // validateNoCaptureOverwrites validates that no path.match rebinds a
@@ -139,14 +222,14 @@ func intersect(a, b set.Set[string]) set.Set[string] {
 //	path.match(capture("p")) && path.match(capture("p"))
 //	(path.match(capture("p")) && vars.p == "x") || path.match(glob(capture("p")))
 func validateNoCaptureOverwrites(parsed ast.Expr) error {
-	_, err := checkNoOverwrites(parsed, set.New[string]())
+	_, err := checkNoOverwrites(parsed, newCaptureIndex(parsed), nil)
 	return trace.Wrap(err)
 }
 
 // bindings contains the capture names one expression may bind.
 type bindings struct {
-	onTrue  set.Set[string] // names possibly bound when evaluated to true
-	onFalse set.Set[string] // names possibly bound when evaluated to false
+	onTrue  captureSet // names possibly bound when evaluated to true
+	onFalse captureSet // names possibly bound when evaluated to false
 }
 
 // negated swaps onTrue and onFalse, for a negation operand.
@@ -155,23 +238,23 @@ func (m bindings) negated() bindings {
 }
 
 // both returns the names bound under either outcome.
-func (m bindings) both() set.Set[string] {
+func (m bindings) both() captureSet {
 	return union(m.onTrue, m.onFalse)
 }
 
 // checkNoOverwrites checks that no path.match in node rebinds a capture
 // name in possiblyBound and returns the names node itself may bind.
-func checkNoOverwrites(node ast.Expr, possiblyBound set.Set[string]) (bindings, error) {
-	none := bindings{onTrue: set.New[string](), onFalse: set.New[string]()}
+func checkNoOverwrites(node ast.Expr, index captureIndex, possiblyBound captureSet) (bindings, error) {
+	var none bindings
 	switch n := ast.Unparen(node).(type) {
 	case *ast.BinaryExpr:
-		x, err := checkNoOverwrites(n.X, possiblyBound) // left operand
+		x, err := checkNoOverwrites(n.X, index, possiblyBound) // left operand
 		if err != nil {
 			return none, trace.Wrap(err)
 		}
 		switch n.Op {
 		case token.LAND:
-			y, err := checkNoOverwrites(n.Y, union(possiblyBound, x.onTrue))
+			y, err := checkNoOverwrites(n.Y, index, union(possiblyBound, x.onTrue))
 			if err != nil {
 				return none, trace.Wrap(err)
 			}
@@ -181,7 +264,7 @@ func checkNoOverwrites(node ast.Expr, possiblyBound set.Set[string]) (bindings, 
 				onFalse: union(x.both(), y.onFalse),
 			}, nil
 		case token.LOR:
-			y, err := checkNoOverwrites(n.Y, union(possiblyBound, x.onFalse))
+			y, err := checkNoOverwrites(n.Y, index, union(possiblyBound, x.onFalse))
 			if err != nil {
 				return none, trace.Wrap(err)
 			}
@@ -191,7 +274,7 @@ func checkNoOverwrites(node ast.Expr, possiblyBound set.Set[string]) (bindings, 
 				onFalse: union(x.onFalse, y.onFalse),
 			}, nil
 		default: // A comparison evaluates both operands whatever they bind.
-			y, err := checkNoOverwrites(n.Y, union(possiblyBound, x.both()))
+			y, err := checkNoOverwrites(n.Y, index, union(possiblyBound, x.both()))
 			if err != nil {
 				return none, trace.Wrap(err)
 			}
@@ -199,7 +282,7 @@ func checkNoOverwrites(node ast.Expr, possiblyBound set.Set[string]) (bindings, 
 			return bindings{onTrue: all, onFalse: all}, nil
 		}
 	case *ast.UnaryExpr:
-		x, err := checkNoOverwrites(n.X, possiblyBound)
+		x, err := checkNoOverwrites(n.X, index, possiblyBound)
 		if err != nil {
 			return none, trace.Wrap(err)
 		}
@@ -210,24 +293,23 @@ func checkNoOverwrites(node ast.Expr, possiblyBound set.Set[string]) (bindings, 
 		return bindings{onTrue: all, onFalse: all}, nil
 	case *ast.CallExpr:
 		if isPathMatch(n) {
-			bound := set.New[string]()
-			for _, name := range allCaptureNames(n.Args[0]) {
-				if possiblyBound.Contains(name) {
+			names := allCaptureNames(n.Args[0])
+			for _, name := range names {
+				if possiblyBound.contains(index[name]) {
 					return none, trace.BadParameter("path.match can evaluate with capture %q already bound by an earlier path.match and would replace its value; use a distinct capture name", name)
 				}
-				bound.Add(name)
 			}
-			return bindings{onTrue: bound, onFalse: set.New[string]()}, nil
+			return bindings{onTrue: index.setOf(names...)}, nil
 		}
 		// The audit wrappers are transparent. They return their third
 		// argument's value and bind what it binds.
 		if isAuditCall(n) {
-			return checkNoOverwrites(n.Args[2], possiblyBound)
+			return checkNoOverwrites(n.Args[2], index, possiblyBound)
 		}
 		// Arguments evaluate left to right whatever they bind.
-		boundByArgs := set.New[string]()
+		var boundByArgs captureSet
 		for _, arg := range n.Args {
-			a, err := checkNoOverwrites(arg, possiblyBound)
+			a, err := checkNoOverwrites(arg, index, possiblyBound)
 			if err != nil {
 				return none, trace.Wrap(err)
 			}
@@ -236,15 +318,15 @@ func checkNoOverwrites(node ast.Expr, possiblyBound set.Set[string]) (bindings, 
 		}
 		return bindings{onTrue: boundByArgs, onFalse: boundByArgs}, nil
 	case *ast.IndexExpr:
-		x, err := checkNoOverwrites(n.X, possiblyBound)
+		x, err := checkNoOverwrites(n.X, index, possiblyBound)
 		if err != nil {
 			return none, trace.Wrap(err)
 		}
-		index, err := checkNoOverwrites(n.Index, union(possiblyBound, x.both()))
+		key, err := checkNoOverwrites(n.Index, index, union(possiblyBound, x.both()))
 		if err != nil {
 			return none, trace.Wrap(err)
 		}
-		all := union(x.both(), index.both())
+		all := union(x.both(), key.both())
 		return bindings{onTrue: all, onFalse: all}, nil
 	default:
 		return none, nil
@@ -254,38 +336,42 @@ func checkNoOverwrites(node ast.Expr, possiblyBound set.Set[string]) (bindings, 
 // checkCaptureBindings checks that no capture name in node repeats on a
 // root-to-leaf path. The names in bound count as already on the branch.
 // It returns the names guaranteed bound however the subtree matches.
-func checkCaptureBindings(node ast.Expr, bound set.Set[string]) (set.Set[string], error) {
-	guaranteed := set.New[string]()
+func checkCaptureBindings(node ast.Expr, index captureIndex, bound set.Set[string]) (captureSet, error) {
 	call, ok := ast.Unparen(node).(*ast.CallExpr)
 	if !ok {
-		return guaranteed, nil
+		return nil, nil
 	}
-	if name, ok := captureName(call); ok {
+	name, isCapture := captureName(call)
+	if isCapture {
 		if bound.Contains(name) {
-			return guaranteed, trace.BadParameter("capture %q appears more than once on one root-to-leaf path; use a distinct name", name)
+			return nil, trace.BadParameter("capture %q appears more than once on one root-to-leaf path; use a distinct name", name)
 		}
 		bound.Add(name)
 		defer bound.Remove(name)
-		guaranteed.Add(name)
 	}
-	children := childArgs(call)
-	if len(children) == 0 {
-		return guaranteed, nil
-	}
-	var fromChildren set.Set[string]
-	for _, child := range children {
-		childGuaranteed, err := checkCaptureBindings(child, bound)
+	var guaranteed captureSet
+	for i, child := range childArgs(call) {
+		childGuaranteed, err := checkCaptureBindings(child, index, bound)
 		if err != nil {
-			return guaranteed, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		if fromChildren == nil {
-			fromChildren = childGuaranteed
-		} else {
-			fromChildren.Intersection(childGuaranteed)
+		if i == 0 || childGuaranteed == nil {
+			guaranteed = childGuaranteed
+			continue
+		}
+		// Child sets are not shared, so intersect in place.
+		for j := range guaranteed {
+			guaranteed[j] &= childGuaranteed[j]
 		}
 	}
-	if !isIdentCall(call, "optional") {
-		guaranteed.Union(fromChildren)
+	if isIdentCall(call, "optional") {
+		clear(guaranteed)
+	}
+	if isCapture {
+		if guaranteed == nil {
+			guaranteed = index.newSet()
+		}
+		guaranteed.add(index[name])
 	}
 	return guaranteed, nil
 }
