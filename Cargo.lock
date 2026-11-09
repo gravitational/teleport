@@ -3358,8 +3358,7 @@ checksum = "3a0219bd7d979d58245a4f41f695e1ac9f8befdffadd7f61f1bae9e39abc6620"
 [[package]]
 name = "sspi"
 version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d3fa5e1405884e88be309bd801760caa84c654be746fe4261ab407496263692"
+source = "git+https://github.com/Devolutions/sspi-rs?rev=f7769f9c0223344ac4fc2295a4420b247ef532ca#f7769f9c0223344ac4fc2295a4420b247ef532ca"
 dependencies = [
  "async-dnssd",
  "async-recursion",
@@ -4257,8 +4256,7 @@ dependencies = [
 [[package]]
 name = "winscard"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d8812a45e99e652100e89a19fb464ff607b35ec49ad723f59a9e83863906365"
+source = "git+https://github.com/Devolutions/sspi-rs?rev=f7769f9c0223344ac4fc2295a4420b247ef532ca#f7769f9c0223344ac4fc2295a4420b247ef532ca"
 dependencies = [
  "bitflags 2.13.1",
  "crypto-bigint",

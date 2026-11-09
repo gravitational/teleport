@@ -34,3 +34,6 @@ ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "f1e21
 ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "f1e218e58dc60c0579a8aba25e67077bf80be32b" }
 ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "f1e218e58dc60c0579a8aba25e67077bf80be32b", features = ["rustls"] }
 ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "f1e218e58dc60c0579a8aba25e67077bf80be32b" }
+
+[patch.crates-io]
+sspi = { git = "https://github.com/Devolutions/sspi-rs", rev = "f7769f9c0223344ac4fc2295a4420b247ef532ca" }
