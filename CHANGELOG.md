@@ -104,6 +104,40 @@ After migrating, run `tctl integrations test <name>` to verify the integration.
 To temporarily continue using an S3 issuer in v19, start all Auth Service instances with `TELEPORT_UNSTABLE_LEGACY_S3_AWSOIDC_ISSUER=true`.
 Support for S3 issuers and this environment variable will be removed in v20.
 
+#### Proxy Service CLI flag `--insecure-no-tls` removed
+
+In v19.0.0, the `--insecure-no-tls` flag for `teleport start` was removed. If the
+flag is specified, `teleport start` will exit with an error, regardless of which
+services are enabled.
+
+This flag configured the Proxy Service's public listener to run without TLS
+(i.e. no encryption/plaintext). We have removed this CLI flag because this
+deployment architecture is not supported and is insecure.
+
+If you currently operate the Proxy Service with the `--insecure-no-tls` flag you
+will need to make configuration changes prior to upgrading to v19.
+
+Once the `--insecure-no-tls` flag is removed, the Proxy Service will use the
+certificates configured with `https_keypairs` or ACME. If neither is configured,
+it will generate a self-signed certificate to secure the endpoint.
+
+If your Proxy Service is directly connected to by clients (i.e. there is no load
+balancer or reverse proxy providing TLS), then clients may reject these
+self-signed certificates and for production deployments you should configure the
+Proxy Service with legitimate certificates trusted by your clients.
+
+If your Proxy Service is fronted by a load balancer or reverse proxy that
+provides TLS, then you will need to configure it to connect to the Proxy
+Service's `web_listen_addr` over HTTPS instead of plaintext HTTP. If the Proxy
+Service is using a self-signed certificate, the load balancer will also need to
+trust that certificate or skip verification of it.
+
+For more information on Proxy Service configuration, see the
+[Teleport Networking Reference](docs/pages/reference/deployment/networking.mdx)
+and the [Teleport Proxy Service Reference](docs/pages/reference/deployment/config.mdx#proxy-service).
+
+For further assistance with this change, reach out to Teleport Support.
+
 ### Deprecation notice for Access Monitoring
 
 The Access Monitoring feature in Teleport Identity Governance is
