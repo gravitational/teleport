@@ -361,7 +361,7 @@ func (cmd *phaseConfigCommand) normalize() error {
 		if cmd.Command != "" || len(cmd.Args) != 0 {
 			return trace.BadParameter("shell cannot be combined with command or args")
 		}
-		cmd.Command, cmd.Args = "/bin/sh", []string{"-c", cmd.Shell}
+		cmd.Command, cmd.Args = "/bin/sh", []string{"-ec", cmd.Shell}
 		cmd.Shell = ""
 	}
 	if cmd.Command == "" {
