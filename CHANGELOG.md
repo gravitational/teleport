@@ -1,5 +1,48 @@
 # Changelog
 
+## 18.11.9 (11/6/26)
+
+* Fixed high memory use by the app service on startup in clusters with many app servers.
+* Fixed AWS KMS multi-region replicas of session recording encryption keys being tagged `TeleportCluster` instead of `TeleportClusterEncryption`. This doesn't affect existing replicas keys, they keep their old tags until rotation.
+* Added support for pam_group.so.
+* Fixed DynamoDB-backed session searches to correctly apply RBAC predicates containing OR expressions, map references, and repeated fields.
+* Fixed Teleport Database Service connectivity issues with Oracle databases when Oracle SCAN is enabled.
+* Improved the reliability of automatic database user provisioning and cleanup for PostgreSQL and Redshift.
+* Added `dnsConfig` and `dnsPolicy` support to the tbot and tbot-spiffe-daemon-set Helm charts.
+* Fixed `tsh proxy kube` failing for every cluster when one Kubernetes cluster has no running agent.
+* Reduced connections and hardware key signatures for concurrent Kubernetes requests through `tsh proxy kube` and Teleport Connect by multiplexing them over HTTP/2.
+* Update how web and app sessions with a missing user or role are handled, ensuring consistent re-login UX.
+* tsh no longer prints generic SSH exit-status errors. Exit codes and error details are preserved.
+* Session summarization inference resources (`inference_model`, `inference_secret`, `inference_policy`, `retrieval_model`) now require MFA for administrative actions.
+* Updated `saml_idp_service_provider` resource API to validate attribute value predicates when creating or updating the resource.
+* The Teleport proxy and desktop agents now export Prometheus metrics for remote desktop connection attempts and their latency.
+* Improved the performance of access checks, reducing the CPU usage of Auth Service instances when listing resources.
+* Fixed excessive database reads as a result of reading or listing certain resource types (SSH servers, Kubernetes clusters, applications).
+* Reduced TLS handshakes in `tsh proxy kube` and Teleport Connect Kubernetes gateways, which now reuse upstream connections instead of handshaking on every request. Under a hardware key policy this also removes a private key signature per request.
+* Added canonical `teleport.dev/aws-region` labels to auto-discovered EC2 instances.
+* Added a 30 second timeout for each attempt of a PostgreSQL backend operation, so a stalled query no longer holds a pool connection indefinitely.
+* Added canonical teleport.dev/account-id and teleport.dev/aws-region labels to auto-discovered AWS databases.
+* Support scoped integrations, AWS OIDC and Roles Anywhere console apps through tsh and tctl.
+* EC2 auto-discovery now processes SSM installation groups concurrently with bounded concurrency.
+* Add canonical `teleport.dev/account-id` and `teleport.dev/aws-region` label to discovered EKS clusters.
+* Add scope support for AWS console apps.
+* Raised limit of unique version numbers supported Bot Instances report from 20 to 40.
+* Fixed Access Request creation failures and incorrect duration labels when requests cross daylight saving time transitions.
+* Prevented overlapping EC2 discovery matchers from submitting duplicate SSM installation commands during the same discovery scan.
+* Added connection pool metrics and improved connection failure logging for the PostgreSQL backend.
+* Improved EC2 auto-enrollment failure diagnostics with SSM invocation links and retry information.
+* Added installation backoff for EC2 instances enrolled through AWS SSM.
+* Fixed static SPIFFE federation configurations being unnecessarily re-synced.
+* Added retry timing and attempt metadata to EC2 discovery UserTasks.
+* Support AMR evaluation of Access Requests containing K8s Namespace resources.
+* Fixed an issue where the Auth Service logged "Failed to complete upload" after every app session chunk upload.
+* Fixed SSH sessions not being logged in logind on modern Linux systems.
+* Allow multiplexed `tsh aws proxy` to work without needing to login to app when role choice is unambiguous.
+* Add `--all` flag to multiplexed tsh aws proxy commands to allow proxying all authorized AWS apps.
+* Fixed workload-identity-api not renewing the X509-SVIDs over the Envoy SDS API on a consistent interval.
+* Introduced jitter to tbot renewal loops to smooth load characteristics at scale.
+* Add support for using system credentials with the intune integration.
+
 ## 18.11.8 (10/29/26)
 
 **MCP**
