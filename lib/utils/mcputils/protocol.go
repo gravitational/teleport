@@ -205,6 +205,61 @@ func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 	return &listResult, nil
 }
 
+// FilterListToolResult assumes the result is for MethodToolsList and drops
+// the tools for which allow returns false. It edits the raw JSON because
+// mcp-go's types lose fields they don't know about. "cacheScope" is set to
+// "private" because the filtered result is specific to the caller.
+//
+// https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cache-scope-field
+func (r *JSONRPCResponse) FilterListToolResult(allow func(toolName string) bool) (json.RawMessage, error) {
+	var result map[string]json.RawMessage
+	if err := UnmarshalJSONRPCMessage(r.Result, &result); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if result == nil {
+		result = make(map[string]json.RawMessage)
+	}
+
+	var tools []json.RawMessage
+	if rawTools, ok := result["tools"]; ok {
+		if err := UnmarshalJSONRPCMessage(rawTools, &tools); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	allowed := make([]json.RawMessage, 0, len(tools))
+	for _, tool := range tools {
+		var t struct {
+			Name string `json:"name"`
+		}
+		if err := UnmarshalJSONRPCMessage(tool, &t); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if allow(t.Name) {
+			allowed = append(allowed, tool)
+		}
+	}
+
+	rawAllowed, err := json.Marshal(allowed)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	result["tools"] = rawAllowed
+	// Results without caching fields come from servers on older protocol
+	// versions and are left as is.
+	_, hasScope := result["cacheScope"]
+	_, hasTTL := result["ttlMs"]
+	if hasScope || hasTTL {
+		result["cacheScope"] = json.RawMessage(`"private"`)
+	}
+
+	filtered, err := json.Marshal(result)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return filtered, nil
+}
+
 // GetInitializeResult assumes the result is for MethodInitialize and
 // returns the corresponding go object.
 func (r *JSONRPCResponse) GetInitializeResult() (*mcp.InitializeResult, error) {
