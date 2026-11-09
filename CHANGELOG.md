@@ -1,5 +1,11 @@
 # Changelog
 
+## 18.11.10 (11/10/26)
+
+* Ensure multi-line phase.yaml shell commands fail on first error.
+* Added support for replaying Beam related audit events, including traffic captures and session end events.
+* Fixed MCP tool-list responses dropping fields.
+
 ## 18.11.9 (11/6/26)
 
 * Fixed high memory use by the app service on startup in clusters with many app servers.
