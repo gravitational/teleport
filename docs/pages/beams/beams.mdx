@@ -9,7 +9,7 @@ tags:
 ---
 
 <Admonition type="tip" title="CLI Tools">
-Beams require `tsh` version 18.8.0 or newer. To install `tsh`, visit [Download
+Beams require `tsh` version 18.11.9 or newer. To install `tsh`, visit [Download
 Client Tools](https://goteleport.com/download/client-tools/), select your
 platform, and choose "CLI Client Tools" in the **Download Type** menu.
 </Admonition>
@@ -26,10 +26,9 @@ security, IAM, and operational overhead.
 
 ## How Beams work
 
-When you run `tsh beams add`, Teleport's orchestrator provisions an isolated
-microVM, injects a short-lived identity certificate, starts an SSH server, and
-configures virtual networking — all before your agent executes its first line of
-code.
+When you create a beam, Teleport's orchestrator provisions an isolated microVM,
+injects a short-lived identity certificate, starts an SSH server, and configures
+virtual networking — all before your agent executes its first line of code.
 
 Each beam runs a Debian-based environment that comes with Teleport's `tsh`
 command line and an assortment of common tooling.
@@ -41,10 +40,10 @@ user's behalf without sharing secrets. All actions taken in the beam are attribu
 to both the originating user and the beam's unique workload identity in Teleport's
 audit log.
 
-In the beta, each beam's delegation session inherits the user's full permission
-set. In future iterations, users will be able to provide a more restrictive
-delegation profile and even allow agents to interactively request additional
-permissions.
+By default, a beam inherits the user's standing roles. To delegate only selected
+roles, use `tsh beams add --roles=role-a,role-b`. The selected roles must be
+eligible for delegation. Permissions from temporary Access Requests are not
+automatically included.
 
 ### Inference endpoints
 
@@ -66,7 +65,7 @@ endpoints and bring their own credentials.
 
 ## Use cases
 
-### Coding agents
+### Agentic access to internal services
 
 Drop an agent into a beam and let Teleport handle access to internal services
 and inference endpoints with full audit and access control.
@@ -78,30 +77,33 @@ beams@tidal-memory:~$ claude --dangerously-skip-permissions \
   "Connect to the HR database and tell me who hasn't had a pay raise in a while"
 ```
 
+In this use case we used `tsh beams add` because we had a simple question to
+answer and don't require any local files to be persisted. To save filesystem
+state between sessions, use [Phases](#building-reusable-images-with-phases) by
+starting with `tsh phase add` instead.
+
 For a quick demo of using Beams to run an untrusted agent workload against a
 database, see [Beams Database Demo](./databases.mdx).
 
 ### Sandboxed app development
 
 Check out a repo, spin up an AI coding assistant, and test against staging or
-production without exposing secrets.
+production without exposing secrets. Start a Phase so you can save your work
+and return to it later:
 
 ```code
-$ tsh beams add
-◆ created warm-orbit
-
-# Clone a repo inside the isolated VM
-beams@warm-orbit:~$ git clone github.com/org/repo
-
-# Start an AI assistant and start coding
-beams@warm-orbit:~$ claude init
+$ tsh phase add workspace
 ```
+
+Inside the build Beam, clone your repository and start an assistant.
+See the [save-and-reopen workflow](#save-a-workspace-and-return-to-it) for how
+to save your work and return later.
 
 You can even share your app with others by publishing it to the Teleport cluster.
 Configure the app to bind to port 8080, and publish the app with `tsh beams publish`.
 
 ```code
-$ tsh beams publish warm-orbit
+$ tsh beams publish <Var name="beam-name" />
 ```
 
 By default, `tsh beams publish` will register a [web
@@ -127,6 +129,28 @@ All beam operations are performed through the `tsh beams` subcommand.
 | `tsh beams publish <name>` | Publish an HTTP or TCP service running in a beam. |
 | `tsh beams scp <src> <dst>` | Copy files into or out of beams. |
 
+A Phase is a reusable filesystem image for new Beams. You can save installed
+tools and project files in a Phase, then create Beams from it instead of repeating
+the same setup in each Beam. The saved image remains available after its build
+Beam ends.
+
+Newly created Phases and build status changes may take a short time to appear
+in listings.
+
+Phase images are managed through `tsh phase`:
+
+| Command | Description |
+|---|---|
+| `tsh phase apply -f <file>` | Create or update a sequence of Phases from a multi-document YAML file. |
+| `tsh phase add [name]` | Open a build Beam to prepare an interactive snapshot Phase. |
+| `tsh phase add [name] --from=<upstream>` | Use another Phase as the new Phase's base image. |
+| `tsh phase add [name] --fork` | Fork the current interactive build into a new Phase. |
+| `tsh phase edit <name>` | Open a build Beam to edit an existing snapshot Phase. |
+| `tsh phase snapshot [--final]` | Save changes from an interactive build. Add `--final` to save and end the build. |
+| `tsh phase ls` | List Phase images. |
+| `tsh phase ls-failed` | List failed build snapshots. |
+| `tsh phase rm <name>` | Delete a Phase image. |
+
 ### Creating a beam
 
 Create a new beam with `tsh beams add`. This provisions a microVM
@@ -143,6 +167,18 @@ Expiry:    2027-02-05 22:04 UTC
 
 Beam names are auto-generated. You do not specify a name when creating a beam.
 
+By default, a beam uses Teleport's standard image. To create it from the latest
+successful image produced by a Phase, provide the Phase name at creation:
+
+```code
+$ tsh beams add --phase=agent-tools
+```
+
+The Phase selection is fixed for the lifetime of the beam. Teleport returns an
+error if the named Phase has not completed its first successful image build.
+Existing beams continue to use the image selected when they were created.
+Create a new Beam to use an updated Phase image.
+
 By default, `tsh beams add` will connect to the beam automatically and drop you
 into a console. To start a beam without also opening a console session, add the
 `--no-console` flag.
@@ -155,10 +191,10 @@ View your active beams:
 
 ```code
 $ tsh beams ls
-ID            URL                                      Region      Expires
-------------- ---------------------------------------- ----------- --------------------
-warm-orbit    https://warm-orbit.example.teleport.sh/  us-east-1   2027-02-05 22:04 UTC
-nimble-signal -                                        us-west-2   2027-02-06 12:15 UTC
+ID            URL                                      Region      Phase      Expires
+------------- ---------------------------------------- ----------- ----------- --------------------
+warm-orbit    https://warm-orbit.example.teleport.sh/  us-east-1   agent-tools 2027-02-05 22:04 UTC
+nimble-signal -                                        us-west-2   default:v1  2027-02-06 12:15 UTC
 ```
 
 ### Running commands
@@ -178,12 +214,824 @@ beams@warm-orbit:~$
 
 ### Removing a beam
 
-Beams are ephemeral and automatically purged after 24 hours.
+Beams are ephemeral and expire after 11 hours. Save interactive Phase work
+with `tsh phase snapshot` before the build Beam expires. Use
+`tsh phase snapshot --final` to save and end the build. Expiry does not save
+unsaved changes. The Phase's last successful image remains available after
+the Beam is deleted.
 To manually remove a beam prior to its expiration, use `tsh beams rm`:
 
 ```code
 $ tsh beams rm warm-orbit
 ```
+
+## Building reusable images with Phases
+
+Use **Phases** when you or an agent needs to save filesystem state between
+sessions. You can save a workspace, return to it in a fresh environment, or
+fork it to try an independent change. You can also combine saved work with
+commands that keep its tools and dependencies up to date.
+
+A Beam is the temporary environment where the work runs.
+A Phase keeps the saved filesystem and defines how it updates after that
+Beam ends.
+
+### How Phases work
+
+Running `tsh phase add workspace` creates a Phase named `workspace`, starts
+a temporary **build Beam**, and connects your terminal to it. Work in that
+Beam, then run `tsh phase snapshot` to save changes to the Phase.
+The word "build" includes preparing a workspace interactively.
+
+Later, `tsh phase edit workspace` creates another build Beam from the last
+saved snapshot and connects you to it. It opens a working environment where
+you can edit files or run an agent.
+
+Beams created with `tsh beams add` are useful for running work whose
+filesystem changes can be discarded. Even with `--phase=workspace`, they
+cannot save changes back using `tsh phase snapshot`. Use `phase add` or
+`phase edit` when you need to keep your work.
+
+### Prerequisites
+
+- A Teleport cluster with Beams and Phases enabled, and permission to use them.
+- A `tsh` client that supports `tsh phase`. Use the client version recommended
+  for your cluster. See [Download Client Tools](https://goteleport.com/download/client-tools/)
+  to install it.
+- An authenticated local terminal. Run `tsh status` to check your login.
+
+The examples say whether to run commands in your local terminal or inside a
+build Beam. The Phase name is stable, while each build Beam has its own name
+and identifier.
+
+### Save a workspace and return to it
+
+#### Step 1/3. Start working
+
+Run this in your local terminal:
+
+```code
+$ tsh phase add workspace
+```
+
+The command connects you to a new build Beam using Teleport's default image.
+You are logged in as the normal `beams` user, with your home at `/home/beams`.
+If you omit the Phase name, Teleport generates one.
+
+Keep files you want to save under `/home`. For a small example that the later
+builds in this guide can reuse, run inside the Beam:
+
+```code
+$ mkdir -p ~/app
+$ printf '<h1>Hello from my workspace</h1>\n' > ~/app/index.html
+```
+
+You can instead clone your own repository and work on it with an editor or
+agent. Root access is possible, but discouraged for interactive work.
+Interactive snapshots save changes under `/home`.
+
+#### Step 2/3. Save your work
+
+Inside the build Beam, save a checkpoint and keep working:
+
+```code
+$ tsh phase snapshot
+```
+
+This saves the allowed filesystem changes to `workspace`. It prints a digest
+identifying the saved image. You can continue using the Phase name without
+copying or entering that digest.
+
+When you are ready to end this session, save again and end the build:
+
+```code
+$ tsh phase snapshot --final
+```
+
+The build ends only after the snapshot is saved successfully. Your terminal
+returns to the machine where you ran `tsh phase add`.
+
+#### Step 3/3. Return in a fresh Beam
+
+Run locally after the previous build ends:
+
+```code
+$ tsh phase edit workspace
+```
+
+This creates a new build Beam containing your saved files. Inside it, check
+the file and make another edit:
+
+```code
+$ cat ~/app/index.html
+$ printf '<p>Saved in a second session.</p>\n' >> ~/app/index.html
+$ tsh phase snapshot --final
+```
+
+Your Phase now contains the updated page. You can repeat this edit-and-save
+workflow without keeping the original Beam running.
+
+#### Saving, disconnecting, and ending a build
+
+| Action | Result |
+|---|---|
+| `tsh phase snapshot` inside the build Beam | Saves allowed filesystem changes and keeps the Beam running. |
+| `tsh phase snapshot --final` inside the build Beam | Saves successfully, then ends the build Beam. Changes after capture are discarded. |
+| `exit` or Ctrl-D in the shell | Disconnects. It does not save files or end the Beam. |
+| `tsh beams ssh <build-beam>` from your local terminal | Reconnects to the existing running workspace, including unsaved changes. |
+| `tsh phase edit <phase>` after the build ends | Creates a fresh build Beam from the Phase's last successful snapshot. |
+| Beam expiry or `tsh beams rm <build-beam>` | Removes the Beam and discards unsaved changes. The Phase's last saved image remains available. |
+
+Build Beams expire after 11 hours. Check `tsh beams ls` for the expiry and
+identifier of a running Beam. Save before that deadline. Expiry does not
+capture a final snapshot.
+
+Snapshots preserve files, not running processes, open terminals, or memory.
+Saving a repository also does not push its Git commits to a remote.
+Explicitly configure [services](#services-in-a-phase-configuration) if you want
+programs to start in later Beams.
+
+Your personal tool settings under `/home` can be saved, subject to the
+[snapshot exclusions](#files-excluded-from-snapshots). Platform connection
+configuration and temporary identity files are supplied separately for each
+Beam.
+
+#### When a snapshot rejects changes
+
+If you changed files outside `/home`, the default snapshot command fails and
+lists the paths. It does not save the snapshot or end the build.
+To leave those changes out of the saved image while retaining your home files:
+
+```code
+$ tsh phase snapshot --force
+```
+
+`--force` leaves the running filesystem unchanged. Add `--final` to save the
+filtered snapshot and end the build. Excluded changes are lost when the Beam
+is removed. Home paths reserved by a rebuild Phase are excluded in the same way.
+
+### Fork a workspace for independent work
+
+Reopen `workspace` from your local terminal:
+
+```code
+$ tsh phase edit workspace
+```
+
+Inside its build Beam, capture your current files and start an experiment:
+
+```code
+$ tsh phase add experiment --fork
+```
+
+`--fork` takes no argument. It creates a new Phase and connects you to its new
+build Beam. The two Beams have separate filesystems, so an agent in the fork
+can make changes without affecting your original workspace.
+
+Inside the fork, make and save a change:
+
+```code
+$ printf '<p>An independent experiment.</p>\n' >> ~/app/index.html
+$ tsh phase snapshot --final
+```
+
+Your terminal returns to the original `workspace` Beam. You can fork again
+for another task, or run `tsh phase snapshot --final` there to save and end
+that build too.
+
+To leave an agent working in a fork after disconnecting, run it as a managed
+service with [beamctl](./long-running-agents.mdx). The agent must explicitly
+save its work before the Beam expires. Disconnecting with Ctrl-D neither saves
+the fork nor ends its Beam.
+
+From your local terminal, you can also fork the last saved snapshot:
+
+```code
+$ tsh phase add another-experiment --fork-from=workspace
+```
+
+This excludes unsaved changes in the source Beam. The fork has the same parent
+as its source, and later edits to the source do not update the fork.
+Snapshotting is not a Git merge or push. Use your repository's normal workflow
+to share code changes between these independent workspaces.
+Save and end any open builds before continuing with the local configuration
+examples below.
+
+#### A fork or a child?
+
+| Goal | Command | Relationship |
+|---|---|---|
+| Make an independent copy of saved work | `tsh phase add experiment --fork-from=workspace` | Copies the snapshot and follows the source's parent. |
+| Capture current work in a build Beam | `tsh phase add experiment --fork` | Copies the running filesystem into a new Phase with the same parent. |
+| Add another stage that follows a Phase's updates | `tsh phase add app-work --from=app-tools` | Creates a child of `app-tools`. |
+
+Copy and rebuild Phases cannot be forked. Use them as a parent with `--from`.
+The following examples show how to use children to combine saved work and
+repeatable setup.
+
+#### When an edit is unavailable
+
+You cannot start a second edit while a Phase has an active build. Reconnect to
+that build with `tsh beams ssh`, or finish it before starting another.
+
+You also cannot edit or save changes to a snapshot Phase while it has snapshot
+descendants. This includes indirect descendants and snapshot builds still in
+progress. Rebuild and copy children alone do not prevent editing.
+
+If descendants prevent an edit, fork the saved snapshot into a new Phase:
+
+```code
+$ tsh phase add workspace-v2 --fork-from=workspace
+```
+
+The original and its dependents keep their existing contents and relationship.
+
+### Add repeatable setup to your workspace
+
+Interactive work creates a **snapshot Phase**, which saves changes under
+`/home`. Use `phase.yaml` to add **rebuild Phases** that run setup commands,
+or **copy Phases** that save local files outside `/home`.
+Successful command and copy builds save their results automatically.
+
+You can interleave these stages. For example, keep source files in a snapshot
+Phase, install tools in a rebuild child, and open another snapshot child for
+development with those tools.
+
+#### Define repeatable builds in phase.yaml
+
+Create a local `phase.yaml` file with the commands needed to prepare your
+environment. This example uses the saved `workspace` from the first tutorial:
+
+```yaml
+version: v1
+metadata:
+  name: app-tools
+  from: workspace
+commands:
+  - comment: Install development tools
+    shell: apt-get update && apt-get install -y git curl python3
+```
+
+Apply it in your local terminal, then open an editable workspace with those
+tools and your saved files:
+
+```code
+$ tsh phase apply -f phase.yaml
+$ tsh phase add app-work --from=app-tools
+```
+
+`app-tools` is the repeatable setup. `app-work` is the new snapshot Phase whose
+build Beam you have entered. Continue editing under `/home`, then run
+`tsh phase snapshot --final` inside it before proceeding.
+
+`tsh phase apply` displays the current stage and streams its command output.
+Comments appear as `>> description` before each command. Successful rebuild
+stages are saved automatically. You do not need to open their build Beams or
+take snapshots.
+Commands run as root, so system installation does not require `sudo`.
+They must leave `/home` unchanged unless you declare the
+[advanced home-path exception](#rebuild-dependencies-under-home).
+
+To update the setup, edit `phase.yaml` and apply it again. Reapplying runs the
+updated commands, even if the Phase already exists. The previous successful
+image remains available until the new build succeeds.
+Rebuild Phases also refresh automatically as their parent images change.
+
+You can define several stages in one file, separated by `---`. Each stage
+requires a unique name and either `commands` or `files`. The first stage may
+omit `metadata.from` to use the default base image. Every later stage must name
+the immediately preceding stage as its parent. An existing stage must keep
+its parent and strategy when you reapply the file.
+
+If a stage fails, later stages do not run. Completed stages remain saved.
+`tsh` waits for earlier builds before starting your requested replacements,
+and each stage runs once during application. Dependent Phases outside the file
+still update automatically.
+
+#### Copy local files with phase.yaml
+
+Extend the same file with a copy stage when you have local configuration to
+include. This complete `phase.yaml` keeps the existing `app-tools` stage and
+adds `app-config`. It assumes `./config/app.json` exists beside the YAML file:
+
+```yaml
+version: v1
+metadata:
+  name: app-tools
+  from: workspace
+commands:
+  - comment: Install development tools
+    shell: apt-get update && apt-get install -y git curl python3
+---
+version: v1
+metadata:
+  name: app-config
+  from: app-tools
+files:
+  - comment: Copy application defaults
+    from: ./config
+    to: /opt/app-config
+services:
+  - name: prepare-config
+    comment: Set up the user's application configuration
+    type: pre-start
+    shell: cp /opt/app-config/app.json /home/beams/app.json
+```
+
+Apply locally, then open a new snapshot Phase with the tools and copied files:
+
+```code
+$ tsh phase apply -f phase.yaml
+$ tsh phase add configured-work --from=app-config
+```
+
+This creates a separate workspace from `app-work`. Work in it and use
+`tsh phase snapshot --final` to save and return to your local terminal.
+
+Copy stages save their files and end their build Beams automatically.
+They never run services while copying. The example's pre-start service runs
+when you start a Beam from the image, including an interactive snapshot build.
+
+Each destination must be outside `/home`. Directory copies merge with the
+parent's files without removing unrelated files. For a file destination ending
+in `/`, the local filename is preserved. Other file destinations specify the
+filename to write.
+
+To replace copied files, edit the local files or the `files` list and reapply
+the YAML. A replacement starts from the current parent, not the previous copy
+layer. Include every file you want to retain. Copy stages can be replaced even
+when they have children. To create an empty copy stage, use `files: []`.
+
+### Build an application from saved work
+
+You can put a rebuild stage after an editable snapshot. For the saved
+`app-work` above, create a local `app.yaml`:
+
+```yaml
+version: v1
+metadata:
+  name: app
+  from: app-work
+commands:
+  - comment: Install the saved page for serving
+    shell: install -D -m 644 /home/beams/app/index.html /opt/app/index.html
+services:
+  - name: app
+    type: background
+    context: runtime
+    command: python3
+    args: [-m, http.server, "8080", --bind, 0.0.0.0, --directory, /opt/app]
+```
+
+Run locally:
+
+```code
+$ tsh phase apply -f app.yaml
+```
+
+The command builds and saves `app` using the page from `app-work`.
+The service will run when you use `tsh beams add --phase=app`, selected by
+`context: runtime`.
+
+The chain now has an editable workspace between two repeatable stages:
+
+```text
+workspace (saved files)
+  └── app-tools (install tools)
+        └── app-work (edit and snapshot)
+              └── app (prepare files to serve)
+```
+
+To change the page, run `tsh phase edit app-work` locally. Inside that build
+Beam:
+
+```code
+$ printf '<p>A new version of the application.</p>\n' >> ~/app/index.html
+$ tsh phase snapshot --final
+```
+
+Saving `app-work` triggers a new build of `app`. You can still edit `app-work`
+because its child is a rebuild Phase with no snapshot descendants.
+Use `tsh phase ls` to wait for the application build to become ready.
+
+When `app-tools` refreshes, the tools can change underneath your saved
+`app-work` files, and `app` is built again. You choose which files are kept
+from interactive work and which are regenerated by commands.
+
+### Run a prepared image without saving changes
+
+Use `tsh beams add` to run the prepared application. Run locally:
+
+```code
+$ tsh beams add --phase=app --no-console
+$ tsh beams publish <Var name="beam-name" />
+```
+
+Use the Beam name returned by the first command. Its startup service serves
+the page on port `8080`, and publishing prints the app URL.
+This Beam runs the saved result. It cannot save filesystem changes back with
+`tsh phase snapshot`.
+
+To change the application, edit `app-work` and save it again. Wait for `app`
+to rebuild, then start a new Beam from `app`. Existing Beams keep
+their original image and do not update in place.
+
+### Follow image updates
+
+Use `tsh phase ls` to see each Phase's parent, strategy, status, and saved digest.
+`tsh phase snapshot` prints the digest it saved, but names are sufficient for
+starting Beams, forking snapshots, and editing Phases.
+New Beams use the latest successful image. Existing Beams are not changed.
+Newly created Phases and build status changes may take a short time to appear
+in listings.
+
+Rebuild Phases rerun their commands when refreshed. Snapshot and copy Phases
+do not rerun the work that produced their saved files. Instead, those files
+are "rebased" onto the latest parent image. Parent updates can therefore
+produce a new child digest even when you have not edited the child's files.
+Saved files continue to override the corresponding parent files.
+
+The parent is fixed when a Phase is created. A Phase also stays in its original
+region, along with its children and Beams using its images.
+An explicit conflicting `--region` fails. Your current proxy location does
+not move an existing Phase or its images to another region.
+Removing a region does not migrate its snapshots elsewhere.
+
+If a parent build fails, dependent Phases pause and keep their last successful
+images. They resume after the parent succeeds. `tsh phase ls` shows `building`,
+`ready`, `blocked`, or `failed`. You cannot delete a Phase while another Phase
+depends on it.
+
+### Diagnose a failed build
+
+If a build fails, the Phase keeps its last successful image. Fix its
+`phase.yaml` and reapply it. Disconnecting from `tsh` does not stop a running
+command build. Check `tsh phase ls` before retrying after a disconnection.
+
+When a failed snapshot is available, the error includes a command to open a
+Beam for inspection. Run that command and read `/var/log/beam/build.log` inside
+the Beam. Use `tsh phase ls-failed` to find recent failed snapshots.
+They are temporary and may expire, so do not use them as your only copy of
+important work. See [inspect a specific snapshot](#inspect-a-specific-snapshot)
+for the explicit reference format.
+
+### YAML configuration reference
+
+Separate documents with `---`. Unknown fields and duplicate names are rejected.
+
+| Field | Meaning |
+|---|---|
+| `version` | Required. Use `v1`. |
+| `metadata.name` | Required, unique Phase name, up to 54 characters. Use lowercase letters, digits, and hyphens, beginning and ending with a letter or digit. |
+| `metadata.from` | Parent Phase. The first stage may omit it to use the default base image, or name an existing parent. Every later stage must name the immediately preceding stage. |
+| `files` | Creates a copy Phase. Each entry requires `from` and `to`, and accepts an optional descriptive `comment`. Use `files: []` for an empty copy stage. |
+| `files[].from` | Local file or directory. Relative paths are resolved from the YAML file's directory. |
+| `files[].to` | Required absolute Beam destination outside `/home`. Directories merge without removing unrelated files. For a file, supply the destination filename or end the destination with `/` to keep the local filename. |
+| `commands` | Nonempty list that creates a rebuild Phase. Commands run in order as root, with logs streamed to the terminal. |
+| `services` | Optional list of startup services, described below. |
+
+Each stage requires `files` or `commands`, never both.
+Copy stages save their files and end their build Beams automatically.
+
+Commands and services accept these fields:
+
+| Field | Meaning |
+|---|---|
+| `shell` | A shell script, run with `/bin/sh -c`. Use this or `command`, never both. |
+| `command` | Executable to run, with optional `args`, a list of arguments. No shell expansion is performed. |
+| `comment` | Optional description. Build logs display it as `>> description` before the command. |
+| `env` | Optional list of environment overrides, for example `[{name: NODE_ENV, value: development}]`. |
+| `workdir` | Optional absolute working directory. Defaults to `/` for commands and `/home/beams` for services. |
+
+**Reapply the same file to update every stage.** Copy stages use the current
+local files, and rebuild stages run the current commands. An existing copy stage
+must remain a copy stage, and a command stage must remain a command stage.
+Existing stages must also keep the same parent. If the first stage omits `from`,
+it must already use the default base image.
+Each stage runs once during application. Dependent Phases outside the file
+still update automatically when their parents change.
+
+`tsh` waits for any earlier operation before starting the requested build.
+If a stage fails, later stages stop and completed stages remain saved. Use the
+command in the error to inspect its failed snapshot, then read
+`/var/log/beam/build.log` inside that Beam. After a disconnection, check
+`tsh phase ls` before reapplying. Future parent updates still refresh the chain.
+
+### Services in a Phase configuration
+
+Services start programs whenever a Beam starts from your Phase.
+Use them to prepare the user's environment or run a long-lived process.
+Each service requires a `name`. Reusing an inherited service's name replaces
+its definition rather than starting a second instance.
+
+Use `type: pre-start` for setup that must finish before background services
+start. Use `type: background` (the default) for a long-lived process.
+`context` selects which kinds of Beams run the service:
+
+| Context | When the service runs |
+|---|---|
+| `user` (default) | Interactive snapshot builds and Beams started with `tsh beams add`. |
+| `rebuild` | Command-based builds only. |
+| `snapshot` | Interactive snapshot builds only. |
+| `runtime` | Beams started with `tsh beams add` only. |
+| `build` | Command-based and interactive snapshot builds. |
+| `all` | Command-based builds, interactive snapshot builds, and Beams started with `tsh beams add`. |
+
+Copy builds never run services, including inherited services. This prevents
+startup programs from changing files during the copy. Service definitions
+are still saved for Beams started from the resulting image.
+
+Pre-start services run in declaration order before background services start.
+A failure is logged and the remaining services still run. SSH remains available
+for diagnosis. In a command build, any pre-start failure fails the build before
+its commands run. Inside the Beam, use `beamctl logs <service-name>` to read
+a service's output, or `beamctl logs --follow <service-name>` to follow it.
+Both pre-start and background services have their own logs.
+
+Services run as `beams`. Use explicit `sudo` when a service needs root privileges.
+Replacing a service also replaces its type and context.
+
+### Advanced Phase workflows
+
+The workflows above use Phase names and `phase.yaml`. The following options
+are useful when you need more control over image inputs or filesystem changes.
+
+#### Rebuild dependencies under /home
+
+Use `metadata.rebuild_home_paths` when generated files belong beside your
+application but should be recreated by commands, rather than saved from
+interactive work. It is available only on rebuild stages.
+Paths must be clean absolute paths with no patterns.
+
+For example, keep an application's source in a snapshot Phase and rebuild its
+`node_modules` directory in a child Phase. First create the source Phase:
+
+```code
+$ tsh phase add app-source --from=app-tools
+```
+
+In that build Beam, put your application in `/home/beams/app`, including
+`package.json` and `package-lock.json`. Leave `node_modules` for the child
+build to create, then save the source:
+
+```code
+$ tsh phase snapshot --final
+```
+
+Create a separate `app-dependencies.yaml`:
+
+```yaml
+version: v1
+metadata:
+  name: app-dependencies
+  from: app-source
+  rebuild_home_paths:
+    - /home/beams/app/node_modules
+commands:
+  - comment: Reinstall dependencies from the saved application lockfile
+    command: npm
+    args: [ci]
+    workdir: /home/beams/app
+```
+
+Apply it locally. To inspect the saved source and rebuilt dependencies in
+a disposable Beam:
+
+```code
+$ tsh phase apply -f app-dependencies.yaml
+$ tsh beams add --phase=app-dependencies
+```
+
+This inspection Beam cannot save changes back. Continue editing with
+`tsh phase edit app-source`, as described below.
+
+`npm ci` runs as root. It can write to the declared `node_modules` directory,
+but the build still fails if it changes other files under `/home`.
+Later interactive snapshot builds based on `app-dependencies` cannot save
+changes to `node_modules`. The exception works in both directions: commands
+can recreate the declared paths, and interactive snapshots must leave them
+to the command build.
+
+To update the source, run `tsh phase edit app-source`, edit the application or
+lockfile under `/home/beams/app`, then save with `tsh phase snapshot --final`.
+Its rebuild child automatically reruns `npm ci` on the updated source.
+The declaration on the child does not change the original source Phase's
+snapshot rules.
+
+#### Files excluded from snapshots
+
+Some paths are omitted regardless of the Phase strategy or `--force`.
+Do not use them as the only location for settings you need to preserve.
+
+- Temporary and runtime files under `/run`, `/tmp`, `/var/tmp`, `/proc`,
+  `/dev`, and `/sys` are not saved.
+- Per-Beam files such as `/etc/environment`, `/etc/hosts`, `/etc/hostname`,
+  `/etc/resolv.conf`, and `/etc/motd` are recreated for each Beam.
+- Under `/home/beams`, Teleport omits `.tsh`, `.cache`, and `.kube`. Identity,
+  caches, and Kubernetes connection state are not saved.
+- Platform Codex and Claude configuration under `/etc/codex` and
+  `/etc/claude-code` is supplied by the current base image.
+- Login accounting files are not saved. Build output in
+  `/var/log/beam/build.log` is saved.
+- Platform launcher and helper binaries cannot be replaced through snapshots.
+
+Other application files and tool state under `/home` can be saved, subject to
+any home paths reserved by an ancestor's rebuild commands.
+This includes personal Codex and Claude settings, agent instructions, and
+repository files. Credentials you put in saved paths are included too.
+
+#### Use a raw command configuration
+
+Prefer `tsh phase apply -f phase.yaml` for repeatable setups.
+For a single rebuild Phase, `--commands-file` accepts one YAML document in
+the raw command format. The file must contain at least one build command.
+Unknown fields, empty files, and multiple documents are rejected.
+
+Save this example as `raw-build.yaml`:
+
+```yaml
+commands:
+  - comment: Install system tools
+    command: /bin/sh
+    args:
+      - -c
+      - apt-get update && apt-get install -y git curl
+    workdir: /
+    env:
+      - name: DEBIAN_FRONTEND
+        value: noninteractive
+services:
+  - name: prepare-workspace
+    comment: Create a workspace for the Beam user
+    type: pre-start
+    context: user
+    command: mkdir
+    args: [-p, /home/beams/app]
+    workdir: /home/beams
+```
+
+Create or replace the Phase:
+
+```code
+$ tsh phase add raw-tools --commands-file=raw-build.yaml
+$ tsh phase edit raw-tools --commands-file=raw-build.yaml
+```
+
+The raw format accepts these top-level fields:
+
+| Field | Meaning |
+|---|---|
+| `commands` | Required, nonempty list of commands executed in order as root. Each command requires `command`, and may set `args`, `comment`, `env`, and `workdir`. The default working directory is `/`. |
+| `services` | Optional list of named startup programs. Each service requires `name` and `command`, and may set `args`, `comment`, `env`, `workdir`, `type`, and `context`. Defaults are `/home/beams`, `background`, and `user`. |
+| `protected_paths` | Optional list of clean absolute home paths that commands may change. Other home files must remain unchanged. Descendant interactive snapshots cannot save changes to the declared paths. |
+
+`command` names an executable. `args` is its argument list, without shell
+expansion. For a shell script, invoke `/bin/sh` with `-c` as shown above.
+`env` is a list of `name` and `value` pairs.
+Services run as `beams`, even though build commands run as root.
+Replacing a raw command configuration keeps the existing Phase's parent.
+It cannot be combined with `--from`, `--copy`, or forking.
+
+#### Copy files without a YAML configuration
+
+For a one-off copy, repeat `--copy` with an absolute destination followed by
+the local source:
+
+```code
+$ tsh phase add app-files --copy=/opt/app/config:./config --copy=/etc/app.conf:./app.conf
+$ tsh phase edit app-files --copy=/opt/app/config:./updated-config
+```
+
+The same destination and replacement rules as YAML copy stages apply.
+Use this flag only when creating or replacing copy Phases.
+It cannot be combined with `--commands-file`, `--fork`, or `--fork-from`.
+When editing, it also cannot be combined with `--from`.
+
+#### Edit from another Phase's snapshot
+
+To replace a snapshot Phase's contents with a starting point from another
+snapshot Phase, use:
+
+```code
+$ tsh phase edit app-work --from=other-work
+```
+
+Both Phases must exist and have the same parent. The source must have a
+successful snapshot and cannot be a copy or rebuild Phase. This opens a build
+Beam rather than immediately replacing the target image.
+Save with `tsh phase snapshot --final` when ready.
+The usual restrictions on active builds and dependent snapshot Phases apply.
+
+#### Inspect a specific snapshot
+
+For a failed build, prefer the inspection command printed in the error.
+To select a particular saved or failed image yourself, supply its explicit
+reference:
+
+```code
+$ tsh beams add --phase='app-work@sha256:<digest>'
+```
+
+You must have access to the Phase that produced the snapshot, and its recorded
+identity must still be valid. Failed snapshots must not have expired.
+Inspect `/var/log/beam/build.log` inside the resulting Beam.
+The inspection Beam cannot save changes back. To save a repair, update the Phase's
+configuration or open an eligible snapshot Phase with `tsh phase edit`.
+
+#### Reuse an explicit snapshot reference
+
+These commands are for snapshots already captured in a build Beam.
+For everyday work, use `tsh phase snapshot` and `tsh phase add NAME --fork`
+inside the Beam instead.
+
+```code
+$ tsh phase snapshot app-work --from='parent@sha256:<digest>'
+$ tsh phase add app-experiment --fork-from='parent@sha256:<digest>'
+```
+
+The prefix names the snapshot's parent, not its originating Phase.
+Saving requires a snapshot created for the existing target.
+It cannot save another Phase's snapshot to that target, replace build commands,
+or change the parent. It saves only the referenced contents, not later changes
+in the running Beam. `--final` cannot be combined with `--from`.
+
+Forking creates a new Phase from the captured filesystem.
+Outside a Beam, a reference whose parent is a built-in base image also
+requires `--region` to identify the snapshot's original region.
+Copy and rebuild Phases cannot be forked, including through explicit digests.
+Snapshot references never move images between regions.
+
+#### Understand the local Beam helpers
+
+The following helpers are available inside build Beams for troubleshooting.
+They communicate with the local builder, not directly with Teleport.
+You do not need them for normal snapshot, fork, or YAML workflows.
+
+| Helper | Behavior |
+|---|---|
+| `beam-snapshot` | Captures and uploads a snapshot, then prints a reference. It does not save the snapshot to the Phase. Unless accepted and retained by Teleport, the uploaded image is temporary. |
+| `beam-finalize` | Captures a final snapshot and ends the build. Teleport observes and validates the result before saving it to the Phase. |
+| `beam-abandon` | Ends the build without capturing another snapshot. Previously saved Phase snapshots remain available. |
+
+An older or explicitly captured image may be listed as `static`. It does not
+receive parent updates, including security fixes, and cannot be a parent of
+a new Phase. To restore updates, edit it and save an allowed snapshot with
+`tsh phase snapshot --force --final`.
+
+#### Start builds without opening a console
+
+Use `--no-console` with `tsh phase add` or `tsh phase edit` to provision a
+build Beam without connecting to its shell. The command prints the identifier
+you need to reconnect. For automation, add `--format=json` or `--format=yaml`:
+
+```code
+$ tsh phase add automated-work --no-console --format=json
+$ tsh beams ssh <Var name="build-beam" />
+```
+
+Set <Var name="build-beam" /> to the `build_beam` identifier in the response,
+which also includes the Phase name and build state. An interactive build still
+needs an explicit snapshot before it ends.
+
+For builds started with `--commands-file`, `--no-console` returns after
+provisioning, without streaming logs or waiting for the commands to finish.
+A successful exit means the build started. Check `tsh phases ls` for its
+result. Without `--no-console`, command builds stream logs and wait for
+completion.
+
+Copy builds still transfer files, save, and finalize before returning.
+Local `--fork` still captures the current filesystem before provisioning.
+
+With `tsh phase apply -f phase.yaml --no-console`, command logs are suppressed,
+but stage summaries remain visible. The command waits for every stage to
+finish before starting its child. A failed stage stops the apply.
+
+#### Structured command output
+
+Use `--format=json` or `--format=yaml` for automated builds and snapshots.
+Interactive `phase add` and `phase edit` require text output when opening a
+build console. Add `--no-console` to return structured output after provisioning,
+including the `build_beam` identifier for connecting later. With `phase apply`,
+progress and logs go to stderr while stdout contains the completed Phases.
+
+### Phase commands
+
+| Command | Purpose |
+|---|---|
+| `tsh phase add [name]` | Create a Phase and connect to its interactive build Beam. |
+| `tsh phase edit <name>` | Open a fresh build Beam to update a saved snapshot. |
+| `tsh phase snapshot [--final]` | Save inside a build Beam. Add `--final` to end the build after saving. |
+| `tsh phase add [name] --fork` | Capture the current build Beam's files into an independent Phase. |
+| `tsh phase add [name] --fork-from=<source>` | Fork the source Phase's saved snapshot into an independent Phase. |
+| `tsh phase add [name] --from=<parent>` | Create an interactive child that follows its parent's images. |
+| `tsh phase apply -f <file>` | Create or update rebuild and copy stages from YAML. |
+| `tsh phase ls` | Show Phases, saved digests, and build status. |
+| `tsh phase ls-failed` | Find temporary snapshots from failed builds. |
+| `tsh phase rm <name>` | Delete a Phase that has no dependents. |
+
+Deleting a Phase removes the saved resource. Deleting one of its Beams with
+`tsh beams rm` only removes that running environment. See
+[Beam limits](#resource-limits) for capacity and expiry.
 
 ## How do I…
 
@@ -230,7 +1078,7 @@ The published URL is accessible to authorized users through the Teleport Proxy
 with full TLS and authentication. The Envoy sidecar inside the beam handles
 mTLS termination for the connection from the control plane.
 
-Only port `8080` is supported in the initial beta. To publish a generic TCP
+Only port `8080` is currently supported. To publish a generic TCP
 application instead of a web application, add the `--tcp` flag.
 
 ## Authorization
@@ -256,7 +1104,7 @@ spec:
       labels["teleport.internal/beams/app-type"] == "llm" ||
       contains(user.spec.traits.username, labels["teleport.internal/beam/owner"])
     rules:
-      - resources: [beam]
+      - resources: [beam, phase]
         verbs: ["*"]
     beam_labels:
       teleport.internal/beam/owner: '{{internal.username}}'
@@ -269,13 +1117,12 @@ This role is automatically assigned to users on Beams-enabled clusters.
 Beams run on the Teleport Cloud platform. Each beam runs in a restricted
 containerized environment inside of a dedicated microVM.
 
-A beam can only access your Teleport resources (like apps and databases) if it
-is granted the appropriate permissions. For now, beams run with a delegated
-identity inheriting the full privileges of the user who started them. In the
-future, users will be able to delegate a subset of their permissions to the
-beam.
+A beam can only access your Teleport resources, such as apps and databases,
+with delegated permissions. Beams use the owner's standing roles by
+default. Use `tsh beams add --roles=role-a,role-b` to select eligible roles
+instead. Temporary access-request permissions are not automatically included.
 
-During the beta period beams have unrestricted access to the public internet.
+Beams have unrestricted access to the public internet.
 In the future, beams will have restricted egress networking by default.
 
 Ingress traffic to beams is either protected by Teleport SSH (for console access)
@@ -300,9 +1147,18 @@ Each beam is provisioned with the following compute resources:
 | Envoy sidecar | 200m | 256 Mi | 1 Gi |
 | **Total per beam** | **2 vCPU** | **8 GiB** | **22 Gi** |
 
-During the beta period, we enforce the following limits:
+The following limits apply:
 
-- **Beam count cap**: a maximum of 20 concurrent beams per tenant
-- **Rate limits**: a maximum of 5 new beams per minute per tenant
-- **Beam TTL**: beams expire after 24 hours, preventing runaway agents
+- **Beam count cap**: 20 user-requested beams and 10 scheduled Phase build beams
+  per tenant, per region. Interactive Phase builds count toward the
+  user-requested beam limit.
+- **Rate limits**: 5 new user-requested beams and 5 new scheduled Phase build beams
+  per minute, per tenant, per region
+- **Phase count cap**: 100 stored Phases per cluster, including failed Phases
+- **Beam TTL**: beams expire after 11 hours, preventing runaway agents
 - **Inference limits**: inference endpoint consumption is capped per tenant
+
+Phases awaiting deletion count toward the Phase limit until deletion finishes.
+Editing an existing Phase does not count as creating another Phase.
+Scheduled builds use separate capacity from user-requested beams, so automatic
+updates do not consume the beam slots you use for interactive work.
