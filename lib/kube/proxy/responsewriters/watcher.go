@@ -182,16 +182,17 @@ func (w *WatcherResponseWriter) getStatus() int {
 	return w.status
 }
 
-// Close closes the reader part of the pipe with io.EOF and waits until
-// the spinned goroutine terminates.
-// After closes the writer pipe and flushes the response into target.
+// Close signals EOF to the response goroutine, waits for it to finish, and
+// flushes the response into target.
 func (w *WatcherResponseWriter) Close() error {
 	w.closeChanGuard.Do(func() {
 		close(w.closeChan)
 	})
-	w.pipeReader.CloseWithError(io.EOF)
-	err := w.group.Wait()
+	// Closing the reader first makes an error-response copy return ErrClosedPipe
+	// after its body has already been sent, triggering a second error response.
 	w.pipeWriter.CloseWithError(io.EOF)
+	err := w.group.Wait()
+	w.pipeReader.CloseWithError(io.EOF)
 	w.Flush()
 	return trace.Wrap(err)
 }
