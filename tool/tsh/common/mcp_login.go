@@ -255,7 +255,7 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 		if cfg.StoredCredentials == nil {
 			return trace.BadParameter("missing stored MCP OAuth credentials")
 		}
-		if err := cfg.StoredCredentials.checkResource(resourceURI); err != nil {
+		if err := cfg.StoredCredentials.checkResource(resourceURI, appOAuth.AuthServerMetadataUrl); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
@@ -361,9 +361,9 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 	}
 	if cfg.Automatic {
 		// Automatic login reuses stored client credentials, which must stay
-		// bound to the same resource and issuer. An explicit login establishes
-		// a new binding.
-		if err := cfg.StoredCredentials.checkBinding(resourceURI, metadata.Issuer); err != nil {
+		// bound to the same resource, metadata URL and issuer. An explicit
+		// login establishes a new binding.
+		if err := cfg.StoredCredentials.checkBinding(resourceURI, appOAuth.AuthServerMetadataUrl, metadata.Issuer); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -458,13 +458,14 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 		return trace.Wrap(err)
 	}
 	if err := saveMCPOAuthLoginCredentials(ctx, cfg.CredentialsPath, cfg.LockPath, cfg.Automatic, &mcpOAuthCredentials{
-		ResourceURI:  resourceURI,
-		Issuer:       metadata.Issuer,
-		ClientID:     oauthHandler.GetClientID(),
-		ClientSecret: oauthHandler.GetClientSecret(),
-		RedirectURI:  redirectURI,
-		Scopes:       scopes,
-		Token:        *token,
+		ResourceURI:           resourceURI,
+		AuthServerMetadataURL: appOAuth.AuthServerMetadataUrl,
+		Issuer:                metadata.Issuer,
+		ClientID:              oauthHandler.GetClientID(),
+		ClientSecret:          oauthHandler.GetClientSecret(),
+		RedirectURI:           redirectURI,
+		Scopes:                scopes,
+		Token:                 *token,
 	}); err != nil {
 		return trace.Wrap(err)
 	}

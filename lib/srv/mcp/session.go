@@ -287,25 +287,26 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 		return resp
 	}
 
-	listResult, err := resp.GetListToolResult()
+	// mcp-go's types lose fields they don't know about, so filter the raw JSON.
+	var received, allowed int
+	filtered, err := resp.FilterListToolResult(func(toolName string) bool {
+		received++
+		if s.checkAccessToTool(ctx, toolName) != nil {
+			return false
+		}
+		allowed++
+		return true
+	})
 	if err != nil {
 		return mcp.NewJSONRPCError(resp.ID, mcp.INTERNAL_ERROR, "failed to unmarshal tools/list response", err)
 	}
 
-	allowed := make([]mcp.Tool, 0, len(listResult.Tools))
-	for _, tool := range listResult.Tools {
-		if s.checkAccessToTool(ctx, tool.Name) == nil {
-			allowed = append(allowed, tool)
-		}
-	}
-
-	s.logger.DebugContext(ctx, "Received tools/list result", "received", len(listResult.Tools), "allowed", len(allowed))
-	listResult.Tools = allowed
+	s.logger.DebugContext(ctx, "Received tools/list result", "received", received, "allowed", allowed)
 
 	return mcp.JSONRPCResponse{
 		JSONRPC: resp.JSONRPC,
 		ID:      resp.ID,
-		Result:  listResult,
+		Result:  filtered,
 	}
 }
 
