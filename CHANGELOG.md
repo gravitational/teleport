@@ -6,6 +6,36 @@
 
 ### Breaking changes and deprecations
 
+#### Audit log
+
+Teleport 19 introduces an improved audit log that by default writes audit events
+to the agent's disk until they are successfully delivered to the audit system
+backend. This can result in additional disk usage when audit events are syncing
+to the auth server.
+
+This change moves writes from memory to disk. This can result in sensitive
+data, including PII, being written to disk. We recommend enabling
+[session recording encryption](https://goteleport.com/docs/enroll-resources/server-access/guides/encrypted-session-recordings/),
+as this will encrypt both session recordings and audit events.
+
+Audit events will be encrypted on disk if and only if session recording
+encryption is enabled.
+
+To keep the audit queue in memory instead of on disk, add the following to
+`teleport.yaml`. Audit events that have not yet been delivered are lost if
+the process exits.
+
+```yaml
+teleport:
+  audit_queue:
+    backend: ["sqlite_memory"]
+```
+
+Setting `TELEPORT_UNSTABLE_DISABLE_AUDIT_QUEUE=true` in the environment falls
+back to the Teleport 18 in-memory audit event path, which drops events when
+delivery to the Auth Service falls behind. This variable will be removed in a
+future release.
+
 #### Kubernetes proxy subresource access
 
 Access to the Kubernetes API server proxy subresources
