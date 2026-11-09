@@ -147,3 +147,67 @@ func newGenericTrimmer[T any, Trimmable trimmableField[T]](source Trimmable, tar
 		},
 	)
 }
+
+func newHTTPHeadersTrimmer(source []*HTTPHeader, target *[]*HTTPHeader) fieldTrimmer {
+	return newBaseTrimmer(source, target, nonEmptyHTTPHeaders, trimHTTPHeaders)
+}
+
+func newAppSessionDenyHintsTrimmer(source []*AppSessionDenyHint, target *[]*AppSessionDenyHint) fieldTrimmer {
+	return newBaseTrimmer(source, target, nonEmptyAppSessionDenyHints, trimAppSessionDenyHints)
+}
+
+func nonEmptyHTTPHeaders(headers []*HTTPHeader) int {
+	var count int
+	for _, h := range headers {
+		if h == nil {
+			continue
+		}
+		count += nonEmptyStrs(h.Name, h.Value)
+	}
+	return count
+}
+
+func trimHTTPHeaders(headers []*HTTPHeader, maxFieldSize int) []*HTTPHeader {
+	if len(headers) == 0 {
+		return nil
+	}
+	trimmed := make([]*HTTPHeader, len(headers))
+	for i, h := range headers {
+		if h == nil {
+			continue
+		}
+		trimmed[i] = &HTTPHeader{
+			Name:  trimStr(h.Name, maxFieldSize),
+			Value: trimStr(h.Value, maxFieldSize),
+		}
+	}
+	return trimmed
+}
+
+func nonEmptyAppSessionDenyHints(hints []*AppSessionDenyHint) int {
+	var count int
+	for _, h := range hints {
+		if h == nil {
+			continue
+		}
+		count += nonEmptyStrs(h.Code, h.Reason)
+	}
+	return count
+}
+
+func trimAppSessionDenyHints(hints []*AppSessionDenyHint, maxFieldSize int) []*AppSessionDenyHint {
+	if len(hints) == 0 {
+		return nil
+	}
+	trimmed := make([]*AppSessionDenyHint, len(hints))
+	for i, h := range hints {
+		if h == nil {
+			continue
+		}
+		trimmed[i] = &AppSessionDenyHint{
+			Code:   trimStr(h.Code, maxFieldSize),
+			Reason: trimStr(h.Reason, maxFieldSize),
+		}
+	}
+	return trimmed
+}

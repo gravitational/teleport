@@ -3054,3 +3054,91 @@ func (m *ScopedTokenUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *ScopedTokenDelete) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
+
+func (m *AppSessionHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.Url, &out.Url),
+			newStrTrimmer(m.RawQuery, &out.RawQuery),
+			newHTTPHeadersTrimmer(m.Headers, &out.Headers),
+		}
+	})
+}
+
+func (m *AppSessionHTTPRequestBodyChunk) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPRequestBodyChunk) fieldTrimmer {
+		return newBytesTrimmer(m.Data, &out.Data)
+	})
+}
+
+func (m *AppSessionHTTPResponse) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPResponse) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.StatusText, &out.StatusText),
+			newHTTPHeadersTrimmer(m.Headers, &out.Headers),
+		}
+	})
+}
+
+func (m *AppSessionHTTPResponseBodyChunk) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPResponseBodyChunk) fieldTrimmer {
+		return newBytesTrimmer(m.Data, &out.Data)
+	})
+}
+
+func (m *AppSessionTargetDialDenied) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.TargetHost = ""
+	out.ResolvedIPs = nil
+	out.BlockedIP = ""
+	out.BlockedPrefix = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.TargetHost, m.BlockedIP, m.BlockedPrefix) + nonEmptyStrsInSlice(m.ResolvedIPs)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.TargetHost = trimStr(m.TargetHost, maxFieldsSize)
+	out.ResolvedIPs = trimStrSlice(m.ResolvedIPs, maxFieldsSize)
+	out.BlockedIP = trimStr(m.BlockedIP, maxFieldsSize)
+	out.BlockedPrefix = trimStr(m.BlockedPrefix, maxFieldsSize)
+
+	return out
+}
+
+func (m *AppSessionRequestDenied) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionRequestDenied) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.Path, &out.Path),
+			newStrSliceTrimmer(m.EvaluatedRoles, &out.EvaluatedRoles),
+			newAppSessionDenyHintsTrimmer(m.Hints, &out.Hints),
+		}
+	})
+}
+
+func (m *AppSessionRequestAllowed) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionRequestAllowed) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.Path, &out.Path),
+			newStrTrimmer(m.AllowRole, &out.AllowRole),
+			newStrTrimmer(m.AllowCode, &out.AllowCode),
+			newStrTrimmer(m.AllowReason, &out.AllowReason),
+		}
+	})
+}
+
+func (m *BeamDestroyed) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AppAccess) TrimToMaxSize(int) AuditEvent {
+	return m
+}

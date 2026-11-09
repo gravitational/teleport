@@ -240,6 +240,42 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionDynamoDBRequest{
 			AppSessionDynamoDBRequest: e,
 		}
+	case *AppSessionHTTPRequest:
+		out.Event = &OneOf_AppSessionHTTPRequest{
+			AppSessionHTTPRequest: e,
+		}
+	case *AppSessionHTTPRequestBodyChunk:
+		out.Event = &OneOf_AppSessionHTTPRequestBodyChunk{
+			AppSessionHTTPRequestBodyChunk: e,
+		}
+	case *AppSessionHTTPResponse:
+		out.Event = &OneOf_AppSessionHTTPResponse{
+			AppSessionHTTPResponse: e,
+		}
+	case *AppSessionHTTPResponseBodyChunk:
+		out.Event = &OneOf_AppSessionHTTPResponseBodyChunk{
+			AppSessionHTTPResponseBodyChunk: e,
+		}
+	case *AppSessionTargetDialDenied:
+		out.Event = &OneOf_AppSessionTargetDialDenied{
+			AppSessionTargetDialDenied: e,
+		}
+	case *AppSessionRequestDenied:
+		out.Event = &OneOf_AppSessionRequestDenied{
+			AppSessionRequestDenied: e,
+		}
+	case *AppSessionRequestAllowed:
+		out.Event = &OneOf_AppSessionRequestAllowed{
+			AppSessionRequestAllowed: e,
+		}
+	case *BeamDestroyed:
+		out.Event = &OneOf_BeamDestroyed{
+			BeamDestroyed: e,
+		}
+	case *AppAccess:
+		out.Event = &OneOf_AppAccess{
+			AppAccess: e,
+		}
 	case *AppSessionLLMRequest:
 		out.Event = &OneOf_AppSessionLLMRequest{
 			AppSessionLLMRequest: e,
