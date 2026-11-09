@@ -25,13 +25,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	josejwt "github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/jwt"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 )
 
 const (
@@ -244,7 +244,7 @@ func (h *Handler) verifyDBSCChallenge(ctx context.Context, challenge string, ses
 		return trace.Wrap(err, "getting JWT CA")
 	}
 
-	return jwt.VerifyDBSCChallengeWithCA(jwt.VerifyDBSCChallengeParams{
+	return libjwt.VerifyDBSCChallengeWithCA(libjwt.VerifyDBSCChallengeParams{
 		Challenge:   challenge,
 		SessionID:   sessionID,
 		ClusterName: ca.GetClusterName(),
@@ -271,16 +271,16 @@ func (h *Handler) setDBSCRegistrationHeader(ctx context.Context, w http.Response
 	return nil
 }
 
-func verifyDBSCProof(rawJWT string, key any) (*josejwt.Claims, error) {
-	tok, err := josejwt.ParseSigned(rawJWT)
+// verifyDBSCProof deserializes the JSON Web Token into claims using the
+// provided key. To correctly verify the proof, the key should be from DBSC
+// registration.
+func verifyDBSCProof(rawJWT string, key any) (*jwt.Claims, error) {
+	tok, err := libjwt.ParseJWTWithDBSCProofHeader(rawJWT)
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing DBSC proof JWT")
-	}
-	if err := jwt.ValidateDBSCProofHeader(tok); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var claims josejwt.Claims
+	var claims jwt.Claims
 	if err := tok.Claims(key, &claims); err != nil {
 		return nil, trace.Wrap(err, "verifying DBSC proof signature")
 	}

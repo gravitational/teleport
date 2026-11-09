@@ -43,9 +43,6 @@ import (
 // for verification in FIPS builds, however some may be rejected by
 // BoringCrypto (especially EdDSA) or may qualify as allowed but legacy
 // verification (RS*/PS* < 2048).
-//
-// This uses go-jose/v4, independent of the go-jose/v3-based signer/verifier
-// implemented elsewhere in this package.
 var AllowedJWKSAlgorithms = []jose.SignatureAlgorithm{
 	jose.RS256, jose.RS384, jose.RS512,
 	jose.PS256, jose.PS384, jose.PS512,

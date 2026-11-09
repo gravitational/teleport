@@ -20,8 +20,8 @@ import (
 	"crypto"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -159,7 +159,7 @@ func IssueJoinState(signer crypto.Signer, params *JoinStateParams) (string, erro
 		return "", trace.Wrap(err, "creating signer")
 	}
 
-	serialized, err := jwt.Signed(joseSigner).Claims(state).CompactSerialize()
+	serialized, err := jwt.Signed(joseSigner).Claims(state).Serialize()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -190,10 +190,10 @@ func verifyJoinStateInner(key crypto.PublicKey, parsed *jwt.JSONWebToken, params
 	// some in the future based on the verified `iat` value of this JWT.
 	const leeway time.Duration = time.Minute
 	if err := document.Claims.ValidateWithLeeway(jwt.Expected{
-		Issuer:   params.ClusterName,
-		Audience: jwt.Audience{params.ClusterName},
-		Subject:  subject,
-		Time:     params.Clock.Now(),
+		Issuer:      params.ClusterName,
+		AnyAudience: jwt.Audience{params.ClusterName},
+		Subject:     subject,
+		Time:        params.Clock.Now(),
 	}, leeway); err != nil {
 		return nil, trace.Wrap(err, "validating join state claims")
 	}
@@ -224,7 +224,25 @@ func verifyJoinStateInner(key crypto.PublicKey, parsed *jwt.JSONWebToken, params
 // modified; that is, if a new bot instance is generated or the recovery counter
 // is incremented, verification must be done against the original state.
 func VerifyJoinState(ca types.CertAuthority, serializedJoinState string, params *JoinStateParams) (*JoinState, error) {
-	parsed, err := jwt.ParseSigned(serializedJoinState)
+	// All the algorithms the trusted keys could plausibly have signed with,
+	// derived from their key types. ParseSigned accepts the token if its
+	// signature is valid under any of these. The specific key is then
+	// identified by its kid and the signature re-verified against that
+	// exact key in verifyJoinStateInner.
+	var candidateAlgs []jose.SignatureAlgorithm
+	for _, k := range ca.GetTrustedJWTKeyPairs() {
+		pubKey, err := keys.ParsePublicKey(k.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing public key")
+		}
+		alg, err := libjwt.AlgorithmForPublicKey(pubKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "determining expected signing algorithm")
+		}
+		candidateAlgs = append(candidateAlgs, alg)
+	}
+
+	parsed, err := jwt.ParseSigned(serializedJoinState, candidateAlgs)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing serialized join state")
 	}

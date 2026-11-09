@@ -23,11 +23,13 @@ import (
 	"crypto/subtle"
 	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -150,7 +152,14 @@ func (v *ChallengeValidator) IssueChallenge() (*ChallengeDocument, error) {
 // signature matches the requested public key, and that the claims pass JWT
 // validation.
 func (v *ChallengeValidator) ValidateChallengeResponse(issued *ChallengeDocument, compactResponse string) error {
-	token, err := jwt.ParseSigned(compactResponse)
+	// The client always signs with the single algorithm matching its key
+	// type (see solveBoundKeypairChallenge/AlgorithmForPublicKey), so that's
+	// the only one we should accept here.
+	alg, err := libjwt.AlgorithmForPublicKey(v.publicKey)
+	if err != nil {
+		return trace.Wrap(err, "determining expected signing algorithm")
+	}
+	token, err := jwt.ParseSigned(compactResponse, []jose.SignatureAlgorithm{alg})
 	if err != nil {
 		return trace.Wrap(err, "parsing signed response")
 	}
@@ -163,10 +172,10 @@ func (v *ChallengeValidator) ValidateChallengeResponse(issued *ChallengeDocument
 	// Validate the challenge document claims per JWT rules.
 	const leeway time.Duration = time.Minute
 	if err := document.Claims.ValidateWithLeeway(jwt.Expected{
-		Issuer:   v.clusterName,
-		Subject:  v.subject,
-		Audience: jwt.Audience{v.clusterName},
-		Time:     v.clock.Now(),
+		Issuer:      v.clusterName,
+		Subject:     v.subject,
+		AnyAudience: jwt.Audience{v.clusterName},
+		Time:        v.clock.Now(),
 	}, leeway); err != nil {
 		return trace.Wrap(err, "validating challenge claims")
 	}

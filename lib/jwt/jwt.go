@@ -34,9 +34,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/cryptosigner"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/cryptosigner"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -149,7 +149,7 @@ func (k *Key) signAny(claims any, opts *jose.SignerOptions) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	token, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
+	token, err := jwt.Signed(sig).Claims(claims).Serialize()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -547,8 +547,14 @@ func (k *Key) verify(rawToken string, expectedClaims jwt.Expected) (*Claims, err
 	if k.config.PublicKey == nil {
 		return nil, trace.BadParameter("can not verify token without public key")
 	}
+	// We always sign with the single algorithm matching the key type (see
+	// AlgorithmForPublicKey), so that's the only one we should accept here.
+	alg, err := AlgorithmForPublicKey(k.config.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Parse the token.
-	tok, err := jwt.ParseSigned(rawToken)
+	tok, err := jwt.ParseSigned(rawToken, []jose.SignatureAlgorithm{alg})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -574,10 +580,10 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	}
 
 	expectedClaims := jwt.Expected{
-		Issuer:   cmp.Or(p.Issuer, k.config.ClusterName),
-		Subject:  p.Username,
-		Audience: jwt.Audience{p.Audience},
-		Time:     k.config.Clock.Now(),
+		Issuer:      cmp.Or(p.Issuer, k.config.ClusterName),
+		Subject:     p.Username,
+		AnyAudience: jwt.Audience{p.Audience},
+		Time:        k.config.Clock.Now(),
 	}
 
 	return k.verify(p.RawToken, expectedClaims)
@@ -609,10 +615,10 @@ func (k *Key) VerifyAWSOIDC(p AWSOIDCVerifyParams) (*Claims, error) {
 	}
 
 	expectedClaims := jwt.Expected{
-		Issuer:   p.Issuer,
-		Subject:  types.IntegrationAWSOIDCSubject,
-		Audience: jwt.Audience{types.IntegrationAWSOIDCAudience},
-		Time:     k.config.Clock.Now(),
+		Issuer:      p.Issuer,
+		Subject:     types.IntegrationAWSOIDCSubject,
+		AnyAudience: jwt.Audience{types.IntegrationAWSOIDCAudience},
+		Time:        k.config.Clock.Now(),
 	}
 
 	return k.verify(p.RawToken, expectedClaims)
@@ -625,10 +631,10 @@ func (k *Key) VerifyPROXY(p PROXYVerifyParams) (*Claims, error) {
 	}
 
 	expectedClaims := jwt.Expected{
-		Issuer:   p.ClusterName,
-		Subject:  p.SourceAddress,
-		Audience: []string{p.DestinationAddress},
-		Time:     k.config.Clock.Now(),
+		Issuer:      p.ClusterName,
+		Subject:     p.SourceAddress,
+		AnyAudience: []string{p.DestinationAddress},
+		Time:        k.config.Clock.Now(),
 	}
 
 	return k.verify(p.RawToken, expectedClaims)
@@ -666,8 +672,14 @@ func (k *Key) VerifyAzureToken(rawToken string) (*AzureTokenClaims, error) {
 	if k.config.PublicKey == nil {
 		return nil, trace.BadParameter("can not verify token without public key")
 	}
+	// We always sign with the single algorithm matching the key type (see
+	// AlgorithmForPublicKey), so that's the only one we should accept here.
+	alg, err := AlgorithmForPublicKey(k.config.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Parse the token.
-	tok, err := jwt.ParseSigned(rawToken)
+	tok, err := jwt.ParseSigned(rawToken, []jose.SignatureAlgorithm{alg})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -763,9 +775,11 @@ func (k *Key) SignPayload(payload []byte, opts *jose.SignerOptions) (*jose.JSONW
 	return signature, nil
 }
 
-// PluginTokenParam defines the parameters needed to sign a JWT token for a Teleport plugin.
+// PluginTokenParam defines the parameters needed to sign a JWT token for a
+// Teleport plugin or verify it.
 type PluginTokenParam struct {
-	// Audience is the Audience for the Token.
+	// Audience for the Token. When used for verifying, if *any* of the values
+	// match the token is valid.
 	Audience []string
 	// Issuer is the issuer of the token.
 	Issuer string
@@ -794,11 +808,14 @@ func (k *Key) SignPluginToken(p PluginTokenParam) (string, error) {
 
 // VerifyPluginToken verifies a JWT token for a Teleport plugin.
 func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims, error) {
+	// See the doc comment on PluginTokenParam.Audience: if claims.Audience
+	// ever has more than one element, this only requires the token's `aud`
+	// to match one of them, not all of them.
 	expectedClaims := jwt.Expected{
-		Issuer:   claims.Issuer,
-		Subject:  claims.Subject,
-		Audience: claims.Audience,
-		Time:     k.config.Clock.Now(),
+		Issuer:      claims.Issuer,
+		Subject:     claims.Subject,
+		AnyAudience: claims.Audience,
+		Time:        k.config.Clock.Now(),
 	}
 	return k.verify(token, expectedClaims)
 }
@@ -851,30 +868,34 @@ func (k *Key) VerifyDBSCChallenge(p DBSCChallengeVerifyParams) error {
 	return trace.Wrap(err)
 }
 
-// ValidateDBSCProofHeader validates the header of a DBSC proof JWT.
-// It checks that there is exactly one header, the algorithm is ES256 or RS256,
-// and the typ header is "dbsc+jwt".
-func ValidateDBSCProofHeader(tok *jwt.JSONWebToken) error {
+// ParseJWTWithDBSCProofHeader parses and validates the header of a DBSC proof
+// JWT. It checks that there is exactly one header, the algorithm is ES256 or
+// RS256, and the typ header is "dbsc+jwt".
+func ParseJWTWithDBSCProofHeader(rawJWT string) (*jwt.JSONWebToken, error) {
+	tok, err := jwt.ParseSigned(rawJWT, []jose.SignatureAlgorithm{jose.ES256, jose.RS256})
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing DBSC proof JWT")
+	}
 	if len(tok.Headers) != 1 {
-		return trace.BadParameter("invalid DBSC response JWT header count")
+		return nil, trace.BadParameter("invalid DBSC response JWT header count")
 	}
 
 	header := tok.Headers[0]
 	if header.Algorithm != string(jose.ES256) && header.Algorithm != string(jose.RS256) {
-		return trace.BadParameter("invalid DBSC response alg %q", header.Algorithm)
+		return nil, trace.BadParameter("invalid DBSC response alg %q", header.Algorithm)
 	}
 
 	typ, ok := header.ExtraHeaders[jose.HeaderKey("typ")]
 	if !ok {
-		return trace.BadParameter("missing typ header in DBSC response")
+		return nil, trace.BadParameter("missing typ header in DBSC response")
 	}
 
 	typValue, ok := typ.(string)
 	if !ok || typValue != "dbsc+jwt" {
-		return trace.BadParameter("invalid typ header %v in DBSC response", typ)
+		return nil, trace.BadParameter("invalid typ header %v in DBSC response", typ)
 	}
 
-	return nil
+	return tok, nil
 }
 
 // VerifyDBSCChallengeParams contains the parameters needed to verify a DBSC challenge
