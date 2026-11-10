@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
@@ -228,6 +229,60 @@ func TestPing(t *testing.T) {
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &pingResp))
 
 			test.assertResp(cap, &pingResp)
+		})
+	}
+}
+
+// TestPingDefaultSessionTTL checks that selecting a connector does not discard
+// the cluster's default certificate lifetime.
+func TestPingDefaultSessionTTL(t *testing.T) {
+	t.Parallel()
+
+	for _, ttl := range []time.Duration{12 * time.Hour, 20 * time.Hour} {
+		t.Run(ttl.String(), func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			env := newWebPack(t, 1)
+			authServer := env.server.Auth()
+
+			cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				Type:              constants.Local,
+				SecondFactor:      constants.SecondFactorOptional,
+				Webauthn:          &types.Webauthn{RPID: "example.com"},
+				DefaultSessionTTL: types.Duration(ttl),
+			})
+			require.NoError(t, err)
+			_, err = authServer.UpsertAuthPreference(ctx, cap)
+			require.NoError(t, err)
+
+			connector, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{
+				TeamsToRoles: []types.TeamRolesMapping{{
+					Organization: "example",
+					Team:         "developers",
+					Roles:        []string{"access"},
+				}},
+			})
+			require.NoError(t, err)
+			_, err = authServer.UpsertGithubConnector(ctx, connector)
+			require.NoError(t, err)
+
+			clt := env.proxies[0].newClient(t)
+			for _, connectorName := range []string{
+				"", constants.Local, constants.PasswordlessConnector,
+				constants.HeadlessConnector, connector.GetName(),
+			} {
+				t.Run(connectorName, func(t *testing.T) {
+					endpoint := clt.Endpoint("webapi", "ping")
+					if connectorName != "" {
+						endpoint = clt.Endpoint("webapi", "ping", connectorName)
+					}
+					resp, err := clt.Get(ctx, endpoint, nil)
+					require.NoError(t, err)
+					var pingResp webclient.PingResponse
+					require.NoError(t, json.Unmarshal(resp.Bytes(), &pingResp))
+					require.Equal(t, types.Duration(ttl), pingResp.Auth.DefaultSessionTTL)
+				})
+			}
 		})
 	}
 }
