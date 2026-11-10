@@ -97,26 +97,30 @@ var (
 	)
 )
 
-// highVolumeResources is the set of cached resources that tend to produce high
-// event volumes (e.g. heartbeat resources). high volume events, and the watchers that
-// care about them, are separated into a dedicated event fanout system in order to
-// reduce the amount of load on watchers that only care about cluster state resources.
-// peripheral agents that scale linearly with cluster resources (e.g. nodes) should never
-// watch events of this kind.
-var highVolumeResources = map[string]struct{}{
-	types.KindNode:                  {},
-	types.KindAppServer:             {},
-	types.KindDatabaseServer:        {},
-	types.KindDatabaseService:       {},
-	types.KindWindowsDesktopService: {},
-	types.KindKubeServer:            {},
-	types.KindDatabaseObject:        {},
-	types.KindGitServer:             {},
-}
-
+// isHighVolumeResource returns true if a resource kind is a cached resource
+// that tends to produce high event volumes (e.g. heartbeat resources). High
+// volume events, and the watchers that care about them, are separated into a
+// dedicated event fanout system in order to reduce the amount of load on
+// watchers that only care about cluster state resources. Peripheral agents
+// should never watch events of this kind (but see
+// [TestAgentsDontCacheHighVolumeResources] for a list of exceptions to this
+// rule).
 func isHighVolumeResource(kind string) bool {
-	_, ok := highVolumeResources[kind]
-	return ok
+	switch kind {
+	case
+		types.KindNode,
+		types.KindAppServer,
+		types.KindDatabaseServer,
+		types.KindDatabaseService,
+		types.KindWindowsDesktopService,
+		types.KindKubeServer,
+		types.KindDatabaseObject,
+		types.KindGitServer,
+		types.KindWebSession:
+		return true
+	default:
+		return false
+	}
 }
 
 // makeAllKnownCAsFilter makes a filter that matches all known CA types.
