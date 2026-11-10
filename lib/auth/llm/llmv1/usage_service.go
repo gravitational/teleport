@@ -130,19 +130,21 @@ func (u *UsageService) ListLLMEndpointQuotas(ctx context.Context, req *llmv1.Lis
 	}.Build(), nil
 }
 
-func (u *UsageService) authorizeReport(ctx context.Context) (string, error) {
+func (u *UsageService) authorizeReport(ctx context.Context) (string, bool, error) {
 	authCtx, err := u.authorizer.Authorize(ctx)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", false, trace.Wrap(err)
 	}
 	builtin, ok := authCtx.Identity.(authz.BuiltinRole)
 	if !ok {
-		return "", trace.AccessDenied("usage can only be reported by app services")
+		return "", false, trace.AccessDenied("usage can only be reported by Teleport services")
 	}
-	if !authCtx.Checker.HasRole(string(types.RoleApp)) {
-		return "", trace.AccessDenied("usage can only be reported by app services")
+	isProxy := authCtx.Checker.HasRole(string(types.RoleProxy))
+	if !isProxy && !authCtx.Checker.HasRole(string(types.RoleApp)) {
+		return "", false, trace.AccessDenied("usage can only be reported by Teleport services")
 	}
-	return builtin.GetServerID(), nil
+
+	return builtin.GetServerID(), isProxy, nil
 }
 
 // authorizeView authorizes read operations on the resource, effectively meaning

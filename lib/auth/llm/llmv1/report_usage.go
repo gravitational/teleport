@@ -39,7 +39,7 @@ import (
 
 // ReportUsage implements [llmv1.UsageServiceServer].
 func (u *UsageService) ReportUsage(ctx context.Context, req *llmv1.ReportUsageRequest) (*llmv1.ReportUsageResponse, error) {
-	hostID, err := u.authorizeReport(ctx)
+	hostID, isProxy, err := u.authorizeReport(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,7 +57,7 @@ func (u *UsageService) ReportUsage(ctx context.Context, req *llmv1.ReportUsageRe
 			continue
 		}
 
-		intervals, err := getAppIntervals(ctx, u.cache, hostID, endpointUsage.GetEndpointName())
+		intervals, err := getAppIntervals(ctx, u.cache, endpointUsage.GetEndpointName(), isProxy, hostID)
 		if err != nil {
 			resp = append(resp, buildEndpointResultWithError(endpointUsage.GetEndpointName(), err))
 			continue
@@ -315,7 +315,15 @@ func assignConsumptionToWindows(activeWindows []activeWindow, buckets []*llmv1.U
 	return activeWindows
 }
 
-func getAppIntervals(ctx context.Context, cache Cache, hostID, name string) ([]*types.LLM_Quota_Interval, error) {
+// getAppIntervals retrieves the app LLM endpoint quota interval from a
+// registered AppServer.
+//
+// This is not a strong authorization check: any app service that advertises the
+// target app can satisfy this lookup, even if it is not actually serving the
+// specific session referenced by the app session certificate. Also when serving
+// requests from proxy (for integration cases) this won't ensure the proxy is
+// the one serving the request.
+func getAppIntervals(ctx context.Context, cache Cache, name string, isProxy bool, hostID string) ([]*types.LLM_Quota_Interval, error) {
 	var app types.Application
 	for appServer, err := range clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.AppServer, string, error) {
 		resp, err := cache.ListResources(ctx, proto.ListResourcesRequest{
@@ -337,7 +345,9 @@ func getAppIntervals(ctx context.Context, cache Cache, hostID, name string) ([]*
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if appServer.GetHostID() == hostID {
+
+		isIntegrationApp := isProxy && appServer.GetApp().GetIntegration() != "" && appServer.GetApp().SupportsIntegration()
+		if isIntegrationApp || appServer.GetHostID() == hostID {
 			app = appServer.GetApp()
 			break
 		}
