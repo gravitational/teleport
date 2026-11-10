@@ -84,17 +84,22 @@ type Migrator struct {
 	closers     []io.Closer
 	// binary is how hosts get this build of teleport.
 	binary oneoff.OneOffScriptParams
+	// cdnBaseURL is TELEPORT_CDN_BASE_URL as the operator set it, which the
+	// scoped install downloads from; "" when unset.
+	cdnBaseURL string
 }
 
 // NewMigrator validates opts, opens the state file and dials the source
 // cluster's API and hosts, then the target cluster's API and hosts. Close
 // releases them. cfg must come from LoadConfig. Hosts download teleport from
-// TELEPORT_CDN_BASE_URL, or from Teleport's CDN when it is unset.
+// TELEPORT_CDN_BASE_URL, or from Teleport's CDN when it is unset; the scoped
+// install downloads from it too when it is set.
 func NewMigrator(ctx context.Context, cfg *Config, opts Options) (*Migrator, error) {
 	if err := opts.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	binary, err := newHostBinary(cmp.Or(os.Getenv(autoupdate.BaseURLEnvVar), teleportassets.CDNBaseURL()))
+	cdnBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
+	binary, err := newHostBinary(cmp.Or(cdnBaseURL, teleportassets.CDNBaseURL()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,11 +108,12 @@ func NewMigrator(ctx context.Context, cfg *Config, opts Options) (*Migrator, err
 		return nil, trace.Wrap(err)
 	}
 	m := &Migrator{
-		config:    cfg,
-		progress:  opts.Progress,
-		stateFile: stateFile,
-		binary:    binary,
-		closers:   []io.Closer{utils.CloseFunc(stateFile.close)},
+		config:     cfg,
+		progress:   opts.Progress,
+		stateFile:  stateFile,
+		binary:     binary,
+		cdnBaseURL: cdnBaseURL,
+		closers:    []io.Closer{utils.CloseFunc(stateFile.close)},
 	}
 	if err := m.dial(ctx); err != nil {
 		return nil, trace.NewAggregate(err, m.Close())

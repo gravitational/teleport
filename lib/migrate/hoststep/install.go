@@ -57,6 +57,9 @@ type InstallRequest struct {
 	// Services are the ones the source config must still run, which the
 	// token grants.
 	Services []string `json:"services"`
+	// BaseURL is the CDN base URL teleport-update downloads the scoped agent
+	// from, empty for its default.
+	BaseURL string `json:"base_url,omitempty"`
 	// Wait is how long to wait for another install's lock on the host, and
 	// then for the scoped agent to write its host_uuid.
 	Wait time.Duration `json:"wait"`
@@ -112,8 +115,12 @@ func (h hostEnv) install(ctx context.Context, req InstallRequest) (InstallRespon
 	if err := writePrivate(h.path(scopedConfigPath), []byte(scopedConfig)); err != nil {
 		return InstallResponse{}, trace.Wrap(err, "writing %q", scopedConfigPath)
 	}
+	enable := []string{"teleport-update", "--install-suffix", scopedInstallSuffix, "enable", "--proxy", req.Proxy}
+	if req.BaseURL != "" {
+		enable = append(enable, "--base-url", req.BaseURL)
+	}
 	for _, args := range [][]string{
-		{"teleport-update", "--install-suffix", scopedInstallSuffix, "enable", "--proxy", req.Proxy},
+		enable,
 		{"systemctl", "enable", scopedUnit},
 		{"systemctl", "restart", scopedUnit},
 	} {

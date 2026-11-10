@@ -123,6 +123,7 @@ func (r applyRun) migrateHost(ctx context.Context, h *host) (string, error) {
 		SourceCluster:      m.source.ClusterName(),
 		SourceHostUUID:     h.ID,
 		Services:           h.Preflight.Services,
+		BaseURL:            m.cdnBaseURL,
 		Wait:               targetWait,
 	}, &response); err != nil {
 		return "", trace.Wrap(err)
