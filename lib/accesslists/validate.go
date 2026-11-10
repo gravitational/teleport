@@ -508,7 +508,7 @@ func isReachable(
 	visited[ScopeQualifiedName(currentList)] = struct{}{}
 
 	// Traverse member lists
-	listMembers, err := fetchMembers(ctx, ScopeQualifiedName(currentList), g)
+	listMembers, err := fetchMembersCompat(ctx, ScopeQualifiedName(currentList), g)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

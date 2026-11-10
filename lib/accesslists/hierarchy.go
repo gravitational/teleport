@@ -55,13 +55,14 @@ type AccessListMembersLister interface {
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
 
+type AccessListMembersListerV2 interface {
+	ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
+}
+
 // TODO(nklaassen): delete this when everything used as an
 // [AccessListAndMembersGetter] implements ListAccessListMembersV2.
 func listAccessListMembers(ctx context.Context, g AccessListMembersLister, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	type accessListMembersListerV2 interface {
-		ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
-	}
-	if g, ok := g.(accessListMembersListerV2); ok {
+	if g, ok := g.(AccessListMembersListerV2); ok {
 		return g.ListAccessListMembersV2(ctx, req)
 	}
 	if req.GetAccessListScope() != "" {
@@ -116,24 +117,28 @@ type lockGetter interface {
 // Returned Members are not validated for expiration or other requirements – use IsAccessListMember
 // to validate a Member's membership status.
 func GetMembersFor(ctx context.Context, accessListName string, g AccessListMembersLister) ([]*accesslist.AccessListMember, error) {
-	return getMembersFor(ctx, NormalizedSQN{Name: accessListName}, g, make(map[NormalizedSQN]struct{}))
+	return getMembersFor(ctx, NormalizedSQN{Name: accessListName}, func(ctx context.Context, accessListName NormalizedSQN) ([]*accesslist.AccessListMember, error) {
+		return fetchMembersCompat(ctx, accessListName, g)
+	}, make(map[NormalizedSQN]struct{}))
 }
 
 // GetMembersForV2 returns a flattened list of Members for an Access List, including inherited Members.
 //
 // Returned Members are not validated for expiration or other requirements – use IsAccessListMember
 // to validate a Member's membership status.
-func GetMembersForV2(ctx context.Context, accessListName NormalizedSQN, g AccessListMembersLister) ([]*accesslist.AccessListMember, error) {
-	return getMembersFor(ctx, accessListName, g, make(map[NormalizedSQN]struct{}))
+func GetMembersForV2(ctx context.Context, accessListName NormalizedSQN, g AccessListMembersListerV2) ([]*accesslist.AccessListMember, error) {
+	return getMembersFor(ctx, accessListName, func(ctx context.Context, accessListName NormalizedSQN) ([]*accesslist.AccessListMember, error) {
+		return fetchMembers(ctx, accessListName, g.ListAccessListMembersV2)
+	}, make(map[NormalizedSQN]struct{}))
 }
 
-func getMembersFor(ctx context.Context, accessListName NormalizedSQN, g AccessListMembersLister, visited map[NormalizedSQN]struct{}) ([]*accesslist.AccessListMember, error) {
+func getMembersFor(ctx context.Context, accessListName NormalizedSQN, fetchMembers func(ctx context.Context, accessListName NormalizedSQN) ([]*accesslist.AccessListMember, error), visited map[NormalizedSQN]struct{}) ([]*accesslist.AccessListMember, error) {
 	if _, ok := visited[accessListName]; ok {
 		return nil, nil
 	}
 	visited[accessListName] = struct{}{}
 
-	members, err := fetchMembers(ctx, accessListName, g)
+	members, err := fetchMembers(ctx, accessListName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,7 +153,7 @@ func getMembersFor(ctx context.Context, accessListName NormalizedSQN, g AccessLi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		childMembers, err := getMembersFor(ctx, memberName, g, visited)
+		childMembers, err := getMembersFor(ctx, memberName, fetchMembers, visited)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -158,17 +163,23 @@ func getMembersFor(ctx context.Context, accessListName NormalizedSQN, g AccessLi
 	return allMembers, nil
 }
 
+func fetchMembersCompat(ctx context.Context, accessListName NormalizedSQN, g AccessListMembersLister) ([]*accesslist.AccessListMember, error) {
+	return fetchMembers(ctx, accessListName, func(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) ([]*accesslist.AccessListMember, string, error) {
+		return listAccessListMembers(ctx, g, req)
+	})
+}
+
 // fetchMembers is a simple helper to fetch all top-level AccessListMembers for an AccessList.
-func fetchMembers(ctx context.Context, accessListName NormalizedSQN, g AccessListMembersLister) ([]*accesslist.AccessListMember, error) {
+func fetchMembers(ctx context.Context, accessListName NormalizedSQN, listMembers func(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)) ([]*accesslist.AccessListMember, error) {
 	var allMembers []*accesslist.AccessListMember
 	req := accesslistv1.ListAccessListMembersRequest_builder{
 		AccessListScope: accessListName.Scope,
 		AccessList:      accessListName.Name,
 	}.Build()
 	for {
-		page, nextToken, err := listAccessListMembers(ctx, g, req)
+		page, nextToken, err := listMembers(ctx, req)
 		if err != nil {
-			// If the AccessList doesn't exist yet, should return an empty list of members
+			// If the AccessList doesn't exist yet, should return an empty list of members.
 			if trace.IsNotFound(err) {
 				break
 			}
@@ -233,7 +244,9 @@ func collectMembersAsOwners(ctx context.Context, accessListName NormalizedSQN, g
 	}
 	visited[accessListName] = struct{}{}
 
-	listMembers, err := GetMembersForV2(ctx, accessListName, g)
+	listMembers, err := getMembersFor(ctx, accessListName, func(ctx context.Context, accessListName NormalizedSQN) ([]*accesslist.AccessListMember, error) {
+		return fetchMembersCompat(ctx, accessListName, g)
+	}, make(map[NormalizedSQN]struct{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -279,7 +292,7 @@ func maxDepthDownwards(
 
 	maxDepth := 0
 
-	listMembers, err := fetchMembers(ctx, currentListName, g)
+	listMembers, err := fetchMembersCompat(ctx, currentListName, g)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -480,7 +493,7 @@ func IsAccessListMember(
 		}
 	}
 
-	members, err := fetchMembers(ctx, ScopeQualifiedName(accessList), g)
+	members, err := fetchMembersCompat(ctx, ScopeQualifiedName(accessList), g)
 	if err != nil {
 		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "fetching access list %q members", accessList.GetName())
 	}
