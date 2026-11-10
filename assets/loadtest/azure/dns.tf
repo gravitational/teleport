@@ -20,7 +20,7 @@ resource "azurerm_role_assignment" "dns_identity" {
 resource "azurerm_federated_identity_credential" "dns_identity" {
   name = "${azurerm_user_assigned_identity.dns_identity.name}-${azurerm_kubernetes_cluster.kube_cluster.name}"
 
-  parent_id = azurerm_user_assigned_identity.dns_identity.id
+  user_assigned_identity_id = azurerm_user_assigned_identity.dns_identity.id
 
   audience = ["api://AzureADTokenExchange"]
 

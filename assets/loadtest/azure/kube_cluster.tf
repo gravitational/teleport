@@ -9,6 +9,10 @@ resource "azurerm_kubernetes_cluster" "kube_cluster" {
 
   dns_prefix = random_pet.kube_cluster.id
 
+  node_provisioning_profile {
+    default_node_pools = "None"
+  }
+
   default_node_pool {
     name       = "defaultpool"
     vm_size    = "Standard_D8s_v6" # 8 cpu 32gb ram

@@ -40,6 +40,7 @@ provider "kubectl" {
   client_key             = base64decode(azurerm_kubernetes_cluster.kube_cluster.kube_config.0.client_key)
   cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.kube_cluster.kube_config.0.cluster_ca_certificate)
   load_config_file       = false
+  lazy_load              = true
 }
 
 provider "azurerm" {
