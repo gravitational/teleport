@@ -173,6 +173,8 @@ linters:
               desc: use "io" or "os" packages instead
             - pkg: math/rand$
               desc: use "math/rand/v2" or "crypto/rand" instead
+            - pkg: github.com/go-jose/go-jose/v3
+              desc: use "github.com/go-jose/go-jose/v4" instead
             - pkg: github.com/golang/protobuf
               desc: use "google.golang.org/protobuf"
             - pkg: github.com/hashicorp/go-uuid
