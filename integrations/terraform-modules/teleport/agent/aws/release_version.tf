@@ -5,5 +5,5 @@
 locals {
   # module_version is updated by gen/update-version.sh for each release.
   # tflint-ignore: terraform_unused_declarations
-  module_version = "18.11.9"
+  module_version = "18.11.10"
 }
