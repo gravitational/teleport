@@ -179,8 +179,8 @@ teleport:
 
   # Teleport can limit the number of connections coming from each client
   # IP address to avoid abuse. These limits are enforced separately for
-  # each service (Auth, Proxy, SSH, Kubernetes, Database, Windows
-  # Desktop, and Application).
+  # each service (Auth, Proxy, SSH, Kubernetes, Database, and Windows
+  # Desktop).
   connection_limits:
     max_connections: 1000
 

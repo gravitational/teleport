@@ -721,7 +721,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
-		&cfg.Apps.Limiter,
 		&cfg.LinuxDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {

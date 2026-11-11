@@ -34,13 +34,11 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // connIdentityHandler serves connections authenticated with a client's
 // route-bound App certificate. The certificate routes the whole connection to
-// one app, so the handler limits and monitors each connection rather than
-// each request.
+// one app, so the handler monitors each connection rather than each request.
 type connIdentityHandler struct {
 	c *ConnectionsHandler
 
@@ -79,42 +77,11 @@ func newConnIdentityHandler(c *ConnectionsHandler) (_ *connIdentityHandler, err 
 }
 
 // handleConnection serves a connection authenticated with a client's
-// route-bound App certificate. The certificate routes to one app, so it limits,
-// authorizes and monitors the whole connection for that app.
+// route-bound App certificate. The certificate routes to one app, so it
+// authorizes and monitors the whole connection for that app, then serves it
+// with the server for the app's protocol. TCP and MCP connections are served
+// before it returns. HTTP ones are served after, by an http.Server.
 func (h *connIdentityHandler) handleConnection(ctx context.Context, conn *tls.Conn, user authz.IdentityGetter) error {
-	release, err := h.limit(conn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := h.serveConnection(ctx, conn, user); err != nil {
-		release()
-		return trace.Wrap(err)
-	}
-	// An http.Server may still be serving the connection, so its slot lasts
-	// until its context ends, which is when HandleConnection returns at the
-	// latest.
-	context.AfterFunc(ctx, release)
-	return nil
-}
-
-// limit charges a connection to its client in the handler's limiter, whatever
-// the app protocol. requestIdentityHandler charges the same limiter per
-// request, so a client has one budget across both handlers.
-func (h *connIdentityHandler) limit(conn net.Conn) (func(), error) {
-	clientIP, err := utils.ClientIPFromConn(conn)
-	if err != nil {
-		// net.Pipe connections used by integration app proxying have no
-		// client IP.
-		return func() {}, nil
-	}
-	release, err := h.c.limiter.RegisterRequestAndConnection(clientIP)
-	return release, trace.Wrap(err)
-}
-
-// serveConnection authorizes and monitors a connection, then serves it with the
-// server for its app's protocol. TCP and MCP connections are served before it
-// returns. HTTP ones are served after, by an http.Server.
-func (h *connIdentityHandler) serveConnection(ctx context.Context, conn *tls.Conn, user authz.IdentityGetter) error {
 	app, err := h.c.resolveApp(h.c.closeContext, user.GetIdentity().RouteToApp.Name, user.GetIdentity().RouteToApp.PublicAddr)
 	if err != nil {
 		return trace.Wrap(err)

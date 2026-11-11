@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appauthz "github.com/gravitational/teleport/lib/srv/app/authz"
@@ -118,9 +117,6 @@ type ConnectionsHandlerConfig struct {
 
 	// Logger is the slog.Logger.
 	Logger *slog.Logger
-
-	// LimiterConfig is the configuration for connection and rate limits.
-	LimiterConfig limiter.Config
 
 	// MCPDemoServer enables the "Teleport Demo" MCP server.
 	MCPDemoServer bool
@@ -207,7 +203,6 @@ type ConnectionsHandler struct {
 	conns inflighttracker.Tracker
 
 	tlsConfig *tls.Config
-	limiter   *limiter.Limiter
 
 	// connIdentityHandler serves every connection that requestIdentityHandler
 	// doesn't accept.
@@ -353,14 +348,6 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		CleanupInterval: time.Second,
 		OnExpiry:        c.onSessionExpired,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Create limiter for connection and rate limiting. connIdentityHandler
-	// applies it to each connection, for all app protocols (HTTP, TCP, MCP),
-	// and requestIdentityHandler applies it to each request.
-	c.limiter, err = limiter.NewLimiter(cfg.LimiterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -44,8 +44,7 @@ func (c *ConnectionsHandler) acceptsForwardedIdentity() bool {
 
 // requestIdentityHandler serves connections from a local Proxy that forwards a
 // client identity with each request. Such a connection carries requests from
-// many clients, so the handler admits and limits each request rather than
-// the connection.
+// many clients, so the handler admits each request rather than the connection.
 type requestIdentityHandler struct {
 	c *ConnectionsHandler
 
@@ -82,15 +81,13 @@ func (h *requestIdentityHandler) handleConnection(ctx context.Context, conn net.
 const forwardedIdleTimeout = 10 * time.Minute
 
 // newHTTPServer creates the server for connections from a forwarding Proxy.
-// authz.Middleware puts the forwarded identity in place of the Proxy's. The
-// limiter runs after admission, so it only counts admitted requests, keyed by
-// the forwarded client. Tests pass their own serve to inspect what the
-// chain admits.
+// authz.Middleware puts the forwarded identity in place of the Proxy's. Tests
+// pass their own serve to inspect what the chain admits.
 func (h *requestIdentityHandler) newHTTPServer(serve http.Handler) *http.Server {
 	server := h.c.newAppHTTPServer(&authz.Middleware{
 		ClusterName:                 h.c.clusterName,
 		EnableCredentialsForwarding: true,
-		Handler:                     h.admit(h.limit(serve)),
+		Handler:                     h.admit(serve),
 	})
 	server.IdleTimeout = forwardedIdleTimeout
 	return server
@@ -110,27 +107,6 @@ func (h *requestIdentityHandler) admit(next http.Handler) http.Handler {
 		// in its place, for example as the session start time or to issue a
 		// managed upstream client certificate.
 		next.ServeHTTP(w, r.WithContext(authz.ContextWithUserCertificate(r.Context(), nil)))
-	})
-}
-
-// limit charges each request to its forwarded client in the handler's limiter.
-// connIdentityHandler charges the same limiter per connection, so a client has
-// one budget across both handlers. A Proxy's pooled connections never count
-// against a client.
-func (h *requestIdentityHandler) limit(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		clientIP, err := forwardedClientIP(r)
-		if err != nil {
-			h.writeProxyError(w, err)
-			return
-		}
-		release, err := h.c.limiter.RegisterRequestAndConnection(clientIP)
-		if err != nil {
-			h.writeError(w, r, err)
-			return
-		}
-		defer release()
-		next.ServeHTTP(w, r)
 	})
 }
 
@@ -166,8 +142,8 @@ func (h *requestIdentityHandler) authorizeProxy(r *http.Request) error {
 }
 
 // forwardedClientIP returns the IP of the client address that authz.Middleware
-// read from the forwarded request. IP pinning needs an IP address and port, and
-// the limiter needs the IP, so it rejects anything else.
+// read from the forwarded request. IP pinning needs an IP address and port, so
+// it rejects anything else.
 func forwardedClientIP(r *http.Request) (string, error) {
 	addr, err := authz.ClientSrcAddrFromContext(r.Context())
 	if err != nil {
@@ -262,7 +238,7 @@ func (h *requestIdentityHandler) chunkConfig(req authorizedRequest) (chunkConfig
 func (h *requestIdentityHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	code, ok := appauthz.WriteForwardedError(w, r, err)
 	if !ok {
-		// Not an authorization failure, such as a limit.
+		// Not an authorization failure, such as an upstream error.
 		h.c.writeHTTPError(w, r, err)
 		return
 	}
