@@ -7976,21 +7976,23 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 
 // getPublicAddr waits for a proxy to be registered with Teleport. For a scoped
 // app (scope != ""), the returned address is the derived scope-qualified subdomain.
-func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App, scope string) (string, error) {
+func getPublicAddr(ctx context.Context, authClient app.FindPublicAddrClient, a servicecfg.App, scope string) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
 	defer timeout.Stop()
 
 	for {
+		publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name, scope)
+		if err == nil {
+			return publicAddr, nil
+		}
 		select {
 		case <-ticker.C:
-			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name, scope)
-			if err == nil {
-				return publicAddr, nil
-			}
 		case <-timeout.C:
 			return "", trace.BadParameter("timed out waiting for proxy with public address")
+		case <-ctx.Done():
+			return "", trace.Wrap(ctx.Err())
 		}
 	}
 }
