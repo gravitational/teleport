@@ -33,6 +33,7 @@ import { useLayout } from 'teleport/Main/LayoutContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { Notifications } from 'teleport/Notifications';
 import { ScopeSwitcher } from 'teleport/Scopes/ScopeSwitcher';
+import { NavTitle, type TeleportFeature } from 'teleport/types';
 import useTeleport from 'teleport/useTeleport';
 
 export function TopBar({
@@ -67,7 +68,11 @@ export function TopBar({
   return (
     <TopBarContainer>
       <Flex alignItems="center" height="100%">
-        <TeleportLogo CustomLogo={CustomLogo} withLink={!scopePickerMode} />
+        <TeleportLogo
+          CustomLogo={CustomLogo}
+          withLink={!scopePickerMode}
+          home={getLogoHome(features)}
+        />
         {cfg.scopesEnabled && !feature?.logoOnlyTopbar && !scopePickerMode && (
           <ScopeSwitcher scope={scope} />
         )}
@@ -109,12 +114,39 @@ const TopBarContainer = styled(TopNav)`
   }
 `;
 
+type LogoHome = {
+  to: string;
+  tooltip: string;
+};
+
+export const defaultLogoHome: LogoHome = {
+  to: cfg.routes.root,
+  tooltip: 'Teleport Resources Home',
+};
+
+/**
+ * getLogoHome returns where the top bar logo should link to. In the Beams UI,
+ * the logo takes the user to the Beams list (when they have access to it);
+ * otherwise it goes to the root route, which redirects to Resources.
+ */
+export function getLogoHome(features: TeleportFeature[]): LogoHome {
+  if (cfg.getBeamsUi()) {
+    const beamsList = features.find(f => f.route?.title === NavTitle.BeamsList);
+    if (beamsList?.route?.path) {
+      return { to: beamsList.route.path, tooltip: 'Beams' };
+    }
+  }
+  return defaultLogoHome;
+}
+
 const TeleportLogo = ({
   CustomLogo,
   withLink,
+  home,
 }: {
   CustomLogo?: () => React.ReactElement;
   withLink: boolean;
+  home: LogoHome;
 }) => {
   const theme = useTheme();
   const src = logoSrc(theme.type);
@@ -142,8 +174,8 @@ const TeleportLogo = ({
   );
 
   return withLink ? (
-    <HoverTooltip placement="bottom" tipContent="Teleport Resources Home">
-      <LinkLogoWrapper to={cfg.routes.root}>{logoContent}</LinkLogoWrapper>
+    <HoverTooltip placement="bottom" tipContent={home.tooltip}>
+      <LinkLogoWrapper to={home.to}>{logoContent}</LinkLogoWrapper>
     </HoverTooltip>
   ) : (
     <BoxLogoWrapper>{logoContent}</BoxLogoWrapper>
