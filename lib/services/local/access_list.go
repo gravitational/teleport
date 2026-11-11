@@ -971,6 +971,7 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 			return trace.Wrap(err)
 		}
 		keepAWSIdentityCenterLabels(existingMember, member)
+		preserveMemberIneligibleStatus(existingMember, member)
 
 		if err := accesslists.ValidateAccessListMember(ctx, parentList, member, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
@@ -1041,6 +1042,7 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 				return trace.Wrap(err)
 			}
 			keepAWSIdentityCenterLabels(existingMember, member)
+			preserveMemberIneligibleStatus(existingMember, member)
 
 			if err := accesslists.ValidateAccessListMember(ctx, memberList, member, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 				return trace.Wrap(err)
@@ -1808,6 +1810,7 @@ func preserveAccessListFields(existingAccessList, accessList *accesslist.AccessL
 		accessList.Status.OwnerOf = existingAccessList.Status.OwnerOf
 		accessList.Status.ScopedMemberOf = existingAccessList.Status.ScopedMemberOf
 		accessList.Status.ScopedOwnerOf = existingAccessList.Status.ScopedOwnerOf
+		preserveOwnerIneligibleStatus(existingAccessList, accessList)
 	} else {
 		// For newly created AccessList make sure MemberOf/OwnerOf are empty.
 		accessList.Status.MemberOf = []string{}
@@ -1830,6 +1833,43 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 	if old.Origin() == common.OriginAWSIdentityCenter {
 		new.Metadata.Labels = old.GetAllLabels()
 	}
+}
+
+// preserveOwnerIneligibleStatus copies owner status from an existing owner
+// onto its replacement, but only when the incoming owner's IneligibleStatus
+// is "" (empty string).
+//
+// The IneligibleStatus field is reconciler owned, but can also be set (by
+// the reconciler or AWSIC sync etc) outside of this function.
+//
+// An empty string is checked to make sure we don't overwrite a legitimate
+// value (since reconciler and syncs use the same write paths).
+// Since reconciler/syncs only write non-empty values, an empty string
+// is a result of client write requests which go through proto conversion
+// (conv.FromProto) which hardcodes it to an empty string,
+// which is then safe to assume we can overwrite.
+func preserveOwnerIneligibleStatus(existingAccessList, accessList *accesslist.AccessList) {
+	existingStatuses := make(map[string]string, len(existingAccessList.Spec.Owners))
+	for _, existingOwner := range existingAccessList.Spec.Owners {
+		existingStatuses[existingOwner.Name] = existingOwner.IneligibleStatus
+	}
+	for i, owner := range accessList.Spec.Owners {
+		if owner.IneligibleStatus != "" {
+			continue
+		}
+		if status, ok := existingStatuses[owner.Name]; ok {
+			accessList.Spec.Owners[i].IneligibleStatus = status
+		}
+	}
+}
+
+// preserveMemberIneligibleStatus is similar to preserveOwnerIneligibleStatus where
+// it copies member's status instead.
+func preserveMemberIneligibleStatus(existingMember, newMember *accesslist.AccessListMember) {
+	if existingMember == nil || newMember.Spec.IneligibleStatus != "" {
+		return
+	}
+	newMember.Spec.IneligibleStatus = existingMember.Spec.IneligibleStatus
 }
 
 // preserveExistingMemberMetadata copies membership metadata from an existing
