@@ -86,6 +86,17 @@ func Process(ctx context.Context, cfg Config) error {
 				metadataErr = trace.Wrap(err, "failed to process session recording metadata")
 			}
 		}
+	case *apievents.LinuxDesktopSessionEnd:
+		if err := summarizer.SummarizeLinuxDesktop(ctx, o); err != nil {
+			summarizerErr = trace.Wrap(err, "failed to summarize upload")
+		}
+		metadataSvc := cfg.RecordingMetadataProvider.Service()
+		if !o.EndTime.IsZero() && !o.StartTime.IsZero() {
+			duration := o.EndTime.Sub(o.StartTime)
+			if err := metadataSvc.ProcessSessionRecording(ctx, cfg.SessionID, recordingmetadata.SessionTypeDesktop, o.StartTime, duration); err != nil {
+				metadataErr = trace.Wrap(err, "failed to process session recording metadata")
+			}
+		}
 	}
 	return trace.NewAggregate(summarizerErr, metadataErr)
 }

@@ -32,23 +32,33 @@ import (
 func (ctx *Context) ExtendWithSessionEnd(sessionEnd apievents.AuditEvent, checker AccessChecker) {
 	ctx.Session = sessionEnd
 	ctx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
-	if linuxEnd, ok := sessionEnd.(*apievents.LinuxDesktopSessionEnd); ok {
-		ctx.Resource153 = linuxdesktopv1.LinuxDesktop_builder{
-			Kind:    types.KindLinuxDesktop,
-			SubKind: "",
-			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
-				Name:   linuxEnd.DesktopName,
-				Labels: linuxEnd.DesktopLabels,
-			}.Build(),
-			Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
-				Addr: linuxEnd.DesktopAddr,
-			}.Build(),
-		}.Build()
+	if r := rebuildLinuxDesktopFromSessionEndEvent(sessionEnd); r != nil {
+		ctx.Resource153 = r
 	}
 	// AccessCheker is set here to allow access checks to other resources
 	// in the where clause.
 	ctx.AccessChecker = checker
+}
+
+// rebuildLinuxDesktopFromSessionEndEvent rebuilds the Linux desktop from a Linux desktop session end event, or returns
+// nil for any other event.
+func rebuildLinuxDesktopFromSessionEndEvent(event apievents.AuditEvent) types.Resource153 {
+	linuxEnd, ok := event.(*apievents.LinuxDesktopSessionEnd)
+	if !ok || linuxEnd == nil {
+		return nil
+	}
+	return linuxdesktopv1.LinuxDesktop_builder{
+		Kind:    types.KindLinuxDesktop,
+		SubKind: "",
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name:   linuxEnd.DesktopName,
+			Labels: linuxEnd.DesktopLabels,
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
+			Addr: linuxEnd.DesktopAddr,
+		}.Build(),
+	}.Build()
 }
 
 // rebuildResourceFromSessionEndEvent rebuilds a resource from a session end event.

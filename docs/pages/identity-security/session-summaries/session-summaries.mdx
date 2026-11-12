@@ -579,6 +579,9 @@ forward events to a SIEM to alert the high severity sessions.
 }
 ```
 
+For Linux desktop sessions, the event has a `linux_desktop` object that holds
+the desktop's name, address, labels, and the Linux login used to connect.
+
 ## Limitations
 
 ### On-demand summarization is not supported
@@ -656,6 +659,27 @@ spec:
   model: db-summary-model
 ```
 
+The `desktop` kind matches both Windows and Linux desktop sessions. To target
+one of them, filter on `resource.kind`, which is `windows_desktop` for Windows
+desktops and `linux_desktop` for Linux desktops. The following example policy
+only matches Linux desktop sessions:
+
+```yaml
+kind: inference_policy
+version: v1
+metadata:
+  name: linux-desktop-sessions
+  description: Summarize Linux desktop sessions
+spec:
+  kinds:
+  - desktop
+  filter: 'resource.kind == "linux_desktop"'
+  model: shell-summary-model
+```
+
+To match only Windows desktop sessions, use
+`resource.kind == "windows_desktop"` instead.
+
 ### Predicate Language
 
 Inference policy filters are expressed using Teleport predicate language. In
@@ -688,15 +712,15 @@ session, and user.
 
 | Field                            | Meaning                                                                                                                                                         | Example                                           |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| resource                         | Resource that this session connects to (server, Kubernetes cluster, or database)                                                                                |                                                   |
-| resource.kind                    | Resource kind                                                                                                                                                   | `resource.kind == "node"`                         |
+| resource                         | Resource that this session connects to (server, Kubernetes cluster, database, or desktop)                                                                      |                                                   |
+| resource.kind                    | Resource kind. Desktop sessions use `windows_desktop` or `linux_desktop`.                                                                                      | `resource.kind == "linux_desktop"`                |
 | resource.metadata.labels         | Resource labels                                                                                                                                                 | `equals(resource.metadata.labels["env"], "prod")` |
 | resource.metadata.name           | Resource name. In case of SSH servers, it's the server ID.                                                                                                      | `resource.metadata.name == "production-cluster"`           |
 | resource.spec.addr               | Server address (SSH sessions only)                                                                                                                              | `resource.spec.addr == "123.123.123.123:3022"`    |
 | resource.spec.db_protocol        | Database protocol (database sessions only). See [DB resource reference](../../reference/infrastructure-as-code/teleport-resources/database-v3.mdx) for supported values.    | `resource.spec.db_protocol == "postgres"` |
 | resource.spec.hostname           | Server hostname (SSH sessions only)                                                                                                                             | `resource.spec.hostname == "dummy-host"`          |
 | resource.spec.uri                | Database URI (database sessions only)                                                                                                                           | `has_prefix(resource.spec.uri, "db-host")`        |
-| session                          | The session that is being matched. This object supports all the fields of `session.end` and `db.session.end` events, so we only name the most useful ones here. |                                                   |
+| session                          | The session that is being matched. This object supports all the fields of `session.end`, `db.session.end`, `windows.desktop.session.end`, and `linux.desktop.session.end` events, so we only name the most useful ones here. |                                                   |
 | session.cluster_name             | Name of the Teleport cluster                                                                                                                                    | `session.cluster_name == "teleport.example.com"`          |
 | session.db_name                  | Name of database (the underlying one, not the Teleport resource; database sessions only)                                                                        | `session.db_name == "orders"`                     |
 | session.db_service               | Database service name (database sessions only)                                                                                                                  | `session.db_service == "prod-db-service"`         |
@@ -705,7 +729,9 @@ session, and user.
 | session.kubernetes_pod_name      | Name of the pod (Kubernetes sessions only)                                                                                                                      | `session.kubernetes_pod_name == "some-pod"`       |
 | session.kubernetes_pod_namespace | Namespace that contains the pod (Kubernetes sessions only)                                                                                                      | `session.kubernetes_pod_namespace == "default"`   |
 | session.kubernetes_users         | List of Kubernetes usernames (Kubernetes sessions only)                                                                                                         | `contains(session.kubernetes_users, "admin")`     |
+| session.linux_user               | Linux login used to connect (Linux desktop sessions only)                                                                                                       | `session.linux_user == "root"`                    |
 | session.participants             | Users that participated in the session (SSH and Kubernetes sessions only)                                                                                       | `contains(session.participants, "alice")`         |
+| session.windows_user             | Windows login used to connect (Windows desktop sessions only)                                                                                                   | `session.windows_user == "Administrator"`         |
 | user                             | User that created the session.                                                                                                                                  |                                                   |
 | user.metadata.name               | User's name                                                                                                                                                     | `is_subset(user.metadata.name, "alice", "bob")`   |
 | user.spec.roles                  | User's roles                                                                                                                                                    | `contains(user.spec.roles, "intern")`             |

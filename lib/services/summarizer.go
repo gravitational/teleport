@@ -25,6 +25,7 @@ import (
 	"github.com/vulcand/predicate"
 
 	"github.com/gravitational/teleport"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -137,8 +138,13 @@ type InferencePolicyMatchingContext struct {
 	User UserState
 	// Resource is the resource being accessed.
 	Resource types.Resource
-	// Session is a session.end or windows.desktop.session.end event. These
-	// events hold information about session recordings.
+	// Resource153 is the resource being accessed when it is an RFD 153
+	// resource, such as a Linux desktop. At most one of Resource and
+	// Resource153 is set.
+	Resource153 types.Resource153
+	// Session is a session.end, windows.desktop.session.end or
+	// linux.desktop.session.end event. These events hold information about
+	// session recordings.
 	Session events.AuditEvent
 }
 
@@ -157,7 +163,11 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 
 	case ResourceIdentifier:
 		// First, try to fetch field value from the resource in the context.
-		val, origErr := predicate.GetFieldByTag(ctx.Resource, teleport.JSON, fields[1:])
+		var resource any = ctx.Resource
+		if ctx.Resource == nil && ctx.Resource153 != nil {
+			resource = resource153PredicateView(ctx.Resource153)
+		}
+		val, origErr := predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
 		if origErr == nil {
 			return val, nil
 		}
@@ -188,7 +198,7 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 		// First, try to fetch field value from the session in the context.
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
-		case *events.SessionEnd, *events.DatabaseSessionEnd, *events.WindowsDesktopSessionEnd:
+		case *events.SessionEnd, *events.DatabaseSessionEnd, *events.WindowsDesktopSessionEnd, *events.LinuxDesktopSessionEnd:
 			session = ctx.Session
 		}
 		val, origErr := predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
@@ -212,6 +222,41 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 	}
 }
 
+// linuxDesktopPredicateView mirrors the Linux desktop fields that are rebuilt
+// from a session end event. On this branch, generated protos are built in
+// opaque mode, so a LinuxDesktop message has no exported fields for
+// [predicate.GetFieldByTag] to read. Filters read this struct instead.
+type linuxDesktopPredicateView struct {
+	Kind     string `json:"kind"`
+	SubKind  string `json:"sub_kind"`
+	Version  string `json:"version"`
+	Metadata struct {
+		Name   string            `json:"name"`
+		Labels map[string]string `json:"labels"`
+	} `json:"metadata"`
+	Spec struct {
+		Addr string `json:"addr"`
+	} `json:"spec"`
+}
+
+// resource153PredicateView returns a value whose fields can be read by
+// [predicate.GetFieldByTag]. Resources without a view are returned unchanged.
+func resource153PredicateView(r types.Resource153) any {
+	desktop, ok := r.(*linuxdesktopv1.LinuxDesktop)
+	if !ok || desktop == nil {
+		return r
+	}
+	view := &linuxDesktopPredicateView{
+		Kind:    desktop.GetKind(),
+		SubKind: desktop.GetSubKind(),
+		Version: desktop.GetVersion(),
+	}
+	view.Metadata.Name = desktop.GetMetadata().GetName()
+	view.Metadata.Labels = desktop.GetMetadata().GetLabels()
+	view.Spec.Addr = desktop.GetSpec().GetAddr()
+	return view
+}
+
 // Returns an error, since this context does not support access checks.
 func (ctx *InferencePolicyMatchingContext) GetAccessChecker() (AccessChecker, error) {
 	return nil, trace.NotFound(
@@ -222,10 +267,14 @@ func (ctx *InferencePolicyMatchingContext) GetAccessChecker() (AccessChecker, er
 // GetResource returns resource specified in the context,
 // returns error if not specified.
 func (ctx *InferencePolicyMatchingContext) GetResource() (types.Resource, error) {
-	if ctx.Resource == nil {
+	switch {
+	case ctx.Resource != nil:
+		return ctx.Resource, nil
+	case ctx.Resource153 != nil:
+		return types.Resource153ToLegacy(ctx.Resource153), nil
+	default:
 		return nil, trace.NotFound("resource is not set in the context")
 	}
-	return ctx.Resource, nil
 }
 
 // ExtendWithSessionEnd extends the context with a session end event and
@@ -233,6 +282,7 @@ func (ctx *InferencePolicyMatchingContext) GetResource() (types.Resource, error)
 func (ctx *InferencePolicyMatchingContext) ExtendWithSessionEnd(sessionEnd events.AuditEvent) {
 	ctx.Session = sessionEnd
 	ctx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
+	ctx.Resource153 = rebuildLinuxDesktopFromSessionEndEvent(sessionEnd)
 }
 
 // ValidateInferencePolicy validates an inference policy, including checking
