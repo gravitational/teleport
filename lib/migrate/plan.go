@@ -741,7 +741,7 @@ func joinLines(message string) string {
 // error comes with no facts.
 func (m *Migrator) runPreflight(ctx context.Context, h *host) (*hoststep.PreflightResult, error) {
 	var response hoststep.PreflightResponse
-	if err := m.runHostStep(ctx, m.sourceHosts, h.ID, hoststep.Preflight, struct{}{}, &response); err != nil {
+	if err := m.runHostStep(ctx, m.sourceHosts, h.ID, hoststep.Preflight, hoststep.PreflightRequest{SourceHostUUID: h.ID}, &response); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if response.Reason != "" {

@@ -35,8 +35,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
-// preflightRequest is what the preflight step needs: nothing.
-type preflightRequest struct{}
+// PreflightRequest is what the preflight step needs.
+type PreflightRequest struct {
+	// SourceHostUUID is the host_uuid of the source node the step was reached
+	// through, which teleport.service's agent must hold.
+	SourceHostUUID string `json:"source_host_uuid"`
+}
 
 // PreflightResponse is what the preflight step read on the host.
 type PreflightResponse struct {
@@ -52,7 +56,7 @@ type PreflightResponse struct {
 // only a step that cannot run at all is an error. A host without systemd has
 // no teleport.service to read, so its facts come from the default config, for
 // migrating it by hand.
-func (h hostEnv) preflight(ctx context.Context, _ preflightRequest) (PreflightResponse, error) {
+func (h hostEnv) preflight(ctx context.Context, req PreflightRequest) (PreflightResponse, error) {
 	suffixHostUUID := h.readTrimmed(path.Join(scopedDataDir, hostid.FileName))
 	hasSystemd := h.exists("/run/systemd/system")
 	var argv []string
@@ -88,7 +92,26 @@ func (h hostEnv) preflight(ctx context.Context, _ preflightRequest) (PreflightRe
 	if !hasSystemd {
 		return PreflightResponse{Facts: facts, Reason: "no systemd on the host"}, nil
 	}
+	// None of another agent's facts are recorded as this node's.
+	if reason := h.otherAgentReason(facts.DataDir, req.SourceHostUUID); reason != "" {
+		return PreflightResponse{Facts: PreflightResult{SuffixHostUUID: suffixHostUUID}, Reason: reason}, nil
+	}
 	return PreflightResponse{Facts: facts, Reason: h.installReason(ctx, argv)}, nil
+}
+
+// otherAgentReason returns why teleport.service's agent, whose data dir is
+// dataDir, is not the source node sourceHostUUID, or "" when it is. A host can
+// run the node from an install suffix beside a default agent of another
+// cluster, and that agent's config must not be migrated in its place.
+func (h hostEnv) otherAgentReason(dataDir, sourceHostUUID string) string {
+	const remedy = "(this node may run from an install suffix); migrate this host by hand"
+	switch got := h.readTrimmed(path.Join(dataDir, hostid.FileName)); {
+	case got == "":
+		return fmt.Sprintf("teleport.service runs another agent: its data dir %q has no host_uuid, and this node is %q %s", dataDir, sourceHostUUID, remedy)
+	case got != sourceHostUUID:
+		return fmt.Sprintf("teleport.service runs another agent: its data dir %q holds host_uuid %q, not this node's %q %s", dataDir, got, sourceHostUUID, remedy)
+	}
+	return ""
 }
 
 // agentFacts returns the facts a parsed agent config holds. A delegated join

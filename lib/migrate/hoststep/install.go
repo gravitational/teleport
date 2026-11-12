@@ -102,6 +102,11 @@ func (h hostEnv) install(ctx context.Context, req InstallRequest) (InstallRespon
 	if err != nil {
 		return InstallResponse{}, trace.Wrap(err)
 	}
+	// A plan from before this check, or a teleport.service changed since,
+	// could still point at another agent's config.
+	if reason := h.otherAgentReason(agentFacts(sourceConfig).DataDir, req.SourceHostUUID); reason != "" {
+		return InstallResponse{}, trace.CompareFailed("%s", reason)
+	}
 	if services := enabledServices(sourceConfig); !slices.Equal(services, req.Services) {
 		return InstallResponse{}, trace.CompareFailed("the agent config at %q changed during apply (it runs %v, the token grants %v); run plan --check --resource node/%s, then apply again", sourceConfigPath, services, req.Services, req.SourceHostUUID)
 	}
