@@ -2197,7 +2197,8 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 				return nil, trace.ConvertSystemError(err)
 			}
 			logger, err := events.NewFileLog(events.FileLogConfig{
-				Dir: uri.Path,
+				Dir:   uri.Path,
+				Clock: process.Clock,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -2406,6 +2407,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 		auditServiceConfig := events.AuditLogConfig{
 			Context:                   process.ExitContext(),
+			Clock:                     process.Clock,
 			DataDir:                   filepath.Join(cfg.DataDir, teleport.LogsDir),
 			ServerID:                  hostUUID,
 			UploadHandler:             uploadHandler,
