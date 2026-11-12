@@ -21,6 +21,7 @@ metadata:
 spec:
   serviceName: {{ .Release.Name }}
   replicas: {{ $replicaCount }}
+  podManagementPolicy: {{ .Values.highAvailability.podManagementPolicy }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
