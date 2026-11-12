@@ -159,14 +159,53 @@ func (c CertAuthType) Check() error {
 	return trace.BadParameter("%q %s", c, authTypeNotSupported)
 }
 
-// CertAuthID identifies a certificate authority by type and owning cluster.
+// CertAuthIDFor returns a CertAuthID for the given fields.
+func CertAuthIDFor(caType CertAuthType, clusterName, name string) CertAuthID {
+	id := CertAuthID{
+		Type:        caType,
+		ClusterName: clusterName,
+	}
+
+	if name != clusterName {
+		id.Name = name
+	}
+
+	return id
+}
+
+// CertAuthID identifies a certificate authority by type, owning cluster and name.
 type CertAuthID struct {
+	// NOTE(tscolari): The json tags here are decorative. They
+	// should be removed when the stakes are low (major version change).
+
 	Type        CertAuthType `json:"type"`
 	ClusterName string       `json:"domain_name"`
+	// Name is the name of the additional CA if set to a nonempty name different
+	// from ClusterName. It can be empty or equal to ClusterName to identify a
+	// regular CA.
+	Name string `json:"name,omitempty"`
 }
 
 func (c CertAuthID) String() string {
+	if c.IsAdditional() {
+		return fmt.Sprintf("CA(type=%q, domain=%q, name=%q)", c.Type, c.ClusterName, c.Name)
+	}
+
 	return fmt.Sprintf("CA(type=%q, domain=%q)", c.Type, c.ClusterName)
+}
+
+// IsAdditional returns true when the ID refers to an additional CA
+func (c CertAuthID) IsAdditional() bool {
+	return c.Name != "" && c.Name != c.ClusterName
+}
+
+// CAName returns the name of the CA referred by the ID.
+func (c CertAuthID) CAName() string {
+	if c.IsAdditional() {
+		return c.Name
+	}
+
+	return c.ClusterName
 }
 
 // Check returns error if any of the id parameters are bad, nil otherwise

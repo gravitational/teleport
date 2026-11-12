@@ -201,7 +201,7 @@ func (ca *CertAuthorityV2) AddRole(name string) {
 // GetID returns certificate authority ID -
 // combined type and name
 func (ca *CertAuthorityV2) GetID() CertAuthID {
-	return CertAuthID{Type: ca.Spec.Type, ClusterName: ca.Metadata.Name}
+	return CertAuthIDFor(ca.Spec.Type, ca.Spec.ClusterName, ca.Metadata.Name)
 }
 
 // SetName sets cert authority name
