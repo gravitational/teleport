@@ -1,7 +1,7 @@
 CREATE PROCEDURE teleport_activate_user(IN username TEXT, IN details JSON)
 proc_label:BEGIN
     DECLARE is_auto_user INT DEFAULT 0;
-    DECLARE is_active INT DEFAULT 0;
+    DECLARE num_active INT DEFAULT 0;
     DECLARE is_same_user INT DEFAULT 0;
     DECLARE role_index INT DEFAULT 0;
     DECLARE cur_role TEXT DEFAULT '';
@@ -19,12 +19,12 @@ proc_label:BEGIN
             SIGNAL SQLSTATE 'TP001' SET MESSAGE_TEXT = 'Teleport username does not match user attributes';
         END IF;
 
-        SELECT COUNT(USER) INTO is_active FROM information_schema.processlist WHERE USER = username;
+        SELECT COUNT(USER) INTO num_active FROM information_schema.processlist WHERE USER = username;
         -- If the user has active connections, make sure the provided roles
         -- match what the user currently has. JSON_EQUALS was added in MariaDB
         -- 10.7.0. Use loop and JSON_CONTAINS instead of JSON_EQUALS to support
         -- older versions.
-        IF is_active = 1 THEN
+        IF num_active >= 1 THEN
             SELECT JSON_ARRAYAGG(Role) INTO cur_roles FROM mysql.roles_mapping WHERE USER = @all_in_one_role AND Admin_option = 'N';
             IF JSON_LENGTH(@roles) != JSON_LENGTH(cur_roles) THEN
                 SIGNAL SQLSTATE 'TP002' SET MESSAGE_TEXT = 'user has active connections and roles have changed';

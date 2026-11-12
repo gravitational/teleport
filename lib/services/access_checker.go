@@ -886,7 +886,7 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database, userRequeste
 				return nil, trace.AccessDenied("access to database role %q denied", requestedRole)
 			}
 		}
-		return userRequestedRoles, nil
+		return apiutils.Deduplicate(userRequestedRoles), nil
 
 	// If user does not provide any roles, use all allowed roles from roleset.
 	default:
