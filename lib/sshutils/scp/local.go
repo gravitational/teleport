@@ -141,6 +141,7 @@ func (l *localFileInfo) ReadDir() ([]FileInfo, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer f.Close()
 
 	fis, err := f.Readdir(0)
 	if err != nil {

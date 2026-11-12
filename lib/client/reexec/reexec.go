@@ -86,6 +86,8 @@ func RunForkAuthenticate(ctx context.Context, params ForkAuthenticateParams) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer disownR.Close()
+	defer disownW.Close()
 	killR, killW, err := os.Pipe()
 	if err != nil {
 		return trace.Wrap(err)
@@ -95,8 +97,6 @@ func RunForkAuthenticate(ctx context.Context, params ForkAuthenticateParams) err
 		// disowned, this will do nothing.
 		SignalAndClose(killW)
 		killR.Close()
-		disownW.Close()
-		disownR.Close()
 	}()
 
 	// disownW and killR are going to stay alive until the defer or until the
