@@ -2,12 +2,12 @@ CREATE PROCEDURE teleport_delete_user(IN username TEXT)
 BEGIN
     -- Defaults to dropping user.
     DECLARE state TEXT;
-    DECLARE is_active INT DEFAULT 0;
+    DECLARE num_active INT DEFAULT 0;
     DECLARE view_count INT DEFAULT 0;
     DECLARE procedure_count INT DEFAULT 0;
 
-    SELECT COUNT(USER) INTO is_active FROM information_schema.processlist WHERE USER = username;
-    IF is_active = 1 THEN
+    SELECT COUNT(USER) INTO num_active FROM information_schema.processlist WHERE USER = username;
+    IF num_active >= 1 THEN
         -- Throw a custom error code when user is still active from other sessions.
         SIGNAL SQLSTATE 'TP000' SET MESSAGE_TEXT = 'User has active connections';
     ELSE

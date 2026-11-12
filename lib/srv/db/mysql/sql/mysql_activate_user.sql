@@ -1,9 +1,8 @@
 CREATE PROCEDURE teleport_activate_user(IN username TEXT, IN details JSON)
 proc_label:BEGIN
     DECLARE is_auto_user INT DEFAULT 0;
-    DECLARE is_active INT DEFAULT 0;
+    DECLARE num_active INT DEFAULT 0;
     DECLARE is_same_user INT DEFAULT 0; 
-    DECLARE are_roles_same INT DEFAULT 0; 
     DECLARE role_index INT DEFAULT 0;
     DECLARE role TEXT DEFAULT '';
     DECLARE cur_roles TEXT DEFAULT '';
@@ -19,18 +18,27 @@ proc_label:BEGIN
             SIGNAL SQLSTATE 'TP001' SET MESSAGE_TEXT = 'Teleport username does not match user attributes';
         END IF;
 
-        SELECT COUNT(USER) INTO is_active FROM information_schema.processlist WHERE USER = username;
+        SELECT COUNT(USER) INTO num_active FROM information_schema.processlist WHERE USER = username;
 
         -- If the user has active connections, make sure the provided roles
         -- match what the user currently has.
-        IF is_active = 1 THEN
-            SELECT json_arrayagg(FROM_USER) INTO cur_roles FROM mysql.role_edges WHERE FROM_USER != 'teleport-auto-user' AND TO_USER = username;
-            SELECT @roles = cur_roles INTO are_roles_same;
-            IF are_roles_same = 1 THEN
-                LEAVE proc_label;
-            ELSE
+        IF num_active >= 1 THEN
+            SELECT COALESCE(JSON_ARRAYAGG(FROM_USER), JSON_ARRAY()) INTO cur_roles FROM mysql.role_edges WHERE FROM_USER != 'teleport-auto-user' AND TO_USER = username;
+            -- Compare roles as sets (order-independent) rather than exact
+            -- string match, since role ordering is not deterministic.
+            IF NOT (JSON_LENGTH(@roles) <=> JSON_LENGTH(cur_roles)) THEN
                 SIGNAL SQLSTATE 'TP002' SET MESSAGE_TEXT = 'user has active connections and roles have changed';
             END IF;
+            SET role_index = 0;
+            WHILE role_index < JSON_LENGTH(@roles) DO
+                -- Preserve JSON encoding for role names containing quotes or backslashes.
+                SELECT JSON_EXTRACT(@roles, CONCAT('$[',role_index,']')) INTO role;
+                IF NOT JSON_CONTAINS(cur_roles, role) THEN
+                    SIGNAL SQLSTATE 'TP002' SET MESSAGE_TEXT = 'user has active connections and roles have changed';
+                END IF;
+                SET role_index = role_index + 1;
+            END WHILE;
+            LEAVE proc_label;
         END IF;
 
         -- Otherwise reactivate the user, but first strip if of all roles to
