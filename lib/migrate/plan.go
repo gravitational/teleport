@@ -217,8 +217,8 @@ func (m *Migrator) selectHosts(previous map[string]*host, source sourceInventory
 			continue
 		}
 		// A down host with nothing done to it is not worth tracking. Retire
-		// deletes the source node, so a retired or promoted host is always
-		// here.
+		// deletes the source node, or leaves it to expire, so a retired or
+		// promoted host usually lands here.
 		if old.State == stateMigrated || old.State == stateRetired || old.State == statePromoted {
 			kept := *old
 			kept.Labels = maps.Clone(kept.Labels)

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
@@ -190,6 +191,26 @@ func (m *Migrator) progressf(format string, args ...any) {
 	m.progressMu.Lock()
 	defer m.progressMu.Unlock()
 	fmt.Fprintf(m.progress, format+"\n", args...)
+}
+
+// deleteNode deletes the node id in scope from c. A node already gone is not
+// an error. Nor is a denied delete: the node then expires with its heartbeat,
+// and a progress line says so.
+//
+// TODO(randalmodowski): once gravitational/core#1342 merges, Auth deletes the
+// node when its agent stops gracefully. Then drop these deletes, or at least
+// the note's claim that the node may still show up.
+func (m *Migrator) deleteNode(ctx context.Context, c clusterAPI, scope, id string) error {
+	err := c.DeleteNode(ctx, scope, id)
+	switch {
+	case err == nil, trace.IsNotFound(err):
+		return nil
+	case trace.IsAccessDenied(err):
+		m.progressf("note: agent was successfully stopped, but this identity cannot immediately unregister node %s; it might still show up in Teleport and in plan for the next 15 minutes",
+			utils.EscapeControl(scopes.QualifiedName{Scope: scope, Name: id}.String()))
+		return nil
+	}
+	return trace.Wrap(err)
 }
 
 // Report is what a command that changes hosts did.

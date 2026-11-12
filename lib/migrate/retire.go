@@ -58,7 +58,8 @@ func (m *Migrator) Retire(ctx context.Context, opts RetireOptions) (*Report, err
 }
 
 // retireHost checks that the scoped agent is registered in the target, runs
-// the retire step on it, then deletes h's node from the source. The step
+// the retire step on it, then deletes h's node from the source, or leaves it
+// to expire when the source identity may not delete nodes. The step
 // reads the host itself, so a preflight error from a later plan is ignored.
 func (m *Migrator) retireHost(ctx context.Context, h *host) (*outcome, error) {
 	if h.Preflight == nil {
@@ -84,7 +85,7 @@ func (m *Migrator) retireHost(ctx context.Context, h *host) (*outcome, error) {
 	// after the source agent is gone still removes its node.
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
-	if err := m.source.DeleteNode(cleanupCtx, "" /* the source is unscoped */, h.ID); err != nil && !trace.IsNotFound(err) {
+	if err := m.deleteNode(cleanupCtx, m.source, "" /* the source is unscoped */, h.ID); err != nil {
 		return nil, trace.Wrap(err, "the source agent is already removed from the host; run retire again to delete source node %s", h.ID)
 	}
 	return &outcome{targetID: h.TargetID, matchedBy: h.MatchedBy, state: stateRetired}, nil

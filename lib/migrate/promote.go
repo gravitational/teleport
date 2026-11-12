@@ -149,12 +149,13 @@ func (r promoteRun) promoteHost(ctx context.Context, h *host) (*outcome, error) 
 // deleteScopedRecords deletes the scoped agent's node and the token apply
 // minted for h from the target. It runs detached from ctx, so a run canceled
 // or out of time after the scoped install's removal still deletes them. A
-// record already gone is not an error.
+// record already gone is not an error, and neither is a node the target
+// identity may not delete, which is left to expire.
 func (m *Migrator) deleteScopedRecords(ctx context.Context, h *host, scopedID string) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
 	var errs []error
-	if err := m.target.DeleteNode(cleanupCtx, h.TargetScope, scopedID); err != nil && !trace.IsNotFound(err) {
+	if err := m.deleteNode(cleanupCtx, m.target, h.TargetScope, scopedID); err != nil {
 		errs = append(errs, trace.Wrap(err, "remove the scoped agent %s with tctl rm node %s::%s", scopedID, h.TargetScope, scopedID))
 	}
 	if hoststep.IsMintedJoinMethod(h.Preflight.JoinMethod) {

@@ -72,7 +72,8 @@ func (m *Migrator) Rollback(ctx context.Context, opts RollbackOptions) (*Report,
 }
 
 // rollbackHost uninstalls the scoped agent from h, then deletes its node and
-// minted token from the target. A host that refuses the uninstall keeps its
+// minted token from the target; a node the target identity may not delete is
+// left to expire. A host that refuses the uninstall keeps its
 // state. Once the uninstall succeeded, h is unstarted even when the target
 // cleanup fails, and the failure is reported.
 func (m *Migrator) rollbackHost(ctx context.Context, h *host) (*outcome, error) {
@@ -88,7 +89,7 @@ func (m *Migrator) rollbackHost(ctx context.Context, h *host) (*outcome, error) 
 	defer cancel()
 	var errs []error
 	if h.TargetID != "" {
-		if err := m.target.DeleteNode(cleanupCtx, h.TargetScope, h.TargetID); err != nil && !trace.IsNotFound(err) {
+		if err := m.deleteNode(cleanupCtx, m.target, h.TargetScope, h.TargetID); err != nil {
 			errs = append(errs, trace.Wrap(err, "remove target agent %s with tctl rm node %s::%s", h.TargetID, h.TargetScope, h.TargetID))
 		}
 	}
