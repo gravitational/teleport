@@ -134,6 +134,7 @@ func generateAndSaveCert(targetPath string, eku ...x509.ExtKeyUsage) (tls.Certif
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	defer os.Remove(tempFile.Name())
+	defer tempFile.Close()
 
 	cert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, eku, time.Now)
 	if err != nil {

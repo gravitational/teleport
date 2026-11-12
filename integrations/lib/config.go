@@ -214,6 +214,7 @@ func ReadPassword(filename string) (string, error) {
 		}
 		return "", trace.Wrap(err)
 	}
+	defer f.Close()
 
 	pass := make([]byte, 2000)
 	l, err := f.Read(pass)

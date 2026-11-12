@@ -175,6 +175,7 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSe
 	}
 
 	defer os.Remove(f.Name())
+	defer f.Close()
 
 	buildScript, err := buildScript(proxyPublicAddr, p.install.entraID)
 	if err != nil {

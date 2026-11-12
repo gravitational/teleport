@@ -66,7 +66,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	serverConn *ssh.ServerConn,
 	ch ssh.Channel, req *ssh.Request,
 	serverCtx *srv.ServerContext,
-) error {
+) (returnErr error) {
 	// Check that file copying is allowed Node-wide again here in case
 	// this connection was proxied, the proxy doesn't know if file copying
 	// is allowed for certain Nodes.
@@ -87,17 +87,28 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	s.serverCtx = serverCtx
 
 	// Create two sets of anonymous pipes to give the child process
-	// access to the SSH channel
+	// access to the SSH channel. On success, the parent-side pipe ends
+	// are closed by the goroutines below; on failure, close them here.
 	chReadPipeOut, chReadPipeIn, err := os.Pipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer chReadPipeOut.Close()
+	defer func() {
+		if returnErr != nil {
+			chReadPipeIn.Close()
+		}
+	}()
 	chWritePipeOut, chWritePipeIn, err := os.Pipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer chWritePipeIn.Close()
+	defer func() {
+		if returnErr != nil {
+			chWritePipeOut.Close()
+		}
+	}()
 	// Create anonymous pipe that the child will send audit information
 	// over
 	auditPipeOut, auditPipeIn, err := os.Pipe()
@@ -105,6 +116,11 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		return trace.Wrap(err)
 	}
 	defer auditPipeIn.Close()
+	defer func() {
+		if returnErr != nil {
+			auditPipeOut.Close()
+		}
+	}()
 
 	// Create child process to handle SFTP connection
 	execRequest, err := srv.NewExecRequest(serverCtx, reexecconstants.SFTPSubCommand)

@@ -21,7 +21,6 @@ package jira
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"io"
 	"os"
 	"strings"
 
@@ -120,11 +119,7 @@ func (c *Config) LoadTLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 	tc.Certificates = append(tc.Certificates, clientCert)
-	caFile, err := os.Open(c.Teleport.RootCAs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	caCerts, err := io.ReadAll(caFile)
+	caCerts, err := os.ReadFile(c.Teleport.RootCAs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

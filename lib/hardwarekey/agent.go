@@ -168,6 +168,7 @@ func generateServerCert(keyAgentDir string) (tls.Certificate, error) {
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
+	defer f.Close()
 	if _, err = f.Write(creds.Cert); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

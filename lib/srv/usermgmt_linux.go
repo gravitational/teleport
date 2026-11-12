@@ -222,6 +222,7 @@ func readDefaultKey(key string, defaultValue string) (string, error) {
 		}
 		return "", err
 	}
+	defer b.Close()
 
 	scanner := bufio.NewScanner(b)
 	scanner.Split(bufio.ScanLines)
