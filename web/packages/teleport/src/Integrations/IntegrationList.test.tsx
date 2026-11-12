@@ -20,37 +20,37 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 
 import { CurrentPath, render, screen, userEvent } from 'design/utils/testing';
 
-import { IntegrationList } from 'teleport/Integrations/IntegrationList';
+import {
+  IntegrationList,
+  type IntegrationLike,
+} from 'teleport/Integrations/IntegrationList';
 import {
   IntegrationKind,
   IntegrationStatusCode,
   type Plugin,
 } from 'teleport/services/integrations';
 
-test('integration list does not display action menu for aws-oidc, row click navigates', async () => {
+function renderList(row: IntegrationLike) {
   render(
     <MemoryRouter initialEntries={['/integrations']}>
       <Routes>
         <Route
           path="/integrations"
-          element={
-            <IntegrationList
-              list={[
-                {
-                  resourceType: 'integration',
-                  name: 'aws-integration',
-                  kind: IntegrationKind.AwsOidc,
-                  statusCode: IntegrationStatusCode.Running,
-                  spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
-                },
-              ]}
-            />
-          }
+          element={<IntegrationList list={[row]} />}
         />
         <Route path="*" element={<CurrentPath />} />
       </Routes>
     </MemoryRouter>
   );
+}
+
+test('aws-oidc row opens its status dashboard without an action menu', async () => {
+  renderList({
+    resourceType: 'integration',
+    name: 'aws-integration',
+    kind: IntegrationKind.AwsOidc,
+    statusCode: IntegrationStatusCode.Running,
+  });
 
   expect(
     screen.queryByRole('button', { name: 'Options' })
@@ -59,6 +59,38 @@ test('integration list does not display action menu for aws-oidc, row click navi
   expect(screen.getByTestId('current-path')).toHaveTextContent(
     '/web/integrations/status/aws-oidc/aws-integration'
   );
+});
+
+test('terraform-managed azure-oidc row opens its overview without an action menu', async () => {
+  const row = {
+    resourceType: 'integration',
+    name: 'azure-integration',
+    kind: IntegrationKind.AzureOidc,
+    statusCode: IntegrationStatusCode.Running,
+    isManagedByTerraform: true,
+  } as const;
+  renderList(row);
+
+  expect(
+    screen.queryByRole('button', { name: 'Options' })
+  ).not.toBeInTheDocument();
+  await userEvent.click(screen.getAllByRole('row')[1]);
+  expect(screen.getByTestId('current-path')).toHaveTextContent(
+    '/web/integrations/overview/azure-oidc/azure-integration'
+  );
+});
+
+test('azure-oidc row without terraform keeps its action menu and does not navigate', async () => {
+  renderList({
+    resourceType: 'integration',
+    name: 'azure-integration',
+    kind: IntegrationKind.AzureOidc,
+    statusCode: IntegrationStatusCode.Running,
+  });
+
+  expect(screen.getByRole('button', { name: 'Options' })).toBeInTheDocument();
+  await userEvent.click(screen.getAllByRole('row')[1]);
+  expect(screen.queryByTestId('current-path')).not.toBeInTheDocument();
 });
 
 test('integration list details prefer AWS IC status error message over details', () => {

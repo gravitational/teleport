@@ -78,8 +78,20 @@ const statusKinds = [
   'entra-id',
   IntegrationKind.AwsOidc,
   IntegrationKind.AwsRa,
-  IntegrationKind.AzureOidc,
 ];
+
+function isManagedByTerraform(row: IntegrationLike): boolean {
+  return 'isManagedByTerraform' in row && !!row.isManagedByTerraform;
+}
+
+function getDashboardRoute(row: IntegrationLike): string | undefined {
+  if (isManagedByTerraform(row)) {
+    return cfg.getIaCIntegrationRoute(row.kind, row.name);
+  }
+  if (statusKinds.includes(row.kind)) {
+    return cfg.getIntegrationStatusRoute(row.kind, row.name);
+  }
+}
 
 type Filters = {
   Status: Status;
@@ -89,20 +101,14 @@ export function IntegrationList(props: Props) {
   const navigate = useNavigate();
 
   function handleRowClick(row: IntegrationLike) {
-    if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
-      navigate(cfg.getIaCIntegrationRoute(row.kind, row.name));
-      return;
+    const route = getDashboardRoute(row);
+    if (route) {
+      navigate(route);
     }
-
-    if (!statusKinds.includes(row.kind)) return;
-    navigate(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
-    if (
-      ('isManagedByTerraform' in row && row.isManagedByTerraform) ||
-      statusKinds.includes(row.kind)
-    ) {
+    if (getDashboardRoute(row)) {
       return { cursor: 'pointer' };
     }
   }
@@ -190,7 +196,8 @@ export function IntegrationList(props: Props) {
               if (
                 item.kind === IntegrationKind.AwsOidc ||
                 item.kind === IntegrationKind.AwsRa ||
-                item.kind === IntegrationKind.AzureOidc ||
+                (item.kind === IntegrationKind.AzureOidc &&
+                  isManagedByTerraform(item)) ||
                 item.kind === 'entra-id'
               ) {
                 // action menu for these integrations are available on the status page dashboard.
