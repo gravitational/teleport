@@ -33,6 +33,8 @@ We plan to release the following versions in the coming months:
 | Version | Date                      |
 |---------|---------------------------|
 | 19.0.0  | Week of November 16, 2026 |
+| 19.1.0  | Week of December 14, 2026 |
+| 19.2.0  | Week of January 18, 2027  |
 
 ### 19.0.0
 
@@ -47,12 +49,11 @@ scenarios like control plane, networking issues and agent restarts.
 
 _Delayed from Teleport 18.11.0._
 
-#### Improved Principal Selection for Access Requests
+#### Principal selection for SSH and AWS access requests
 
-Teleport will improve access requests experience by allowing users to pick
-specific principals for SSH nodes, Kubernetes clusters, databases and Windows
-desktop to better support scenarios like just-in-time access elevation
-requests.
+Teleport will allow users to request specific principals in just-in-time requests for
+SSH nodes and AWS accounts in web UI and CLI. This support will be extended to other
+resource types in future releases.
 
 #### In-band Per-Session MFA for SSH
 
@@ -60,14 +61,45 @@ Added in-band MFA for SSH sessions, moving MFA checks into session
 establishment so challenges are bound to the specific session. This removes
 per-session MFA SSH certificates and reduces MFA bypass risk.
 
+#### Windows Agent
+
+Teleport 19 will ship with a Windows-native agent, allowing users to run the
+Windows desktop service natively on Windows hosts. The agent works with Teleport's
+managed updates, and supports the full set of Teleport RDP functionality. No 
+other protocols are supported.
+
+#### Fine-grained web application access
+
+Teleport roles will be able to specify fine-grained access controls for web
+applications. These new access rules determine which URL paths and HTTP methods
+are allowed.
+
+### 19.1.0
+
+#### Support for Cisco Catalyst/Nexus 9000+ switches
+
+Teleport will add support for X.509v3 based authentication with Cisco Catalyst/Nexus
+9000+ switches.
+
+#### Multi-monitor Windows desktop sessions
+
+Teleport will support multi-monitor Windows desktop sessions.
+
+### 19.2.0
+
+#### Cisco ISE auto-discovery
+
+Teleport will add the ability to connect to Cisco Identity Services Engine
+(ISE) and automatically discover and enroll Cisco network devices.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of           | Description                                                     |
-|-------------------|-----------------------------------------------------------------|
-| August 31, 2026   | Teleport 18.11.0 will begin rollout on Cloud.                   |
-| September 7, 2026 | Teleport 18.11.0 agents will begin rollout to eligible tenants. |
+| Week of      | Description                                                    |
+|--------------|----------------------------------------------------------------|
+| Late January | Teleport 19.1.0 will begin rollout on Cloud.                   |
+| Late January | Teleport 19.1.0 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
