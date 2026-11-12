@@ -672,13 +672,18 @@ func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig) er
 
 	// Note: tbot.service could be from an unrelated installation, but we should still fail to be safe.
 	// This would only be an issue for primary installations on PATH, where removal will likely break tbot.
-	pg := ProcessGroup{u.TeleportProcess, u.TbotProcess}
-	ok, err := pg.IsActive(ctx)
-	if err != nil && !errors.Is(err, ErrNotSupported) {
-		return trace.Wrap(err)
+	var active []string
+	for _, p := range []Process{u.TeleportProcess, u.TbotProcess} {
+		ok, err := p.IsActive(ctx)
+		if err != nil && !errors.Is(err, ErrNotSupported) {
+			return trace.Wrap(err)
+		}
+		if ok {
+			active = append(active, p.Name())
+		}
 	}
-	if ok {
-		return trace.Errorf("refusing to remove active installation, please stop and disable %s first", pg.Name())
+	if len(active) > 0 {
+		return trace.Errorf("refusing to remove active installation, please stop and disable %s first", strings.Join(active, " and "))
 	}
 	if err := u.Installer.Unlink(ctx, cfg.Status.Active, cfg.Spec.Path); err != nil {
 		return trace.Wrap(err)
