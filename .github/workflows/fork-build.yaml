@@ -1,0 +1,471 @@
+# Builds this fork from source on GitHub-hosted runners:
+#   - release tarballs (linux amd64 + arm64)
+#   - .deb and .rpm packages
+#   - Helm charts
+#   - the distroless Docker image
+#
+# The binaries are compiled in the same public buildbox images the upstream
+# release pipeline uses (CentOS 7 toolchain, static libfido2 and PIV), so
+# they run on old and new distributions alike.
+#
+# With "publish" enabled the image and charts are pushed to GHCR and all files
+# are attached to a GitHub release. Without it everything is only kept as
+# workflow artifacts.
+name: Fork Build
+run-name: Fork Build - ${{ inputs.ref || github.ref_name }} - @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to build. Empty builds the branch selected above.
+        type: string
+        default: ""
+      publish:
+        description: Push image and charts to GHCR and create a GitHub release.
+        type: boolean
+        default: true
+      release_tag:
+        description: Release tag to create. Empty uses build-<version>-<short sha>.
+        type: string
+        default: ""
+
+  push:
+    branches: [claude/fork-build-workflow]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-build-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+env:
+  SRCDIR: /go/src/github.com/gravitational/teleport
+  BUILDBOX_REGISTRY: ghcr.io/gravitational
+
+jobs:
+  meta:
+    name: Resolve version
+    runs-on: ubuntu-22.04
+    outputs:
+      sha: ${{ steps.meta.outputs.sha }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      version: ${{ steps.meta.outputs.version }}
+      buildbox_version: ${{ steps.meta.outputs.buildbox_version }}
+      devtoolset: ${{ steps.meta.outputs.devtoolset }}
+      golang_version: ${{ steps.meta.outputs.golang_version }}
+      image: ${{ steps.meta.outputs.image }}
+      charts_repo: ${{ steps.meta.outputs.charts_repo }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      publish: ${{ steps.meta.outputs.publish }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Read build settings from the source tree
+        id: meta
+        env:
+          PUBLISH: ${{ inputs.publish }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          # mkvar FILE NAME prints the value of "NAME = value" style assignments.
+          mkvar() { sed -n -E "s/^$2[[:space:]]*[?:]?=[[:space:]]*//p" "$1" | head -n1 | tr -d '[:space:]'; }
+
+          sha="$(git rev-parse HEAD)"
+          version="$(mkvar Makefile VERSION)"
+          buildbox_version="$(mkvar build.assets/images.mk BUILDBOX_VERSION)"
+          devtoolset="$(mkvar build.assets/versions.mk DEVTOOLSET)"
+          golang_version="$(mkvar build.assets/versions.mk GOLANG_VERSION)"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+
+          for v in version buildbox_version devtoolset golang_version; do
+            if [[ -z "${!v}" ]]; then
+              echo "::error::could not determine ${v} from the source tree"
+              exit 1
+            fi
+          done
+
+          {
+            echo "sha=${sha}"
+            echo "short_sha=${sha:0:7}"
+            echo "version=${version}"
+            echo "buildbox_version=${buildbox_version}"
+            echo "devtoolset=${devtoolset}"
+            echo "golang_version=${golang_version}"
+            echo "image=ghcr.io/${owner}/teleport"
+            echo "charts_repo=ghcr.io/${owner}/charts"
+            echo "release_tag=${RELEASE_TAG:-build-${version}-${sha:0:7}}"
+            echo "publish=${PUBLISH:-false}"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  build:
+    name: Build binaries (${{ matrix.arch }})
+    needs: meta
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+    env:
+      ARCH: ${{ matrix.arch }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      NODE_IMAGE: ghcr.io/gravitational/teleport-buildbox-node:${{ needs.meta.outputs.buildbox_version }}-${{ matrix.arch }}
+      BUILD_IMAGE: ghcr.io/gravitational/teleport-buildbox-centos7:${{ needs.meta.outputs.buildbox_version }}-${{ matrix.arch }}
+      DEVTOOLSET: ${{ needs.meta.outputs.devtoolset }}
+      GOLANG_VERSION: ${{ needs.meta.outputs.golang_version }}
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
+          sudo docker image prune --all --force >/dev/null
+          df -h /
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+
+      - name: Pull buildbox images
+        run: |
+          docker pull --quiet "$NODE_IMAGE"
+          docker pull --quiet "$BUILD_IMAGE"
+
+      # The buildbox images run as an unprivileged "ci" user, so before each
+      # container starts the workspace is handed to that user's UID/GID.
+      - name: Build web assets
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cache"
+          owner="$(docker run --rm --entrypoint /bin/sh "$NODE_IMAGE" -c 'echo "$(id -u):$(id -g)"')"
+          sudo chown -R "$owner" . "$RUNNER_TEMP/cache"
+          docker run --rm \
+            -v "$PWD:$SRCDIR" -w "$SRCDIR" -h buildbox \
+            -v "$RUNNER_TEMP/cache:/cache" \
+            -e GITHUB_REPOSITORY_OWNER -e CI=true \
+            --entrypoint /usr/bin/make \
+            "$NODE_IMAGE" ensure-webassets
+
+      - name: Build release tarballs
+        run: |
+          set -euo pipefail
+          owner="$(docker run --rm --entrypoint /bin/sh "$BUILD_IMAGE" -c 'echo "$(id -u):$(id -g)"')"
+          sudo chown -R "$owner" . "$RUNNER_TEMP/cache"
+          docker run --rm \
+            -v "$PWD:$SRCDIR" -w "$SRCDIR" -h buildbox \
+            -v "$RUNNER_TEMP/cache:/cache" \
+            -e GOMODCACHE=/cache/gomod -e GOCACHE=/cache/gobuild \
+            -e GITHUB_REPOSITORY_OWNER -e CI=true \
+            --entrypoint /usr/bin/scl \
+            "$BUILD_IMAGE" enable "$DEVTOOLSET" \
+            "make release-unix-preserving-webassets -e OS=linux ARCH=$ARCH RUNTIME=$GOLANG_VERSION FIDO2=yes PIV=yes REPRODUCIBLE=no"
+
+      - name: Restore workspace ownership
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" .
+
+      - name: Check binaries
+        run: |
+          set -euo pipefail
+          ls -lh build/ build/artifacts/
+          for bin in teleport tctl tsh tbot teleport-update; do
+            "./build/${bin}" version
+          done
+          ./build/teleport version | grep -F "v${VERSION}"
+          test -s "build/artifacts/teleport-v${VERSION}-linux-${ARCH}-bin.tar.gz"
+
+      - name: Upload tarballs
+        uses: actions/upload-artifact@v7
+        with:
+          name: tarballs-${{ matrix.arch }}
+          path: build/artifacts/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  package:
+    name: Build deb and rpm packages
+    needs: [meta, build]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+
+      - name: Download tarballs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: tarballs-*
+          path: tarballs
+          merge-multiple: true
+
+      # build-package.sh downloads an upstream tarball when it is given a
+      # relative path that does not exist, so always pass an absolute directory
+      # and make sure the locally built tarballs are really there.
+      - name: Build packages
+        run: |
+          set -euo pipefail
+          tarballs="$PWD/tarballs"
+          ls -lh "$tarballs"
+          mkdir -p packages
+          cp build.assets/build-package.sh build.assets/build-common.sh packages/
+          cp -a build.assets/rpm packages/
+          cd packages
+          chmod +x build-package.sh
+          for arch in amd64 arm64; do
+            test -s "${tarballs}/teleport-v${VERSION}-linux-${arch}-bin.tar.gz"
+            # amd64 RPMs are built from the "-centos7" copy of the tarball.
+            if [[ "$arch" == amd64 && ! -e "${tarballs}/teleport-v${VERSION}-linux-amd64-centos7-bin.tar.gz" ]]; then
+              cp "${tarballs}/teleport-v${VERSION}-linux-amd64-bin.tar.gz" \
+                "${tarballs}/teleport-v${VERSION}-linux-amd64-centos7-bin.tar.gz"
+            fi
+            ./build-package.sh -t oss -v "$VERSION" -p deb -a "$arch" -s "$tarballs"
+            UNSIGNED_RPM=true ./build-package.sh -t oss -v "$VERSION" -p rpm -a "$arch" -s "$tarballs"
+          done
+          rm -rf build-package.sh build-common.sh rpm
+          ls -lh
+
+      - name: Test deb install (Debian 12)
+        run: |
+          docker run --rm -v "$PWD/packages:/packages:ro" debian:12 sh -ec "
+            dpkg -i /packages/teleport_${VERSION}_amd64.deb
+            teleport version
+            tsh version
+            tctl version
+            tbot version
+          "
+
+      - name: Test rpm install (Rocky Linux 9)
+        run: |
+          docker run --rm -v "$PWD/packages:/packages:ro" rockylinux:9 sh -ec "
+            rpm -i /packages/teleport-${VERSION}-1.x86_64.rpm
+            teleport version
+            tsh version
+            tctl version
+            tbot version
+          "
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: packages/
+          if-no-files-found: error
+          retention-days: 14
+
+  helm:
+    name: Package Helm charts
+    needs: meta
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+
+      - name: Package charts
+        run: |
+          set -euo pipefail
+          helm version
+          mkdir -p charts-dist
+          # Every chart directory except vendored subcharts (.../charts/...).
+          find examples/chart -name Chart.yaml -not -path '*/charts/*' -print0 | sort -z |
+            while IFS= read -r -d '' chart; do
+              helm package "$(dirname "$chart")" --destination charts-dist
+            done
+          ls -lh charts-dist
+
+      - name: Render charts
+        env:
+          IMAGE: ${{ needs.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          helm template teleport charts-dist/teleport-cluster-*.tgz \
+            --set clusterName=teleport.example.com \
+            --set image="$IMAGE" > /dev/null
+          helm template agent charts-dist/teleport-kube-agent-*.tgz \
+            --set proxyAddr=teleport.example.com:443 \
+            --set authToken=example \
+            --set kubeClusterName=example \
+            --set image="$IMAGE" > /dev/null
+
+      - name: Upload charts
+        uses: actions/upload-artifact@v7
+        with:
+          name: charts
+          path: charts-dist/*.tgz
+          if-no-files-found: error
+          retention-days: 14
+
+  docker:
+    name: Build Docker image
+    needs: [meta, package]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      IMAGE: ${{ needs.meta.outputs.image }}
+      SHA: ${{ needs.meta.outputs.sha }}
+      SHORT_SHA: ${{ needs.meta.outputs.short_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.meta.outputs.sha }}
+
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: packages
+
+      - name: Set up QEMU for arm64
+        run: docker run --privileged --rm tonistiigi/binfmt --install arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Prepare build context
+        run: |
+          set -euo pipefail
+          mkdir -p image-context
+          cp build.assets/charts/fetch-debs image-context/
+          cp "packages/teleport_${VERSION}_amd64.deb" "packages/teleport_${VERSION}_arm64.deb" image-context/
+          {
+            echo "BUILD_ARGS<<EOF"
+            echo "--file build.assets/charts/Dockerfile-distroless"
+            echo "--build-arg TELEPORT_VERSION=${VERSION}"
+            echo "--label org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+            echo "--label org.opencontainers.image.revision=${SHA}"
+            echo "--label org.opencontainers.image.version=${VERSION}"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Build and test amd64 image
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086 # BUILD_ARGS is a list of flags
+          docker buildx build $BUILD_ARGS --platform linux/amd64 --load \
+            --tag "${IMAGE}:${VERSION}" image-context
+          docker run --rm --entrypoint /usr/local/bin/teleport "${IMAGE}:${VERSION}" version
+          docker run --rm --entrypoint /usr/local/bin/tctl "${IMAGE}:${VERSION}" version
+
+      - name: Build arm64 image
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          docker buildx build $BUILD_ARGS --platform linux/arm64 --load \
+            --tag "${IMAGE}:${VERSION}-arm64" image-context
+          docker run --rm --platform linux/arm64 --entrypoint /usr/local/bin/teleport \
+            "${IMAGE}:${VERSION}-arm64" version
+
+      - name: Save amd64 image
+        if: needs.meta.outputs.publish != 'true'
+        run: docker save "${IMAGE}:${VERSION}" | gzip > "teleport-image-${VERSION}-amd64.tar.gz"
+
+      - name: Upload amd64 image
+        if: needs.meta.outputs.publish != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-image-amd64
+          path: teleport-image-*.tar.gz
+          retention-days: 7
+
+      - name: Log in to GHCR
+        if: needs.meta.outputs.publish == 'true'
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push multi-arch image
+        if: needs.meta.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          docker buildx build $BUILD_ARGS --platform linux/amd64,linux/arm64 --push \
+            --tag "${IMAGE}:${VERSION}" \
+            --tag "${IMAGE}:${VERSION}-${SHORT_SHA}" \
+            image-context
+          docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+
+  publish:
+    name: Publish charts and release
+    if: needs.meta.outputs.publish == 'true'
+    needs: [meta, build, package, helm, docker]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      packages: write
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      IMAGE: ${{ needs.meta.outputs.image }}
+      CHARTS_REPO: ${{ needs.meta.outputs.charts_repo }}
+      SHA: ${{ needs.meta.outputs.sha }}
+      RELEASE_TAG: ${{ needs.meta.outputs.release_tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Push charts to GHCR
+        run: |
+          set -euo pipefail
+          echo "$GH_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          for chart in artifacts/charts/*.tgz; do
+            helm push "$chart" "oci://${CHARTS_REPO}"
+          done
+
+      - name: Create GitHub release
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp artifacts/tarballs-*/*.tar.gz release/
+          # The "-centos7" tarballs are byte-for-byte copies kept for the RPM build.
+          rm -f release/*-centos7-bin.tar.gz
+          cp artifacts/packages/*.deb artifacts/packages/*.rpm release/
+          cp artifacts/charts/*.tgz release/
+          (cd release && sha256sum -- * > SHA256SUMS)
+          ls -lh release
+
+          cat > notes.md <<EOF
+          Built from source at ${SHA} by the Fork Build workflow.
+
+          Docker image:
+
+              docker pull ${IMAGE}:${VERSION}
+
+          Helm charts:
+
+              helm install teleport oci://${CHARTS_REPO}/teleport-cluster --version ${VERSION} --set image=${IMAGE}
+          EOF
+
+          flags=()
+          if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$RELEASE_TAG" release/* --repo "$GITHUB_REPOSITORY" \
+              --target "$SHA" --title "Teleport ${VERSION} (${RELEASE_TAG})" \
+              --notes-file notes.md --latest=false "${flags[@]}"
+          fi
