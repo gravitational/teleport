@@ -144,6 +144,8 @@ const (
 	AppSessionLLMRequestSuccessCode = "T2014I"
 	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
 	AppSessionLLMRequestFailureCode = "T2014E"
+	// BeamCreatedCode is the beam created event code.
+	BeamCreatedCode = "T2023I"
 	// BeamDestroyedCode is the beam destroyed event code.
 	BeamDestroyedCode = "T2019I"
 	// AppSessionHTTPRequestCode is the HTTP proxy request event code.

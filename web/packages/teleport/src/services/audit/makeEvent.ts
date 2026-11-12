@@ -694,6 +694,12 @@ export const formatters: Formatters = {
       return `New session data chunk created for application [${app_name}] accessed by user [${user}]`;
     },
   },
+  [eventCodes.BEAM_CREATED]: {
+    type: 'beam.created',
+    desc: 'Beam Created',
+    format: ({ user, beam_id, beam_alias }) =>
+      `Beam [${beam_alias || beam_id}] created for user [${user}]`,
+  },
   [eventCodes.BEAM_DESTROYED]: {
     type: 'beam.destroyed',
     desc: 'Beam Destroyed',

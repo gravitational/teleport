@@ -462,6 +462,8 @@ const (
 	// signal rather than a record of every request or connection.
 	AppAccessEvent = "app.access"
 
+	// BeamCreatedEvent is emitted when a beam is created.
+	BeamCreatedEvent = "beam.created"
 	// BeamDestroyedEvent is emitted when a garbage-collected beam has been
 	// summarized. It makes the beam appear as a single session recording,
 	// played back via BeamReplayService.

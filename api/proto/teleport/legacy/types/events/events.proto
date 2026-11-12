@@ -3578,6 +3578,48 @@ message AppAccess {
   string identity_source = 8 [(gogoproto.jsontag) = "identity_source"];
 }
 
+// BeamCreated is emitted once, when a beam is created.
+message BeamCreated {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is the beam's owner.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // BeamID is the identifier of the created beam.
+  string beam_id = 3 [(gogoproto.jsontag) = "beam_id"];
+  // BeamAlias is the human-readable alias of the beam, if any.
+  string beam_alias = 4 [(gogoproto.jsontag) = "beam_alias,omitempty"];
+  // Region is the region the beam's compute was provisioned in.
+  string region = 5 [(gogoproto.jsontag) = "region,omitempty"];
+  // Expires is when the beam is scheduled to expire.
+  google.protobuf.Timestamp expires = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "expires,omitempty"
+  ];
+  // Phase is the name of the Phase base image the beam was created from.
+  string phase = 7 [(gogoproto.jsontag) = "phase,omitempty"];
+  // Purpose identifies whether this is a user beam or an internal image
+  // build beam. One of "user" or "build".
+  string purpose = 8 [(gogoproto.jsontag) = "purpose,omitempty"];
+  // Egress identifies the beam's egress mode. One of "restricted" or
+  // "unrestricted".
+  string egress = 9 [(gogoproto.jsontag) = "egress,omitempty"];
+  // DelegationMode identifies how the owner's privileges were delegated to
+  // the beam. One of "owner_standing_roles" or "selected_roles".
+  string delegation_mode = 10 [(gogoproto.jsontag) = "delegation_mode,omitempty"];
+  // DelegatedRoles is the list of roles delegated to the beam. Only set when
+  // DelegationMode is "selected_roles".
+  repeated string delegated_roles = 11 [(gogoproto.jsontag) = "delegated_roles,omitempty"];
+}
+
 // BeamDestroyed marks a garbage-collected beam whose activity has been
 // summarized. It makes the beam appear as a single session recording (played
 // back via BeamReplayService) and is emitted once, when summarization
@@ -5953,6 +5995,7 @@ message OneOf {
     events.GitAccess GitAccess = 287;
     events.ClassifierDisabled ClassifierDisabled = 288;
     events.ClassifierEnabled ClassifierEnabled = 289;
+    events.BeamCreated BeamCreated = 290;
   }
 }
 

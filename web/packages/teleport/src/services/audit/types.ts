@@ -36,6 +36,7 @@ export const eventCodes = {
   ACCESS_REQUEST_RESOURCE_SEARCH: 'T5004I',
   ACCESS_REQUEST_EXPIRED: 'T5005I',
   APP_SESSION_CHUNK: 'T2008I',
+  BEAM_CREATED: 'T2023I',
   BEAM_DESTROYED: 'T2019I',
   APP_SESSION_START: 'T2007I',
   APP_SESSION_START_FAILURE: 'T2007E',
@@ -761,6 +762,22 @@ export type RawEvents = {
       sid: string;
       aws_role_arn: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.BEAM_CREATED]: RawEvent<
+    typeof eventCodes.BEAM_CREATED,
+    {
+      user: string;
+      beam_id: string;
+      beam_alias?: string;
+      region?: string;
+      expires?: string;
+      phase?: string;
+      purpose?: string;
+      egress?: string;
+      allowed_domains?: string[];
+      delegation_mode?: string;
+      delegated_roles?: string[];
     }
   >;
   [eventCodes.BEAM_DESTROYED]: RawEvent<

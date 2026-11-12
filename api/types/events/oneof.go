@@ -256,6 +256,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_BeamDestroyed{
 			BeamDestroyed: e,
 		}
+	case *BeamCreated:
+		out.Event = &OneOf_BeamCreated{
+			BeamCreated: e,
+		}
 	case *AppSessionHTTPRequest:
 		out.Event = &OneOf_AppSessionHTTPRequest{
 			AppSessionHTTPRequest: e,

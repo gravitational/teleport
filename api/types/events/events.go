@@ -3038,6 +3038,10 @@ func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *BeamCreated) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *BeamDestroyed) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
