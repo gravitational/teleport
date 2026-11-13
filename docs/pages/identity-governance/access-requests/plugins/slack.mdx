@@ -23,9 +23,22 @@ to the Teleport Web UI. Note that this feature reduces the security of the Telep
 by relying on Slack authentication and bypassing Teleport authentication.
 
 <details>
-<summary>This integration is hosted on Teleport Cloud</summary>
+<summary>This integration is hosted on Teleport Enterprise and Teleport Enterprise Cloud</summary>
 
 (!docs/pages/includes/plugins/enroll.mdx name="the Slack integration"!)
+
+The Slack integration can also be enrolled via `tctl`.
+Place the Slack Bot token in a file called <Var name="BOT-TOKEN-FILE" />.
+Assign <Var name="FALLBACK-CHANNEL" /> to a default fallback channel that will
+receive all notifications.
+
+```code
+$ tctl plugins install slack --bot-token-file=<Var name="BOT-TOKEN-FILE" /> --fallback-channel=<Var name="FALLBACK-CHANNEL" />
+```
+
+See the [`tctl`
+reference](../../../reference/cli/tctl.mdx#tctl-plugins-install-slack)
+for information on every configuration field.
 
 </details>
 
@@ -66,7 +79,7 @@ Here is an example of sending an Access Request via Teleport's Slack plugin:
 
 - Either a Linux host or Kubernetes cluster where you will run the Slack plugin.
 
-- A Slack application and OAuth token to use for the plugin. These require
+- A Slack application and Bot OAuth token to use for the plugin. These require
   manual preparation in the Slack Web UI. Follow the [Slack
   documentation](https://docs.slack.dev/tools/node-slack-sdk/getting-started) to
   set up the application.
