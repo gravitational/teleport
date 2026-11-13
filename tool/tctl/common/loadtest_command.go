@@ -194,7 +194,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 	for range c.concurrency {
 		go func() {
 			for id := range workch {
-				_, err = client.UpsertNode(ctx, mknode(id))
+				_, err := client.UpsertNode(ctx, mknode(id))
 				if ctx.Err() != nil {
 					return
 				}

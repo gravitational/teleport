@@ -17,6 +17,7 @@
 package reference
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -156,15 +157,13 @@ func Generate(prefix string, conf GeneratorConfig, tmpl *template.Template) erro
 
 		filename := strings.ReplaceAll(strings.ToLower(pc.Resource.SectionName), " ", "-")
 		docpath := filepath.Join(conf.DestinationDirectory, filename+".mdx")
-		doc, err := os.Create(docpath)
-		if err != nil {
-			errs.messages = append(errs.messages, fmt.Errorf("cannot create page at %v: %w", docpath, err))
+		var doc bytes.Buffer
+		if err := tmpl.Execute(&doc, pc); err != nil {
+			errs.messages = append(errs.messages, fmt.Errorf("cannot populate the resource reference template: %w", err))
 			continue
 		}
-		defer doc.Close()
-
-		if err := tmpl.Execute(doc, pc); err != nil {
-			errs.messages = append(errs.messages, fmt.Errorf("cannot populate the resource reference template: %w", err))
+		if err := os.WriteFile(docpath, doc.Bytes(), 0o644); err != nil {
+			errs.messages = append(errs.messages, fmt.Errorf("cannot write page at %v: %w", docpath, err))
 		}
 	}
 	if len(errs.messages) > 0 {

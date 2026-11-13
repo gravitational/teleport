@@ -131,7 +131,8 @@ func Run(args []string) int {
 	var ccfg cliConfig
 
 	ctx := context.Background()
-	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	app := libutils.InitCLIParser(autoupdate.BinaryName, appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").

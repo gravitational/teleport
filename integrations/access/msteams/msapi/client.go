@@ -114,9 +114,8 @@ func (c *Client) request(ctx context.Context, request request) error {
 			return trace.Wrap(err)
 		}
 
-		defer resp.Body.Close()
-
 		b, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
 		if err != nil {
 			return trace.Wrap(err)
 		}

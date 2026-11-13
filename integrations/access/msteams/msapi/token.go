@@ -127,8 +127,8 @@ func (c *tokenWithTTL) getToken(ctx context.Context, scope string, config Config
 			return t, trace.Wrap(err)
 		}
 
-		defer resp.Body.Close()
 		b, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
 		if err != nil {
 			return t, trace.Wrap(err)
 		}

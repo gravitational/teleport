@@ -273,6 +273,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 
 		respBody, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 		if err != nil {
+			_ = resp.Body.Close()
 			return nil, trace.Wrap(err)
 		}
 		if err := resp.Body.Close(); err != nil {

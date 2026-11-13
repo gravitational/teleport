@@ -622,24 +622,17 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time, order types.EventOrder
 
 	var filtered []eventFile
 	for _, dir := range dirs {
-		// scan the log directory:
-		df, err := os.Open(dir)
+		entries, err := os.ReadDir(dir)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		defer df.Close()
-		entries, err := df.Readdir(-1)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for i := range entries {
-			fi := entries[i]
-			if fi.IsDir() || filepath.Ext(fi.Name()) != LogfileExt {
+		for _, entry := range entries {
+			if entry.IsDir() || filepath.Ext(entry.Name()) != LogfileExt {
 				continue
 			}
-			fd, err := ParseFileTime(fi.Name())
+			fd, err := ParseFileTime(entry.Name())
 			if err != nil {
-				l.logger.WarnContext(context.Background(), "Failed to parse audit log file format", "file", fi.Name(), "error", err)
+				l.logger.WarnContext(context.Background(), "Failed to parse audit log file format", "file", entry.Name(), "error", err)
 				continue
 			}
 			// File rounding in current logs is non-deterministic,
@@ -648,13 +641,20 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time, order types.EventOrder
 			// periods.
 			// Previous logic used modification time what was flaky
 			// as it could be changed by migrations or simply moving files
-			if fd.After(fromUTC.Add(-1*l.RotationPeriod)) && fd.Before(toUTC.Add(l.RotationPeriod)) {
-				eventFile := eventFile{
-					FileInfo: fi,
-					path:     filepath.Join(dir, fi.Name()),
-				}
-				filtered = append(filtered, eventFile)
+			if !fd.After(fromUTC.Add(-1*l.RotationPeriod)) || !fd.Before(toUTC.Add(l.RotationPeriod)) {
+				continue
 			}
+			fi, err := entry.Info()
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+			filtered = append(filtered, eventFile{
+				FileInfo: fi,
+				path:     filepath.Join(dir, fi.Name()),
+			})
 		}
 	}
 	// sort all accepted files by date

@@ -623,14 +623,15 @@ func (s *databaseExecSummary) save(w io.Writer, outputDir string) error {
 		return trace.Wrap(err)
 	}
 	summaryFile, err := utils.CreateExclusiveFile(summaryPath, teleport.FileMaskOwnerOnly)
-	if trace.IsAlreadyExists(err) {
+	if err != nil {
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
 		fmt.Fprintf(w, "Warning: file %s exists and will be overwritten.\n", summaryPath)
 		summaryFile, err = os.OpenFile(summaryPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, teleport.FileMaskOwnerOnly)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
-	} else if err != nil {
-		return trace.Wrap(err)
 	}
 	defer summaryFile.Close()
 

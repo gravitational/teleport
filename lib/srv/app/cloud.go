@@ -292,12 +292,12 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	if err != nil {
 		return "", trace.Wrap(redactAWSSigninTokenRequestError(err))
 	}
+	defer resp.Body.Close()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", trace.BadParameter("non-200 response from AWS federation endpoint: %q %v %q",
