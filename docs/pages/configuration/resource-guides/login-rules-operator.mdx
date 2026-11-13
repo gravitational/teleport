@@ -1,5 +1,5 @@
 ---
-title: Deploying Login Rules Using Kubernetes Operator 
+title: Deploying Login Rules Using the Teleport Kubernetes Operator
 sidebar_label: Login Rules (Kubernetes Operator)
 description: Use Teleport's Kubernetes Operator to deploy Login Rules to your cluster
 tags:
@@ -23,6 +23,10 @@ the Auth Service backend. The Teleport Auth Service exposes a gRPC API that
 enables clients to create, delete, or modify backend resources, including Login
 Rules. The Teleport Kubernetes Operator can manage Login Rules by
 authenticating to the Teleport Auth Service and interacting with its gRPC API.
+
+The Teleport Kubernetes Operator only watches custom resources in the namespace
+where it is installed. You must create your `TeleportLoginRule` resources in
+that same namespace, or the operator will not sync them to Teleport.
 
 ## Prerequisites
 
@@ -57,6 +61,16 @@ authenticating to the Teleport Auth Service and interacting with its gRPC API.
   Make sure to follow the Enterprise instructions if you're deploying the
   operator as part of the `teleport-cluster` chart.
 
+  Note the namespace you installed the `teleport-cluster` chart into. This
+  guide refers to it as <Var name="teleport-cluster"/>. Every `kubectl` command
+  in this guide passes `--namespace` explicitly, so you do not need to change
+  your current kubectl context.
+
+  This guide also assumes you named the Helm release `teleport-cluster`, as in
+  the operator guide, so the Auth Service runs in a deployment called
+  `teleport-cluster-auth`. If you used a different release name, replace
+  `teleport-cluster-auth` with `<release-name>-auth` in the commands below.
+
   Confirm that the CRD (Custom Resource Definition) for Login Rules has been
   installed with the following command:
 
@@ -85,8 +99,10 @@ authenticating to the Teleport Auth Service and interacting with its gRPC API.
       should evaluate to the desired values for that trait.
   ```
 
-  If this fails, you may not have installed the Teleport Operator, or you may have
-  installed an older version.
+  The header lines of this output can vary by `kubectl` version. The command
+  succeeds if the `priority`, `traits_expression`, and `traits_map` fields are
+  listed. If the command fails, you may not have installed the Teleport
+  Operator, or you may have installed an older version.
 
 ## Step 1/2. Create a Login Rule using `kubectl`
 
@@ -128,7 +144,7 @@ metadata:
     example: "true"
 spec:
   # This rule has a higher priority value, so it will be evaluated after the
-  # "terraform-test-map-rule".
+  # "example-traits-map-rule".
   priority: 1
 
   # traits_expression is an alternative to traits_map, which returns all desired
@@ -141,26 +157,53 @@ spec:
         option(true, external.groups)))
 ```
 
-Create the Kubernetes resources:
+This file does not set `metadata.namespace`. The namespace is set by the
+`--namespace` flag in the commands below. If you apply this file another way,
+such as through a GitOps tool, make sure it lands in the
+<Var name="teleport-cluster"/> namespace, or the operator will not sync it.
+
+Create the Kubernetes resources in the same namespace as the Teleport Operator:
 
 ```code
-$ kubectl apply -f login-rules.yaml
+$ kubectl apply -f login-rules.yaml --namespace <Var name="teleport-cluster"/>
 ```
 
 List the created Kubernetes resources:
 
 ```code
-$ kubectl get loginrules
+$ kubectl get loginrules --namespace <Var name="teleport-cluster"/>
 NAME                             AGE
 example-traits-expression-rule   8m8s
 example-traits-map-rule          8m8s
 ```
 
+The values in the `AGE` column will differ in your output.
+
+Confirm that the operator synced each Login Rule to Teleport. Listing the
+resources only shows that they exist in Kubernetes, not that Teleport accepted
+them. The operator syncs resources in the background, so wait for it to finish:
+
+```code
+$ kubectl wait --for=condition=SuccessfullyReconciled TeleportLoginRule/example-traits-map-rule --namespace <Var name="teleport-cluster"/> --timeout=30s
+$ kubectl wait --for=condition=SuccessfullyReconciled TeleportLoginRule/example-traits-expression-rule --namespace <Var name="teleport-cluster"/> --timeout=30s
+```
+
+Each command prints `condition met` when Teleport has accepted the rule. If a
+command times out, find out why with `kubectl describe`:
+
+```code
+$ kubectl describe TeleportLoginRule example-traits-map-rule --namespace <Var name="teleport-cluster"/>
+```
+
+In the `Status` section of the output, find the condition with `Type:
+SuccessfullyReconciled`. If it shows `Status: False`, the `Message` field
+explains why Teleport rejected the rule. Fix the rule in `login-rules.yaml` and
+apply it again before you continue.
+
 Check that the Login Rules have been created in Teleport:
 
 ```code
-$ AUTH_POD=$(kubectl get pods -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
-$ kubectl exec -i $AUTH_POD -c teleport -- tctl get login_rules
+$ kubectl exec -i deployment/teleport-cluster-auth --namespace <Var name="teleport-cluster"/> -c teleport -- tctl get login_rules
 kind: login_rule
 metadata:
   id: 1680225062340767900
@@ -198,13 +241,17 @@ spec:
 version: v1
 ```
 
+If `tctl get login_rules` returns `[]`, the operator has not synced your rules.
+Confirm that you applied `login-rules.yaml` to the <Var name="teleport-cluster"/>
+namespace.
+
 Test the Login Rules by sending some example input traits to the standard input
 of the `tctl login_rule test` command and having it load all Login Rules from
 the cluster.
 
 ```code
 $ echo '{"groups": ["admins", "ops"], "username": ["Alice"], "logins": ["user", "root"]}' | \
-  kubectl exec -i $AUTH_POD -c teleport -- tctl login_rule test --load-from-cluster
+  kubectl exec -i deployment/teleport-cluster-auth --namespace <Var name="teleport-cluster"/> -c teleport -- tctl login_rule test --load-from-cluster
 groups:
 - admins
 - ops
@@ -216,9 +263,20 @@ logins:
 - root
 ```
 
+Trait values are sets, so the order of the values in your output may differ.
+The test succeeds if your output contains the same values under each trait.
+
+If the output matches your input unchanged (for example, `Alice` is not
+lowercased and no `app-admins` group appears), no Login Rules were loaded from
+the cluster. Recheck the `kubectl describe` and `tctl get login_rules` steps
+above.
+
 ## Step 2/2. Edit the Login Rules with `kubectl`
 
-Edit the `example-traits-map-rule` to add an extra login `example` login.
+Edit the `example-traits-map-rule` to add an extra `example` login.
+
+Each entry in a `traits_map` list is a predicate expression, not a literal
+string. To add a fixed value, wrap it in the `set()` function:
 
 ```diff
 --- a/login-rules.yaml
@@ -227,7 +285,7 @@ Edit the `example-traits-map-rule` to add an extra login `example` login.
      logins:
        - 'strings.lower(external.username)'
        - 'external.logins'
-+      - 'example'
++      - 'set("example")'
 
      # The external "groups" trait will be passed through unchanged, all other
      # traits will be filtered out.
@@ -236,14 +294,28 @@ Edit the `example-traits-map-rule` to add an extra login `example` login.
 Apply the update to the Kubernetes resource:
 
 ```code
-$ kubectl apply -f login-rules.yaml
+$ kubectl apply -f login-rules.yaml --namespace <Var name="teleport-cluster"/>
 ```
+
+Confirm that the operator accepted the updated rule:
+
+```code
+$ kubectl describe TeleportLoginRule example-traits-map-rule --namespace <Var name="teleport-cluster"/>
+```
+
+The `SuccessfullyReconciled` condition should show `Status: True` and `Reason:
+NoError`. If it shows `Status: False`, Teleport kept the previous version of the
+rule. Check the `Message` field for the expression error.
+
+The condition already showed `True` before your edit, so a `True` status alone
+doesn't prove the operator has processed the update. If the test below still
+shows the old result, wait a few seconds and run `kubectl describe` again.
 
 Test the Login Rules again to see the extra `example` login:
 
 ```code
 $ echo '{"groups": ["admins", "ops"], "username": ["Alice"], "logins": ["user", "root"]}' | \
-  kubectl exec -i $AUTH_POD -c teleport -- tctl login_rule test --load-from-cluster
+  kubectl exec -i deployment/teleport-cluster-auth --namespace <Var name="teleport-cluster"/> -c teleport -- tctl login_rule test --load-from-cluster
 groups:
 - ops
 - app-admins
@@ -255,6 +327,9 @@ logins:
 - example
 - alice
 ```
+
+As before, the order of values may differ. The test succeeds if `logins`
+now contains `example` in addition to `alice`, `user`, and `root`.
 
 ## Next Steps
 
