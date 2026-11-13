@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/build.assets/tools/gci
 
-go 1.25.14
+go 1.26.10
 
 tool github.com/daixiang0/gci
 
@@ -13,7 +13,7 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
-	golang.org/x/mod v0.27.0 // indirect
+	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
