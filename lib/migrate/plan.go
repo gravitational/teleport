@@ -551,6 +551,9 @@ type Summary struct {
 	// Unreachable counts the hosts blocked because preflight could not connect
 	// to them.
 	Unreachable int `json:"unreachable"`
+	// TbotHosts counts the hosts not yet retired or promoted where preflight
+	// found tbot.service active beside an updater install.
+	TbotHosts int `json:"tbot_hosts"`
 }
 
 // PlanOptions select the hosts a plan preflights.
@@ -620,6 +623,9 @@ func (m *Migrator) summarize() *Summary {
 		summary.ByState[h.State]++
 		if h.State == stateBlocked && h.Preflight != nil && h.Preflight.Unreachable && h.Reason == h.Preflight.Error {
 			summary.Unreachable++
+		}
+		if h.State != stateRetired && h.State != statePromoted && h.Preflight != nil && h.Preflight.TbotActive {
+			summary.TbotHosts++
 		}
 	}
 	return summary

@@ -132,6 +132,11 @@ func renderSummary(w io.Writer, summary *Summary) error {
 			return trace.Wrap(err)
 		}
 	}
+	if summary.TbotHosts > 0 {
+		if _, err := fmt.Fprintf(w, "hosts running tbot.service: %d (tbot needs manual migration before retire step; see tbot_active in --format json)\n", summary.TbotHosts); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return trace.Wrap(renderVerdict(w, summary))
 }
 

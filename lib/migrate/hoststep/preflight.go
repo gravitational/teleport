@@ -89,6 +89,10 @@ func (h hostEnv) preflight(ctx context.Context, req PreflightRequest) (Preflight
 	}
 	facts.ConfigPath = configPath
 	facts.SuffixHostUUID = suffixHostUUID
+	if h.exists(sourceInstallDir) {
+		// Only a warning in plan, so a systemd that cannot answer leaves it unset.
+		facts.TbotActive, _ = unitActive(ctx, "tbot.service")
+	}
 	if !hasSystemd {
 		return PreflightResponse{Facts: facts, Reason: "no systemd on the host"}, nil
 	}
@@ -257,4 +261,8 @@ type PreflightResult struct {
 	// no agent carries the host's correlation labels, as after a migration by
 	// hand.
 	SuffixHostUUID string `json:"suffix_host_uuid,omitempty"`
+	// TbotActive is set when tbot.service is active on a host whose source
+	// agent teleport-update installed, so retire's teleport-update uninstall
+	// may refuse until tbot stops.
+	TbotActive bool `json:"tbot_active,omitempty"`
 }
