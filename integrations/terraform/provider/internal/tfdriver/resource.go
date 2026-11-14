@@ -132,6 +132,41 @@ func (r Resource[T, I]) normalizeUpdate(ctx context.Context, resource *T) error 
 	return r.resource.Normalizer.NormalizeUpdate(ctx, resource)
 }
 
+// ModifyPlan modifies the Terraform plan.
+func (r Resource[T, I]) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	diags := req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	diags = req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	plan, diags = r.resource.Codec.ModifyPlan(ctx, config, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
+
 // Create creates the Teleport resource.
 func (r Resource[T, I]) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	if !r.runtime.IsConfigured(resp.Diagnostics) {

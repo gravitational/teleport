@@ -55,6 +55,10 @@ func NewBeamsConfigResourceType() tfdriver.ResourceType[beamsv1.BeamsConfig, tfd
 			SchemaFunc:   schemav1.GenSchemaBeamsConfigResource,
 			ToStateFunc:  schemav1.CopyBeamsConfigToTerraform,
 			FromPlanFunc: schemav1.CopyBeamsConfigFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyBeamsConfigFromTerraform,
+				schemav1.CopyBeamsConfigToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ForceKind[beamsv1.BeamsConfig](apitypes.KindBeamsConfig),
 		Identifier: tfdriver.SingletonIdentifierPolicy[beamsv1.BeamsConfig](apitypes.MetaNameBeamsConfig),

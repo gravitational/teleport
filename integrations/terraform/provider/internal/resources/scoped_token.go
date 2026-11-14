@@ -61,6 +61,10 @@ func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, t
 			SchemaFunc:   schemav1.GenSchemaScopedTokenResource,
 			ToStateFunc:  schemav1.CopyScopedTokenToTerraform,
 			FromPlanFunc: schemav1.CopyScopedTokenFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyScopedTokenFromTerraform,
+				schemav1.CopyScopedTokenToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ForceKind[joiningv1.ScopedToken](apitypes.KindScopedToken),
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierPolicy(

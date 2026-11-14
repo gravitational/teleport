@@ -60,6 +60,10 @@ func NewWorkloadIdentityResourceType() tfdriver.ResourceType[workloadidentityv1.
 			SchemaFunc:   schemav1.GenSchemaWorkloadIdentityResource,
 			ToStateFunc:  schemav1.CopyWorkloadIdentityToTerraform,
 			FromPlanFunc: schemav1.CopyWorkloadIdentityFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyWorkloadIdentityFromTerraform,
+				schemav1.CopyWorkloadIdentityToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ForceKind[workloadidentityv1.WorkloadIdentity](types.KindWorkloadIdentity),
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(

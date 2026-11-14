@@ -56,6 +56,10 @@ func NewCertAuthorityOverrideResourceType() tfdriver.ResourceType[subcav1.CertAu
 			SchemaFunc:   schemav1.GenSchemaCertAuthorityOverrideResource,
 			ToStateFunc:  schemav1.CopyCertAuthorityOverrideToTerraform,
 			FromPlanFunc: schemav1.CopyCertAuthorityOverrideFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyCertAuthorityOverrideFromTerraform,
+				schemav1.CopyCertAuthorityOverrideToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ForceKind[subcav1.CertAuthorityOverride](types.KindCertAuthorityOverride),
 		Identifier: tfdriver.NameIdentifierPolicy(

@@ -56,6 +56,10 @@ func NewAccessMonitoringRuleResourceType() tfdriver.ResourceType[accessmonitorin
 			SchemaFunc:   schemav1.GenSchemaAccessMonitoringRuleResource,
 			ToStateFunc:  schemav1.CopyAccessMonitoringRuleToTerraform,
 			FromPlanFunc: schemav1.CopyAccessMonitoringRuleFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyAccessMonitoringRuleFromTerraform,
+				schemav1.CopyAccessMonitoringRuleToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ForceKind[accessmonitoringrulesv1.AccessMonitoringRule](types.KindAccessMonitoringRule),
 		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(accessMonitoringRule *accessmonitoringrulesv1.AccessMonitoringRule) string {

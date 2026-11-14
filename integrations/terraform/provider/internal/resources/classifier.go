@@ -56,6 +56,10 @@ func NewClassifierResourceType() tfdriver.ResourceType[summarizerv1.Classifier, 
 			SchemaFunc:   schemav1.GenSchemaClassifierResource,
 			ToStateFunc:  schemav1.CopyClassifierToTerraform,
 			FromPlanFunc: schemav1.CopyClassifierFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyClassifierFromTerraform,
+				schemav1.CopyClassifierToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ForceKind[summarizerv1.Classifier](types.KindClassifier),
 		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(classifier *summarizerv1.Classifier) string {

@@ -17,11 +17,15 @@
 package resources
 
 import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	loginrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	"github.com/gravitational/teleport/api/types"
+	apitypes "github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -34,8 +38,8 @@ func NewLoginRuleDataSourceType() tfdriver.DataSourceType[loginrulev1.LoginRule,
 		NewDataSourceClient: func(p provider.Provider) tfdriver.DataSourceClient[loginrulev1.LoginRule, tfdriver.NameIdentifier] {
 			return teleport.NewLoginRuleClient(clientFromProvider(p))
 		},
-		Kind: types.KindLoginRule,
-		Name: types.KindLoginRule,
+		Kind: apitypes.KindLoginRule,
+		Name: apitypes.KindLoginRule,
 		Codec: tfdriver.DataSourceCodecFuncs[loginrulev1.LoginRule]{
 			SchemaFunc:  schemav1.GenSchemaLoginRuleDataSource,
 			ToStateFunc: schemav1.CopyLoginRuleToTerraform,
@@ -50,12 +54,13 @@ func NewLoginRuleResourceType() tfdriver.ResourceType[loginrulev1.LoginRule, tfd
 		NewResourceClient: func(p provider.Provider) tfdriver.ResourceClient[loginrulev1.LoginRule, tfdriver.NameIdentifier] {
 			return teleport.NewLoginRuleClient(clientFromProvider(p))
 		},
-		Kind: types.KindLoginRule,
-		Name: types.KindLoginRule,
+		Kind: apitypes.KindLoginRule,
+		Name: apitypes.KindLoginRule,
 		Codec: tfdriver.ResourceCodecFuncs[loginrulev1.LoginRule]{
-			SchemaFunc:   schemav1.GenSchemaLoginRuleResource,
-			ToStateFunc:  schemav1.CopyLoginRuleToTerraform,
-			FromPlanFunc: schemav1.CopyLoginRuleFromTerraform,
+			SchemaFunc:     schemav1.GenSchemaLoginRuleResource,
+			ToStateFunc:    schemav1.CopyLoginRuleToTerraform,
+			FromPlanFunc:   schemav1.CopyLoginRuleFromTerraform,
+			ModifyPlanFunc: modifyLoginRulePlan,
 		},
 		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(loginRule *loginrulev1.LoginRule) string {
 			return loginRule.GetMetadata().GetName()
@@ -64,4 +69,32 @@ func NewLoginRuleResourceType() tfdriver.ResourceType[loginrulev1.LoginRule, tfd
 			return st.GetMetadata().GetRevision()
 		},
 	}
+}
+
+// modifyLoginRulePlan modifies the login rule plan and sets zero values
+// for spec attribute values. A custom implementation is used because login_rule
+// is atypical and does not contain a `spec` attribute.
+func modifyLoginRulePlan(ctx context.Context, config, plan types.Object) (types.Object, diag.Diagnostics) {
+	val := new(loginrulev1.LoginRule)
+
+	diags := schemav1.CopyLoginRuleFromTerraform(ctx, config, val)
+	if diags.HasError() {
+		return plan, diags
+	}
+
+	const preserveUnknown = true
+	config, diags = schemav1.CopyLoginRuleToTerraformPreserveUnknown(ctx, val, &config, preserveUnknown)
+	if diags.HasError() {
+		return plan, diags
+	}
+
+	attrs := plan.Attributes()
+	attributes := []string{"priority", "traits_map", "traits_expression"}
+	for _, attribute := range attributes {
+		if value, exists := config.Attributes()[attribute]; exists {
+			attrs[attribute] = value
+		}
+	}
+
+	return types.ObjectValue(plan.AttributeTypes(ctx), attrs)
 }

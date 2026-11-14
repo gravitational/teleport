@@ -61,6 +61,10 @@ func NewScopedRoleAssignmentResourceType() tfdriver.ResourceType[accessv1.Scoped
 			SchemaFunc:   schemav1.GenSchemaScopedRoleAssignmentResource,
 			ToStateFunc:  schemav1.CopyScopedRoleAssignmentToTerraform,
 			FromPlanFunc: schemav1.CopyScopedRoleAssignmentFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyScopedRoleAssignmentFromTerraform,
+				schemav1.CopyScopedRoleAssignmentToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ForceKind[accessv1.ScopedRoleAssignment](scopedaccess.KindScopedRoleAssignment),
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierPolicy(

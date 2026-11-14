@@ -56,6 +56,10 @@ func NewHealthCheckConfigResourceType() tfdriver.ResourceType[healthcheckconfigv
 			SchemaFunc:   schemav1.GenSchemaHealthCheckConfigResource,
 			ToStateFunc:  schemav1.CopyHealthCheckConfigToTerraform,
 			FromPlanFunc: schemav1.CopyHealthCheckConfigFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyHealthCheckConfigFromTerraform,
+				schemav1.CopyHealthCheckConfigToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ForceKind[healthcheckconfigv1.HealthCheckConfig](types.KindHealthCheckConfig),
 		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(healthCheckConfig *healthcheckconfigv1.HealthCheckConfig) string {

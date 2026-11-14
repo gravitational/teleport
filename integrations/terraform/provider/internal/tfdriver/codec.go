@@ -35,6 +35,8 @@ type ResourceCodec[T any] interface {
 	FromState(context.Context, types.Object, *T) diag.Diagnostics
 	// ToState copies a Teleport resource into Terraform state values.
 	ToState(context.Context, *T, *types.Object) (types.Object, diag.Diagnostics)
+	// ModifyPlan modifies the Terraform plan.
+	ModifyPlan(context.Context, types.Object, types.Object) (types.Object, diag.Diagnostics)
 }
 
 // DataSourceCodec converts Terraform data source values to and from Teleport resources.
@@ -56,12 +58,16 @@ type FromTerraformFunc[T any] func(context.Context, types.Object, *T) diag.Diagn
 // ToTerraformFunc copies a Teleport resource into Terraform values.
 type ToTerraformFunc[T any] func(context.Context, *T, *types.Object) (types.Object, diag.Diagnostics)
 
+// ModifyPlanFunc modifies the Terraform plan.
+type ModifyPlanFunc[T any] func(ctx context.Context, config, plan types.Object) (types.Object, diag.Diagnostics)
+
 // ResourceCodecFuncs adapts functions to ResourceCodec.
 type ResourceCodecFuncs[T any] struct {
-	SchemaFunc    SchemaFunc[resource_schema.Schema]
-	FromPlanFunc  FromTerraformFunc[T]
-	FromStateFunc FromTerraformFunc[T]
-	ToStateFunc   ToTerraformFunc[T]
+	SchemaFunc     SchemaFunc[resource_schema.Schema]
+	FromPlanFunc   FromTerraformFunc[T]
+	FromStateFunc  FromTerraformFunc[T]
+	ToStateFunc    ToTerraformFunc[T]
+	ModifyPlanFunc ModifyPlanFunc[T]
 }
 
 // Schema returns the Terraform schema.
@@ -82,6 +88,14 @@ func (c ResourceCodecFuncs[T]) FromState(ctx context.Context, object types.Objec
 // ToState copies a Teleport resource into Terraform state values.
 func (c ResourceCodecFuncs[T]) ToState(ctx context.Context, resource *T, object *types.Object) (types.Object, diag.Diagnostics) {
 	return c.ToStateFunc(ctx, resource, object)
+}
+
+// ModifyPlan modifies the Terraform plan.
+func (c ResourceCodecFuncs[T]) ModifyPlan(ctx context.Context, config, plan types.Object) (types.Object, diag.Diagnostics) {
+	if c.ModifyPlanFunc == nil {
+		return plan, nil
+	}
+	return c.ModifyPlanFunc(ctx, config, plan)
 }
 
 // DataSourceCodecFuncs adapts functions to DataSourceCodec.

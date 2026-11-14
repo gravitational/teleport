@@ -55,6 +55,10 @@ func NewAutoUpdateVersionResourceType() tfdriver.ResourceType[autoupdatev1.AutoU
 			SchemaFunc:   schemav1.GenSchemaAutoUpdateVersionResource,
 			ToStateFunc:  schemav1.CopyAutoUpdateVersionToTerraform,
 			FromPlanFunc: schemav1.CopyAutoUpdateVersionFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyAutoUpdateVersionFromTerraform,
+				schemav1.CopyAutoUpdateVersionToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ResourceNormalizers[autoupdatev1.AutoUpdateVersion]{
 			tfdriver.ForceKind[autoupdatev1.AutoUpdateVersion](types.KindAutoUpdateVersion),

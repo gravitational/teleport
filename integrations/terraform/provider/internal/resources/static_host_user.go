@@ -56,6 +56,10 @@ func NewStaticHostUserResourceType() tfdriver.ResourceType[userprovisioningv2.St
 			SchemaFunc:   schemav1.GenSchemaStaticHostUserResource,
 			ToStateFunc:  schemav1.CopyStaticHostUserToTerraform,
 			FromPlanFunc: schemav1.CopyStaticHostUserFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyStaticHostUserFromTerraform,
+				schemav1.CopyStaticHostUserToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ForceKind[userprovisioningv2.StaticHostUser](types.KindStaticHostUser),
 		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(staticHostUser *userprovisioningv2.StaticHostUser) string {

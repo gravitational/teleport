@@ -56,6 +56,10 @@ func NewCrownJewelResourceType() tfdriver.ResourceType[crownjewelv1.CrownJewel, 
 			SchemaFunc:   schemav1.GenSchemaCrownJewelResource,
 			ToStateFunc:  schemav1.CopyCrownJewelToTerraform,
 			FromPlanFunc: schemav1.CopyCrownJewelFromTerraform,
+			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+				schemav1.CopyCrownJewelFromTerraform,
+				schemav1.CopyCrownJewelToTerraformPreserveUnknown,
+			),
 		},
 		Normalizer: tfdriver.ForceKind[crownjewelv1.CrownJewel](types.KindCrownJewel),
 		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(crownJewel *crownjewelv1.CrownJewel) string {
