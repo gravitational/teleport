@@ -458,6 +458,15 @@ function Build-Tsh {
         # target/x86_64-pc-windows-gnu/release, which is where the cgo LDFLAGS
         # look for it.
         cargo build -p rdp-decoder --release --locked --target x86_64-pc-windows-gnu
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
+        # Keep the native code produced by LTO, but remove unused embedded LLVM IR
+        # before Go validates the completed archive.
+        objcopy --remove-section=.llvmbc --remove-section=.llvmcmd "$TeleportSourceDirectory\target\x86_64-pc-windows-gnu\release\librdp_decoder.a"
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
         # -Wl,--gc-sections lets the linker drop unreachable native code.
         go build -tags "grpcnotrace piv rust_rdp_decoder kustomize_disable_go_plugin_support" -trimpath -ldflags "-s -w $BuildTypeLDFlags $KubectlLDFlags -extldflags=-Wl,--gc-sections" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"

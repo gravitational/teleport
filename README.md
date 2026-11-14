@@ -178,6 +178,11 @@ list](BUILD_macos.md#local-tests-dependencies)
 The `teleport` repository contains the Teleport daemon binary (written in Go)
 and a web UI written in TypeScript.
 
+Native builds with RDP support require `llvm-objcopy` on macOS or GNU `objcopy`
+on Linux and Windows. The build removes unused embedded LLVM IR from completed
+Rust static archives after LTO so Go can validate and link their native code.
+Set `OBJCOPY` to override the tool used by the Makefile.
+
 If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current
 development branch for an upcoming major version.  Get the latest release tags
