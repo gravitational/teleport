@@ -29,7 +29,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   Member:
     -
@@ -37,7 +37,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
 
 # These fields will be excluded

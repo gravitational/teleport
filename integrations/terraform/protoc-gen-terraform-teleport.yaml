@@ -38,7 +38,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   AuthPreferenceV2:
     -
@@ -46,7 +46,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   ClusterMaintenanceConfigV1:
     -
@@ -54,7 +54,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   ClusterNetworkingConfigV2:
     -
@@ -62,7 +62,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   DatabaseV3:
     -
@@ -70,7 +70,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   GithubConnectorV3:
     -
@@ -78,7 +78,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   KubernetesClusterV3:
     -
@@ -86,7 +86,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   LockV2:
     -
@@ -94,7 +94,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   OIDCConnectorV3:
     -
@@ -102,7 +102,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   OktaImportRuleV1:
     -
@@ -110,7 +110,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   ProvisionTokenV2:
     -
@@ -118,7 +118,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   RoleV6:
     -
@@ -126,7 +126,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   SAMLConnectorV2:
     -
@@ -134,7 +134,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   SAMLIdPServiceProviderV1:
     -
@@ -142,7 +142,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   ServerV2:
     -
@@ -150,7 +150,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   SessionRecordingConfigV2:
     -
@@ -158,7 +158,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   TrustedClusterV2:
     -
@@ -166,7 +166,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   UIConfigV1:
     -
@@ -174,7 +174,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   UserV2:
     -
@@ -182,7 +182,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   InstallerV1:
     -
@@ -190,7 +190,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   DynamicWindowsDesktopV1:
     -
@@ -198,7 +198,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
   IntegrationV1:
     -
@@ -206,7 +206,7 @@ injected_fields:
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
       computed: true
       plan_modifiers:
-        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+        - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       default_value_method: github.com/hashicorp/terraform-plugin-framework/types.StringNull
 
 # These fields will be excluded
@@ -575,27 +575,27 @@ plan_modifiers:
       - DefaultString("")
       - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.RequiresReplace()"
     ServerV2.Metadata.Name:
-      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
       - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.RequiresReplaceIfConfigured()"
     ProvisionTokenV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.RequiresReplaceIfConfigured()"
-      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
     LockV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.RequiresReplaceIfConfigured()"
     RoleV6.Spec.Options:
       - "DefaultRoleOptions()"
     RoleV6.Spec.Allow.KubernetesResources:
       - "DefaultKubernetesResources()"
-    # The API populates these SAML IdP fields if unset. UseStateForUnknown()
+    # The API populates these SAML IdP fields if unset. UseNonNullStateForUnknown()
     # makes them idempotent.
     SAMLIdPServiceProviderV1.Spec.EntityDescriptor:
-      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
     SAMLIdPServiceProviderV1.Spec.EntityID:
-      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
     SAMLIdPServiceProviderV1.Spec.Preset:
-      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
     SAMLIdPServiceProviderV1.Spec.RelayState:
-      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseStateForUnknown()"
+      - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.UseNonNullStateForUnknown()"
 
 validators:
   # Expires must be in the future

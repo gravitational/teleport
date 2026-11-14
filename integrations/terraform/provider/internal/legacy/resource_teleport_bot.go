@@ -65,25 +65,25 @@ func GenSchemaBot(ctx context.Context) (schema.Schema, diag.Diagnostics) {
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseNonNullStateForUnknown()},
 			},
 			"kind": schema.StringAttribute{
 				Computed:      true,
 				Description:   "The kind of resource represented.",
 				Optional:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseNonNullStateForUnknown()},
 			},
 			"sub_kind": schema.StringAttribute{
 				Computed:      true,
 				Description:   "Differentiates variations of the same kind. All resources should contain one, even if it is never populated.",
 				Optional:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseNonNullStateForUnknown()},
 			},
 			"version": schema.StringAttribute{
 				Computed:      true,
 				Description:   "The version of the resource being represented.",
 				Optional:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseNonNullStateForUnknown()},
 				Validators:    []validator.String{tfschema.UseVersionBetween(1, 1)},
 			},
 			"metadata": schema.SingleNestedAttribute{
@@ -113,7 +113,7 @@ func GenSchemaBot(ctx context.Context) (schema.Schema, diag.Diagnostics) {
 						Computed:      true,
 						Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
 						Optional:      true,
-						PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+						PlanModifiers: []planmodifier.String{stringplanmodifier.UseNonNullStateForUnknown()},
 					},
 					"revision": schema.StringAttribute{
 						Description: "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",

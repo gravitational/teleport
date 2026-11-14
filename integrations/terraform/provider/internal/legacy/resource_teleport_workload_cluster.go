@@ -31,7 +31,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	sdkresource "github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	sdkretry "github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadcluster/v1"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
@@ -171,7 +171,7 @@ func (r resourceTeleportWorkloadCluster) Create(ctx context.Context, req resourc
 		return
 	}
 
-	stateConf := sdkresource.StateChangeConf{
+	stateConf := sdkretry.StateChangeConf{
 		Pending: []string{
 			"creating",
 		},
@@ -327,7 +327,7 @@ func (r resourceTeleportWorkloadCluster) Update(ctx context.Context, req resourc
 		return
 	}
 
-	stateConf := sdkresource.StateChangeConf{
+	stateConf := sdkretry.StateChangeConf{
 		Pending: []string{
 			"creating",
 		},

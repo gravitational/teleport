@@ -47,7 +47,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 {{- if .StatePoll }}
-	sdkresource "github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	sdkretry "github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 {{- end }}
 {{- if .Namespaced }}
 	"github.com/gravitational/teleport/api/defaults"
@@ -322,7 +322,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req resource.Crea
 	}
 {{- if .StatePoll }}
 
-	stateConf := sdkresource.StateChangeConf{
+	stateConf := sdkretry.StateChangeConf{
 		Pending: []string{
 		{{- range $state := .StatePoll.PendingStates }}
 			"{{ $state }}",
@@ -700,7 +700,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req resource.Upda
 	}
 {{- if .StatePoll }}
 
-	stateConf := sdkresource.StateChangeConf{
+	stateConf := sdkretry.StateChangeConf{
 		Pending: []string{
 		{{- range $state := .StatePoll.PendingStates }}
 			"{{ $state }}",
