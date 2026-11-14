@@ -28,5 +28,10 @@ func TestNormalizeLocation(t *testing.T) {
 	require.Equal(t, "eastusstage", NormalizeLocation("East US (Stage)"))
 	require.Equal(t, "westus2stage", NormalizeLocation("(US) West US 2 (Stage)"))
 	require.Equal(t, "uk", NormalizeLocation("United Kingdom"))
+	// Regional display names whose simple name is not just the display name
+	// with brackets and spaces stripped must still resolve via the display
+	// name map once the "(Region)" prefix is removed.
+	require.Equal(t, "uk", NormalizeLocation("(Europe) United Kingdom"))
+	require.Equal(t, "uae", NormalizeLocation("(Middle East) United Arab Emirates"))
 	require.Equal(t, "somenewlocation5", NormalizeLocation("Some New Location 5"))
 }
