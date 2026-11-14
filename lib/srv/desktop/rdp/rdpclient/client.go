@@ -56,15 +56,15 @@ package rdpclient
 //  returns.
 
 /*
-// Flags to include the static Rust library.
-#cgo linux,386 LDFLAGS: -L${SRCDIR}/../../../../../target/i686-unknown-linux-gnu/release
-#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release
-#cgo linux,arm LDFLAGS: -L${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release
-#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release
-#cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm
-#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
-#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
+// Link the completed static archive directly so cgo does not scan Cargo's intermediate objects.
+#cgo linux,386 LDFLAGS: ${SRCDIR}/../../../../../target/i686-unknown-linux-gnu/release/librdp_client.a
+#cgo linux,amd64 LDFLAGS: ${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release/librdp_client.a
+#cgo linux,arm LDFLAGS: ${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release/librdp_client.a
+#cgo linux,arm64 LDFLAGS: ${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release/librdp_client.a
+#cgo linux LDFLAGS: -lpthread -ldl -lm
+#cgo darwin,amd64 LDFLAGS: ${SRCDIR}/../../../../../target/x86_64-apple-darwin/release/librdp_client.a
+#cgo darwin,arm64 LDFLAGS: ${SRCDIR}/../../../../../target/aarch64-apple-darwin/release/librdp_client.a
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lpthread -ldl -lm
 #include <librdpclient.h>
 */
 import "C"

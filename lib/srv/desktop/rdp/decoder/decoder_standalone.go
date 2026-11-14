@@ -19,24 +19,24 @@
 package decoder
 
 /*
-#cgo linux,386 LDFLAGS: -L${SRCDIR}/../../../../../target/i686-unknown-linux-gnu/release
-#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release
-#cgo linux,arm LDFLAGS: -L${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release
-#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release
+// Link the completed static archive directly so cgo does not scan Cargo's intermediate objects.
+#cgo linux,386 LDFLAGS: ${SRCDIR}/../../../../../target/i686-unknown-linux-gnu/release/librdp_decoder.a
+#cgo linux,amd64 LDFLAGS: ${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release/librdp_decoder.a
+#cgo linux,arm LDFLAGS: ${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release/librdp_decoder.a
+#cgo linux,arm64 LDFLAGS: ${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release/librdp_decoder.a
 // The system libraries below are based on:
 //   cargo rustc --release --target x86_64-unknown-linux-gnu -p rdp-decoder \
 //     --crate-type staticlib -- --print native-static-libs
-#cgo linux LDFLAGS: -lrdp_decoder -static-libgcc -lutil -lrt -lpthread -lm -ldl -lc
+#cgo linux LDFLAGS: -static-libgcc -lutil -lrt -lpthread -lm -ldl -lc
 
-#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
-#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
-#cgo darwin LDFLAGS: -lrdp_decoder
+#cgo darwin,amd64 LDFLAGS: ${SRCDIR}/../../../../../target/x86_64-apple-darwin/release/librdp_decoder.a
+#cgo darwin,arm64 LDFLAGS: ${SRCDIR}/../../../../../target/aarch64-apple-darwin/release/librdp_decoder.a
 
-#cgo windows,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-pc-windows-gnu/release
+#cgo windows,amd64 LDFLAGS: ${SRCDIR}/../../../../../target/x86_64-pc-windows-gnu/release/librdp_decoder.a
 // The Windows system libraries below are required by the Rust std library that
 // gets bundled into librdp_decoder.a. The list comes from:
 //   cargo rustc --release --target x86_64-pc-windows-gnu -p rdp-decoder \
 //     --crate-type staticlib -- --print native-static-libs
-#cgo windows LDFLAGS: -lrdp_decoder -lkernel32 -lntdll -luserenv -lws2_32 -ldbghelp
+#cgo windows LDFLAGS: -lkernel32 -lntdll -luserenv -lws2_32 -ldbghelp
 */
 import "C"

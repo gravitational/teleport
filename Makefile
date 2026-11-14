@@ -558,6 +558,20 @@ update-vmlinux-h:
 
 RDPCLIENT_SKIP_CARGO ?= 0
 
+# LTO has already produced native code, but Rust archives can retain embedded
+# LLVM IR. Remove that unused IR before cgo validates the completed archives.
+ifeq ("$(OS)","darwin")
+OBJCOPY ?= llvm-objcopy
+RDP_BITCODE_SECTIONS := __LLVM,__bitcode __LLVM,__cmdline
+else
+OBJCOPY ?= $(if $(CROSSTOOLNG_TARGET),$(CROSSTOOLNG_TARGET)-)objcopy
+RDP_BITCODE_SECTIONS := .llvmbc .llvmcmd
+endif
+
+define strip-rdp-bitcode
+	$(OBJCOPY) $(addprefix --remove-section=,$(RDP_BITCODE_SECTIONS)) "target/$(RUST_TARGET_ARCH)/release/lib$(1).a"
+endef
+
 .PHONY: rdpclient
 rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
@@ -567,6 +581,7 @@ ifneq ($(RDPCLIENT_SKIP_CARGO),1)
 else
 	@echo "Skipping rdp-client cargo build (RDPCLIENT_SKIP_CARGO=1)"
 endif
+	$(call strip-rdp-bitcode,rdp_client)
 endif
 
 .PHONY: rdpdecoder
@@ -574,6 +589,7 @@ rdpdecoder: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-decoder --release --locked $(CARGO_TARGET)
+	$(call strip-rdp-bitcode,rdp_decoder)
 endif
 
 define ironrdp_package_json
