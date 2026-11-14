@@ -1370,7 +1370,7 @@ func GenSchemaServerV2Resource(ctx context.Context) (github_com_hashicorp_terraf
 			Computed:      true,
 			Description:   "The advertized scope of the server which can not change once assigned.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplaceIfConfigured()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{DefaultString(""), github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplace()},
 		},
 		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
@@ -1923,7 +1923,7 @@ func GenSchemaAppV3Resource(ctx context.Context) (github_com_hashicorp_terraform
 			Computed:      true,
 			Description:   "The App's scope.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplaceIfConfigured()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{DefaultString(""), github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplace()},
 		},
 		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
@@ -10388,7 +10388,7 @@ func GenSchemaKubernetesClusterV3Resource(ctx context.Context) (github_com_hashi
 			Computed:      true,
 			Description:   "The scope of the kube cluster.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplaceIfConfigured()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{DefaultString(""), github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplace()},
 		},
 		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
@@ -14059,7 +14059,7 @@ func GenSchemaIntegrationV1Resource(ctx context.Context) (github_com_hashicorp_t
 			Computed:      true,
 			Description:   "Scope is the scope of the integration.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplaceIfConfigured()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{DefaultString(""), github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplace()},
 		},
 		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{

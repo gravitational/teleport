@@ -59,7 +59,8 @@ plan_modifiers:
   Metadata.name:
     - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.RequiresReplaceIfConfigured()"
   WorkloadIdentity.scope:
-    - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.RequiresReplaceIfConfigured()"
+    - github_com_gravitational_teleport_integrations_terraform_tfschema.DefaultString("")
+    - "github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier.RequiresReplace()"
 
 # This must be defined for the generator to be happy, but in reality all time
 # fields are overridden (because the protobuf timestamps contain locks and the

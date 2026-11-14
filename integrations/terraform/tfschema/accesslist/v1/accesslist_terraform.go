@@ -121,7 +121,7 @@ func GenSchemaAccessListResource(ctx context.Context) (github_com_hashicorp_terr
 			Computed:      true,
 			Description:   "scope is the scope of the Access List.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplaceIfConfigured()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_gravitational_teleport_integrations_terraform_tfschema.DefaultString(""), github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplace()},
 		},
 		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
@@ -896,7 +896,7 @@ func GenSchemaMemberResource(ctx context.Context) (github_com_hashicorp_terrafor
 			Computed:      true,
 			Description:   "scope is the scope of the Access List member, it must be equal to the scope of the parent Access List.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplaceIfConfigured()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_gravitational_teleport_integrations_terraform_tfschema.DefaultString(""), github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.RequiresReplace()},
 		},
 		"spec": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 			Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
