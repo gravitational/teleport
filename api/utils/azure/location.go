@@ -45,7 +45,7 @@ func NormalizeLocation(input string) string {
 	// display name.
 	if input[0] == '(' {
 		if index := strings.IndexRune(input, ')'); index >= 0 {
-			input = input[index:]
+			input = input[index+1:]
 		}
 		input = strings.TrimSpace(input)
 	}
