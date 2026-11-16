@@ -8,7 +8,7 @@
 #
 # Note both workflows must have the same name.
 
-name: Build on Mac OS
+name: Build on Mac OS Run in Linux-xarm92 
 run-name: Skip Build on Mac OS
 
 on:
@@ -25,11 +25,12 @@ on:
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
       - 'Makefile'
+      - '*xyw*'
 
 jobs:
   build:
     name: Build on Mac OS
-    runs-on: ubuntu-latest
+    runs-on: linux-xarm92 
 
     permissions:
       contents: none
