@@ -51,6 +51,8 @@ const (
 	SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES SessionRecordingType = 2
 	// SessionRecordingTypeWindowsDesktop is an interactive Windows desktop session recording.
 	SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP SessionRecordingType = 3
+	// SessionRecordingTypeLinuxDesktop is an interactive Linux desktop session recording.
+	SessionRecordingType_SESSION_RECORDING_TYPE_LINUX_DESKTOP SessionRecordingType = 4
 )
 
 // Enum value maps for SessionRecordingType.
@@ -60,12 +62,14 @@ var (
 		1: "SESSION_RECORDING_TYPE_SSH",
 		2: "SESSION_RECORDING_TYPE_KUBERNETES",
 		3: "SESSION_RECORDING_TYPE_WINDOWS_DESKTOP",
+		4: "SESSION_RECORDING_TYPE_LINUX_DESKTOP",
 	}
 	SessionRecordingType_value = map[string]int32{
 		"SESSION_RECORDING_TYPE_UNSPECIFIED":     0,
 		"SESSION_RECORDING_TYPE_SSH":             1,
 		"SESSION_RECORDING_TYPE_KUBERNETES":      2,
 		"SESSION_RECORDING_TYPE_WINDOWS_DESKTOP": 3,
+		"SESSION_RECORDING_TYPE_LINUX_DESKTOP":   4,
 	}
 )
 
@@ -1057,12 +1061,13 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\x03png\x18\t \x01(\fR\x03png\x12!\n" +
 	"\fscreen_width\x18\n" +
 	" \x01(\x05R\vscreenWidth\x12#\n" +
-	"\rscreen_height\x18\v \x01(\x05R\fscreenHeight*\xb1\x01\n" +
+	"\rscreen_height\x18\v \x01(\x05R\fscreenHeight*\xdb\x01\n" +
 	"\x14SessionRecordingType\x12&\n" +
 	"\"SESSION_RECORDING_TYPE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aSESSION_RECORDING_TYPE_SSH\x10\x01\x12%\n" +
 	"!SESSION_RECORDING_TYPE_KUBERNETES\x10\x02\x12*\n" +
-	"&SESSION_RECORDING_TYPE_WINDOWS_DESKTOP\x10\x03BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
+	"&SESSION_RECORDING_TYPE_WINDOWS_DESKTOP\x10\x03\x12(\n" +
+	"$SESSION_RECORDING_TYPE_LINUX_DESKTOP\x10\x04BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
 
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 6)

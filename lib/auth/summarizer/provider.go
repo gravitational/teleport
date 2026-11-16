@@ -95,6 +95,10 @@ func (n NoopSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndE
 	return nil
 }
 
+func (n NoopSummarizer) SummarizeLinuxDesktop(ctx context.Context, sessionEndEvent *events.LinuxDesktopSessionEnd) error {
+	return nil
+}
+
 func (NoopSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	return nil
 }

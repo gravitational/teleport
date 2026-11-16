@@ -17,7 +17,9 @@ metadata:
 spec:
 
   # kinds indicate which kinds of sessions will match this policy. Required.
-  # Supported values: 'ssh', 'k8s', 'db'.
+  # Supported values: 'ssh', 'k8s', 'db', 'desktop'. 'desktop' matches both
+  # Windows and Linux desktop sessions. To target one of them, filter on
+  # resource.kind, which is 'windows_desktop' or 'linux_desktop'.
   kinds: ['ssh', 'db']
 
   # model is the name of the inference_model resource containing provider and

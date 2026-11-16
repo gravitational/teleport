@@ -534,7 +534,7 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 }
 
 func getMissingEmptyFieldForSessionEnd(fields []string) (any, error) {
-	for _, emptySession := range []events.AuditEvent{&events.SessionEnd{}, &events.WindowsDesktopSessionEnd{}, &events.DatabaseSessionEnd{}, &events.AppSessionChunk{}, &events.BeamDestroyed{}} {
+	for _, emptySession := range []events.AuditEvent{&events.SessionEnd{}, &events.WindowsDesktopSessionEnd{}, &events.LinuxDesktopSessionEnd{}, &events.DatabaseSessionEnd{}, &events.AppSessionChunk{}, &events.BeamDestroyed{}} {
 		v, err := predicate.GetFieldByTag(emptySession, teleport.JSON, fields[1:])
 		if err == nil {
 			return v, nil

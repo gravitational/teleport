@@ -37,6 +37,7 @@ import (
 // - SessionEnd
 // - DatabaseSessionEnd
 // - WindowsDesktopSessionEnd
+// - LinuxDesktopSessionEnd
 // - AppSessionEnd
 // - MCPSessionEnd,
 // or nil if none is found.
@@ -61,6 +62,8 @@ func FindSessionEndEvent(ctx context.Context, streamer SessionStreamer, sessionI
 			}
 			switch e := event.(type) {
 			case *apievents.WindowsDesktopSessionEnd:
+				return e, nil
+			case *apievents.LinuxDesktopSessionEnd:
 				return e, nil
 			case *apievents.SessionEnd:
 				return e, nil
@@ -109,6 +112,7 @@ type FindOrRecoverSessionEndConfig struct {
 // Supported session types are:
 //   - SSH / Kubernetes (session.start -> session.end)
 //   - Windows Desktop (windows.desktop.session.start -> windows.desktop.session.end)
+//   - Linux Desktop (linux.desktop.session.start -> linux.desktop.session.end)
 //   - Database (db.session.start -> db.session.end)
 //   - Application (app.session.start -> app.session.end)
 //   - MCP (mcp.session.start -> mcp.session.end)

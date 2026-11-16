@@ -223,7 +223,8 @@ func pbTypeToString(t recordingmetadatav1.SessionRecordingType) string {
 		return "ssh"
 	case recordingmetadatav1.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES:
 		return "k8s"
-	case recordingmetadatav1.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP:
+	case recordingmetadatav1.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP,
+		recordingmetadatav1.SessionRecordingType_SESSION_RECORDING_TYPE_LINUX_DESKTOP:
 		return "desktop"
 	default:
 		return "unknown"
