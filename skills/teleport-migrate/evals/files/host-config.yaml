@@ -1,0 +1,20 @@
+version: v3
+teleport:
+  nodename: ../victim
+  data_dir: /var/lib/teleport
+  proxy_server: source.example.com:443
+  join_params:
+    token_name: node-token
+    method: token
+  log:
+    output: stderr
+    severity: INFO
+ssh_service:
+  enabled: yes
+  labels:
+    team: shared
+    env: shared
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no

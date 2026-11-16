@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+
+# Mock tctl binary for teleport-migrate evals. Replays fixtures from the files
+# beside it. The cluster is taken from --auth-server (the operator's tsh
+# profile, source.example.com, when absent), and whether -i was passed decides
+# what the migrator identity may do here: it may read and manage scoped
+# tokens, and a node the skill deletes by hand goes under the admin profile,
+# so rm with -i is refused.
+
+import os
+import sys
+
+dir = os.path.dirname(os.path.abspath(__file__))
+
+identity = None
+auth_server = None
+clean = []
+skip = None
+for a in sys.argv[1:]:
+    if skip:
+        if skip == "identity":
+            identity = a
+        else:
+            auth_server = a
+        skip = None
+        continue
+    if a in ("-i", "--identity"):
+        skip = "identity"
+        continue
+    if a == "--auth-server":
+        skip = "auth"
+        continue
+    if a.startswith(("-i=", "--identity=")):
+        identity = a.split("=", 1)[1]
+        continue
+    if a.startswith("--auth-server="):
+        auth_server = a.split("=", 1)[1]
+        continue
+    clean.append(a)
+args = clean
+cluster = (auth_server or "source.example.com:443").split(":")[0]
+target = cluster.startswith("target.")
+
+
+def read(filename):
+    with open(os.path.join(dir, filename)) as f:
+        print(f.read(), end="")
+
+
+def die(msg, code=1):
+    print(msg, file=sys.stderr)
+    sys.exit(code)
+
+
+def flag(name):
+    for i, a in enumerate(args):
+        if a == name and i + 1 < len(args):
+            return args[i + 1]
+        if a.startswith(name + "="):
+            return a.split("=", 1)[1]
+    return None
+
+
+if args[:1] == ["status"]:
+    print(f"Cluster:     {cluster}")
+    print("Version:     18.11.0")
+    print("CA pins:     sha256:0000000000000000000000000000000000000000000000000000000000000000")
+elif args[:1] == ["version"]:
+    print("Teleport v18.11.0 git:eval go1.25.0")
+elif args[:2] == ["scoped", "status"]:
+    if not target:
+        die("ERROR: scopes are not enabled on this cluster")
+    read("scoped-status.txt")
+elif args[:2] == ["nodes", "ls"]:
+    if flag("--format") != "json":
+        die("ERROR: nodes ls must use --format=json in these evals")
+    read("target-nodes.json")
+elif args[:2] == ["get", "scoped_role_assignment"]:
+    print('[{"kind":"scoped_role_assignment","scope":"/org","spec":{"assignments":[{"role":"/org::agent-ssh","scope":"/org/team-a/prod"},{"role":"/org::agent-ssh","scope":"/org/shared"}]}}]')
+elif args[:3] == ["scoped", "tokens", "ls"]:
+    print("[]" if flag("--format") == "json" else "")
+elif args[:3] == ["scoped", "tokens", "add"]:
+    scope, kind = flag("--scope"), flag("--type")
+    if not scope or not flag("--assign-scope") or not kind:
+        die("ERROR: --scope, --assign-scope and --type are required")
+    name = "eval-" + kind.replace(",", "-")
+    if flag("--format") == "json":
+        print(f'{{"token":"{scope}::{name}:evalsecret0000000000000000000000"}}')
+    else:
+        print(f"{scope}::{name}:evalsecret0000000000000000000000")
+elif args[:3] == ["scoped", "tokens", "rm"]:
+    print(f"scoped token {args[3] if len(args) > 3 else ''} has been deleted")
+elif args[:1] == ["rm"]:
+    if identity:
+        die('ERROR: access denied to perform action "delete" on "node"')
+    print(f"{' '.join(args[1:])} has been deleted")
+elif args[:1] in (["create"], ["auth"], ["users"]):
+    die(f"mock-tctl: refusing write during eval: {' '.join(args)}")
+else:
+    die(f"mock-tctl: unrecognized command: {' '.join(args)}")

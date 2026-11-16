@@ -1,0 +1,11 @@
+source:
+  proxy_server: source.example.com:443
+  identity_file: source_id
+target:
+  proxy_server: target.example.com:443
+  identity_file: target_id
+migrations:
+  - source_labels: team=team-b,env=prod
+    target_scope: /org/team-b/prod
+  - source_labels: team=team-b,env=dev
+    target_scope: /org/team-b/dev
