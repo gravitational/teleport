@@ -33,6 +33,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/jonboulle/clockwork"
@@ -50,6 +51,7 @@ import (
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
@@ -61,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/trace"
 )
 
 // TestTeleportProcessJoinVersionCheck covers version enforcement during a
@@ -543,4 +546,146 @@ func TestUnwrappedConnection(t *testing.T) {
 	)
 	require.Error(t, err)
 	require.NoError(t, eg.Wait())
+}
+
+// TestRotateStandbyReissuesWhenRotationIDChanges is the host that stayed in
+// standby while the cluster finished a host CA rotation. Both sides are
+// standby, the rotation IDs differ, and the certificate principals are
+// unchanged, so rotate must request new credentials and store the new ID.
+func TestRotateStandbyReissuesWhenRotationIDChanges(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	log := logtest.NewLogger()
+	clock := clockwork.NewFakeClock()
+
+	authSrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authSrv.AuthServer.Close()) })
+
+	clusterName, err := authSrv.AuthServer.GetClusterName(ctx)
+	require.NoError(t, err)
+	cluster := clusterName.GetClusterName()
+
+	const hostname = "node"
+	const hostID = "00000000-0000-0000-0000-000000000001"
+	identity, err := auth.GenerateIdentity(authSrv.AuthServer, state.IdentityID{
+		Role:     types.RoleAuth,
+		HostUUID: hostID,
+		NodeName: hostname,
+	}, []string{hostname, hostname + "." + cluster}, auth.DefaultDNSNamesForRole(types.RoleAuth))
+	require.NoError(t, err)
+
+	dataDir := t.TempDir()
+	supervisor, err := NewSupervisor("rotate-standby", log, clock)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		supervisor.signalExit()
+		supervisor.Wait()
+	})
+	stor, err := storage.NewProcessStorage(ctx, dataDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, stor.Close()) })
+	rotationCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:     time.Minute,
+		Clock:   clock,
+		Context: supervisor.ExitContext(),
+	})
+	require.NoError(t, err)
+
+	process := &TeleportProcess{
+		Supervisor:    supervisor,
+		Clock:         clock,
+		Config:        &servicecfg.Config{Hostname: hostname, DataDir: dataDir},
+		logger:        log,
+		storage:       stor,
+		rotationCache: rotationCache,
+	}
+	process.setLocalAuth(authSrv.AuthServer)
+
+	conn, err := newConnector(identity, identity)
+	require.NoError(t, err)
+
+	principals, dnsNames, err := process.getAdditionalPrincipals(types.RoleAuth, hostID)
+	require.NoError(t, err)
+	principals = append(principals, hostname+"."+conn.ClusterName())
+	// The bug only shows up when principals and DNS names already match.
+	// A principal change takes a different branch that does re-register.
+	require.False(t, checkServerIdentity(process.ExitContext(), conn, principals, dnsNames, log))
+
+	hostCA, err := authSrv.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: cluster,
+	}, false)
+	require.NoError(t, err)
+	initial := hostCA.GetRotation()
+
+	localState := state.StateV2{
+		Spec: state.StateSpecV2{
+			Rotation:            initial,
+			InitialLocalVersion: teleport.Version,
+		},
+	}
+	status, err := process.rotate(conn, localState, initial)
+	require.NoError(t, err)
+	require.False(t, status.credentialsUpdated, "matching standby rotation should not re-issue")
+	_, err = stor.GetState(ctx, types.RoleAuth)
+	require.True(t, trace.IsNotFound(err))
+
+	for _, phase := range []string{
+		types.RotationPhaseInit,
+		types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers,
+		types.RotationPhaseStandby,
+	} {
+		require.NoError(t, authSrv.AuthServer.RotateCertAuthority(ctx, types.RotateRequest{
+			Type:        types.HostCA,
+			TargetPhase: phase,
+			Mode:        types.RotationModeManual,
+		}))
+	}
+
+	hostCA, err = authSrv.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: cluster,
+	}, false)
+	require.NoError(t, err)
+	completed := hostCA.GetRotation()
+	require.Equal(t, types.RotationStateStandby, completed.State)
+	require.NotEqual(t, initial.CurrentID, completed.CurrentID)
+
+	originalCert := append([]byte(nil), identity.TLSCertBytes...)
+	status, err = process.rotate(conn, localState, completed)
+	require.NoError(t, err)
+	require.True(t, status.credentialsUpdated, "standby rotation with a new ID must re-issue host credentials")
+
+	stored, err := stor.GetState(ctx, types.RoleAuth)
+	require.NoError(t, err)
+	require.Equal(t, completed.CurrentID, stored.Spec.Rotation.CurrentID)
+	require.Equal(t, completed.State, stored.Spec.Rotation.State)
+	require.NotEqual(t, originalCert, conn.serverState.Load().identity.TLSCertBytes)
+
+	status, err = process.rotate(conn, *stored, completed)
+	require.NoError(t, err)
+	require.False(t, status.credentialsUpdated, "a second sync with the stored ID should not re-issue")
+
+	_, err = process.rotate(conn, state.StateV2{
+		Spec: state.StateSpecV2{
+			InitialLocalVersion: teleport.Version,
+			Rotation: types.Rotation{
+				State:     types.RotationStateInProgress,
+				Phase:     types.RotationPhaseUpdateServers,
+				CurrentID: initial.CurrentID,
+			},
+		},
+	}, types.Rotation{
+		State:     types.RotationStateStandby,
+		Phase:     types.RotationPhaseStandby,
+		CurrentID: "different-rotation",
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "an in-progress agent that missed phases still has to be cleared")
 }
