@@ -39,11 +39,9 @@ and the necessary permissions to forward requests.
 
 <Admonition type="note">
 
-Starting with Teleport v15.3.8, the Discovery Service can self-bootstrap
-access to EKS clusters by automatically creating and managing Access Entries
-for each discovered cluster. This contrasts with earlier versions of EKS
-Auto-Discovery, where agents could not access a cluster without having
-pre-existing access configured.
+The Discovery Service can self-bootstrap access to EKS clusters by
+automatically creating and managing Access Entries for each discovered
+cluster.
 
 </Admonition>
 
@@ -57,10 +55,9 @@ running the Teleport Discovery Service:
 ## Step 2/3. Configure EKS cluster authorization
 
 <Admonition type="warning">
-If you are running Teleport Discovery v15.3.8 or later and the IAM role
-used by the Discovery Service has the necessary permissions to create and
-update Access Entries, you can skip this section. The service can self-bootstrap
-the required permissions automatically.
+If the IAM role used by the Discovery Service has the necessary permissions
+to create and update Access Entries, you can skip this section. The service
+can self-bootstrap the required permissions automatically.
 
 Note: When using AWS SSO/Identity Center, you must use the underlying IAM role
 ARN as the Access Entry principal (e.g.,

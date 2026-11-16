@@ -63,7 +63,7 @@ sudo systemctl restart teleport
 
 #### Agents running in Kubernetes (`teleport-kube-agent`)
 
-Starting in Teleport 11, the `teleport-kube-agent` pod's state is stored in a
+The `teleport-kube-agent` pod's state is stored in a
 Kubernetes Secret - name:`{pod-name}-state` - existing in the installation namespace.
 To delete the state, follow the steps below:
 
