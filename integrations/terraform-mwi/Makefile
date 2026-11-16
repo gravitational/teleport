@@ -58,7 +58,7 @@ endif
 	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
 
 $(TEST_LOG_DIR):
-	mkdir $(TEST_LOG_DIR)
+	mkdir -p $(TEST_LOG_DIR)
 
 .PHONY: test testacc
 test: | $(TEST_LOG_DIR)

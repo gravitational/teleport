@@ -278,7 +278,7 @@ TEST_ARGS?=
 
 
 $(TEST_LOG_DIR):
-	mkdir $(TEST_LOG_DIR)
+	mkdir -p $(TEST_LOG_DIR)
 
 .PHONY: test
 test: install | $(TEST_LOG_DIR)
@@ -289,6 +289,47 @@ ifndef TERRAFORM_EXISTS
 endif
 
 	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
+
+# CI skips the installed provider, which testlib never loads because it serves the provider in-process, and splits the
+# sequential suites across processes of one test binary. TestTerraformOSS methods are partitioned by the letter after
+# "Test" into complementary ranges so a new method always lands in a shard, and the last shard runs every other test.
+# Boundaries come from measured method durations. The flags mirror what go test passes a test binary.
+TESTLIB_PKG := github.com/gravitational/teleport/integrations/terraform/testlib
+TESTLIB_BIN = $(abspath $(BUILDDIR))/testlib.test
+TESTLIB_SHARDS := 0 1 2 3 4
+TESTLIB_SHARD_0 := -test.run '^TestTerraformOSS$$' -testify.m '^Test[A-C]'
+TESTLIB_SHARD_1 := -test.run '^TestTerraformOSS$$' -testify.m '^Test[D-O]'
+TESTLIB_SHARD_2 := -test.run '^TestTerraformOSS$$' -testify.m '^Test[P-R]'
+TESTLIB_SHARD_3 := -test.run '^TestTerraformOSS$$' -testify.m '^Test[^A-R]'
+TESTLIB_SHARD_4 := -test.skip '^TestTerraformOSS$$'
+
+.PHONY: test-ci
+test-ci: | $(TEST_LOG_DIR)
+ifndef TERRAFORM_EXISTS
+	@echo "Terraform v1.4+ is not installed (tfenv install 1.5.6 && tfenv use 1.5.6)."
+	terraform -version
+	@exit -1
+endif
+	go test -c -o $(TESTLIB_BIN) ./testlib
+	$(MAKE) --no-print-directory -j test-ci-provider-build $(addprefix test-ci-shard-,$(TESTLIB_SHARDS))
+
+.PHONY: test-ci-shard-%
+test-ci-shard-%: | $(TEST_LOG_DIR)
+	cd testlib && gotestsum \
+		--junitfile $(TEST_LOG_DIR)/unit-tests-terraform-$*.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-terraform-$*.json \
+		--raw-command -- go tool test2json -t -p $(TESTLIB_PKG) \
+		$(TESTLIB_BIN) -test.v=test2json -test.timeout=10m -test.paniconexit0 $(TESTLIB_SHARD_$*)
+
+# Keeps the provider's terraformprovider-tagged code compiling without paying for the -trimpath release link.
+.PHONY: test-ci-provider-build
+test-ci-provider-build:
+	GOWORK=off $(CGOFLAG) go build -tags "kustomize_disable_go_plugin_support,terraformprovider" -o /dev/null .
+
+# Compiles exactly what test-ci builds so a cache saved from it serves the next run's compiles.
+.PHONY: warm-test-ci
+warm-test-ci:
+	go test -c -o /dev/null ./testlib
+	$(MAKE) --no-print-directory test-ci-provider-build
 
 testlib/plugin_ent_test.go:
 	go generate testlib/plugin_test.go

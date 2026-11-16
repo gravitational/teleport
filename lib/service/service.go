@@ -3994,6 +3994,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetUseTunnel(conn.UseTunnel()),
 			regular.SetFIPS(cfg.FIPS),
 			regular.SetBPF(ebpf),
+			regular.SetSessionRecordingOpenFile(cfg.Testing.SessionRecordingOpenFile),
 			regular.SetOnHeartbeat(process.OnHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),

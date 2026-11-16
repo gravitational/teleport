@@ -186,6 +186,9 @@ type Server struct {
 	// ebpf is the service used for enhanced session recording.
 	ebpf bpf.BPF
 
+	// recordingOpenFile opens the session recording files.
+	recordingOpenFile utils.OpenFileWithFlagsFunc
+
 	// onHeartbeat is a callback for heartbeat status.
 	onHeartbeat func(error)
 
@@ -696,6 +699,14 @@ func SetBPF(ebpf bpf.BPF) ServerOption {
 	}
 }
 
+// SetSessionRecordingOpenFile sets how session recording files are opened.
+func SetSessionRecordingOpenFile(openFile utils.OpenFileWithFlagsFunc) ServerOption {
+	return func(s *Server) error {
+		s.recordingOpenFile = openFile
+		return nil
+	}
+}
+
 func SetOnHeartbeat(fn func(error)) ServerOption {
 	return func(s *Server) error {
 		s.onHeartbeat = fn
@@ -984,6 +995,7 @@ func New(
 	s.reg, err = srv.NewSessionRegistry(srv.SessionRegistryConfig{
 		Srv:                   s,
 		SessionTrackerService: auth,
+		RecordingOpenFile:     s.recordingOpenFile,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -14,7 +14,7 @@ test: pkg/img/cosign_fixtures_test.go | $(TEST_LOG_DIR)
 	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-kube-agent-updater.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-kube-agent-updater.json
 
 $(TEST_LOG_DIR):
-	mkdir $(TEST_LOG_DIR)
+	mkdir -p $(TEST_LOG_DIR)
 
 .PHONY: docker-build
 docker-build: ## Build docker image

@@ -448,6 +448,8 @@ endif
 SESSIONHELPER_GZ := session/reexec/embed/sessionhelper_$(OS)_$(ARCH).gz
 SESSIONHELPER_GZ_SHA := $(BUILDDIR)/sessionhelper_$(OS)_$(ARCH).gz.sha256
 
+# The OSS and enterprise builds both regenerate this shared embed file and can run concurrently, so
+# write through a BUILDDIR-scoped temp and rename to keep a parallel go build from embedding a torn file.
 .PHONY: session/reexec/embed/sessionhelper
 session/reexec/embed/sessionhelper: $(BUILDDIR)/sessionhelper
 ifneq ($(SESSIONHELPER_EMBED_TAG),)
@@ -456,8 +458,8 @@ ifneq ($(SESSIONHELPER_EMBED_TAG),)
 	if [[ -f '$(SESSIONHELPER_GZ)' && -f '$(SESSIONHELPER_GZ_SHA)' && "$$current_sha" = "$$(cat '$(SESSIONHELPER_GZ_SHA)')" ]]; then \
 		echo "$(SESSIONHELPER_GZ) is up to date."; \
 	else \
-		gzip -9 -n < '$(BUILDDIR)/sessionhelper' > '$(SESSIONHELPER_GZ).tmp'; \
-		mv '$(SESSIONHELPER_GZ).tmp' '$(SESSIONHELPER_GZ)'; \
+		gzip -9 -n < '$(BUILDDIR)/sessionhelper' > '$(BUILDDIR)/sessionhelper_$(OS)_$(ARCH).gz.tmp'; \
+		mv -f '$(BUILDDIR)/sessionhelper_$(OS)_$(ARCH).gz.tmp' '$(SESSIONHELPER_GZ)'; \
 		echo "$$current_sha" > '$(SESSIONHELPER_GZ_SHA)'; \
 	fi
 endif
@@ -1179,10 +1181,12 @@ test-go-tsh: test-go-prepare | $(TEST_LOG_DIR)
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-tsh.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-tsh.json --raw-command -- cat
 
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
+# -count=1 turns off go test's result cache. CI restores a warm GOCACHE, and without this a chaos suite could report a
+# stored pass instead of running. The other suites already avoid the result cache through -shuffle on.
 .PHONY: test-go-chaos
 test-go-chaos: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go-chaos: test-go-prepare | $(TEST_LOG_DIR)
-	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
+	$(CGOFLAG) go test -json -count=1 -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-chaos.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-chaos.json --raw-command -- cat
 
 #
@@ -1262,6 +1266,50 @@ test-teleport-usage:
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-teleport-usage.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-teleport-usage.json --raw-command -- cat
 
 #
+# The integrations suites grouped the way the Unit Tests (Integrations) CI jobs run them. Each warm target compiles
+# exactly what its test target builds, and keeping the pairs adjacent stops their flags drifting apart, which would
+# silently turn every restore into a miss. go test -exec true links test binaries without running them and never caches
+# a result.
+#
+.PHONY: test-operator-ci
+test-operator-ci:
+	$(MAKE) -C integrations/operator test-ci TEST_LOG_DIR=$(TEST_LOG_DIR)
+
+.PHONY: test-integrations-terraform-ci
+test-integrations-terraform-ci:
+	$(MAKE) -C integrations/terraform test-ci TEST_LOG_DIR=$(TEST_LOG_DIR)
+
+.PHONY: warm-integrations-terraform-ci
+warm-integrations-terraform-ci:
+	$(MAKE) -C integrations/terraform warm-test-ci
+
+# Sequential so the root-module suites reuse each other's compiled dependencies within the job.
+.PHONY: test-integrations-root-ci
+test-integrations-root-ci:
+	$(MAKE) test-access-integrations
+	$(MAKE) test-integrations-lib
+	$(MAKE) test-operator-ci
+	$(MAKE) test-kube-agent-updater
+	$(MAKE) test-teleport-usage
+
+.PHONY: warm-integrations-root-ci
+warm-integrations-root-ci: $(VERSRC)
+	cd integrations && go test -exec true ./access/... ./lib/...
+	$(MAKE) -C integrations/operator warm-test-ci
+	cd integrations/kube-agent-updater && $(CGOFLAG) go test -exec true -race -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./...
+	cd examples/teleport-usage && $(CGOFLAG) go test -exec true -race -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./...
+
+.PHONY: test-integrations-submodules-ci
+test-integrations-submodules-ci:
+	$(MAKE) test-terraform-provider-mwi
+	$(MAKE) test-event-handler-integrations
+
+.PHONY: warm-integrations-submodules-ci
+warm-integrations-submodules-ci:
+	cd integrations/terraform-mwi && go test -exec true ./...
+	cd integrations/event-handler && go test -exec true ./...
+
+#
 # Flaky test detection. Usually run from CI nightly, overriding these default parameters
 # This runs the same tests as test-go-unit but repeatedly to try to detect flaky tests.
 #
@@ -1311,6 +1359,13 @@ run-etcd:
 	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.5.9 .
 	docker run -it --rm -p'2379:2379' etcdbox
 
+# mold links the large race test binaries several times faster than the default linker. It's only used when the test
+# buildbox has it installed, so release builds and machines without mold are unaffected.
+MOLD_DIR := $(wildcard /usr/local/libexec/mold)
+ifneq ($(MOLD_DIR),)
+TEST_GO_LDFLAGS := -ldflags '-extldflags -B$(MOLD_DIR)'
+endif
+
 #
 # Integration tests. Need a TTY to work.
 # Any tests which need to run as root must be skipped during regular integration testing.
@@ -1320,8 +1375,26 @@ integration: FLAGS ?= -v -race
 integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
 integration: session/reexec/embed/sessionhelper | $(TEST_LOG_DIR)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG)" $(PACKAGES) $(FLAGS) \
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG)" $(PACKAGES) $(FLAGS) $(TEST_GO_LDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration.json --raw-command -- cat
+
+# go test builds a race test binary for every package it's given, even when -run matches nothing in it. That's slow, so
+# the kube and root suites only get the packages that declare a matching test. It errors if nothing matches, so a rename
+# can't leave a suite silently running zero tests.
+# $(call packages_declaring,<test func prefix>,<import paths>)
+packages_declaring = $(or \
+	$(shell for d in $(patsubst github.com/gravitational/teleport/%,%,$(2)); do \
+		grep -qsE '^func $(1)' $$d/*_test.go && echo github.com/gravitational/teleport/$$d; \
+	done), \
+	$(error no package declares a $(1) test))
+
+# Shared with warm-integration-cache so it compiles exactly what these suites build. Uses = rather than := so go list
+# only runs for targets that need them.
+INTEGRATION_KUBE_PACKAGES = $(call packages_declaring,TestKube,$(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v 'integration/autoupdate'))
+INTEGRATION_ROOT_PACKAGES = $(call packages_declaring,TestRoot,$(shell go list ./... | grep 'integration\([^s]\|$$\)'))
+# Without this, the bare export above would put these in every recipe's environment, running go list for every target
+# and hitting the $(error) in packages_declaring.
+unexport packages_declaring INTEGRATION_KUBE_PACKAGES INTEGRATION_ROOT_PACKAGES
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
@@ -1330,10 +1403,10 @@ integration: session/reexec/embed/sessionhelper | $(TEST_LOG_DIR)
 INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
 integration-kube: FLAGS ?= -v -race
-integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v 'integration/autoupdate')
+integration-kube: PACKAGES = $(INTEGRATION_KUBE_PACKAGES)
 integration-kube: | $(TEST_LOG_DIR)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
+	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) $(TEST_GO_LDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration-kube.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration-kube.json --raw-command -- cat
 
 #
@@ -1343,10 +1416,26 @@ integration-kube: | $(TEST_LOG_DIR)
 INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
-integration-root: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
+integration-root: PACKAGES = $(INTEGRATION_ROOT_PACKAGES)
 integration-root: session/reexec/embed/sessionhelper | $(TEST_LOG_DIR)
-	$(CGOFLAG) go test -json -tags '$(SESSIONHELPER_EMBED_TAG)' -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
+	$(CGOFLAG) go test -json -tags '$(SESSIONHELPER_EMBED_TAG)' -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) $(TEST_GO_LDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration-root.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration-root.json --raw-command -- cat
+
+# Compiles the integration test binaries into the Go build cache without running them. Unit Tests (Go) runs this before
+# saving its cache, so the integration workflows that restore it skip most of their compile. Each tag set only builds
+# the packages its suite runs.
+.PHONY: warm-integration-cache
+warm-integration-cache: session/reexec/embed/sessionhelper
+	@dir=$$(mktemp -d) && trap 'rm -rf "$$dir"' EXIT && \
+	echo "Warming integration compile cache into $$dir" && \
+	all=$$(go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep 'integration\([^s]\|$$\)') && \
+	warm() { \
+		echo "$$2" | tr ' ' '\n' | WARM_BIN_DIR="$$dir" WARM_TAGS="$$1" xargs -P "$$(getconf _NPROCESSORS_ONLN)" -I{} \
+			sh -c '$(CGOFLAG) go test -c -race -o "$$WARM_BIN_DIR/$$(echo {} | tr / _).test" -tags "$$WARM_TAGS" {}'; \
+	} && \
+	warm "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG)" "$$all" && \
+	warm "$(SESSIONHELPER_EMBED_TAG)" "$(strip $(INTEGRATION_ROOT_PACKAGES))" && \
+	warm "" "$(strip $(INTEGRATION_KUBE_PACKAGES))"
 
 INTEGRATION_TEST_TIMEOUT ?= 10m
 .PHONY: integration-e
@@ -1373,7 +1462,7 @@ e2e-aws: FLAGS ?= -v -race
 e2e-aws: PACKAGES = $(shell go list ./... | grep 'e2e/aws')
 e2e-aws: | $(TEST_LOG_DIR)
 	@echo TEST_KUBE: $(TEST_KUBE) TEST_AWS_DB: $(TEST_AWS_DB)
-	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) $(ADDFLAGS)\
+	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) $(ADDFLAGS) $(TEST_GO_LDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.json --raw-command -- cat
 
 # e2e-binaries builds teleport, tctl, and tsh (with webauthnmock) in parallel
@@ -1452,8 +1541,9 @@ fix-imports:
 
 # Rewrite protobuf Open API usage to the Opaque API.
 .PHONY: open2opaque
+open2opaque: OPEN2OPAQUE_PACKAGES ?= ./...
 open2opaque:
-	$(OPEN2OPAQUE) rewrite -levels=red ./...
+	$(OPEN2OPAQUE) rewrite -levels=red $(OPEN2OPAQUE_PACKAGES)
 
 .PHONY: fix-imports/host
 fix-imports/host:
@@ -2042,6 +2132,7 @@ backport:
 .PHONY: ensure-js-deps
 ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
+	elif [[ "${JS_DEPS_SKIP_INSTALL}" -eq 1 ]]; then echo "---> Skipping JavaScript dependency installation"; \
 	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
 .PHONY: ensure-wasm-deps

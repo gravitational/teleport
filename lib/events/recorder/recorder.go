@@ -100,6 +100,9 @@ type Config struct {
 
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter events.EncryptionWrapper
+
+	// OpenFile opens the recording files of async recording modes. Defaults to os.OpenFile.
+	OpenFile utils.OpenFileWithFlagsFunc
 }
 
 // New returns a [events.SessionPreparerRecorder]. If session recording is disabled,
@@ -147,6 +150,7 @@ func New(cfg Config) (events.SessionPreparerRecorder, error) {
 		fileStreamer, err := filesessions.NewStreamer(filesessions.StreamerConfig{
 			Dir:       uploadDir,
 			Encrypter: cfg.Encrypter,
+			OpenFile:  cfg.OpenFile,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

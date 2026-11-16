@@ -149,6 +149,9 @@ type SessionRegistryConfig struct {
 	// sessiontrackerService is used to share session activity to
 	// other teleport components through the auth server.
 	SessionTrackerService services.SessionTrackerService
+
+	// RecordingOpenFile opens the session recording files. Defaults to os.OpenFile.
+	RecordingOpenFile utils.OpenFileWithFlagsFunc
 }
 
 func (sc *SessionRegistryConfig) CheckAndSetDefaults() error {
@@ -1634,7 +1637,8 @@ func newRecorder(s *session, ctx *ServerContext, sessType sessionType) (events.S
 		Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		// Session stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
-		Context: ctx.srv.Context(),
+		Context:  ctx.srv.Context(),
+		OpenFile: s.registry.RecordingOpenFile,
 	})
 	if err != nil {
 		switch sessionRecordingMode {

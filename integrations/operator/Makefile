@@ -172,11 +172,23 @@ debug-dump-request:
 	done
 
 $(TEST_LOG_DIR):
-	mkdir $(TEST_LOG_DIR)
+	mkdir -p $(TEST_LOG_DIR)
 
 .PHONY: test
 test: generate | $(TEST_LOG_DIR) ## Run tests.
+	$(MAKE) --no-print-directory test-ci
+
+# CI tests the committed generated code. Regenerating first costs minutes and nothing diffs the result, while Lint's
+# crds-up-to-date already checks the CRDs.
+.PHONY: test-ci
+test-ci: | $(TEST_LOG_DIR)
 	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-operator.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-operator.json
+
+# Compiles exactly what test-ci builds. -exec true links the test binaries without running them, and go test never
+# caches results of -exec runs.
+.PHONY: warm-test-ci
+warm-test-ci:
+	go test -exec true ./...
 
 ##@ Build
 

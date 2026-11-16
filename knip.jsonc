@@ -178,7 +178,8 @@
     "spellcheck",
     "markdown-lint",
     "build",
-    "make"
+    "make",
+    "playwright"
   ],
   "ignoreUnresolved": [
     // Provided transitively by jest.

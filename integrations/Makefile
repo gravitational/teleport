@@ -4,7 +4,7 @@ TEST_LOG_DIR ?= ${abspath ./test-logs}
 test: test-access test-lib test-event-handler test-terraform-provider test-terraform-provider-mwi
 
 $(TEST_LOG_DIR):
-	mkdir $(TEST_LOG_DIR)
+	mkdir -p $(TEST_LOG_DIR)
 
 .PHONY: test-access
 test-access: | $(TEST_LOG_DIR)

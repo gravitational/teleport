@@ -42,34 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var (
-	// openFileFunc this is the `OpenFileWithFlagsFunc` used by the handler.
-	//
-	// TODO(gabrielcorado): remove this global variable.
-	openFileFunc utils.OpenFileWithFlagsFunc = os.OpenFile
-
-	// flagLock protects access to all globals declared in this file
-	flagLock sync.Mutex
-)
-
-// SetOpenFileFunc sets the OpenFileWithFlagsFunc used by the package.
-//
-// TODO(gabrielcorado): remove this global variable.
-func SetOpenFileFunc(f utils.OpenFileWithFlagsFunc) {
-	flagLock.Lock()
-	defer flagLock.Unlock()
-	openFileFunc = f
-}
-
-// GetOpenFileFunc gets the OpenFileWithFlagsFunc set in the package.
-//
-// TODO(gabrielcorado): remove this global variable.
-func GetOpenFileFunc() utils.OpenFileWithFlagsFunc {
-	flagLock.Lock()
-	defer flagLock.Unlock()
-	return openFileFunc
-}
-
 const (
 	// minUploadBytes is the minimum part file size required to trigger its upload.
 	minUploadBytes = constants.MaxProtoMessageSizeBytes * 2
@@ -86,6 +58,8 @@ type StreamerConfig struct {
 	MinUploadBytes int64
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter events.EncryptionWrapper
+	// OpenFile opens the recording files. Defaults to os.OpenFile.
+	OpenFile utils.OpenFileWithFlagsFunc
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -105,7 +79,7 @@ func NewStreamer(cfg StreamerConfig) (*events.ProtoStreamer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	handler, err := NewHandler(Config{Directory: cfg.Dir, OpenFile: GetOpenFileFunc()})
+	handler, err := NewHandler(Config{Directory: cfg.Dir, OpenFile: cfg.OpenFile})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

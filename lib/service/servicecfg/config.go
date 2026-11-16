@@ -367,6 +367,10 @@ type ConfigTesting struct {
 	// handler to reach upstream git providers. Tests should set this to
 	// prevent real connections to GitHub.
 	GitHTTPTransport http.RoundTripper
+
+	// SessionRecordingOpenFile overrides how the SSH service opens session recording files so tests can simulate
+	// disk failures on a single process.
+	SessionRecordingOpenFile utils.OpenFileWithFlagsFunc
 }
 
 // DatabaseCADownloader downloads CA certificates for cloud-hosted databases.
