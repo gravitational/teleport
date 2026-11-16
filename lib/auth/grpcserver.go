@@ -2987,8 +2987,9 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if authChallenge.WebauthnChallenge == nil {
-		return trace.BadParameter("no MFA devices registered for %q", user)
+	authChallenge.TOTP = nil // Don't allow OTP.
+	if !isPresenceWorthyChallenge(authChallenge) {
+		return trace.BadParameter("no suitable MFA devices registered for %q", user)
 	}
 
 	if err := stream.Send(authChallenge); err != nil {
@@ -3003,6 +3004,9 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 	challengeResp := resp.GetChallengeResponse()
 	if challengeResp == nil {
 		return trace.BadParameter("expected MFAAuthenticateResponse, got %T", challengeResp)
+	}
+	if !isPresenceWorthyChallengeResponse(challengeResp) {
+		return trace.BadParameter("MFA challenge response uses disallowed device type")
 	}
 
 	if _, err := actx.authServer.ValidateMFAAuthResponse(ctx, challengeResp, user, chalExt); err != nil {
@@ -3031,6 +3035,17 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 	default:
 		return nil
 	}
+}
+
+func isPresenceWorthyChallenge(chal *authpb.MFAAuthenticateChallenge) bool {
+	// Webauthn, SSO and Browser (requires Webauthn) allowed.
+	// TOTP not allowed.
+	return chal.WebauthnChallenge != nil || chal.SSOChallenge != nil
+}
+
+func isPresenceWorthyChallengeResponse(resp *authpb.MFAAuthenticateResponse) bool {
+	// Disallow TOTP. Everything else is fair play.
+	return resp.GetTOTP() == nil
 }
 
 // MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
