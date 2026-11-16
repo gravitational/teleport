@@ -2627,7 +2627,7 @@ Flags:
 
 ## tctl recordings search
 
-Search session recordings using semantic and keyword queries.
+Search session recordings and beams using semantic and keyword queries.
 
 Usage:
 
@@ -2643,12 +2643,12 @@ Flags:
 |`--database-name`|*no default*|Filter database sessions by database name.|
 |`--format`|`text`|Format output (text, json, yaml).. Defaults to 'text'.|
 |`--from-utc`|*no default*|Start of time range. Format 2006-01-02. Defaults to 24 hours ago.|
-|`--kind`|*no default*|Filter by session kind (ssh, db, k8s, desktop). Can be specified multiple times.|
+|`--kind`|*no default*|Filter by session kind (ssh, db, k8s, desktop, beam). Can be specified multiple times.|
 |`--label`|*no default*|Filter by resource labels (key=value pairs), e.g. env/prod=true,db/type=postgres.|
 |`--limit`|`50`|Maximum number of results to return.|
 |`--pod-name`|*no default*|Filter Kubernetes sessions by pod name.|
 |`--pod-namespace`|*no default*|Filter Kubernetes sessions by pod namespace.|
-|`--resource-kind`|*no default*|Filter by Teleport resource type (node, kube_cluster, db).|
+|`--resource-kind`|*no default*|Filter by Teleport resource type (node, kube_cluster, db, windows_desktop, linux_desktop, beam).|
 |`--resource-name`|*no default*|Filter by resource name.|
 |`--resume-token`|*no default*|Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).|
 |`--review-reason`|*no default* (any of (repeatable): `access_request_resource_mismatch`, `analysis_declined`, `classification_failed`, `classifier_matched`, `command_analysis_failed`, `failed_to_fetch_access_request`, `output_not_fully_captured`, `too_large`, `any`)|Filter to sessions that have at least one of the given review reasons. Use 'any' to match any flagged session. Can be specified multiple times.|
@@ -2658,7 +2658,7 @@ Flags:
 |`--server-hostname`|*no default*|Filter SSH sessions by server hostname.|
 |`--severity`|*no default*|Minimum severity level to include (low, medium, high, critical).|
 |`--to-utc`|*no default*|End of time range. Format 2006-01-02. Defaults to current time.|
-|`--username`|*no default*|Filter by the Teleport username that initiated the session.|
+|`--username`|*no default*|Filter by the Teleport username that initiated the session or owns the beam.|
 
 Arguments:
 

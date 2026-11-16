@@ -102,7 +102,7 @@ message SearchSessionSummariesRequest {
   // The server returns an error if this field is unset or zero.
   google.protobuf.Timestamp end_time = 2;
 
-  // kinds filters results by session kind (e.g. "ssh", "k8s", "db").
+  // kinds filters results by session kind (e.g. "ssh", "k8s", "db", "beam").
   // A session matches if its kind equals any value in the list (OR semantics).
   // An empty list returns sessions of all kinds.
   repeated string kinds = 3;
@@ -189,6 +189,8 @@ message ResourceProperties {
     DatabaseProperties database = 3;
     // desktop holds Windows desktop session properties.
     DesktopProperties desktop = 4;
+    // beam holds beam session properties.
+    BeamProperties beam = 5;
   }
 }
 
@@ -212,6 +214,16 @@ message KubernetesProperties {
 message DatabaseProperties {
   // database_name is the name of the database accessed.
   optional string database_name = 1;
+}
+
+// BeamProperties are the kind-specific properties for beam summaries.
+message BeamProperties {
+  // beam_id is the UUID of the beam.
+  optional string beam_id = 1;
+  // beam_alias is the human-readable alias of the beam, when available.
+  optional string beam_alias = 2;
+  // owner is the Teleport username of the beam's owner.
+  optional string owner = 3;
 }
 
 // DesktopType identifies the platform of a desktop session.
@@ -316,6 +328,7 @@ message SessionSummary {
   //   SSH sessions:        {server_addr, server_hostname}
   //   Kubernetes sessions: {pod_namespace, pod_name}
   //   Database sessions:   {database_name}
+  //   Beam summaries:      {beam_id, beam_alias, owner}
   ResourceProperties resource_properties = 13;
 
   // severity is the computed severity level of the session.

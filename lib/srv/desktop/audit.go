@@ -210,7 +210,8 @@ func (d *desktopSessionAuditor) makeWindowsSessionEnd(recorded bool) *events.Win
 					OriginClusterName: d.identity.OriginClusterName,
 					LocalClusterName:  d.clusterName,
 				},
-			)},
+			),
+		},
 	}
 }
 
@@ -264,6 +265,7 @@ func (d *desktopSessionAuditor) makeLinuxSessionEnd(recorded bool) *events.Linux
 		EndTime:            d.clock.Now().UTC(),
 		DesktopName:        d.getName(),
 		Recorded:           recorded,
+		HostID:             d.desktopServiceUUID,
 
 		// There can only be 1 participant, desktop sessions are not join-able.
 		Participants: []string{
@@ -273,7 +275,8 @@ func (d *desktopSessionAuditor) makeLinuxSessionEnd(recorded bool) *events.Linux
 					OriginClusterName: d.identity.OriginClusterName,
 					LocalClusterName:  d.clusterName,
 				},
-			)},
+			),
+		},
 	}
 }
 
@@ -489,7 +492,8 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(completion complet
 		writeRequestInfo{
 			path:   path,
 			offset: offset,
-		})
+		},
+	)
 	if err == nil {
 		// no work to do yet, but data is cached for future events
 		return nil

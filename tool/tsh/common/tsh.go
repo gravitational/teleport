@@ -115,6 +115,7 @@ import (
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
+	"github.com/gravitational/teleport/tool/common/recordingsearch"
 	"github.com/gravitational/teleport/tool/common/touchid"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
 )
@@ -615,6 +616,9 @@ type CLIConf struct {
 
 	// recordingsSince is a duration which sets the time into the past in which to list session recordings
 	recordingsSince string
+
+	// recordingsSearch holds the filters and output settings for recording searches.
+	recordingsSearch recordingsearch.SearchConfig
 
 	// command is the selected command (and subcommands) parsed from command
 	// line args. Note that this command does not contain the binary (e.g. tsh).
@@ -1210,6 +1214,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.ToUTC)
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format \"5h30m40s\".").StringVar(&cf.recordingsSince)
+	searchRecordings := cf.recordingsSearch.Register(recordings)
+	searchRecordings.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	exportRecordings := recordings.Command("export", "Export recorded desktop sessions to video.")
 	exportRecordings.Flag("encoder", "The video encoder to use.").Default("auto").EnumVar(&cf.Format, "ffmpeg", "avi", "auto")
 	exportRecordings.Flag("out", "Override output file name.").StringVar(&cf.OutFile)
@@ -2006,6 +2012,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onApps(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
+	case searchRecordings.FullCommand():
+		err = onSearchRecordings(&cf)
 	case exportRecordings.FullCommand():
 		err = onExportRecording(&cf)
 	case appLogin.FullCommand():
@@ -6617,6 +6625,26 @@ func serializeAppsWithClusters(apps []appListing, format string) (string, error)
 		out, err = yaml.Marshal(apps)
 	}
 	return string(out), trace.Wrap(err)
+}
+
+func onSearchRecordings(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		authClient := clusterClient.CurrentCluster()
+		return trace.Wrap(cf.recordingsSearch.Run(cf.Context,
+			authClient.SessionSearchServiceClient(), authClient.SummarizerServiceClient(),
+			cf.Stdout(), cf.Stderr()))
+	}))
 }
 
 func onRecordings(cf *CLIConf) error {

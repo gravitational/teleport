@@ -139,7 +139,7 @@ message SearchSessionSummariesParams {
   // The server returns an error if this field is unset or zero.
   google.protobuf.Timestamp end_time = 2;
 
-  // kinds filters results by session kind (e.g. "ssh", "k8s", "db").
+  // kinds filters results by session kind (e.g. "ssh", "k8s", "db", "beam").
   // A session matches if its kind equals any value in the list (OR semantics).
   // An empty list disables this filter.
   repeated string kinds = 3;
@@ -245,6 +245,8 @@ message ResourceProperties {
     DatabaseProperties database = 3;
     // desktop holds Windows desktop session properties.
     DesktopProperties desktop = 4;
+    // beam holds beam session properties.
+    BeamProperties beam = 5;
   }
 }
 
@@ -268,6 +270,16 @@ message KubernetesProperties {
 message DatabaseProperties {
   // database_name is the name of the database accessed.
   optional string database_name = 1;
+}
+
+// BeamProperties are the kind-specific properties for beam summaries.
+message BeamProperties {
+  // beam_id is the UUID of the beam.
+  optional string beam_id = 1;
+  // beam_alias is the human-readable alias of the beam, when available.
+  optional string beam_alias = 2;
+  // owner is the Teleport username of the beam's owner.
+  optional string owner = 3;
 }
 
 // DesktopType identifies the platform of a desktop session.
@@ -437,8 +449,8 @@ message StoreSessionSummaryRequest {
   // session_id is the unique identifier of the session.
   string session_id = 1;
 
-  // kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
-  // Must match the active variant of resource_properties.
+  // kind is the session type (e.g. "ssh", "k8s", "db", "desktop", "beam").
+  // Must match the active variant of resource_properties when present.
   string kind = 2;
 
   // username is the Teleport user who initiated the session.

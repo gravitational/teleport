@@ -119,7 +119,7 @@ inference policy. Choose how to create it:
 - **Summarize all SSH, Kubernetes, and database sessions:** let Teleport create
   the policy for you from the Web UI. See
   [Turn on summaries with the default policy](#turn-on-summaries-with-the-default-policy).
-- **Choose which sessions are summarized, or include desktop sessions:** skip to
+- **Choose which sessions are summarized, or include Windows desktop sessions:** skip to
   [Step 3: Set up an inference policy](#step-34-set-up-an-inference-policy) and
   create the policy yourself.
 </Admonition>
@@ -419,8 +419,8 @@ To view the policy:
 $ tctl get inference_policy/teleport-cloud-default
 ```
 
-Desktop sessions are left out. To summarize them too, edit the policy and add
-`desktop` to `spec.kinds`:
+To summarize Windows desktop sessions, edit the policy and add `desktop` to
+`spec.kinds`:
 
 ```code
 $ tctl edit inference_policy/teleport-cloud-default

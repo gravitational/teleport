@@ -4877,6 +4877,8 @@ message LinuxDesktopSessionEnd {
   bool Recorded = 11 [(gogoproto.jsontag) = "recorded"];
   // Participants is a list of participants in the session.
   repeated string Participants = 12 [(gogoproto.jsontag) = "participants"];
+  // HostID is the uuid of the desktop service.
+  string HostID = 13 [(gogoproto.jsontag) = "host_id"];
 }
 
 // CertificateCreate is emitted when a certificate is issued.
