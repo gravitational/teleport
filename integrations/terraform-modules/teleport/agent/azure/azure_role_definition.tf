@@ -14,12 +14,30 @@ locals {
     ]
   }
 
-  # Kubernetes is currently the only supported service. 
+  # Kubernetes is currently the only supported service.
   # When adding another service, ensure the permissions are correctly defined.
   default_role_permissions = local.kubernetes_service_permissions
 
   create_managed_identity_role = var.create && var.managed_identity_role != null
-  managed_identity_role_scope  = local.create_managed_identity_role ? coalesce(var.managed_identity_role.scope, local.subscription_scope) : null
+
+  azure_management_group_scope = (
+    var.azure_management_group_id != null
+    ? "/providers/Microsoft.Management/managementGroups/${var.azure_management_group_id}"
+    : null
+  )
+
+  managed_identity_role_scope_override = try(var.managed_identity_role.scope, null)
+
+  # Determine the scope for the managed identity role, prioritizing the override, then the explicit management group, and finally the current client subscription.
+  managed_identity_role_scope = local.create_managed_identity_role ? coalesce(local.managed_identity_role_scope_override, local.azure_management_group_scope, local.subscription_scope) : null
+
+  # When using DataActions permissions in roles (which the Kubernetes Service requires), Azure requires an explicit list of subscription scopes.
+  # Re-apply this module to pick up new subscriptions.
+  managed_identity_role_assignment_scopes = local.create_managed_identity_role ? (
+    length(data.azurerm_management_group.agent) == 0
+    ? { default = local.managed_identity_role_scope }
+    : { for sub in data.azurerm_management_group.agent[0].all_subscription_ids : "/subscriptions/${sub}" => "/subscriptions/${sub}" }
+  ) : {}
 }
 
 resource "azurerm_role_definition" "teleport_agent" {
@@ -37,10 +55,14 @@ resource "azurerm_role_definition" "teleport_agent" {
 }
 
 resource "azurerm_role_assignment" "teleport_agent" {
-  count = local.create_managed_identity_role ? 1 : 0
+  for_each = local.managed_identity_role_assignment_scopes
 
-  principal_id       = local.managed_identity.principal_id
-  principal_type     = "ServicePrincipal"
-  role_definition_id = one(azurerm_role_definition.teleport_agent[*].role_definition_resource_id)
-  scope              = local.managed_identity_role_scope
+  principal_id   = local.managed_identity.principal_id
+  principal_type = "ServicePrincipal"
+  role_definition_id = (
+    each.key == "default"
+    ? one(azurerm_role_definition.teleport_agent[*].role_definition_resource_id)
+    : "${each.value}/providers/Microsoft.Authorization/roleDefinitions/${one(azurerm_role_definition.teleport_agent[*].role_definition_id)}"
+  )
+  scope = each.value
 }

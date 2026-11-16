@@ -1,0 +1,294 @@
+---
+title: Discover and Access AKS Clusters in a Management Group
+sidebar_label: aks-management-group
+description: Configure AKS discovery across an Azure management group with separate public and private Kubernetes Service deployments.
+page_type: reference
+---
+
+{/*
+    Auto-generated file.
+    Do not edit this directly in the docs/pages tree.
+    Instead, edit teleport/discovery/azure/examples/aks-management-group/README.md
+    Then, regenerate the docs with `make -C integrations/terraform-modules docs`.
+*/}
+
+This page lists the configuration fields in a usage example of the
+teleport-discovery-azure Terraform module: aks-management-group.
+## Discover and access AKS clusters in a management group
+
+Configure Teleport to discover AKS clusters and provide access to them by deploying the Kubernetes Service.
+
+The Kubernetes Service must be able to reach the AKS cluster.
+If you have private AKS clusters, ensure you deploy multiple Kubernetes Service that can reach those AKS clusters using the `subnet_id` to place them.
+
+{/* BEGIN_TF_DOCS */}
+## Requirements
+
+| Name | Version |
+| ---- | ------- |
+| terraform | >= 1.5.7 |
+| azurerm | >= 5.0 |
+| http | >= 3.0 |
+| random | >= 3.0 |
+| teleport | >= 18.11.0 |
+
+## Providers
+
+| Name | Version |
+| ---- | ------- |
+| azurerm | >= 5.0 |
+| azurerm.private | >= 5.0 |
+
+## Modules
+
+| Name | Source | Version |
+| ---- | ------ | ------- |
+| azure\_agent | ../../../../agent/azure | n/a |
+| azure\_agent\_private | ../../../../agent/azure | n/a |
+| azure\_discovery | ../.. | n/a |
+
+## Resources
+
+| Name | Type |
+| ---- | ---- |
+| [azurerm_resource_group.example](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group) | resource |
+| [azurerm_resource_group.private](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group) | resource |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+| ---- | ----------- | ---- | ------- | :------: |
+| teleport\_proxy\_addr | The address of the Teleport Proxy Service in host:port form. | `string` | n/a | yes |
+
+## Outputs
+
+| Name | Description |
+| ---- | ----------- |
+| azure\_agent | Public Kubernetes Service identity, replicas, and log commands. |
+| azure\_agent\_private | Private Kubernetes Service identity, replicas, and log commands. |
+| azure\_discovery | AKS discovery configuration, OIDC integration, and Azure discovery identity. |
+{/* END_TF_DOCS */}
+
+## Source Code
+
+[View the aks-management-group example source code for the teleport-discovery-azure module on GitHub](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/azure/examples/aks-management-group).
+
+```hcl
+################################################################################
+# teleport/discovery/azure/examples/aks-management-group/main.tf
+################################################################################
+
+locals {
+  apply_azure_tags               = { origin = "example" }
+  apply_teleport_resource_labels = { origin = "example" }
+
+  # A Discovery Service watching this discovery group must already exist.
+  # If you are using Teleport Cloud, you can use `cloud-discovery-group`.
+  teleport_discovery_group = "discover-aks"
+
+  # Matching rules for discovering AKS clusters.
+  # This should include both public and private AKS clusters.
+  matching_resource_groups = ["*"]
+  matching_regions         = ["westus", "eastus"]
+  matching_tags = {
+    env = ["prod"]
+  }
+
+  # Azure Management Group ID is the UUID of the management group.
+  azure_management_group_id = "00000000-0000-0000-0000-000000000000"
+
+  # Deployment Subscription ID is the subscription where the Azure resources will be deployed.
+  deployment_subscription_id = "11111111-1111-1111-1111-111111111111"
+  public_matching_labels = {
+    "PrivateCluster"     = ["false"]
+    "teleport.dev/cloud" = ["Azure"]
+  }
+
+  # Private Subscription ID is the subscription where the private AKS clusters are deployed.
+  # You can remove this if you do not have private AKS clusters, or convert it into a list so that multiple private subscriptions can be specified.
+  private_subscription_id = "22222222-2222-2222-2222-222222222222"
+  private_subnet_id       = "/subscriptions/${local.private_subscription_id}/resourceGroups/networking/providers/Microsoft.Network/virtualNetworks/private-network/subnets/teleport"
+  private_matching_labels = {
+    "PrivateCluster"     = ["true"]
+    "teleport.dev/cloud" = ["Azure"]
+    "subscription-id"    = [local.private_subscription_id]
+  }
+}
+
+# Shared discovery and the public Kubernetes Service are hosted here.
+resource "azurerm_resource_group" "example" {
+  name     = "teleport-aks-access"
+  location = "eastus"
+  tags     = local.apply_azure_tags
+}
+
+# One shared discovery configuration for all subscriptions in the group.
+module "azure_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/azure"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr    = var.teleport_proxy_addr
+  teleport_discovery_group_name = local.teleport_discovery_group
+
+  azure_resource_group_name       = azurerm_resource_group.example.name
+  azure_managed_identity_location = azurerm_resource_group.example.location
+
+  # Discovery permissions inherit to all current and future descendant subscriptions.
+  azure_management_group_id = local.azure_management_group_id
+
+  azure_matchers = [
+    {
+      types           = ["aks"]
+      subscriptions   = ["*"]
+      resource_groups = local.matching_resource_groups
+      regions         = local.matching_regions
+      tags            = local.matching_tags
+    }
+  ]
+
+  apply_azure_tags               = local.apply_azure_tags
+  apply_teleport_resource_labels = local.apply_teleport_resource_labels
+}
+
+# Public AKS clusters in the selected subscription and regions.
+# No subnet is set on these replicas.
+module "azure_agent" {
+  source  = "terraform.releases.teleport.dev/teleport/agent/azure"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr    = var.teleport_proxy_addr
+  teleport_discovery_group_name = local.teleport_discovery_group
+
+  azure_management_group_id = local.azure_management_group_id
+
+  resource_group_name          = azurerm_resource_group.example.name
+  location                     = azurerm_resource_group.example.location
+  apply_azure_tags             = local.apply_azure_tags
+  container_group_name         = "teleport-agent-${azurerm_resource_group.example.location}"
+  log_analytics_workspace_name = "teleport-${azurerm_resource_group.example.location}"
+
+  kubernetes_service = {
+    enabled                 = true
+    resource_matcher_labels = local.public_matching_labels
+  }
+}
+
+# This location must match the existing private subnet's VNet region.
+resource "azurerm_resource_group" "private" {
+  provider = azurerm.private
+
+  name     = "teleport-aks-access-private"
+  location = "eastus"
+  tags     = local.apply_azure_tags
+}
+
+# Private AKS clusters reachable from this subnet.
+# Repeat this provider/module pattern for additional private networks, selecting the clusters each can reach.
+module "azure_agent_private" {
+  source  = "terraform.releases.teleport.dev/teleport/agent/azure"
+  version = "~> (=teleport.major_version=).0"
+
+  providers = {
+    azurerm = azurerm.private
+  }
+
+  create = local.private_subnet_id != null
+
+  teleport_proxy_public_addr    = var.teleport_proxy_addr
+  teleport_discovery_group_name = local.teleport_discovery_group
+
+  subnet_id = local.private_subnet_id
+
+  resource_group_name          = azurerm_resource_group.private.name
+  location                     = azurerm_resource_group.private.location
+  apply_azure_tags             = local.apply_azure_tags
+  container_group_name         = "teleport-agent-${azurerm_resource_group.private.location}"
+  log_analytics_workspace_name = "teleport-${azurerm_resource_group.private.location}"
+
+  kubernetes_service = {
+    enabled                 = true
+    resource_matcher_labels = local.private_matching_labels
+  }
+}
+
+################################################################################
+# teleport/discovery/azure/examples/aks-management-group/outputs.tf
+################################################################################
+
+output "azure_discovery" {
+  description = "AKS discovery configuration, OIDC integration, and Azure discovery identity."
+  value       = module.azure_discovery
+}
+
+output "azure_agent" {
+  description = "Public Kubernetes Service identity, replicas, and log commands."
+  value       = module.azure_agent
+}
+
+output "azure_agent_private" {
+  description = "Private Kubernetes Service identity, replicas, and log commands."
+  value       = module.azure_agent_private
+}
+
+################################################################################
+# teleport/discovery/azure/examples/aks-management-group/providers.tf
+################################################################################
+
+# Both configurations use the same Azure authentication credentials.
+# The default subscription hosts discovery and the public Kubernetes Service.
+provider "azurerm" {
+  subscription_id = local.deployment_subscription_id
+  features {}
+}
+
+provider "azurerm" {
+  alias           = "private"
+  subscription_id = local.private_subscription_id
+  features {}
+}
+
+provider "teleport" {
+  addr         = var.teleport_proxy_addr
+  profile_name = replace(var.teleport_proxy_addr, "/:[0-9]+.*/", "")
+}
+
+################################################################################
+# teleport/discovery/azure/examples/aks-management-group/variables.tf
+################################################################################
+
+variable "teleport_proxy_addr" {
+  description = "The address of the Teleport Proxy Service in host:port form."
+  type        = string
+}
+
+################################################################################
+# teleport/discovery/azure/examples/aks-management-group/versions.tf
+################################################################################
+
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = ">= 5.0"
+    }
+
+    http = {
+      source  = "hashicorp/http"
+      version = ">= 3.0"
+    }
+
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.0"
+    }
+
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = ">= 18.11.0"
+    }
+  }
+}
+
+```

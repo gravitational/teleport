@@ -183,8 +183,15 @@ variable "log_analytics_workspace_use_name_prefix" {
   type        = bool
 }
 
+variable "azure_management_group_id" {
+  description = "ID of an Azure management group or tenant to scope the agent's managed identity role to, instead of the provider's subscription. The role is assigned to each subscription currently in the group. Re-apply this module to pick up subscriptions added later. Has no effect when `managed_identity_role.scope` is set."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
 variable "managed_identity_role" {
-  description = "Custom role for the agent's managed identity. Defaults to permissions for the configured service, scoped to the provider's subscription. Override actions, data_actions, or scopes as needed; set to null to disable role creation and assignments."
+  description = "Custom role for the agent's managed identity. Defaults to permissions for the configured service, scoped to the provider's subscription or `azure_management_group_id`. Override actions, data_actions, or scopes as needed; set to null to disable role creation and assignments."
   type = object({
     actions      = optional(list(string))
     data_actions = optional(list(string))
@@ -194,6 +201,6 @@ variable "managed_identity_role" {
 
   validation {
     condition     = try(var.managed_identity_role.scope != "", true)
-    error_message = "managed_identity_role.scope must be set when defining a custom role. Omit it to default to the provider's subscription."
+    error_message = "managed_identity_role.scope must be set when defining a custom role. Omit it to default to the provider's subscription or `azure_management_group_id`."
   }
 }

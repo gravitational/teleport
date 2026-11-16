@@ -84,6 +84,7 @@ No modules.
 | [random_string.name_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
 | teleport_provision_token.agent | resource |
 | [azurerm_client_config.this](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/client_config) | data source |
+| [azurerm_management_group.agent](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/management_group) | data source |
 | [http_http.managed_updates](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
 
 ## Inputs
@@ -91,6 +92,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | apply\_azure\_tags | Additional Azure tags to apply to all created Azure resources. | `map(string)` | `{}` | no |
+| azure\_management\_group\_id | ID of an Azure management group or tenant to scope the agent's managed identity role to, instead of the provider's subscription. The role is assigned to each subscription currently in the group. Re-apply this module to pick up subscriptions added later. Has no effect when `managed_identity_role.scope` is set. | `string` | `null` | no |
 | container\_group\_cpu | The required number of CPU cores of the containers. | `number` | `2` | no |
 | container\_group\_desired\_count | Desired number of Teleport container groups to run. | `number` | `2` | no |
 | container\_group\_memory | The required memory of the containers in GB. | `number` | `4` | no |
@@ -103,7 +105,7 @@ No modules.
 | log\_analytics\_workspace\_name | Name of the Log Analytics workspace for the Teleport containers. | `string` | `"teleport"` | no |
 | log\_analytics\_workspace\_retention\_days | Retention of container logs in the created Log Analytics workspace. | `number` | `30` | no |
 | log\_analytics\_workspace\_use\_name\_prefix | Determines whether log\_analytics\_workspace\_name is used as a prefix of the Log Analytics workspace name. | `bool` | `true` | no |
-| managed\_identity\_role | Custom role for the agent's managed identity. Defaults to permissions for the configured service, scoped to the provider's subscription. Override actions, data\_actions, or scopes as needed; set to null to disable role creation and assignments. | ```object({ actions = optional(list(string)) data_actions = optional(list(string)) scope = optional(string) })``` | `{}` | no |
+| managed\_identity\_role | Custom role for the agent's managed identity. Defaults to permissions for the configured service, scoped to the provider's subscription or `azure_management_group_id`. Override actions, data\_actions, or scopes as needed; set to null to disable role creation and assignments. | ```object({ actions = optional(list(string)) data_actions = optional(list(string)) scope = optional(string) })``` | `{}` | no |
 | managed\_updates\_enabled | Whether to resolve the Teleport version from the configured Managed Updates endpoint when applying this module. | `bool` | `true` | no |
 | managed\_updates\_group | Update group to query through the v2 Managed Updates endpoint. | `string` | `"default"` | no |
 | resource\_group\_name | Resource group where the resources will be created. Must already exist. | `string` | n/a | yes |

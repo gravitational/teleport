@@ -22,7 +22,8 @@ This Terraform module creates the Azure and Teleport cluster resources necessary
 
 - [Discover VMs in a single Azure subscription](./examples/single-subscription.mdx)
 - [Discover VMs in an Azure management group](./examples/management-group.mdx)
-- [Discover and access AKS clusters](./examples/aks-discovery-access.mdx)
+- [Discover and access AKS clusters in a single subscription](./examples/aks-discovery-access.mdx)
+- [Discover and access AKS clusters in a management group](./examples/aks-management-group.mdx)
 
 ## How to get help
 

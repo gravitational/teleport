@@ -1,6 +1,6 @@
-## Discover Azure Resources in a Management Group Example
+## Discover Azure VMs in a Management Group Example
 
-Configure Teleport to discover resources in an Azure management group.
+Configure Teleport to discover VMs in an Azure management group.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
