@@ -41,6 +41,11 @@ resource "teleport_workload_identity" "example" {
     spiffe = {
       id   = "/my/spiffe/id/path"
       hint = "my-hint"
+      jwt = {
+        extra_claims_json = jsonencode({
+          namespace = "{{workload.kubernetes.namespace}}"
+        })
+      }
     }
   }
 }
@@ -141,6 +146,7 @@ Optional:
 
 Optional:
 
+- `extra_claims_json` (String) Additional claims that will be added to the JWT.
 - `maximum_ttl` (String) Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.  If a JWT-SVID is requested with a TTL greater than this value, then the returned JWT-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 24 hours.
 
 

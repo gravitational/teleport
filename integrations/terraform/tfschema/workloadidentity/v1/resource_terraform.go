@@ -28,6 +28,7 @@ import (
 	github_com_gravitational_teleport_api_gen_proto_go_teleport_header_v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	github_com_gravitational_teleport_integrations_terraform_tfschema "github.com/gravitational/teleport/integrations/terraform/tfschema"
+	github_com_gravitational_teleport_integrations_terraform_tfschema_resource153 "github.com/gravitational/teleport/integrations/terraform/tfschema/resource153"
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
 	github_com_hashicorp_terraform_plugin_framework_datasource_schema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
@@ -195,10 +196,19 @@ func GenSchemaWorkloadIdentityResource(ctx context.Context) (github_com_hashicor
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseNonNullStateForUnknown()},
 						},
 						"jwt": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
-							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"maximum_ttl": GenSchemaDurationResource(ctx, github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
-								Description: "Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.  If a JWT-SVID is requested with a TTL greater than this value, then the returned JWT-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 24 hours.",
-								Optional:    true,
-							})},
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
+								"extra_claims_json": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Computed:      false,
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_gravitational_teleport_integrations_terraform_tfschema_resource153.JSONEqualPlanModifier()},
+									Required:      false,
+									Validators:    []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema_resource153.JSONObjectValidator()},
+								},
+								"maximum_ttl": GenSchemaDurationResource(ctx, github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
+									Description: "Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.  If a JWT-SVID is requested with a TTL greater than this value, then the returned JWT-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 24 hours.",
+									Optional:    true,
+								}),
+							},
 							Description: "Configuration specific to JWT-SVIDs.",
 							Optional:    true,
 						},
@@ -397,10 +407,18 @@ func GenSchemaWorkloadIdentityDataSource(ctx context.Context) (github_com_hashic
 							Optional:    true,
 						},
 						"jwt": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
-							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"maximum_ttl": GenSchemaDurationDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
-								Description: "Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.  If a JWT-SVID is requested with a TTL greater than this value, then the returned JWT-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 24 hours.",
-								Optional:    true,
-							})},
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
+								"extra_claims_json": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Computed:   false,
+									Optional:   true,
+									Required:   false,
+									Validators: []github_com_hashicorp_terraform_plugin_framework_schema_validator.String{github_com_gravitational_teleport_integrations_terraform_tfschema_resource153.JSONObjectValidator()},
+								},
+								"maximum_ttl": GenSchemaDurationDataSource(ctx, github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
+									Description: "Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.  If a JWT-SVID is requested with a TTL greater than this value, then the returned JWT-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 24 hours.",
+									Optional:    true,
+								}),
+							},
 							Description: "Configuration specific to JWT-SVIDs.",
 							Optional:    true,
 						},
@@ -1931,6 +1949,9 @@ func CopyWorkloadIdentityToTerraformPreserveUnknown(ctx context.Context, obj *gi
 																					v := CopyToDuration(diags, obj.MaximumTtl, t, attrs["maximum_ttl"], preserveUnknown)
 																					attrs["maximum_ttl"] = v
 																				}
+																			}
+																			if _, ok := attrs["extra_claims_json"]; !ok {
+																				attrs["extra_claims_json"] = github_com_hashicorp_terraform_plugin_framework_types.StringNull()
 																			}
 																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
 																			diags.Append(resultDiags...)

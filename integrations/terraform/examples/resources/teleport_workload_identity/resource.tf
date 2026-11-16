@@ -19,6 +19,11 @@ resource "teleport_workload_identity" "example" {
     spiffe = {
       id   = "/my/spiffe/id/path"
       hint = "my-hint"
+      jwt = {
+        extra_claims_json = jsonencode({
+          namespace = "{{workload.kubernetes.namespace}}"
+        })
+      }
     }
   }
 }

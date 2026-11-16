@@ -38,8 +38,8 @@ func NewWorkloadIdentityDataSourceType() tfdriver.DataSourceType[workloadidentit
 		Kind: types.KindWorkloadIdentity,
 		Name: types.KindWorkloadIdentity,
 		Codec: tfdriver.DataSourceCodecFuncs[workloadidentityv1.WorkloadIdentity]{
-			SchemaFunc:  schemav1.GenSchemaWorkloadIdentityDataSource,
-			ToStateFunc: schemav1.CopyWorkloadIdentityToTerraform,
+			SchemaFunc:  schemav1.GenSchemaWorkloadIdentityDataSourceWithExtraClaims,
+			ToStateFunc: schemav1.CopyWorkloadIdentityToTerraformWithExtraClaims,
 		},
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(tfdriver.ScopeQualifiedPath{
 			Name:  path.Root("metadata").AtName("name"),
@@ -57,13 +57,13 @@ func NewWorkloadIdentityResourceType() tfdriver.ResourceType[workloadidentityv1.
 		Kind: types.KindWorkloadIdentity,
 		Name: types.KindWorkloadIdentity,
 		Codec: tfdriver.ResourceCodecFuncs[workloadidentityv1.WorkloadIdentity]{
-			SchemaFunc:   schemav1.GenSchemaWorkloadIdentityResource,
-			ToStateFunc:  schemav1.CopyWorkloadIdentityToTerraform,
-			FromPlanFunc: schemav1.CopyWorkloadIdentityFromTerraform,
-			ModifyPlanFunc: tfdriver.NullToZeroModifyPlan(
+			SchemaFunc:   schemav1.GenSchemaWorkloadIdentityResourceWithExtraClaims,
+			ToStateFunc:  schemav1.CopyWorkloadIdentityToTerraformWithExtraClaims,
+			FromPlanFunc: schemav1.CopyWorkloadIdentityFromTerraformWithExtraClaims,
+			ModifyPlanFunc: schemav1.ModifyWorkloadIdentityPlanWithExtraClaims(tfdriver.NullToZeroModifyPlan(
 				schemav1.CopyWorkloadIdentityFromTerraform,
 				schemav1.CopyWorkloadIdentityToTerraformPreserveUnknown,
-			),
+			)),
 		},
 		Normalizer: tfdriver.ForceKind[workloadidentityv1.WorkloadIdentity](types.KindWorkloadIdentity),
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(
