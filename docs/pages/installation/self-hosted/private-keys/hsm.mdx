@@ -208,9 +208,9 @@ to use.
    ```
 
 1. Use `yubihsm-shell` to create a new
-   [authentication key](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#authentication-key)
+   [authentication key](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-intro-core-concepts.html#authentication-key-object)
    to be used by Teleport with the necessary
-   [capabilities](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-core-concepts.html#capability).
+   [capabilities](https://docs.yubico.com/hardware/yubihsm-2/hsm-2-user-guide/hsm2-intro-core-concepts.html#capabilities).
 
    YubiHSM2 comes with a factory default authentication key at slot 1 with password
    `password`. We recommend replacing this or changing the password as soon as
@@ -254,7 +254,7 @@ to use.
 
    ```text
    # /etc/yubihsm_pkcs11.conf
-   connector = https://127.0.0.1:12345
+   connector = http://127.0.0.1:12345
    debug
    ```
 
