@@ -26,8 +26,10 @@ import (
 	"io"
 	"os"
 	"slices"
+	"sort"
 	"strings"
 	"text/tabwriter"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/term"
@@ -40,7 +42,7 @@ const (
 	MinColumnWidth = 5
 	// ColumnPadding follows every cell, including the last one on a row.
 	ColumnPadding = 1
-	// TruncationSuffix is appended to cells over [Column.MaxCellLength].
+	// TruncationSuffix is appended to truncated cells.
 	TruncationSuffix = "..."
 )
 
@@ -50,6 +52,20 @@ type Column struct {
 	MaxCellLength int
 	FootnoteLabel string
 	width         int
+
+	// Priority sets truncation order, highest first.
+	// Equal priorities share a width limit.
+	Priority int
+	// MinWidth is the minimum content width in bytes, capped at full width.
+	// Zero uses the larger of the header and truncation minimum widths.
+	MinWidth int
+	// OmitTruncated hides the column if all nonempty cells would be truncated.
+	OmitTruncated bool
+	// Hidden hides the column in all layouts.
+	Hidden bool
+
+	maxContentWidth int // bytes including suffix and footnote label; zero uses MaxCellLength
+	omitted         bool
 }
 
 // Table holds tabular values in a rows and columns format.
@@ -134,6 +150,110 @@ func MakeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncat
 	return t
 }
 
+// FitToWidth truncates or omits columns to fit a byte budget.
+// Headers and minimum widths can exceed the budget.
+func (t *Table) FitToWidth(width int) {
+	measurements := t.measureColumns()
+	for level := len(measurements.priorities) - 1; level >= 0 && measurements.totalWidth > width; level-- {
+		t.shrinkPriorityLevel(measurements.priorities[level], width, &measurements)
+	}
+	for i, columnWidth := range measurements.widths {
+		t.columns[i].omitted = columnWidth == 0
+		t.columns[i].maxContentWidth = columnWidth
+		t.columns[i].width = columnWidth
+	}
+}
+
+type columnMeasurements struct {
+	widths           []int
+	floors           []int
+	minContentWidths []int
+	priorities       []int
+	totalWidth       int
+}
+
+// measureColumns measures visible columns in bytes and sorts any truncation
+// priorities. Its reported total width is inclusive of column padding.
+func (t *Table) measureColumns() columnMeasurements {
+	widths := make([]int, len(t.columns))
+	floors := make([]int, len(t.columns))
+	minContentWidths := make([]int, len(t.columns))
+	var priorities []int
+	total := 0
+	for i, column := range t.columns {
+		if column.Hidden {
+			continue
+		}
+		column.maxContentWidth = 0
+		contentWidth := 0
+		for _, row := range t.rows {
+			if i < len(row) && row[i] != "" {
+				cell, _ := column.truncateCell(row[i])
+				cellWidth := len(cell)
+				contentWidth = max(contentWidth, cellWidth)
+				if minContentWidths[i] == 0 || cellWidth < minContentWidths[i] {
+					minContentWidths[i] = cellWidth
+				}
+			}
+		}
+		widths[i] = max(contentWidth, len(column.Title), MinColumnWidth-ColumnPadding)
+		truncationWidth := len(TruncationSuffix) + 1
+		if column.FootnoteLabel != "" {
+			truncationWidth += len(column.FootnoteLabel) + 1
+		}
+		floors[i] = min(widths[i], max(len(column.Title), MinColumnWidth-ColumnPadding, truncationWidth, column.MinWidth))
+		priorities = append(priorities, column.Priority)
+		total += widths[i] + ColumnPadding
+	}
+	slices.Sort(priorities)
+	priorities = slices.Compact(priorities)
+	return columnMeasurements{
+		widths:           widths,
+		floors:           floors,
+		minContentWidths: minContentWidths,
+		priorities:       priorities,
+		totalWidth:       total,
+	}
+}
+
+// shrinkPriorityLevel shrinks or omits columns at one priority to fit the budget.
+// After omissions it re-measures widths and updates the total.
+func (t *Table) shrinkPriorityLevel(priority, width int, measurements *columnMeasurements) {
+	widths, floors := measurements.widths, measurements.floors
+	for measurements.totalWidth > width {
+		// find the largest fitting shared width limit
+		limit := sort.Search(slices.Max(widths), func(limit int) bool {
+			candidateWidth := measurements.totalWidth
+			for i, column := range t.columns {
+				if column.Priority == priority {
+					candidateWidth -= widths[i] - max(floors[i], min(widths[i], limit))
+				}
+			}
+			return candidateWidth > width
+		})
+		limit = max(0, limit-1)
+		removed := false
+		for i, column := range t.columns {
+			if column.Priority == priority && column.OmitTruncated && widths[i] > 0 && measurements.minContentWidths[i] > max(floors[i], limit) {
+				measurements.totalWidth -= widths[i] + ColumnPadding
+				widths[i], floors[i] = 0, 0
+				removed = true
+			}
+		}
+		if removed {
+			continue
+		}
+		for i, column := range t.columns {
+			if column.Priority == priority {
+				nextWidth := max(floors[i], min(widths[i], limit))
+				measurements.totalWidth -= widths[i] - nextWidth
+				widths[i] = nextWidth
+			}
+		}
+		break
+	}
+}
+
 // AddColumn adds a column to the table's structure.
 func (t *Table) AddColumn(c Column) {
 	c.width = len(c.Title)
@@ -144,7 +264,7 @@ func (t *Table) AddColumn(c Column) {
 func (t *Table) AddRow(row []string) {
 	limit := min(len(row), len(t.columns))
 	for i := range limit {
-		cell, _ := t.truncateCell(i, row[i])
+		cell, _ := t.columns[i].truncateCell(row[i])
 		t.columns[i].width = max(len(cell), t.columns[i].width)
 	}
 	t.rows = append(t.rows, row[:limit])
@@ -155,15 +275,28 @@ func (t *Table) AddFootnote(label string, note string) {
 	t.footnotes[label] = note
 }
 
-// truncateCell truncates cell contents to shorter than the column's
-// MaxCellLength, and adds the footnote symbol if specified.
-func (t *Table) truncateCell(colIndex int, cell string) (string, bool) {
-	maxCellLength := t.columns[colIndex].MaxCellLength
-	if maxCellLength == 0 || len(cell) <= maxCellLength {
+func (column Column) truncateCell(cell string) (string, bool) {
+	limit := column.MaxCellLength
+	if column.maxContentWidth > 0 {
+		if (limit == 0 || len(cell) <= limit) && len(cell) <= column.maxContentWidth {
+			return cell, false
+		}
+		limit = column.maxContentWidth - len(TruncationSuffix)
+		if column.FootnoteLabel != "" {
+			limit -= len(column.FootnoteLabel) + 1
+		}
+		if column.MaxCellLength > 0 {
+			limit = min(limit, column.MaxCellLength)
+		}
+		limit = max(limit, 0)
+		for limit > 0 && !utf8.RuneStart(cell[limit]) {
+			limit--
+		}
+	} else if limit == 0 || len(cell) <= limit {
 		return cell, false
 	}
-	truncatedCell := cell[:maxCellLength] + TruncationSuffix
-	footnoteLabel := t.columns[colIndex].FootnoteLabel
+	truncatedCell := cell[:limit] + TruncationSuffix
+	footnoteLabel := column.FootnoteLabel
 	if footnoteLabel == "" {
 		return truncatedCell, false
 	}
@@ -191,7 +324,13 @@ func (t *Table) String() string {
 // WriteTo writes the full table to [w] or else returns an error.
 func (t *Table) WriteTo(w io.Writer) error {
 	writer := tabwriter.NewWriter(w, MinColumnWidth, 0, ColumnPadding, ' ', 0)
-	template := strings.Repeat("%v\t", len(t.columns))
+	visible := 0
+	for _, column := range t.columns {
+		if !column.Hidden && !column.omitted {
+			visible++
+		}
+	}
+	template := strings.Repeat("%v\t", visible)
 
 	// Header and separator.
 	if !t.IsHeadless() {
@@ -199,6 +338,9 @@ func (t *Table) WriteTo(w io.Writer) error {
 		var cols []any
 
 		for _, col := range t.columns {
+			if col.Hidden || col.omitted {
+				continue
+			}
 			colh = append(colh, col.Title)
 			cols = append(cols, strings.Repeat("-", col.width))
 		}
@@ -215,7 +357,10 @@ func (t *Table) WriteTo(w io.Writer) error {
 	for _, row := range t.rows {
 		var rowi []any
 		for i := range row {
-			cell, addFootnote := t.truncateCell(i, row[i])
+			if t.columns[i].Hidden || t.columns[i].omitted {
+				continue
+			}
+			cell, addFootnote := t.columns[i].truncateCell(row[i])
 			if addFootnote {
 				footnoteLabels[t.columns[i].FootnoteLabel] = struct{}{}
 			}
@@ -243,7 +388,7 @@ func (t *Table) WriteTo(w io.Writer) error {
 // IsHeadless returns true if none of the table title cells contains any text.
 func (t *Table) IsHeadless() bool {
 	for i := range t.columns {
-		if len(t.columns[i].Title) > 0 {
+		if !t.columns[i].Hidden && !t.columns[i].omitted && len(t.columns[i].Title) > 0 {
 			return false
 		}
 	}

@@ -33,6 +33,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
@@ -811,27 +812,32 @@ func printRequestableResources[T resourceRow](cf *CLIConf, rows []T, resourceIDs
 		if err != nil {
 			return err
 		}
-		if i := slices.Index(columns, "Access"); i >= 0 && !anyPrincipals {
-			columns = slices.Delete(columns, i, i+1)
-			for r := range tableRows {
-				tableRows[r] = slices.Delete(tableRows[r], i, i+1)
+		table := asciitable.MakeHeadlessTable(0)
+		for _, title := range columns {
+			column := asciitable.Column{Title: title}
+			switch title {
+			case "Labels":
+				column.Priority, column.MinWidth = 1, 16
+			case "Access":
+				column.Priority = 2
+				column.OmitTruncated = true
+				column.Hidden = !anyPrincipals
 			}
+			table.AddColumn(column)
 		}
-
-		var table asciitable.Table
-		if cf.Verbose {
-			table = asciitable.MakeTable(columns, tableRows...)
-		} else {
-			table = asciitable.MakeTableWithTruncatedColumn(columns, tableRows, "Labels")
+		for _, row := range tableRows {
+			table.AddRow(row)
+		}
+		if !cf.Verbose {
+			table.FitToWidth(terminalWidth(cf.Stdout()))
 		}
 
 		if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
 			return trace.Wrap(err)
 		}
-
 		if len(resourceIDs) > 0 {
 			if anyPrincipals {
-				fmt.Fprint(cf.Stdout(), "\nhint: run 'tsh request show-principals <resource-id>' to see granted and requestable principals\n")
+				fmt.Fprint(cf.Stdout(), "\nhint: 'tsh request show-principals <resource-id>' shows a resource's granted and requestable principals.\n")
 			}
 
 			resourcesStr := strings.Join(resourceIDs, " --resource ")
@@ -852,6 +858,16 @@ To request access to these resources, run
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
+}
+
+// terminalWidth returns out's terminal width, or 80 if it cannot be determined.
+func terminalWidth(out io.Writer) int {
+	if file, ok := out.(*os.File); ok {
+		if width, _, err := term.GetSize(int(file.Fd())); err == nil && width > 0 {
+			return width
+		}
+	}
+	return 80
 }
 
 // ignoreDuplicateResourceID returns true if the resource ID is a duplicate
@@ -919,21 +935,17 @@ func formatAccessSummary(splits map[string]principalSplit) string {
 	var parts []string
 	for _, principalType := range slices.Sorted(maps.Keys(splits)) {
 		s := splits[principalType]
-		var counts []string
-		if len(s.granted) > 0 {
-			counts = append(counts, fmt.Sprintf("%d granted", len(s.granted)))
-		}
-		if len(s.requestable) > 0 {
-			counts = append(counts, fmt.Sprintf("%d requestable", len(s.requestable)))
-		}
-		if len(counts) == 0 {
+		if len(s.granted) == 0 && len(s.requestable) == 0 {
 			continue
 		}
-		if len(splits) > 1 {
-			parts = append(parts, principalType+" "+strings.Join(counts, ", "))
-		} else {
-			parts = append(parts, strings.Join(counts, ", "))
+		summary := fmt.Sprintf("%d granted", len(s.granted))
+		if len(s.requestable) > 0 {
+			summary += fmt.Sprintf(" (+%d)", len(s.requestable))
 		}
+		if len(splits) > 1 {
+			summary = principalType + " " + summary
+		}
+		parts = append(parts, summary)
 	}
 	return strings.Join(parts, "; ")
 }
