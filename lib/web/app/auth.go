@@ -304,6 +304,19 @@ func clearAuthStateCookie(w http.ResponseWriter, cookieID string) {
 	})
 }
 
+func setDBSCSessionCookies(w http.ResponseWriter, ws types.WebSession, proof string) {
+	setAppSessionCookies(w, ws, dbscCookieMaxAge)
+	http.SetCookie(w, &http.Cookie{
+		Name:     DBSCProofCookieName,
+		Value:    proof,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+		MaxAge:   int(dbscCookieMaxAge.Seconds()),
+	})
+}
+
 func setAppSessionCookies(w http.ResponseWriter, ws types.WebSession, maxAge time.Duration) {
 	setCookie := func(name, value string) {
 		cookie := &http.Cookie{

@@ -291,7 +291,7 @@ func removeAppSessionCookies(r *http.Request) {
 	r.Header.Del("Cookie")
 	for _, cookie := range cookies {
 		switch cookie.Name {
-		case CookieName, SubjectCookieName:
+		case CookieName, SubjectCookieName, DBSCProofCookieName:
 			continue
 		default:
 			r.AddCookie(cookie)

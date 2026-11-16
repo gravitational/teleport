@@ -47,6 +47,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, p httprou
 func clearAppSessionCookies(w http.ResponseWriter) {
 	expireCookie(w, CookieName)
 	expireCookie(w, SubjectCookieName)
+	expireCookie(w, DBSCProofCookieName)
 }
 
 func expireCookie(w http.ResponseWriter, cookieName string) {

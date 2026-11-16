@@ -468,7 +468,11 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := checkSubjectToken(subjectValue, ws); err != nil {
+	err = checkSubjectToken(subjectValue, ws)
+	if err == nil {
+		err = h.checkDBSCProofCookie(r, ws)
+	}
+	if err != nil {
 		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
@@ -728,6 +732,10 @@ const (
 
 	// SubjectCookieName is the name of the application session subject cookie.
 	SubjectCookieName = "__Host-grv_app_session_subject"
+
+	// DBSCProofCookieName is the name of the cookie holding the browser's
+	// latest DBSC proof for a device-bound app session.
+	DBSCProofCookieName = "__Host-grv_app_session_dbsc"
 
 	// AuthStateCookieName is the name of the state cookie used during the
 	// initial authentication flow.

@@ -45,6 +45,13 @@ const (
 	secureSessionChallengeHeader = "Secure-Session-Challenge"
 	// dbscCookieMaxAge is the short-lived cookie max age when DBSC is active.
 	dbscCookieMaxAge = 10 * time.Minute
+	// dbscProofLeeway is how long past its challenge's expiry a proof cookie is
+	// accepted: 1m of grace for the browser to answer the challenge, the cookie
+	// lifetime, then 1m of clock skew.
+	dbscProofLeeway = dbscCookieMaxAge + 2*time.Minute
+	// dbscProofCacheTTL is how long a verified proof cookie is cached, so a proof
+	// can be accepted up to this long past dbscProofLeeway.
+	dbscProofCacheTTL = time.Minute
 	// dbscRegistrationPath is the DBSC registration endpoint.
 	dbscRegistrationPath = "/x-teleport-dbsc"
 	// dbscRefreshPath is the DBSC refresh endpoint.
@@ -123,7 +130,7 @@ func (h *Handler) handleDBSCRegistration(w http.ResponseWriter, r *http.Request,
 		return trace.Wrap(err)
 	}
 
-	setAppSessionCookies(w, ws, dbscCookieMaxAge)
+	setDBSCSessionCookies(w, ws, responseJWT)
 
 	return h.writeDBSCSessionConfig(w, sessionID)
 }
@@ -171,11 +178,11 @@ func (h *Handler) handleDBSCRefresh(w http.ResponseWriter, r *http.Request, p ht
 		return nil
 	}
 
-	if err := h.verifyDBSCRefreshResponse(ctx, responseJWT, sessionID, storedPublicKey); err != nil {
+	if err := h.verifyDBSCProof(ctx, responseJWT, sessionID, storedPublicKey, 0 /* leeway */); err != nil {
 		return trace.Wrap(err)
 	}
 
-	setAppSessionCookies(w, ws, dbscCookieMaxAge)
+	setDBSCSessionCookies(w, ws, responseJWT)
 
 	// This is optional, per spec.
 	return h.writeDBSCSessionConfig(w, sessionID)
@@ -201,6 +208,11 @@ func (h *Handler) writeDBSCSessionConfig(w http.ResponseWriter, sessionID string
 				Name:       SubjectCookieName,
 				Attributes: cookieAttributes,
 			},
+			{
+				Type:       "cookie",
+				Name:       DBSCProofCookieName,
+				Attributes: cookieAttributes,
+			},
 		},
 	}
 
@@ -211,23 +223,54 @@ func (h *Handler) writeDBSCSessionConfig(w http.ResponseWriter, sessionID string
 	return nil
 }
 
-// verifyDBSCRefreshResponse verifies the browser's DBSC refresh JWT using the stored public key.
-func (h *Handler) verifyDBSCRefreshResponse(ctx context.Context, rawJWT string, sessionID string, storedPublicKey []byte) error {
+// checkDBSCProofCookie requires a session bound to a DBSC key to present a
+// recent proof signed by that key.
+func (h *Handler) checkDBSCProofCookie(r *http.Request, ws types.WebSession) error {
+	if h.dbscDisabled || len(ws.GetDBSCPublicKey()) == 0 {
+		return nil
+	}
+	proof, err := extractCookie(r, DBSCProofCookieName)
+	if err != nil {
+		return trace.AccessDenied("missing DBSC proof cookie")
+	}
+	// Browsers send the same proof on every request until the next refresh, so
+	// skip re-verifying it each time.
+	key := dbscProofCacheKey{sessionID: ws.GetName(), proof: proof}
+	_, err = h.cache.GetWithTTL(r.Context(), key, dbscProofCacheTTL, func(ctx context.Context) (struct{}, error) {
+		return struct{}{}, trace.Wrap(h.verifyDBSCProof(ctx, proof, ws.GetName(), ws.GetDBSCPublicKey(), dbscProofLeeway))
+	})
+	if err != nil {
+		// Failed entries otherwise linger until their TTL, letting a caller fill
+		// the cache with junk proofs.
+		h.cache.Remove(key)
+	}
+	return trace.Wrap(err)
+}
+
+// dbscProofCacheKey keys verified proof cookies in the handler cache.
+type dbscProofCacheKey struct {
+	sessionID string
+	proof     string
+}
+
+// verifyDBSCProof verifies a DBSC proof JWT from the browser using the
+// stored public key. leeway is passed to [libjwt.DBSCChallengeVerifyParams.Leeway].
+func (h *Handler) verifyDBSCProof(ctx context.Context, rawJWT string, sessionID string, storedPublicKey []byte, leeway time.Duration) error {
 	var jwk jose.JSONWebKey
 	if err := json.Unmarshal(storedPublicKey, &jwk); err != nil {
 		return trace.Wrap(err, "parsing stored DBSC public key")
 	}
 
-	claims, err := verifyDBSCProof(rawJWT, &jwk)
+	claims, err := parseDBSCProof(rawJWT, &jwk)
 	if err != nil {
-		return trace.Wrap(err, "verifying DBSC refresh")
+		return trace.Wrap(err, "verifying DBSC proof")
 	}
 	if claims.ID == "" {
-		return trace.BadParameter("missing jti claim (challenge) in DBSC refresh")
+		return trace.BadParameter("missing jti claim (challenge) in DBSC proof")
 	}
 
 	// The DBSC proof is bound to the app session by the signed challenge in jti.
-	if err := h.verifyDBSCChallenge(ctx, claims.ID, sessionID); err != nil {
+	if err := h.verifyDBSCChallenge(ctx, claims.ID, sessionID, leeway); err != nil {
 		return trace.Wrap(err, "verifying DBSC challenge")
 	}
 
@@ -235,7 +278,7 @@ func (h *Handler) verifyDBSCRefreshResponse(ctx context.Context, rawJWT string, 
 }
 
 // verifyDBSCChallenge verifies that the challenge was signed by this cluster.
-func (h *Handler) verifyDBSCChallenge(ctx context.Context, challenge string, sessionID string) error {
+func (h *Handler) verifyDBSCChallenge(ctx context.Context, challenge string, sessionID string, leeway time.Duration) error {
 	ca, err := h.c.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
 		Type:        types.JWTSigner,
 		ClusterName: h.clusterName,
@@ -250,6 +293,7 @@ func (h *Handler) verifyDBSCChallenge(ctx context.Context, challenge string, ses
 		ClusterName: ca.GetClusterName(),
 		Clock:       h.c.Clock,
 		KeyPairs:    ca.GetTrustedJWTKeyPairs(),
+		Leeway:      leeway,
 	})
 }
 
@@ -271,10 +315,10 @@ func (h *Handler) setDBSCRegistrationHeader(ctx context.Context, w http.Response
 	return nil
 }
 
-// verifyDBSCProof deserializes the JSON Web Token into claims using the
+// parseDBSCProof deserializes the JSON Web Token into claims using the
 // provided key. To correctly verify the proof, the key should be from DBSC
 // registration.
-func verifyDBSCProof(rawJWT string, key any) (*jwt.Claims, error) {
+func parseDBSCProof(rawJWT string, key any) (*jwt.Claims, error) {
 	tok, err := libjwt.ParseJWTWithDBSCProofHeader(rawJWT)
 	if err != nil {
 		return nil, trace.Wrap(err)

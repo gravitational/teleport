@@ -500,6 +500,9 @@ type DBSCChallengeVerifyParams struct {
 	RawToken string
 	// SessionID is the expected session ID.
 	SessionID string
+	// Leeway is how long past its expiry the challenge is accepted. Zero uses
+	// [jwt.DefaultLeeway].
+	Leeway time.Duration
 }
 
 // VerifyDBSCChallenge verifies a DBSC challenge was signed by this cluster.
@@ -517,7 +520,11 @@ func (k *Key) VerifyDBSCChallenge(p DBSCChallengeVerifyParams) error {
 		Time:    k.config.Clock.Now(),
 	}
 
-	_, err := k.verify(p.RawToken, expectedClaims)
+	leeway := p.Leeway
+	if leeway == 0 {
+		leeway = jwt.DefaultLeeway
+	}
+	_, err := k.verifyWithLeeway(p.RawToken, expectedClaims, leeway)
 	return trace.Wrap(err)
 }
 
@@ -564,6 +571,8 @@ type VerifyDBSCChallengeParams struct {
 	Clock clockwork.Clock
 	// KeyPairs are the trusted JWT key pairs from the CA.
 	KeyPairs []*types.JWTKeyPair
+	// Leeway is passed to [DBSCChallengeVerifyParams.Leeway].
+	Leeway time.Duration
 }
 
 // VerifyDBSCChallengeWithCA verifies that a DBSC challenge was signed by one of the
@@ -594,6 +603,7 @@ func VerifyDBSCChallengeWithCA(p VerifyDBSCChallengeParams) error {
 		err = key.VerifyDBSCChallenge(DBSCChallengeVerifyParams{
 			RawToken:  p.Challenge,
 			SessionID: p.SessionID,
+			Leeway:    p.Leeway,
 		})
 		if err == nil {
 			return nil
@@ -675,6 +685,10 @@ func (p *PROXYVerifyParams) Check() error {
 }
 
 func (k *Key) verify(rawToken string, expectedClaims jwt.Expected) (*Claims, error) {
+	return k.verifyWithLeeway(rawToken, expectedClaims, jwt.DefaultLeeway)
+}
+
+func (k *Key) verifyWithLeeway(rawToken string, expectedClaims jwt.Expected, leeway time.Duration) (*Claims, error) {
 	if k.config.PublicKey == nil {
 		return nil, trace.BadParameter("can not verify token without public key")
 	}
@@ -697,7 +711,7 @@ func (k *Key) verify(rawToken string, expectedClaims jwt.Expected) (*Claims, err
 	}
 
 	// Validate the claims on the JWT token.
-	if err = out.Validate(expectedClaims); err != nil {
+	if err = out.ValidateWithLeeway(expectedClaims, leeway); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
