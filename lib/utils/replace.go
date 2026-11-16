@@ -321,17 +321,26 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 			} else if !ok {
 				continue
 			}
-			// if the resource is cluster-wide, the command is deny and it's a wildcard resource
-			// match all resources.
-			if isClusterWideResource && isDeny && resource.Name == types.Wildcard {
-				return true, nil
-			} else if isClusterWideResource {
-				return !isDeny, nil
+			if isClusterWideResource {
+				if !isDeny {
+					return true, nil
+				}
+				// A namespaced deny never matches cluster-wide resources, except namespaces:
+				// per-item matching compares the rule's namespace with each namespace's name.
+				if resource.Namespace != "" && resource.Namespace != types.Wildcard && input.Kind != "namespaces" {
+					continue
+				}
+				// Only a wildcard name denies the whole list.
+				// A named deny is enforced per item, so keep checking the remaining rules.
+				if resource.Name == types.Wildcard {
+					return true, nil
+				}
+				continue
 			}
 
 			// If we are listing a namespaced resource, we can't match against a cluster-wide entry.
 			if isDeny && resource.Namespace == "" {
-				return false, nil
+				continue
 			}
 
 			// at this point, the resource is namespaced and if the namespace is empty,
@@ -341,10 +350,13 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 			if input.Namespace == "" && isAllowOrFullDeny {
 				return isAllowOrFullDeny, nil
 			}
-
-			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil {
+			ok, err := MatchString(input.Namespace, resource.Namespace)
+			if err != nil {
 				return false, trace.Wrap(err)
-			} else if !ok {
+			}
+			// Only a full deny denies a list across all namespaces.
+			// Other denies are enforced per item.
+			if input.Namespace == "" || !ok {
 				continue
 			}
 
