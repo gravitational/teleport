@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# Mock OSS teleport for teleport-migrate evals: mock-teleport in every respect,
+# migrate included, except that `teleport version` reports the OSS edition.
+# An Enterprise fleet must not be migrated with it, since every host would
+# download the OSS build.
+
+MOCK_TELEPORT_EDITION=oss exec "$(dirname "$0")/mock-teleport" "$@"

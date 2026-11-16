@@ -1,0 +1,3 @@
+state file: /home/eval/.teleport-migrate/source-example-com-target-example-com-0a1b2c3d.json
+9 hosts: 5 unstarted, 4 blocked
+verdict: 5 ready to migrate, 4 need an operator

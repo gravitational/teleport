@@ -1,0 +1,4 @@
+[
+  {"kind": "node", "version": "v2", "metadata": {"name": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "labels": {"team": "team-a", "env": "prod"}}, "spec": {"hostname": "ssh.prod-a", "addr": "10.0.1.10:3022", "cmd_labels": {"kernel": {"period": "1h0m0s", "command": ["uname", "-r"], "result": "6.8.0"}}}},
+  {"kind": "node", "version": "v2", "metadata": {"name": "55555555-5555-5555-5555-555555555555", "labels": {"team": "shared", "env": "shared"}}, "spec": {"hostname": "web.shared", "addr": "10.0.2.10:3022"}}
+]
