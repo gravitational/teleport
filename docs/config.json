@@ -4005,6 +4005,11 @@
       "source": "/reference/access-controls/app-resources/",
       "destination": "/enroll-resources/application-access/configuration/fine-grained-controls/",
       "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/rbac-get-started/scopes/",
+      "destination": "/zero-trust-access/rbac-get-started/",
+      "permanent": true
     }
   ]
 }
