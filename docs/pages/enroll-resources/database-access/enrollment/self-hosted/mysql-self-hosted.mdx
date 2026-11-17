@@ -114,7 +114,7 @@ ALTER USER 'alice'@'%' REQUIRE SUBJECT '/CN=alice';
 Remove the password from the user:
 
 ```sql
-SET PASSWORD FOR 'alice'@'%' = PASSWORD("");
+ALTER USER 'alice'@'%' IDENTIFIED BY '';
 ```
 
 </TabItem>
