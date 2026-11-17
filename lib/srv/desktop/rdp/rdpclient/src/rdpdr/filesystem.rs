@@ -387,6 +387,12 @@ impl FilesystemBackend {
             efs::ServerDriveIoRequest::ServerDriveLockControlRequest(req) => {
                 self.handle_rdp_lock_req(req)
             }
+            efs::ServerDriveIoRequest::DeviceFlushBuffersRequest(_)
+            | efs::ServerDriveIoRequest::ServerDriveQuerySecurityRequest(_)
+            | efs::ServerDriveIoRequest::ServerDriveSetSecurityRequest(_) => {
+                warn!("Received unsupported security request: {:?}", req);
+                Ok(())
+            }
         }
     }
 
@@ -2173,6 +2179,18 @@ impl Cancel for efs::DeviceWriteRequest {
     }
 }
 
+impl Cancel for efs::DeviceFlushBuffersRequest {
+    fn cancel(&self) -> RdpdrPdu {
+        efs::DeviceFlushBuffersResponse {
+            device_io_response: efs::DeviceIoResponse::new(
+                self.device_io_request.clone(),
+                NtStatus::UNSUCCESSFUL,
+            ),
+        }
+        .into()
+    }
+}
+
 impl Cancel for efs::ServerDriveSetInformationRequest {
     fn cancel(&self) -> RdpdrPdu {
         efs::ClientDriveSetInformationResponse::new(self, NtStatus::UNSUCCESSFUL)
@@ -2241,6 +2259,32 @@ impl Cancel for efs::DeviceControlRequest<efs::AnyIoCtlCode> {
 impl Cancel for efs::ServerDriveLockControlRequest {
     fn cancel(&self) -> RdpdrPdu {
         RdpdrPdu::EmptyResponse
+    }
+}
+
+impl Cancel for efs::ServerDriveQuerySecurityRequest {
+    fn cancel(&self) -> RdpdrPdu {
+        efs::ClientDriveQuerySecurityResponse {
+            device_io_response: efs::DeviceIoResponse::new(
+                self.device_io_request.clone(),
+                NtStatus::UNSUCCESSFUL,
+            ),
+            security_descriptor: None,
+        }
+        .into()
+    }
+}
+
+impl Cancel for efs::ServerDriveSetSecurityRequest {
+    fn cancel(&self) -> RdpdrPdu {
+        efs::ClientDriveSetSecurityResponse {
+            device_io_response: efs::DeviceIoResponse::new(
+                self.device_io_request.clone(),
+                NtStatus::UNSUCCESSFUL,
+            ),
+            length: 0,
+        }
+        .into()
     }
 }
 
@@ -2502,8 +2546,11 @@ impl Cancel for efs::ServerDriveIoRequest {
             efs::ServerDriveIoRequest::DeviceControlRequest(h) => h.cancel(),
             efs::ServerDriveIoRequest::DeviceReadRequest(h) => h.cancel(),
             efs::ServerDriveIoRequest::DeviceWriteRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::DeviceFlushBuffersRequest(h) => h.cancel(),
             efs::ServerDriveIoRequest::ServerDriveSetInformationRequest(h) => h.cancel(),
             efs::ServerDriveIoRequest::ServerDriveLockControlRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::ServerDriveQuerySecurityRequest(h) => h.cancel(),
+            efs::ServerDriveIoRequest::ServerDriveSetSecurityRequest(h) => h.cancel(),
         }
     }
 }
@@ -2545,10 +2592,19 @@ impl From<&efs::ServerDriveIoRequest> for DeviceId {
             efs::ServerDriveIoRequest::DeviceWriteRequest(h) => {
                 DeviceId(h.device_io_request.device_id)
             }
+            efs::ServerDriveIoRequest::DeviceFlushBuffersRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
             efs::ServerDriveIoRequest::ServerDriveSetInformationRequest(h) => {
                 DeviceId(h.device_io_request.device_id)
             }
             efs::ServerDriveIoRequest::ServerDriveLockControlRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
+            efs::ServerDriveIoRequest::ServerDriveQuerySecurityRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
+            efs::ServerDriveIoRequest::ServerDriveSetSecurityRequest(h) => {
                 DeviceId(h.device_io_request.device_id)
             }
         }

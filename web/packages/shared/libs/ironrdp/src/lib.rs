@@ -132,7 +132,6 @@ impl FastPathProcessor {
                 // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
                 enable_server_pointer: true,
                 pointer_software_rendering: false,
-                bulk_decompressor: None,
             }
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
@@ -171,7 +170,7 @@ impl FastPathProcessor {
 
             let processor_updates = self
                 .fast_path_processor
-                .process(&mut self.image, tdp_fast_path_frame, &mut output)
+                .process(&mut self.image, tdp_fast_path_frame, &mut output, &mut None)
                 .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
             (output.into_inner(), processor_updates)
@@ -187,6 +186,10 @@ impl FastPathProcessor {
             for update in client_updates {
                 match update {
                     UpdateKind::None => {}
+                    UpdateKind::Orders(_) => {
+                        warn!("Orders updates are not supported");
+                        continue;
+                    }
                     UpdateKind::Region(region) => {
                         outputs.push(ActiveStageOutput::GraphicsUpdate(region));
                     }

@@ -61,8 +61,8 @@ impl Contexts {
     }
 
     pub(super) fn disconnect(&mut self, handle: ScardHandle) -> PduResult<()> {
-        self.get_internal_mut(handle.context.value)?
-            .disconnect(handle.value);
+        self.get_internal_mut(handle.context().value())?
+            .disconnect(handle.value());
         Ok(())
     }
 
@@ -86,8 +86,8 @@ impl Contexts {
         &mut self,
         handle: &ScardHandle,
     ) -> PduResult<&mut PivCard<TRANSMIT_DATA_LIMIT>> {
-        self.get_internal_mut(handle.context.value)?
-            .get(handle.value)
+        self.get_internal_mut(handle.context().value())?
+            .get(handle.value())
             .ok_or_else(|| pdu_other_err!("unknown ScardHandle"))
     }
 
@@ -97,12 +97,12 @@ impl Contexts {
 
     pub(super) fn read_cache(&mut self, call: ReadCacheCall) -> PduResult<Option<Vec<u8>>> {
         Ok(self
-            .get_internal_mut(call.common.context.value)?
+            .get_internal_mut(call.common.context.value())?
             .cache_read(&call.lookup_name))
     }
 
     pub(super) fn write_cache(&mut self, call: WriteCacheCall) -> PduResult<()> {
-        self.get_internal_mut(call.common.context.value)?
+        self.get_internal_mut(call.common.context.value())?
             .cache_write(call.lookup_name, call.common.data);
         Ok(())
     }

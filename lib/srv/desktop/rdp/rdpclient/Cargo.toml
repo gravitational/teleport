@@ -8,6 +8,9 @@ publish.workspace = true
 [lib]
 crate-type = ["staticlib"]
 
+[patch.crates-io]
+sspi = { git = "https://github.com/devolutions/sspi-rs", rev = "4509dfd181d400c942c15ddc3b3b17e89cc81e89" }
+
 [dependencies]
 bitflags = "2.11.1"
 boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
@@ -31,7 +34,7 @@ log = "0.4.30"
 rand = { version = "0.9.4", features = ["os_rng"] }
 rdp-decoder = { path = "../decoder", features = ["image-resize"] }
 rsa = "0.9.10"
-sspi = { version = "^0.21.0", features = ["network_client"] }
+sspi = { version = "0.23", features = ["network_client"] }
 tokio = { version = "1.52", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 utf16string = "0.2.0"
