@@ -1535,6 +1535,16 @@ lint-go:
 	$(MAKE) -C integrations/terraform-mwi lint
 	$(MAKE) -C integrations/event-handler lint
 
+.PHONY: lint-gohawk
+lint-gohawk:
+lint-gohawk: GOHAWK_MODULES ?= . $(filter-out build.assets/tools/%,$(patsubst %/go.mod,%,$(shell git ls-files '*/go.mod')))
+lint-gohawk: GOHAWK_PACKAGES ?= ./...
+lint-gohawk: GOHAWK_FLAGS ?=
+	@status=0; for module in $(GOHAWK_MODULES); do \
+		echo "Running gohawk in $$module"; \
+		(cd "$$module" && $(GOHAWK) $(GOHAWK_FLAGS) $(GOHAWK_PACKAGES)) || status=1; \
+	done; exit $$status
+
 .PHONY: fix-imports
 fix-imports:
 	$(MAKE) -C build.assets fix-imports

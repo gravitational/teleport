@@ -64,6 +64,7 @@ GOTESTSUM = "$$( GOWORK=off go -C $(TOOLS_DIR)/gotestsum tool -n gotestsum )"
 BUF = "$$( GOWORK=off go -C $(TOOLS_DIR)/buf tool -n buf )"
 GCI = "$$( GOWORK=off go -C $(TOOLS_DIR)/gci tool -n gci )"
 GODA = "$$( GOWORK=off go -C $(TOOLS_DIR)/goda tool -n goda )"
+GOHAWK ?= "$$( GOWORK=off go -C $(TOOLS_DIR)/gohawk tool -n gohawk )"
 BENCHSTAT = "$$( GOWORK=off go -C $(TOOLS_DIR)/benchstat tool -n benchstat )"
 OPEN2OPAQUE = "$$( GOWORK=off go -C $(TOOLS_DIR)/open2opaque tool -n open2opaque )"
 # TOOLING_DIR contains internal tooling

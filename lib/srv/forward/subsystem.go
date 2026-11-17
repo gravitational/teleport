@@ -199,27 +199,32 @@ func (r *remoteSFTPSubsystem) Start(ctx context.Context, channel ssh.Channel) er
 
 	go func() {
 		defer r.subsystem.serverContext.RemoteSession.Close()
-		errCh := make(chan error)
-		go func() {
-			errCh <- proxy.Serve()
-			close(errCh)
-		}()
-
-		var err error
-		select {
-		case err = <-errCh: // Serve finished on its own, error is ready.
-		case <-ctx.Done(): // Stop Serve and wait for error.
-			proxy.Close()
-			select {
-			case err = <-errCh:
-			case <-time.After(5 * time.Second):
-				err = trace.Errorf("SFTP server timed out while closing")
-			}
-		}
-		r.subsystem.errorCh <- err
+		r.subsystem.errorCh <- r.serve(ctx)
 	}()
 
 	return nil
+}
+
+// serve runs the proxy and waits for it to close when the context is canceled.
+func (r *remoteSFTPSubsystem) serve(ctx context.Context) error {
+	// Buffer the result so the goroutine can exit if the shutdown wait times out.
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- r.proxy.Serve()
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		r.proxy.Close()
+		select {
+		case err := <-errCh:
+			return err
+		case <-time.After(5 * time.Second):
+			return trace.Errorf("SFTP server timed out while closing")
+		}
+	}
 }
 
 // Wait waits until the remote SFTP subsystem has finished execution.

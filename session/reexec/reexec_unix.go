@@ -441,7 +441,8 @@ func setAuditSessionID(ctx context.Context, c ExecCommand, preLoginUID []byte, l
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.
 func waitForShell(terminatefd *os.File, cmd *exec.Cmd) error {
-	terminateChan := make(chan error)
+	// Buffer the second result because only the first result is received.
+	terminateChan := make(chan error, 1)
 
 	go func() {
 		buf := make([]byte, 1)

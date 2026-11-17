@@ -555,7 +555,8 @@ func (sess *linuxSession) run() error {
 		sess.audit.teardown(context.Background())
 	}()
 
-	errCh := make(chan error)
+	// Buffer the result so the goroutine can exit if the session ends first.
+	errCh := make(chan error, 1)
 	go func() {
 		errCh <- sess.messageLoop()
 	}()

@@ -6212,7 +6212,8 @@ func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, strea
 	}
 	defer watcher.Close()
 
-	stubErr := make(chan error)
+	// Buffer the result so the goroutine can exit if the handler returns first.
+	stubErr := make(chan error, 1)
 	go func() {
 		stubErr <- auth.MaintainHeadlessAuthenticationStub(stream.Context())
 	}()

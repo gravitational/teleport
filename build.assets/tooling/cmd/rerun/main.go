@@ -103,6 +103,7 @@ func rerun(args []string) (int, error) {
 		procLock sync.Mutex
 		err      error
 		done     = make(chan struct{})
+		stop     = make(chan struct{})
 		signals  = make(chan os.Signal, 1)
 		now      = time.Now()
 		endTime  = now.Add(*timeout)
@@ -110,12 +111,20 @@ func rerun(args []string) (int, error) {
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		defer close(done)
-		sig := <-signals
-		procLock.Lock()
-		defer procLock.Unlock()
-		if proc != nil {
-			proc.Signal(sig)
+		select {
+		case sig := <-signals:
+			procLock.Lock()
+			defer procLock.Unlock()
+			if proc != nil {
+				proc.Signal(sig)
+			}
+		case <-stop:
 		}
+	}()
+	defer func() {
+		signal.Stop(signals)
+		close(stop)
+		<-done
 	}()
 	for i := 0; !isDone(i, now, endTime, done); i++ {
 		cmd = exec.Command(args[0], args[1:]...)
