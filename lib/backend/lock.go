@@ -236,7 +236,8 @@ func RunWhileLocked(ctx context.Context, cfg RunWhileLockedConfig, fn func(conte
 				return
 			}
 
-			if err := lock.resetTTL(runContext, cfg.Backend); err == nil {
+			err := lock.resetTTL(runContext, cfg.Backend)
+			if err == nil {
 				continue
 			}
 
