@@ -1050,8 +1050,8 @@ func (b0 ListBeamsResponse_builder) Build() *ListBeamsResponse {
 // multiple filters are provided, they will be combined with AND.
 type ListBeamsRequest_Filters struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Users filters the list of beams to those belonging only to the given
-	// users.
+	// Users filters the list of beams to those owned directly, or by a delegate
+	// of, the given users.
 	Users         []string `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1096,8 +1096,8 @@ func (x *ListBeamsRequest_Filters) SetUsers(v []string) {
 type ListBeamsRequest_Filters_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Users filters the list of beams to those belonging only to the given
-	// users.
+	// Users filters the list of beams to those owned directly, or by a delegate
+	// of, the given users.
 	Users []string
 }
 

@@ -1056,8 +1056,8 @@ func (x *ListBeamsRequest_Filters) SetUsers(v []string) {
 type ListBeamsRequest_Filters_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Users filters the list of beams to those belonging only to the given
-	// users.
+	// Users filters the list of beams to those owned directly, or by a delegate
+	// of, the given users.
 	Users []string
 }
 
