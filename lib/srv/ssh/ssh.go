@@ -19,6 +19,7 @@
 package ssh
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/gravitational/trace"
@@ -41,6 +42,8 @@ type PromptVerifier interface {
 
 // VerifyAnswerResult carries data produced while verifying an answer.
 type VerifyAnswerResult struct {
+	MFADeviceID string
+
 	// LockTargets are additional lock targets to record on the access permit once verification succeeds.
 	LockTargets []*decisionpb.LockTarget
 }
@@ -65,6 +68,10 @@ func KeyboardInteractiveCallback(
 ) (*ssh.Permissions, error) {
 	if err := checkKeyboardInteractiveCallbackParams(params); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// Defensively create extensions, if nil. Various flows assign to it.
+	if params.Permissions.Extensions == nil {
+		params.Permissions.Extensions = make(map[string]string)
 	}
 
 	// Prepare the questions and echo flags for each PromptVerifier.
@@ -92,14 +99,21 @@ func KeyboardInteractiveCallback(
 	}
 
 	// Process each answer using its corresponding PromptVerifier, collecting any lock additional targets produced.
+	var mfaDeviceID string
 	var extraLockTargets []*decisionpb.LockTarget
 	for i, answer := range answers {
 		result, err := params.PromptVerifiers[i].VerifyAnswer(ctx, answer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
+		// Only one verifier is expected to generate a device ID, the
+		// MFAPromptVerifier.
+		mfaDeviceID = cmp.Or(mfaDeviceID, result.MFADeviceID)
 		extraLockTargets = append(extraLockTargets, result.LockTargets...)
+	}
+
+	if mfaDeviceID != "" {
+		params.Permissions.Extensions[utils.ExtIntInBandMFADeviceID] = mfaDeviceID
 	}
 
 	// Record any lock targets on the access permit so downstream lock enforcement observes them.

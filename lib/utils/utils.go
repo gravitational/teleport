@@ -531,6 +531,9 @@ const (
 	// ExtIntGitForwardingPermit is an internal extension used to propagate
 	// the git forwarding permit for the user.
 	ExtIntGitForwardingPermit = "git-forwarding-permit" + extIntSuffix
+	// ExtIntInBandMFADeviceID carries the MFA Device ID, as acquired from an
+	// in-band MFA exchange.
+	ExtIntInBandMFADeviceID = "inband-mfa-device-id" + extIntSuffix
 )
 
 // IsInternalSSHExtension returns true if the extension has the internal

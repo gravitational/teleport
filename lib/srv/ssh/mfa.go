@@ -137,6 +137,7 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) (*
 		}
 
 		return &VerifyAnswerResult{
+			MFADeviceID: device.GetId(),
 			LockTargets: []*decisionpb.LockTarget{
 				decisionpb.LockTarget_builder{MfaDevice: device.GetId()}.Build(),
 			},

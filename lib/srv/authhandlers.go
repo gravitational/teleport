@@ -223,6 +223,12 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 
+	// Augment unmappedIdentity with the MFADevice from In-Band SSH.
+	// Takes precedence over certificate data, if it happens to exist.
+	if mfaDeviceID := sconn.Permissions.Extensions[utils.ExtIntInBandMFADeviceID]; mfaDeviceID != "" {
+		unmappedIdentity.MFAVerified = mfaDeviceID
+	}
+
 	var certValidBefore time.Time
 	if unmappedIdentity.ValidBefore != 0 {
 		certValidBefore = time.Unix(int64(unmappedIdentity.ValidBefore), 0)
