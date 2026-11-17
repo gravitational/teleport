@@ -43,7 +43,7 @@ import (
 
 const (
 	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 5
+	handlerTimeout = time.Second * 30
 )
 
 // App is the access request application for plugins. This will notify when access requests
