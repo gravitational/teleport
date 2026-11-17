@@ -1015,6 +1015,12 @@ function Build-TeleportUpdateInstaller {
 
         Write-Host "::group::Signing teleport-update installer..."
         Invoke-SignBinary -UnsignedBinaryPath "$UnsignedMSIPath" -SignedBinaryPath "$ArtifactDirectory\$MSIName"
+
+        # Check that signature is valid
+        $Signature = Get-AuthenticodeSignature -FilePath "$ArtifactDirectory\$MSIName"
+        if ($Signature.Status -ne "Valid") {
+            throw "teleport-update MSI Authenticode signature is not valid: $($Signature.Status): $($Signature.StatusMessage)"
+        }
         Write-Host "::endgroup::"
     }
     Write-Host $("Built teleport-update installer in {0:g}" -f $CommandDuration)
@@ -1161,6 +1167,17 @@ function Write-Version-Objects {
         --product-version $TeleportVersion `
         --file-version $TeleportVersion `
         --out "$TeleportSourceDirectory\tool\teleport\resource.syso"
+
+    # generate teleport version info
+    & $GoWinres simply --no-suffix --arch amd64 `
+        --file-description "Teleport updater" `
+        --original-filename teleport-update.exe `
+        --copyright "Copyright (C) $Year Gravitational Inc." `
+        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
+        --product-name Teleport `
+        --product-version $TeleportVersion `
+        --file-version $TeleportVersion `
+        --out "$TeleportSourceDirectory\tool\teleport-update\resource.syso"
 
     # generate windowsauth version info (note the --admin flag, as the installer must run as admin)
     & $GoWinres simply --no-suffix --arch amd64 --admin `
