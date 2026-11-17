@@ -66,6 +66,40 @@ describe('formatRawEventForUI', () => {
 });
 
 describe('makeEvent', () => {
+  test.each([
+    [
+      'with offer terms',
+      {
+        previous_acv_cents: 6_000_000,
+        mau_commit: 1000,
+        tpr_commit: 5000,
+        mau_price_cents: 300,
+        tpr_price_cents: 50,
+        contract_price_cents: 21_600_000,
+        billing_frequency: 'annual',
+        effective_date: '2026-11-20T00:00:00Z',
+      },
+      "User [alice] accepted the subscription's Auto Renew offer: $216,000.00 contract billed annual effective 2026-11-20, 1000 MAU at $3.00/month, 5000 TPR at $0.50/month",
+    ],
+    [
+      'without offer terms',
+      {},
+      "User [alice] accepted the subscription's Auto Renew offer",
+    ],
+  ])(
+    'formats Auto Renew offer accept %s, rendering cents as dollars',
+    (_, terms, message) => {
+      const event = makeEvent({
+        code: eventCodes.BILLING_AUTORENEW_OFFER_ACCEPT,
+        event: 'billing.autorenew_offer_accept',
+        time: '2026-01-01T00:00:00.000Z',
+        user: 'alice',
+        ...terms,
+      });
+      expect(event.message).toBe(message);
+    }
+  );
+
   test('formats classifier matches and uses the backend event type for filtering', () => {
     const input = {
       code: eventCodes.CLASSIFIER_MATCHED,

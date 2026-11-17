@@ -392,6 +392,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_BillingSubscriptionCancel{
 			BillingSubscriptionCancel: e,
 		}
+	case *BillingAutoRenewOfferAccept:
+		out.Event = &OneOf_BillingAutoRenewOfferAccept{
+			BillingAutoRenewOfferAccept: e,
+		}
 	case *RecoveryCodeGenerate:
 		out.Event = &OneOf_RecoveryCodeGenerate{
 			RecoveryCodeGenerate: e,

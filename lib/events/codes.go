@@ -105,6 +105,8 @@ const (
 	BillingInformationUpdateCode = "TBL03I"
 	// BillingSubscriptionCancelCode is an event code for when a user cancels their billing subscription.
 	BillingSubscriptionCancelCode = "TBL04I"
+	// BillingAutoRenewOfferAcceptCode is an event code for when a user accepts their subscription's Auto Renew offer.
+	BillingAutoRenewOfferAcceptCode = "TBL05I"
 
 	// SessionRejectedCode is an event code for when a user's attempt to create an
 	// session/connection has been rejected.

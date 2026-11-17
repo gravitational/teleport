@@ -4674,6 +4674,44 @@ message BillingSubscriptionCancel {
   ];
 }
 
+// BillingAutoRenewOfferAccept is emitted when a user accepts their subscription's
+// Auto Renew offer. It records the terms of the accepted offer. All monetary
+// amounts are in US cents.
+message BillingAutoRenewOfferAccept {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // PreviousACVCents is the annual commit value of the subscription being renewed.
+  int64 PreviousACVCents = 3 [(gogoproto.jsontag) = "previous_acv_cents,omitempty"];
+  // MAUCommit is the monthly active users commit of the accepted offer.
+  int64 MAUCommit = 4 [(gogoproto.jsontag) = "mau_commit,omitempty"];
+  // TPRCommit is the Teleport protected resources commit of the accepted offer.
+  int64 TPRCommit = 5 [(gogoproto.jsontag) = "tpr_commit,omitempty"];
+  // MAUPriceCents is the per-MAU monthly rate of the accepted offer.
+  int64 MAUPriceCents = 6 [(gogoproto.jsontag) = "mau_price_cents,omitempty"];
+  // TPRPriceCents is the per-TPR monthly rate of the accepted offer.
+  int64 TPRPriceCents = 7 [(gogoproto.jsontag) = "tpr_price_cents,omitempty"];
+  // ContractPriceCents is the contract total the customer pays on the effective date.
+  int64 ContractPriceCents = 8 [(gogoproto.jsontag) = "contract_price_cents,omitempty"];
+  // BillingFrequency is how often the customer is billed under the accepted offer, e.g. "annual".
+  string BillingFrequency = 9 [(gogoproto.jsontag) = "billing_frequency,omitempty"];
+  // EffectiveDate is when the accepted offer takes effect.
+  google.protobuf.Timestamp EffectiveDate = 10 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "effective_date,omitempty"
+  ];
+}
+
 // LockCreate is emitted when a lock is created/updated.
 // Locks are used to restrict access to a Teleport environment by disabling
 // interactions involving a user, an RBAC role, a node, etc.
@@ -6010,6 +6048,7 @@ message OneOf {
     events.ClassifierDisabled ClassifierDisabled = 288;
     events.ClassifierEnabled ClassifierEnabled = 289;
     events.BeamCreated BeamCreated = 290;
+    events.BillingAutoRenewOfferAccept BillingAutoRenewOfferAccept = 291;
   }
 }
 

@@ -225,6 +225,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.BILLING_CARD_UPDATE]: Icons.CreditCard,
   [eventCodes.BILLING_INFORMATION_UPDATE]: Icons.CreditCard,
   [eventCodes.BILLING_SUBSCRIPTION_CANCEL]: Icons.CreditCard,
+  [eventCodes.BILLING_AUTORENEW_OFFER_ACCEPT]: Icons.CreditCard,
   [eventCodes.CLIENT_DISCONNECT]: Icons.Info,
   [eventCodes.PORTFORWARD]: Icons.Info,
   [eventCodes.PORTFORWARD_FAILURE]: Icons.Info,

@@ -105,6 +105,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.BillingInformationUpdate{}
 	case BillingSubscriptionCancelEvent:
 		e = &events.BillingSubscriptionCancel{}
+	case BillingAutoRenewOfferAcceptEvent:
+		e = &events.BillingAutoRenewOfferAccept{}
 	case ResetPasswordTokenCreateEvent:
 		e = &events.UserTokenCreate{}
 	case ExecEvent:

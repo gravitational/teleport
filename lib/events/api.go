@@ -237,6 +237,8 @@ const (
 	BillingInformationUpdateEvent = "billing.update_info"
 	// BillingSubscriptionCancelEvent is emitted when a user cancels their billing subscription.
 	BillingSubscriptionCancelEvent = "billing.cancel_subscription"
+	// BillingAutoRenewOfferAcceptEvent is emitted when a user accepts their subscription's Auto Renew offer.
+	BillingAutoRenewOfferAcceptEvent = "billing.autorenew_offer_accept"
 
 	// UpdatedBy indicates the user who modified some resource:
 	//  - updating a request state

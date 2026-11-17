@@ -1295,6 +1295,35 @@ export const formatters: Formatters = {
     desc: 'Billing Subscription Cancelled',
     format: ({ user }) => `User [${user}] cancelled the billing subscription`,
   },
+  [eventCodes.BILLING_AUTORENEW_OFFER_ACCEPT]: {
+    type: 'billing.autorenew_offer_accept',
+    desc: 'Auto Renew Offer Accepted',
+    format: ({
+      user,
+      contract_price_cents,
+      billing_frequency,
+      effective_date,
+      mau_commit,
+      mau_price_cents,
+      tpr_commit,
+      tpr_price_cents,
+    }) => {
+      const base = `User [${user}] accepted the subscription's Auto Renew offer`;
+      // Events emitted without the offer's terms only identify the user.
+      if (!contract_price_cents) {
+        return base;
+      }
+      const effective = effective_date
+        ? ` effective ${effective_date.slice(0, 10)}`
+        : '';
+      const frequency = billing_frequency ? ` billed ${billing_frequency}` : '';
+      return (
+        `${base}: ${formatCents(contract_price_cents)} contract${frequency}${effective}, ` +
+        `${mau_commit ?? 0} MAU at ${formatCents(mau_price_cents)}/month, ` +
+        `${tpr_commit ?? 0} TPR at ${formatCents(tpr_price_cents)}/month`
+      );
+    },
+  },
   [eventCodes.LOCK_CREATED]: {
     type: 'lock.created',
     desc: 'Lock Created',
@@ -3148,6 +3177,16 @@ function truncateStr(str: string, len: number): string {
     return str;
   }
   return str.substring(0, len - 3) + '...';
+}
+
+const usdFormat = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+});
+
+// formatCents renders an amount in US cents as dollars, e.g. 1050 -> "$10.50".
+function formatCents(cents: number | undefined): string {
+  return usdFormat.format((cents ?? 0) / 100);
 }
 
 function formatMembers(members: { member_name: string }[]) {

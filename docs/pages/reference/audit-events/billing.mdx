@@ -16,6 +16,32 @@ This page lists audit events related to Teleport billing.
 
 
 
+## billing.autorenew_offer_accept
+
+Auto Renew Offer Accepted
+
+Example:
+
+```json
+{
+  "cluster_name": "some-name",
+  "code": "TBL05I",
+  "ei": 0,
+  "event": "billing.autorenew_offer_accept",
+  "time": "2021-03-18T16:28:47.302Z",
+  "uid": "f29b4c66-9d5e-4f2a-8c17-2d1b7e0a5c83",
+  "user": "root",
+  "previous_acv_cents": 1200000,
+  "mau_commit": 100,
+  "tpr_commit": 50,
+  "mau_price_cents": 1000,
+  "tpr_price_cents": 500,
+  "contract_price_cents": 1500000,
+  "billing_frequency": "annual",
+  "effective_date": "2027-01-15T00:00:00Z"
+}
+```
+
 ## billing.cancel_subscription
 
 Billing Subscription Cancelled

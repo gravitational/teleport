@@ -59,6 +59,7 @@ export const eventCodes = {
   BILLING_CARD_DELETE: 'TBL01I',
   BILLING_CARD_UPDATE: 'TBL02I',
   BILLING_SUBSCRIPTION_CANCEL: 'TBL04I',
+  BILLING_AUTORENEW_OFFER_ACCEPT: 'TBL05I',
   CLIENT_DISCONNECT: 'T3006I',
   DATABASE_SESSION_ENDED: 'TDB01I',
   DATABASE_SESSION_QUERY: 'TDB02I',
@@ -515,6 +516,19 @@ export type RawEvents = {
   >;
   [eventCodes.BILLING_SUBSCRIPTION_CANCEL]: RawEvent<
     typeof eventCodes.BILLING_SUBSCRIPTION_CANCEL
+  >;
+  [eventCodes.BILLING_AUTORENEW_OFFER_ACCEPT]: RawEvent<
+    typeof eventCodes.BILLING_AUTORENEW_OFFER_ACCEPT,
+    {
+      previous_acv_cents?: number;
+      mau_commit?: number;
+      tpr_commit?: number;
+      mau_price_cents?: number;
+      tpr_price_cents?: number;
+      contract_price_cents?: number;
+      billing_frequency?: string;
+      effective_date?: string;
+    }
   >;
   [eventCodes.GITHUB_CONNECTOR_CREATED]: RawEventConnector<
     typeof eventCodes.GITHUB_CONNECTOR_CREATED
