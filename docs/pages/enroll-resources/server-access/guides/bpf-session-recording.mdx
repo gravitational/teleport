@@ -65,14 +65,14 @@ library preloading, and environment variables may not be captured in session rec
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - At least one host that you will use to run the Teleport Node Service. The host
-  must run Linux kernel 5.8 (or above).
+  must run Linux kernel 5.13 (or above).
 
   You can check your kernel version using the `uname` command. The output should look
   something like the following.
 
   ```code
   $ uname -r
-  # 5.8.17
+  # 5.13.6
   ```
 
   See below for more details on the required versions for your Linux kernel and
@@ -89,14 +89,14 @@ library preloading, and environment variables may not be captured in session rec
 
 Teleport supports enhanced session recording with BPF on `amd64` and `arm64` architectures.
 
-| Distro name             | Distro version | Kernel Version |
-|:------------------------|:---------------|:---------------|
-| Ubuntu "Groovy Gorilla" | 20.10          | 5.8+           |
-| Fedora                  | 33             | 5.8+           |
-| Arch Linux              | 2020.09.01     | 5.8.5+         |
-| Flatcar                 | 2765.2.2       | 5.10.25+       |
-| Amazon Linux            | 2 and 2023     | 5.10+          |
-| RHEL/CentOS             | 7+             | 5.8+           |
+| Distro name           | Distro version           | Kernel Version |
+|:----------------------|:-------------------------|:---------------|
+| Ubuntu "Impish Indri" | 21.10                    | 5.13+          |
+| Fedora                | 35                       | 5.14+          |
+| Arch Linux            | 2021.08.01               | 5.13.6+        |
+| Flatcar               | 3139.2.0                 | 5.15.32+       |
+| Amazon Linux          | 2 (kernel-5.15) and 2023 | 5.15+          |
+| RHEL/CentOS Stream    | 9+                       | 5.14.0+        |
 
 - (!docs/pages/includes/tctl.mdx!)
 

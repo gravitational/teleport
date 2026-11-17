@@ -15,7 +15,7 @@ This document will help you get started.
 
 We support BPFs only on ARM64 and x86_64 architectures.
 
-1. VM with Ubuntu 20.04+ (or any other Linux distro with the kernel 5.8+ - Docker doesn't work for many BPF features)
+1. VM with Ubuntu 21.10+ (or any other Linux distro with the kernel 5.13+ - Docker doesn't work for many BPF features)
 2. Install `clang` and `llvm` (required for compiling BPF code) - `apt install clang llvm` should be enough
 
 You can also use our Dockerfile to build the environment:
@@ -81,7 +81,7 @@ BPF programs and user space. BPF programs can only access maps using BPF helpers
 ## BPF in Teleport
 
 Teleport uses BPF to implement enhanced session recording. Enhanced session recording works only on Linux with
-the kernel 5.8+. Enhanced session recording records all:
+the kernel 5.13+. Enhanced session recording records all:
 * exec family system calls
 * open family system calls
 * network connections

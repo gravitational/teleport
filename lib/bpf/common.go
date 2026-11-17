@@ -169,7 +169,7 @@ func IsHostCompatible() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	minKernelVersion := semver.Version{Major: 5, Minor: 11, Patch: 0}
+	minKernelVersion := semver.Version{Major: 5, Minor: 13, Patch: 0}
 	if version.LessThan(minKernelVersion) {
 		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernelVersion)
 	}
