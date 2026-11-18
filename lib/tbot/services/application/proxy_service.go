@@ -508,7 +508,7 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	// Copy headers first.
 	for key, values := range resp.Header {
 		for _, value := range values {
-			w.Header().Set(key, value)
+			w.Header().Add(key, value)
 		}
 	}
 	// Send status code and then copy the body.
