@@ -30,7 +30,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	appauthz "github.com/gravitational/teleport/lib/srv/app/authz"
@@ -57,6 +59,10 @@ type RouteFreeConfig struct {
 	// ProxyPublicAddrs are the Proxy's public addresses, under whose hosts
 	// apps are addressed.
 	ProxyPublicAddrs []utils.NetAddr
+	// ClusterFeatures reads the Proxy's cached cluster features. Their App
+	// Access entitlement gates this path, as it gates the app sessions Auth
+	// creates for route-bound certificates.
+	ClusterFeatures func() proto.Features
 }
 
 // CheckAndSetDefaults checks that c holds everything a RouteFreeHandler needs.
@@ -66,6 +72,9 @@ func (c *RouteFreeConfig) CheckAndSetDefaults() error {
 	}
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing cluster name")
+	}
+	if c.ClusterFeatures == nil {
+		return trace.BadParameter("missing cluster features")
 	}
 	return nil
 }
@@ -79,8 +88,9 @@ type RouteFreeHandler struct {
 	enabled bool
 	auth    *authz.Middleware
 	// next hands a connection to the web listener.
-	next     func(ctx context.Context, conn net.Conn) error
-	resolver *routeFreeResolver
+	next            func(ctx context.Context, conn net.Conn) error
+	resolver        *routeFreeResolver
+	clusterFeatures func() proto.Features
 }
 
 // NewRouteFreeHandler returns a handler that passes every connection on to
@@ -109,8 +119,9 @@ func NewRouteFreeHandler(cfg RouteFreeConfig) (*RouteFreeHandler, error) {
 			ClusterName:   cfg.ClusterName,
 			AcceptedUsage: []string{teleport.UsageAppsOnly},
 		},
-		next:     cfg.Next,
-		resolver: resolver,
+		next:            cfg.Next,
+		resolver:        resolver,
+		clusterFeatures: cfg.ClusterFeatures,
 	}, nil
 }
 
@@ -151,9 +162,25 @@ func (h *RouteFreeHandler) wrap(ctx context.Context, conn net.Conn, state tls.Co
 	defer cancel()
 	_, _, err := h.resolver.resolve(ctx, state.PeerCertificates[0], state.ServerName)
 	if err == nil {
+		// The entitlement is checked last, after every check that depends on
+		// the client, so that an unlicensed cluster doesn't hide a denial the
+		// client can act on.
+		err = checkEntitlement(h.clusterFeatures())
+	}
+	if err == nil {
 		err = trace.NotImplemented("resolved route-free App connections aren't served yet")
 	}
 	return &resolvedConn{Conn: conn, state: state, err: err}
+}
+
+// checkEntitlement fails if the cluster's license disables App Access. App
+// Access is enabled on every license by default, so a missing entitlement
+// deliberately fails open.
+func checkEntitlement(features proto.Features) error {
+	if entitlement, ok := features.GetEntitlements()[string(entitlements.App)]; ok && !entitlement.GetEnabled() {
+		return trace.AccessDenied("this Teleport cluster is not licensed for application access, please contact the cluster administrator")
+	}
+	return nil
 }
 
 // isRouteFree reports whether state belongs to a route-free app connection

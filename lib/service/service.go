@@ -6075,6 +6075,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				AuthorizerOpts:   authorizerOpts,
 				ClusterGetter:    tsrv,
 				ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
+				ClusterFeatures:  webHandler.GetClusterFeatures,
 			})
 			if err != nil {
 				return trace.Wrap(err)

@@ -42,6 +42,12 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 	return h.clusterFeatures
 }
 
+// GetClusterFeatures returns the features the API handler's web handler keeps
+// refreshed, for a caller that holds only the API handler.
+func (h *APIHandler) GetClusterFeatures() proto.Features {
+	return h.handler.GetClusterFeatures()
+}
+
 // startFeatureWatcher periodically pings the auth server and updates `clusterFeatures`.
 // Must be called only once per `handler`, otherwise it may close an already closed channel
 // which will cause a panic.
