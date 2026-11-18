@@ -175,27 +175,8 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 	}, conn)
 }
 
-// ScopedSessionControls exposes the per-protocol session controls (idle
-// timeout, disconnect on cert expiry, locking mode) of the role that granted
-// access for a connection.
-type ScopedSessionControls interface {
-	AdjustClientIdleTimeout(time.Duration) (time.Duration, error)
-	AdjustDisconnectExpiredCert(bool) bool
-	LockingMode(constants.LockingMode) constants.LockingMode
-}
-
-// ScopedSessionContext bundles a scoped authorization context with the session
-// controls produced by the access decision that authorized the connection.
-type ScopedSessionContext struct {
-	// Context is the scoped authorization context of the caller.
-	Context *authz.ScopedContext
-	// SessionControls are the per-protocol session controls of the role that
-	// granted access.
-	SessionControls ScopedSessionControls
-}
-
 // MonitorConnScoped is the scoped-identity variant of [ConnectionMonitor.MonitorConn].
-func (c *ConnectionMonitor) MonitorConnScoped(ctx context.Context, sessionCtx *ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error) {
+func (c *ConnectionMonitor) MonitorConnScoped(ctx context.Context, sessionCtx *authz.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error) {
 	if sessionCtx == nil {
 		return ctx, conn, trace.BadParameter("missing session control context for scoped connection monitoring")
 	}
@@ -278,7 +259,7 @@ func (c *ConnectionMonitor) monitorConn(ctx context.Context, params monitorParam
 		ClientIdleTimeout:     params.clientIdleTimeout,
 		Conn:                  tconn,
 		Tracker:               tconn,
-		Context:               ctx,
+		Context:               tconn.cfg.Context,
 		Clock:                 c.cfg.Clock,
 		ServerID:              c.cfg.ServerID,
 		TeleportUser:          params.teleportUser,
@@ -691,6 +672,12 @@ func (t *TrackingReadConn) Close() error {
 func (t *TrackingReadConn) CloseWithCause(cause error) error {
 	t.cfg.Cancel(cause)
 	return t.Conn.Close()
+}
+
+// NetConn returns the connection t wraps, so that code which unwraps
+// connections, such as the ingress metrics, can find the one underneath.
+func (t *TrackingReadConn) NetConn() net.Conn {
+	return t.Conn
 }
 
 // GetClientLastActive returns time when client was last active

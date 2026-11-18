@@ -98,18 +98,26 @@ func newRouteFreeResolver(cfg routeFreeResolverConfig) (*routeFreeResolver, erro
 	}, nil
 }
 
+// resolvedApp is what resolving a connection found: the app server it reaches,
+// the identity the Proxy forwards to it, and what the connection controls of
+// the role that granted access need.
+type resolvedApp struct {
+	server     types.AppServer
+	identity   authz.LocalUser
+	sessionCtx *authz.ScopedSessionContext
+}
+
 // resolve returns the first of sni's candidate app servers with an app that
 // cert's identity may access, so the same certificate reaches the same app on
-// every connection. It also returns the checker of the role that granted
-// access, which holds that role's session controls.
-func (r *routeFreeResolver) resolve(ctx context.Context, cert *x509.Certificate, sni string) (types.AppServer, *services.AppAccessChecker, error) {
+// every connection.
+func (r *routeFreeResolver) resolve(ctx context.Context, cert *x509.Certificate, sni string) (*resolvedApp, error) {
 	cluster, err := r.clusterGetter.Cluster(ctx, r.clusterName)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	servers, err := candidatesForSNI(ctx, cluster, r.proxyDNSNames, sni)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	var failed []types.Application
 	var errs []error
@@ -121,7 +129,7 @@ func (r *routeFreeResolver) resolve(ctx context.Context, cert *x509.Certificate,
 		if slices.ContainsFunc(failed, app.IsEqual) {
 			continue
 		}
-		checker, err := r.authorize(ctx, cert, app)
+		resolved, err := r.authorize(ctx, cert, app)
 		if err != nil {
 			r.logger.DebugContext(ctx, "Route-free App resolution denied a candidate app",
 				"app", app.GetName(), "scope", app.GetScope(), "host_id", server.GetHostID(), "error", err)
@@ -129,15 +137,18 @@ func (r *routeFreeResolver) resolve(ctx context.Context, cert *x509.Certificate,
 			errs = append(errs, err)
 			continue
 		}
-		return server, checker, nil
+		r.logger.DebugContext(ctx, "Resolved a route-free App connection",
+			"app", app.GetName(), "scope", app.GetScope(), "host_id", server.GetHostID())
+		resolved.server = server
+		return resolved, nil
 	}
-	return nil, nil, accessError(errs)
+	return nil, accessError(errs)
 }
 
 // authorize checks that the identity cert would carry to app may access it, as
-// the Application Service checks each request, and returns the checker of the
-// role that granted access.
-func (r *routeFreeResolver) authorize(ctx context.Context, cert *x509.Certificate, app types.Application) (*services.AppAccessChecker, error) {
+// the Application Service checks each request, and returns that identity with
+// the session controls of the role that granted access.
+func (r *routeFreeResolver) authorize(ctx context.Context, cert *x509.Certificate, app types.Application) (*resolvedApp, error) {
 	user, err := newRoutedIdentity(cert, r.clusterName, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -148,7 +159,13 @@ func (r *routeFreeResolver) authorize(ctx context.Context, cert *x509.Certificat
 		return nil, trace.Wrap(err)
 	}
 	checker, err := r.appAuthorizer.AuthorizeForwarded(ctx, authCtx, app)
-	return checker, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &resolvedApp{
+		identity:   user,
+		sessionCtx: &authz.ScopedSessionContext{Context: authCtx, SessionControls: checker},
+	}, nil
 }
 
 // accessError picks, from the candidates' errors, the one that tells a client

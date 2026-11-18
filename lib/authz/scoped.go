@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
@@ -381,4 +382,23 @@ func (s *ScopedContext) AgentOwnedResourceAction(scope, hostID string, systemRol
 
 	return trace.AccessDenied("agent scope %+q does not match resource scope %+q", agentScope, scope)
 
+}
+
+// ScopedSessionControls exposes the per-protocol session controls (idle
+// timeout, disconnect on cert expiry, locking mode) of the role that granted
+// access for a connection.
+type ScopedSessionControls interface {
+	AdjustClientIdleTimeout(time.Duration) (time.Duration, error)
+	AdjustDisconnectExpiredCert(bool) bool
+	LockingMode(constants.LockingMode) constants.LockingMode
+}
+
+// ScopedSessionContext bundles a scoped authorization context with the session
+// controls produced by the access decision that authorized the connection.
+type ScopedSessionContext struct {
+	// Context is the scoped authorization context of the caller.
+	Context *ScopedContext
+	// SessionControls are the per-protocol session controls of the role that
+	// granted access.
+	SessionControls ScopedSessionControls
 }

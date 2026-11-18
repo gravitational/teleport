@@ -6070,12 +6070,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// web connection meets the route-free App handler.
 		if tsrv != nil && appHandlers.web != nil {
 			routeFree, err := webapp.NewRouteFreeHandler(webapp.RouteFreeConfig{
-				Next:             appHandlers.webListener,
-				ClusterName:      clusterName,
-				AuthorizerOpts:   authorizerOpts,
-				ClusterGetter:    tsrv,
-				ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
-				ClusterFeatures:  webHandler.GetClusterFeatures,
+				Next:              appHandlers.webListener,
+				ClusterName:       clusterName,
+				AuthorizerOpts:    authorizerOpts,
+				ClusterGetter:     tsrv,
+				ProxyPublicAddrs:  cfg.Proxy.PublicAddrs,
+				ClusterFeatures:   webHandler.GetClusterFeatures,
+				ConnectionMonitor: connMonitor,
 			})
 			if err != nil {
 				return trace.Wrap(err)

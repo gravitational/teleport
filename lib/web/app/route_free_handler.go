@@ -63,6 +63,15 @@ type RouteFreeConfig struct {
 	// Access entitlement gates this path, as it gates the app sessions Auth
 	// creates for route-bound certificates.
 	ClusterFeatures func() proto.Features
+	// ConnectionMonitor closes a connection when a lock, the granting role's
+	// client_idle_timeout or disconnect_expired_cert says it must.
+	ConnectionMonitor ConnMonitor
+}
+
+// ConnMonitor installs the connection controls of the role that granted access
+// to the app a connection resolved to.
+type ConnMonitor interface {
+	MonitorConnScoped(ctx context.Context, sessionCtx *authz.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // CheckAndSetDefaults checks that c holds everything a RouteFreeHandler needs.
@@ -75,6 +84,9 @@ func (c *RouteFreeConfig) CheckAndSetDefaults() error {
 	}
 	if c.ClusterFeatures == nil {
 		return trace.BadParameter("missing cluster features")
+	}
+	if c.ConnectionMonitor == nil {
+		return trace.BadParameter("missing connection monitor")
 	}
 	return nil
 }
@@ -91,6 +103,7 @@ type RouteFreeHandler struct {
 	next            func(ctx context.Context, conn net.Conn) error
 	resolver        *routeFreeResolver
 	clusterFeatures func() proto.Features
+	connMonitor     ConnMonitor
 }
 
 // NewRouteFreeHandler returns a handler that passes every connection on to
@@ -122,6 +135,7 @@ func NewRouteFreeHandler(cfg RouteFreeConfig) (*RouteFreeHandler, error) {
 		next:            cfg.Next,
 		resolver:        resolver,
 		clusterFeatures: cfg.ClusterFeatures,
+		connMonitor:     cfg.ConnectionMonitor,
 	}, nil
 }
 
@@ -133,7 +147,13 @@ func (h *RouteFreeHandler) HandleConnection(ctx context.Context, conn net.Conn) 
 	if state, ok := h.accepts(ctx, conn); ok {
 		conn = h.wrap(ctx, conn, state)
 	}
-	return trace.Wrap(h.next(ctx, conn))
+	if err := h.next(ctx, conn); err != nil {
+		// The ALPN router closes only the connection it accepted, which would
+		// leave a resolved connection's monitor running.
+		conn.Close()
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // accepts reports whether conn is a route-free App connection. If it is,
@@ -154,23 +174,47 @@ func (h *RouteFreeHandler) accepts(ctx context.Context, conn net.Conn) (tls.Conn
 	return state, true
 }
 
-// wrap resolves the route-free connection conn to an app, and returns the
-// connection the web listener serves for it. ctx holds the client's address,
-// which source IP pinning checks.
+// wrap resolves the route-free connection conn to an app, installs that app's
+// connection controls, and returns the connection the web listener serves for
+// it. ctx holds the client's address, which source IP pinning checks.
 func (h *RouteFreeHandler) wrap(ctx context.Context, conn net.Conn, state tls.ConnectionState) *resolvedConn {
+	resolved, err := h.resolve(ctx, state)
+	if err != nil {
+		return &resolvedConn{Conn: conn, state: state, err: err}
+	}
+	monitored, err := h.monitor(ctx, conn, resolved.sessionCtx)
+	if err != nil {
+		return &resolvedConn{Conn: conn, state: state, err: err}
+	}
+	return &resolvedConn{Conn: monitored, state: state, identity: resolved.identity}
+}
+
+// resolve resolves the connection with handshake state to the app it may
+// reach.
+func (h *RouteFreeHandler) resolve(ctx context.Context, state tls.ConnectionState) (*resolvedApp, error) {
 	ctx, cancel := context.WithTimeout(ctx, routeFreeResolveTimeout)
 	defer cancel()
-	_, _, err := h.resolver.resolve(ctx, state.PeerCertificates[0], state.ServerName)
-	if err == nil {
-		// The entitlement is checked last, after every check that depends on
-		// the client, so that an unlicensed cluster doesn't hide a denial the
-		// client can act on.
-		err = checkEntitlement(h.clusterFeatures())
+	resolved, err := h.resolver.resolve(ctx, state.PeerCertificates[0], state.ServerName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if err == nil {
-		err = trace.NotImplemented("resolved route-free App connections aren't served yet")
+	// The entitlement is checked last, after every check that depends on the
+	// client, so that an unlicensed cluster doesn't hide a denial the client
+	// can act on.
+	if err := checkEntitlement(h.clusterFeatures()); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return &resolvedConn{Conn: conn, state: state, err: err}
+	return resolved, nil
+}
+
+// monitor installs the connection controls of the role that granted access,
+// which close conn when a lock, its idle timeout or its certificate's expiry
+// says they must. The web listener reads through the connection monitor
+// returns, so its reads count as client activity, and closing it stops the
+// monitor.
+func (h *RouteFreeHandler) monitor(ctx context.Context, conn net.Conn, sessionCtx *authz.ScopedSessionContext) (net.Conn, error) {
+	_, monitored, err := h.connMonitor.MonitorConnScoped(ctx, sessionCtx, conn)
+	return monitored, trace.Wrap(err)
 }
 
 // checkEntitlement fails if the cluster's license disables App Access. App
@@ -214,6 +258,9 @@ type resolvedConn struct {
 	net.Conn
 	// state is the handshake state of the *tls.Conn underneath.
 	state tls.ConnectionState
+	// identity is the identity the Proxy forwards for every request on the
+	// connection, routed to the app it resolved to. It is unset when err is.
+	identity authz.LocalUser
 	// err is why the connection may reach no app.
 	err error
 }
@@ -274,6 +321,11 @@ func findConn[T any](conn net.Conn) (T, bool) {
 // conn. A denied connection's first response closes it. For a response with
 // Connection: close, the HTTP/2 server sends GOAWAY.
 func serveResolved(w http.ResponseWriter, r *http.Request, conn *resolvedConn, logger *slog.Logger) {
+	if conn.err == nil {
+		// Forwarding requests to the app isn't implemented yet.
+		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+		return
+	}
 	w.Header().Set("Connection", "close")
 	code, ok := appauthz.WriteForwardedError(w, r, conn.err)
 	if !ok {

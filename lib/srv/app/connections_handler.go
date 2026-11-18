@@ -66,7 +66,7 @@ import (
 // ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConnScoped(ctx context.Context, scopedCtx *srv.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error)
+	MonitorConnScoped(ctx context.Context, scopedCtx *authz.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ConnectionsHandlerConfig is the configuration for a ConnectionsHandler.
@@ -676,7 +676,7 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 // The caller must pass the exact application that will be served. On success it
 // returns the scoped context bundled with the session controls of the role that
 // granted access.
-func (c *ConnectionsHandler) authorizeContext(ctx context.Context, app types.Application) (*srv.ScopedSessionContext, error) {
+func (c *ConnectionsHandler) authorizeContext(ctx context.Context, app types.Application) (*authz.ScopedSessionContext, error) {
 	authCtx, err := c.getAuthContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -685,7 +685,7 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context, app types.App
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &srv.ScopedSessionContext{
+	return &authz.ScopedSessionContext{
 		Context:         authCtx,
 		SessionControls: sessionControls,
 	}, nil
