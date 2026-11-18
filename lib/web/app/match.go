@@ -96,6 +96,18 @@ func appMatchesPublicAddr(app readonly.Application, publicAddr string) bool {
 	return app.GetPublicAddr() == publicAddr
 }
 
+// normalizeHostname returns name as Teleport stores and assembles addresses,
+// lowercase and without a trailing dot, so that an SNI and a request's host
+// compare as the same name. It refuses a non-ASCII name: SNIs and HTTP hosts
+// are ASCII, and lowercasing a non-ASCII name can turn it into an app's
+// address.
+func normalizeHostname(name string) (string, bool) {
+	if strings.ContainsFunc(name, func(r rune) bool { return r >= utf8.RuneSelf }) {
+		return "", false
+	}
+	return strings.TrimRight(strings.ToLower(name), "."), true
+}
+
 // matchSNI matches an app server in clusterName when sni, a connection's SNI,
 // is the address that AssembleAppFQDN gives clients for its app under one of
 // proxyDNSNames, or an unscoped app's public address. Unlike ResolveFQDN, it
@@ -105,13 +117,11 @@ func matchSNI(sni, clusterName string, proxyDNSNames []string) Matcher {
 	isProxyDNSName := func(host string) bool {
 		return slices.Contains(proxyDNSNames, host)
 	}
-	// Stored and assembled addresses are lowercase, and a client's SNI needn't
-	// be. RFC 6066 forbids a trailing dot, which makes no difference to a name.
-	host := strings.TrimRight(strings.ToLower(sni), ".")
-	// SNIs are ASCII (RFC 6066), and lowercasing a non-ASCII one can turn it
-	// into an app's address. As ValidateApp does for public addresses, keep the
-	// Proxy's own names from reaching an app.
-	if strings.ContainsFunc(sni, func(r rune) bool { return r >= utf8.RuneSelf }) || isProxyDNSName(host) {
+	// RFC 6066 forbids a trailing dot in an SNI, which makes no difference to a
+	// name. As ValidateApp does for public addresses, keep the Proxy's own names
+	// from reaching an app.
+	host, ok := normalizeHostname(sni)
+	if !ok || isProxyDNSName(host) {
 		return func(readonly.AppServer) bool { return false }
 	}
 	// A scoped app's address is its hash directly under a Proxy DNS name.

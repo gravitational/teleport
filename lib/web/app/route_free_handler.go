@@ -26,8 +26,11 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/net/http/httpguts"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -318,19 +321,92 @@ func findConn[T any](conn net.Conn) (T, bool) {
 }
 
 // serveResolved answers a request that arrived on the route-free connection
-// conn. A denied connection's first response closes it. For a response with
-// Connection: close, the HTTP/2 server sends GOAWAY.
-func serveResolved(w http.ResponseWriter, r *http.Request, conn *resolvedConn, logger *slog.Logger) {
-	if conn.err == nil {
-		// Forwarding requests to the app isn't implemented yet.
-		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+// conn, at a Proxy whose external web ports are ports. A denied connection's
+// first response closes it, and so does a misdirected request's on HTTP/1. For
+// a response with Connection: close, the HTTP/2 server sends GOAWAY, so HTTP/2
+// refuses only a misdirected stream.
+func serveResolved(w http.ResponseWriter, r *http.Request, conn *resolvedConn, ports []string, logger *slog.Logger) {
+	if conn.err != nil {
+		w.Header().Set("Connection", "close")
+		code, ok := appauthz.WriteForwardedError(w, r, conn.err)
+		if !ok {
+			status := trace.ErrorToCode(conn.err)
+			http.Error(w, http.StatusText(status), status)
+		}
+		logger.WarnContext(r.Context(), "Rejected a route-free App connection", "code", code, "error", conn.err)
 		return
 	}
-	w.Header().Set("Connection", "close")
-	code, ok := appauthz.WriteForwardedError(w, r, conn.err)
-	if !ok {
-		status := trace.ErrorToCode(conn.err)
-		http.Error(w, http.StatusText(status), status)
+	// Checked before the authority, since a 421 would send the client to a new
+	// connection that would refuse the request too.
+	if r.Method == http.MethodConnect || (isUpgrade(r) && !upgradesOnlyToWebSocket(r)) {
+		http.Error(w, "This connection serves HTTP requests and WebSocket upgrades only.", http.StatusNotImplemented)
+		logger.DebugContext(r.Context(), "Refused a request a route-free App connection doesn't serve",
+			"method", r.Method, "upgrade", r.Header.Get("Upgrade"), "client_addr", conn.RemoteAddr())
+		return
 	}
-	logger.WarnContext(r.Context(), "Rejected a route-free App connection", "code", code, "error", conn.err)
+	if !authorityMatches(r.Host, conn.state.ServerName, ports) {
+		if r.ProtoMajor == 1 {
+			w.Header().Set("Connection", "close")
+		}
+		w.Header().Set(common.TeleportAppErrorCodeHeader, string(common.AppErrorCodeAuthorityMismatch))
+		http.Error(w, "This connection serves another host. Open a new connection to the host this request names.", http.StatusMisdirectedRequest)
+		logger.DebugContext(r.Context(), "Refused a misdirected request on a route-free App connection",
+			"host", r.Host, "sni", conn.state.ServerName, "client_addr", conn.RemoteAddr())
+		return
+	}
+	// Forwarding requests to the app isn't implemented yet.
+	http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+}
+
+// isUpgrade reports whether r asks to switch protocols, as
+// httputil.ReverseProxy decides it, from every Connection field.
+func isUpgrade(r *http.Request) bool {
+	return httpguts.HeaderValuesContainsToken(r.Header["Connection"], "upgrade") && r.Header.Get("Upgrade") != ""
+}
+
+// upgradesOnlyToWebSocket reports whether r offers WebSocket as its only
+// protocol, since the upstream may switch to any protocol it's offered.
+func upgradesOnlyToWebSocket(r *http.Request) bool {
+	upgrade := r.Header["Upgrade"]
+	return len(upgrade) == 1 && strings.EqualFold(strings.TrimSpace(upgrade[0]), "websocket")
+}
+
+// authorityMatches reports whether hostport, a request's host, names the
+// route-free connection's host, sni. It accepts no alias, only the SNI's own
+// name, with no port or one of ports, the Proxy's external web ports. Pinning
+// keeps a client that reuses one connection for several hosts, such as one
+// that coalesces HTTP/2 connections, from sending another app's requests to
+// the connection's app.
+func authorityMatches(hostport, sni string, ports []string) bool {
+	// No SNI is an IP literal, so the first colon starts the port.
+	host, port, _ := strings.Cut(hostport, ":")
+	want, ok := normalizeHostname(sni)
+	if !ok || want == "" {
+		return false
+	}
+	got, ok := normalizeHostname(host)
+	if !ok || got != want {
+		return false
+	}
+	return port == "" || slices.Contains(ports, port)
+}
+
+// externalWebPorts returns the ports of addrs, the Proxy's public addresses,
+// on which clients reach its web listener. Each has a port, since a public
+// address without one takes the web listener's. A Proxy with no public address
+// is reached on webAddr, its web listener, as its apps are addressed under the
+// cluster name.
+func externalWebPorts(addrs []utils.NetAddr, webAddr utils.NetAddr) []string {
+	var ports []string
+	for _, addr := range addrs {
+		if port := addr.Port(0); port != 0 {
+			ports = append(ports, strconv.Itoa(port))
+		}
+	}
+	if len(addrs) == 0 {
+		if port := webAddr.Port(0); port != 0 {
+			ports = append(ports, strconv.Itoa(port))
+		}
+	}
+	return ports
 }

@@ -884,6 +884,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			ClusterGetter:         cfg.Proxy,
 			CipherSuites:          cfg.CipherSuites,
 			ProxyPublicAddrs:      cfg.ProxyPublicAddrs,
+			ProxyWebAddr:          cfg.ProxyWebAddr,
 			IntegrationAppHandler: cfg.IntegrationAppHandler,
 		})
 		if err != nil {

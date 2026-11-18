@@ -136,6 +136,9 @@ const (
 	// AppErrorCodeNoCapableReplica means that no reachable Application Service instance serves the application with a
 	// forwarded client identity. The client can retry.
 	AppErrorCodeNoCapableReplica AppErrorCode = "no-capable-replica"
+	// AppErrorCodeAuthorityMismatch means that the request names a host other than the one its connection was opened
+	// for. The client should open a new connection to the application's public address.
+	AppErrorCodeAuthorityMismatch AppErrorCode = "authority-mismatch"
 	// AppErrorCodeResourceDenied means that the application's app_resources
 	// rules deny the request path or method. The client may still access other
 	// paths of the application.

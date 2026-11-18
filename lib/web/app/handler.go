@@ -62,6 +62,8 @@ type HandlerConfig struct {
 	ClusterGetter reversetunnelclient.ClusterGetter
 	// ProxyPublicAddrs contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
+	// ProxyWebAddr is the address of the Proxy's web listener.
+	ProxyWebAddr utils.NetAddr
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
@@ -114,6 +116,10 @@ type Handler struct {
 	// dbscDisabled disables all DBSC handling, configured via
 	// TELEPORT_UNSTABLE_DISABLE_DBSC.
 	dbscDisabled bool
+
+	// externalWebPorts are the ports a request on a route-free connection may
+	// name.
+	externalWebPorts []string
 }
 
 // NewHandler returns a new application handler.
@@ -124,11 +130,12 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	}
 
 	h := &Handler{
-		c:            c,
-		closeContext: ctx,
-		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
-		cswshAction:  parseCSWSHAction(os.Getenv(cswshActionEnv)),
-		dbscDisabled: os.Getenv(dbscDisabledEnv) != "",
+		c:                c,
+		closeContext:     ctx,
+		logger:           slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
+		cswshAction:      parseCSWSHAction(os.Getenv(cswshActionEnv)),
+		dbscDisabled:     os.Getenv(dbscDisabledEnv) != "",
+		externalWebPorts: externalWebPorts(c.ProxyPublicAddrs, c.ProxyWebAddr),
 	}
 	if h.cswshAction.enabled() {
 		h.logger.InfoContext(ctx, "Application access cross-site WebSocket (CSWSH) guard enabled",
@@ -177,7 +184,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// the connection, so none of the router's app session handling applies to
 	// its requests.
 	if conn, ok := resolvedConnFromRequest(r); ok {
-		serveResolved(w, r, conn, h.logger)
+		serveResolved(w, r, conn, h.externalWebPorts, h.logger)
 		return
 	}
 	h.router.ServeHTTP(w, r)
