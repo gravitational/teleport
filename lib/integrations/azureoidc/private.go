@@ -59,6 +59,7 @@ func getRefreshTokens() ([]msalToken, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer f.Close()
 
 	var tokenCache msalTokenCache
 	if err := json.NewDecoder(f).Decode(&tokenCache); err != nil {
