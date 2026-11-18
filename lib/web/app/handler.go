@@ -58,7 +58,8 @@ type HandlerConfig struct {
 	AuthClient authclient.ClientI
 	// AccessPoint is caching client to auth.
 	AccessPoint authclient.ProxyAccessPoint
-	// ClusterGetter holds connections to leaf clusters.
+	// ClusterGetter is the Proxy's reverse tunnel server, through which it
+	// reaches the agents of this cluster and of leaf clusters.
 	ClusterGetter reversetunnelclient.ClusterGetter
 	// ProxyPublicAddrs contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
@@ -70,6 +71,12 @@ type HandlerConfig struct {
 	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
 	// Only available for AWS OIDC Integrations.
 	IntegrationAppHandler ServerHandler
+	// GetConnTLSCertificate returns the Proxy's RoleProxy certificate, with
+	// which it forwards route-free App requests to agents.
+	GetConnTLSCertificate utils.GetCertificateFunc
+	// GetConnTLSRoots returns the local cluster's Host CA, which signs agents'
+	// certificates.
+	GetConnTLSRoots utils.GetRootsFunc
 }
 
 // CheckAndSetDefaults validates configuration.
@@ -84,11 +91,20 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("access point missing")
 	}
+	if c.ClusterGetter == nil {
+		return trace.BadParameter("cluster getter missing")
+	}
 	if len(c.CipherSuites) == 0 {
 		return trace.BadParameter("ciphersuites missing")
 	}
 	if c.IntegrationAppHandler == nil {
 		return trace.BadParameter("integration app handler missing")
+	}
+	if c.GetConnTLSCertificate == nil {
+		return trace.BadParameter("connection TLS certificate getter missing")
+	}
+	if c.GetConnTLSRoots == nil {
+		return trace.BadParameter("connection TLS roots getter missing")
 	}
 
 	return nil
@@ -120,6 +136,10 @@ type Handler struct {
 	// externalWebPorts are the ports a request on a route-free connection may
 	// name.
 	externalWebPorts []string
+
+	// agentForwarder forwards requests on route-free connections to the agents
+	// that serve their apps.
+	agentForwarder http.Handler
 }
 
 // NewHandler returns a new application handler.
@@ -165,6 +185,21 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	}
 	h.clusterName = cn.GetClusterName()
 
+	agents, err := newAgentTransports(ctx, agentTransportsConfig{
+		clusterName:    h.clusterName,
+		clusterGetter:  c.ClusterGetter,
+		getCertificate: c.GetConnTLSCertificate,
+		getRoots:       c.GetConnTLSRoots,
+		cipherSuites:   c.CipherSuites,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	h.agentForwarder, err = newAgentForwarder(ctx, agentRouterConfig{agents: agents, logger: h.logger})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the application routes.
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
@@ -184,7 +219,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// the connection, so none of the router's app session handling applies to
 	// its requests.
 	if conn, ok := resolvedConnFromRequest(r); ok {
-		serveResolved(w, r, conn, h.externalWebPorts, h.logger)
+		h.serveResolved(w, r, conn)
 		return
 	}
 	h.router.ServeHTTP(w, r)

@@ -320,12 +320,12 @@ func findConn[T any](conn net.Conn) (T, bool) {
 	return zero, false
 }
 
-// serveResolved answers a request that arrived on the route-free connection
-// conn, at a Proxy whose external web ports are ports. A denied connection's
-// first response closes it, and so does a misdirected request's on HTTP/1. For
-// a response with Connection: close, the HTTP/2 server sends GOAWAY, so HTTP/2
-// refuses only a misdirected stream.
-func serveResolved(w http.ResponseWriter, r *http.Request, conn *resolvedConn, ports []string, logger *slog.Logger) {
+// serveResolved forwards a request that arrived on the route-free connection
+// conn to the app the connection resolved to, or refuses it. A denied
+// connection's first response closes it, and so does a misdirected request's on
+// HTTP/1. For a response with Connection: close, the HTTP/2 server sends
+// GOAWAY, so HTTP/2 refuses only a misdirected stream.
+func (h *Handler) serveResolved(w http.ResponseWriter, r *http.Request, conn *resolvedConn) {
 	if conn.err != nil {
 		w.Header().Set("Connection", "close")
 		code, ok := appauthz.WriteForwardedError(w, r, conn.err)
@@ -333,29 +333,32 @@ func serveResolved(w http.ResponseWriter, r *http.Request, conn *resolvedConn, p
 			status := trace.ErrorToCode(conn.err)
 			http.Error(w, http.StatusText(status), status)
 		}
-		logger.WarnContext(r.Context(), "Rejected a route-free App connection", "code", code, "error", conn.err)
+		h.logger.WarnContext(r.Context(), "Rejected a route-free App connection", "code", code, "error", conn.err)
 		return
 	}
 	// Checked before the authority, since a 421 would send the client to a new
 	// connection that would refuse the request too.
 	if r.Method == http.MethodConnect || (isUpgrade(r) && !upgradesOnlyToWebSocket(r)) {
 		http.Error(w, "This connection serves HTTP requests and WebSocket upgrades only.", http.StatusNotImplemented)
-		logger.DebugContext(r.Context(), "Refused a request a route-free App connection doesn't serve",
+		h.logger.DebugContext(r.Context(), "Refused a request a route-free App connection doesn't serve",
 			"method", r.Method, "upgrade", r.Header.Get("Upgrade"), "client_addr", conn.RemoteAddr())
 		return
 	}
-	if !authorityMatches(r.Host, conn.state.ServerName, ports) {
+	if !authorityMatches(r.Host, conn.state.ServerName, h.externalWebPorts) {
 		if r.ProtoMajor == 1 {
 			w.Header().Set("Connection", "close")
 		}
 		w.Header().Set(common.TeleportAppErrorCodeHeader, string(common.AppErrorCodeAuthorityMismatch))
 		http.Error(w, "This connection serves another host. Open a new connection to the host this request names.", http.StatusMisdirectedRequest)
-		logger.DebugContext(r.Context(), "Refused a misdirected request on a route-free App connection",
+		h.logger.DebugContext(r.Context(), "Refused a misdirected request on a route-free App connection",
 			"host", r.Host, "sni", conn.state.ServerName, "client_addr", conn.RemoteAddr())
 		return
 	}
-	// Forwarding requests to the app isn't implemented yet.
-	http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+	// The connection's address is the one source IP pinning checked, which the
+	// X-Forwarded-For middleware may have replaced in r.RemoteAddr.
+	ctx := authz.ContextWithUser(r.Context(), conn.identity)
+	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
+	h.agentForwarder.ServeHTTP(w, r.WithContext(ctx))
 }
 
 // isUpgrade reports whether r asks to switch protocols, as

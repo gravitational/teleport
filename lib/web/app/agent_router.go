@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	appauthz "github.com/gravitational/teleport/lib/srv/app/authz"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -49,11 +50,6 @@ const agentRouterCacheTTL = 5 * time.Second
 // errNoCapableAgent means that no reachable agent serves the routed app with a
 // forwarded identity.
 var errNoCapableAgent = errors.New("no capable Application Service agent could be reached")
-
-// errUnsupportedApp means that this Proxy can't forward requests for the routed
-// app, such as after it became an app type that needs a route-bound
-// certificate.
-var errUnsupportedApp = errors.New("application can't be served with a forwarded client identity")
 
 type agentRouterConfig struct {
 	// The router lists app servers in the cluster that agents dial.
@@ -82,13 +78,15 @@ type agentRouter struct {
 }
 
 // newAgentForwarder returns the forwarder for requests whose context holds a
-// routed identity and the client's address.
-func newAgentForwarder(cfg agentRouterConfig) (*reverseproxy.Forwarder, error) {
+// routed identity and the client's address. Its cache of capable app servers
+// stops with ctx.
+func newAgentForwarder(ctx context.Context, cfg agentRouterConfig) (*reverseproxy.Forwarder, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:         agentRouterCacheTTL,
+		Context:     ctx,
 		ReloadOnErr: true,
 	})
 	if err != nil {
@@ -156,7 +154,9 @@ func (r *agentRouter) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // capableAppServers returns the route's app servers whose agents can serve it
 // with a forwarded identity, in the rendezvous order of the route's recording
-// group. It fails with errUnsupportedApp if this Proxy can't forward the app.
+// group. It fails with appauthz.ErrUnsupportedApplicationType if this Proxy
+// can't forward the app, such as after it became an app type that needs a
+// route-bound certificate.
 func (r *agentRouter) capableAppServers(ctx context.Context, route tlsca.RouteToApp) ([]types.AppServer, error) {
 	key := routeKey{clusterName: route.ClusterName, name: route.Name, publicAddr: route.PublicAddr}
 	servers, err := r.cache.Get(ctx, key, func(ctx context.Context) ([]types.AppServer, error) {
@@ -174,7 +174,7 @@ func (r *agentRouter) capableAppServers(ctx context.Context, route tlsca.RouteTo
 			return !componentfeatures.SupportsAppForwardedIdentityV1(server.GetApp())
 		})
 		if registered > 0 && len(servers) == 0 {
-			return nil, trace.Wrap(errUnsupportedApp)
+			return nil, trace.Wrap(appauthz.ErrUnsupportedApplicationType)
 		}
 		// An agent advertises the feature for an app only when it accepts
 		// forwarded identities and its own version of the rule includes the
@@ -194,16 +194,15 @@ func (r *agentRouter) capableAppServers(ctx context.Context, route tlsca.RouteTo
 // writeAgentRouterError answers a request that the router couldn't forward.
 // The forwarder has logged the error already.
 func writeAgentRouterError(w http.ResponseWriter, req *http.Request, err error) {
-	switch {
-	case errors.Is(err, errNoCapableAgent):
+	if errors.Is(err, errNoCapableAgent) {
 		w.Header().Set(common.TeleportAppErrorCodeHeader, string(common.AppErrorCodeNoCapableReplica))
 		http.Error(w, "No Application Service instance can currently serve this application without a certificate for the application. Retry, or contact your Teleport administrator.",
 			http.StatusServiceUnavailable)
-	case errors.Is(err, errUnsupportedApp):
-		w.Header().Set(common.TeleportAppErrorCodeHeader, string(common.AppErrorCodeUnsupportedApplicationType))
-		http.Error(w, "This application requires a certificate for the application, such as one from `tsh app login`.",
-			http.StatusForbidden)
-	default:
-		reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
+		return
 	}
+	if errors.Is(err, appauthz.ErrUnsupportedApplicationType) {
+		appauthz.WriteForwardedError(w, req, err)
+		return
+	}
+	reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
 }

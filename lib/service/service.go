@@ -6037,6 +6037,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterFeatures:           process.GetClusterFeatures(),
 			ScopesFeatures:            process.scopesFeatures,
 			GetProxyClientCertificate: conn.ClientGetCertificate,
+			GetProxyClientRoots:       conn.ClientGetPool,
 			UI:                        cfg.Proxy.UI,
 			ProxySettings:             proxySettings,
 			PublicProxyAddr:           process.proxyPublicAddr().Addr,

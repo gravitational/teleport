@@ -25,6 +25,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -261,6 +262,10 @@ type Config struct {
 	ProxyGroupID string
 	// GetProxyClientCertificate returns the proxy client certificate.
 	GetProxyClientCertificate func() (*tls.Certificate, error)
+	// GetProxyClientRoots returns the local cluster's Host CA, which the Proxy
+	// trusts when it connects to other cluster components with its client
+	// certificate.
+	GetProxyClientRoots func() (*x509.CertPool, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
@@ -886,6 +891,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			ProxyPublicAddrs:      cfg.ProxyPublicAddrs,
 			ProxyWebAddr:          cfg.ProxyWebAddr,
 			IntegrationAppHandler: cfg.IntegrationAppHandler,
+			GetConnTLSCertificate: cfg.GetProxyClientCertificate,
+			GetConnTLSRoots:       cfg.GetProxyClientRoots,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
