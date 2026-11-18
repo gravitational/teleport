@@ -102,12 +102,23 @@ func GenSchemaScopedRoleResource(ctx context.Context) (github_com_hashicorp_terr
 						"aws": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
 							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"role_arns": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 								Computed:      true,
-								Description:   "RoleArns specifies the AWS role ARNs to allow for this scoped app.",
+								Description:   "RoleArns specifies the AWS role ARNs to allow for this scoped role.",
 								ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								Optional:      true,
 								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseNonNullStateForUnknown()},
 							}},
 							Description: "AWS contains the AWS configuration for the scoped role.",
+							Optional:    true,
+						},
+						"azure": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"identities": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+								Computed:      true,
+								Description:   "Identities specifies the Azure identities to allow for this scoped role.",
+								ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseNonNullStateForUnknown()},
+							}},
+							Description: "Azure contains the Azure configuration for the scoped role.",
 							Optional:    true,
 						},
 						"client_idle_timeout": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
@@ -118,6 +129,17 @@ func GenSchemaScopedRoleResource(ctx context.Context) (github_com_hashicorp_terr
 						},
 						"disconnect_expired_cert": github_com_hashicorp_terraform_plugin_framework_resource_schema.BoolAttribute{
 							Description: "DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+						},
+						"gcp": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"service_accounts": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+								Computed:      true,
+								Description:   "ServiceAccounts specifies the GCP service accounts to allow for this scoped role.",
+								ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseNonNullStateForUnknown()},
+							}},
+							Description: "GCP contains the GCP configuration for the scoped role.",
 							Optional:    true,
 						},
 						"label_expression": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
@@ -664,11 +686,21 @@ func GenSchemaScopedRoleDataSource(ctx context.Context) (github_com_hashicorp_te
 						"aws": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
 							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"role_arns": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 								Computed:    true,
-								Description: "RoleArns specifies the AWS role ARNs to allow for this scoped app.",
+								Description: "RoleArns specifies the AWS role ARNs to allow for this scoped role.",
 								ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								Optional:    true,
 							}},
 							Description: "AWS contains the AWS configuration for the scoped role.",
+							Optional:    true,
+						},
+						"azure": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"identities": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+								Computed:    true,
+								Description: "Identities specifies the Azure identities to allow for this scoped role.",
+								ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Optional:    true,
+							}},
+							Description: "Azure contains the Azure configuration for the scoped role.",
 							Optional:    true,
 						},
 						"client_idle_timeout": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
@@ -678,6 +710,16 @@ func GenSchemaScopedRoleDataSource(ctx context.Context) (github_com_hashicorp_te
 						},
 						"disconnect_expired_cert": github_com_hashicorp_terraform_plugin_framework_datasource_schema.BoolAttribute{
 							Description: "DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+						},
+						"gcp": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"service_accounts": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+								Computed:    true,
+								Description: "ServiceAccounts specifies the GCP service accounts to allow for this scoped role.",
+								ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Optional:    true,
+							}},
+							Description: "GCP contains the GCP configuration for the scoped role.",
 							Optional:    true,
 						},
 						"label_expression": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
@@ -3034,6 +3076,96 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 																t = (v.ValueString())
 															}
 															obj.ResourcesExpressions[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attributes()["gcp"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.app.gcp"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.gcp", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Gcp = nil
+												if !v.IsNull() && !v.IsUnknown() {
+													tf := v
+													obj.Gcp = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleApp_GCP{}
+													obj := obj.Gcp
+													{
+														a, ok := tf.Attributes()["service_accounts"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedRole.spec.app.gcp.service_accounts"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.gcp.service_accounts", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.ServiceAccounts = make([]string, len(v.Elements()))
+																if !v.IsNull() && !v.IsUnknown() {
+																	for k, a := range v.Elements() {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.gcp.service_accounts", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.ServiceAccounts[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attributes()["azure"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.app.azure"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.azure", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Azure = nil
+												if !v.IsNull() && !v.IsUnknown() {
+													tf := v
+													obj.Azure = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleApp_Azure{}
+													obj := obj.Azure
+													{
+														a, ok := tf.Attributes()["identities"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedRole.spec.app.azure.identities"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.azure.identities", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.Identities = make([]string, len(v.Elements()))
+																if !v.IsNull() && !v.IsUnknown() {
+																	for k, a := range v.Elements() {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.azure.identities", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.Identities[k] = t
+																		}
+																	}
+																}
+															}
 														}
 													}
 												}
@@ -5398,6 +5530,150 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																	v = result
 																}
 																attrs["resources_expressions"] = v
+															}
+														}
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["gcp"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedRole.spec.app.gcp"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.gcp", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																existing := attrs["gcp"]
+																v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																	if preserveUnknown && existing != nil && existing.IsUnknown() {
+																		return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																	} else {
+																		if obj.Gcp == nil {
+																			return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																		} else {
+																			obj := obj.Gcp
+																			attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																			v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																			if ok && v.Attributes() != nil {
+																				attrs = v.Attributes()
+																			}
+																			{
+																				attrType, ok := attrType.AttributeTypes()["service_accounts"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"ScopedRole.spec.app.gcp.service_accounts"})
+																				} else {
+																					attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.gcp.service_accounts", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["service_accounts"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																						} else {
+																							oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ServiceAccounts))
+																							c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																							if ok && c.Elements() != nil {
+																								oldElems = c.Elements()
+																							}
+																							elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ServiceAccounts))
+																							copy(elems, oldElems)
+																							for k, a := range obj.ServiceAccounts {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := elems[k]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																								} else {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																								}
+																								elems[k] = v
+																							}
+																							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																							diags.Append(resultDiags...)
+																							v = result
+																						}
+																						attrs["service_accounts"] = v
+																					}
+																				}
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																			diags.Append(resultDiags...)
+																			return result
+																		}
+																	}
+																}()
+																attrs["gcp"] = v
+															}
+														}
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["azure"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedRole.spec.app.azure"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.azure", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																existing := attrs["azure"]
+																v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																	if preserveUnknown && existing != nil && existing.IsUnknown() {
+																		return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																	} else {
+																		if obj.Azure == nil {
+																			return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																		} else {
+																			obj := obj.Azure
+																			attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																			v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																			if ok && v.Attributes() != nil {
+																				attrs = v.Attributes()
+																			}
+																			{
+																				attrType, ok := attrType.AttributeTypes()["identities"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"ScopedRole.spec.app.azure.identities"})
+																				} else {
+																					attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.azure.identities", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["identities"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																						} else {
+																							oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Identities))
+																							c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																							if ok && c.Elements() != nil {
+																								oldElems = c.Elements()
+																							}
+																							elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Identities))
+																							copy(elems, oldElems)
+																							for k, a := range obj.Identities {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := elems[k]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																								} else {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																								}
+																								elems[k] = v
+																							}
+																							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																							diags.Append(resultDiags...)
+																							v = result
+																						}
+																						attrs["identities"] = v
+																					}
+																				}
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																			diags.Append(resultDiags...)
+																			return result
+																		}
+																	}
+																}()
+																attrs["azure"] = v
 															}
 														}
 													}

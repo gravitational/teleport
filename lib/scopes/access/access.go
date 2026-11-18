@@ -19,6 +19,7 @@ package access
 import (
 	"errors"
 	"iter"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/label"
 	"github.com/gravitational/teleport/lib/traits"
+	gcputils "github.com/gravitational/teleport/lib/utils/gcp"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -977,6 +979,14 @@ func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
 		return trace.Wrap(err)
 	}
 
+	if err := validateAppGCPBlock(app.GetGcp()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateAppAzureBlock(app.GetAzure()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -992,6 +1002,44 @@ func validateAppAWSBlock(aws *scopedaccessv1.ScopedRoleApp_AWS) error {
 		}
 		if err := awsutils.CheckRoleARN(arn); err != nil {
 			return trace.BadParameter("has invalid aws.role_arns entry: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func validateAppGCPBlock(gcp *scopedaccessv1.ScopedRoleApp_GCP) error {
+	for _, sa := range gcp.GetServiceAccounts() {
+		if err := ScopedValidateTemplate(sa); err != nil {
+			return trace.BadParameter("has invalid gcp.service_accounts entry: %v", err)
+		}
+		if strings.Contains(sa, "{{") {
+			// Any value containing "{{" was either validated or rejected by ScopedValidateTemplate.
+			continue
+		}
+		if err := gcputils.ValidateGCPServiceAccountName(sa); err != nil {
+			return trace.BadParameter("has invalid gcp.service_accounts entry: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// ParseResourceID from Azure SDK is too lenient; we use a strict regexp instead.
+// Note this is a direct copy from lib/services/role.go, to avoid a circular dependency.
+var azureIdentityPattern = regexp.MustCompile(`(?i)^/subscriptions/([a-fA-F0-9-]+)/resourceGroups/([0-9a-zA-Z-_]+)/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/([0-9a-zA-Z-_]+)$`)
+
+func validateAppAzureBlock(az *scopedaccessv1.ScopedRoleApp_Azure) error {
+	for _, id := range az.GetIdentities() {
+		if err := ScopedValidateTemplate(id); err != nil {
+			return trace.BadParameter("has invalid azure.identities entry: %v", err)
+		}
+		if strings.Contains(id, "{{") {
+			// Any value containing "{{" was either validated or rejected by ScopedValidateTemplate.
+			continue
+		}
+		if !azureIdentityPattern.MatchString(id) {
+			return trace.BadParameter("has invalid azure.identities entry: %v", id)
 		}
 	}
 
@@ -1087,6 +1135,16 @@ func filterInvalidTemplatesFromRole(spec *scopedaccessv1.ScopedRoleSpec, failFas
 
 	// filter invalid AWS role ARN templates
 	if err := handleErrs(filterInvalidTemplates(spec.GetApp().GetAws().GetRoleArns, spec.GetApp().GetAws().SetRoleArns)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// filter invalid GCP service account templates
+	if err := handleErrs(filterInvalidTemplates(spec.GetApp().GetGcp().GetServiceAccounts, spec.GetApp().GetGcp().SetServiceAccounts)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// filter invalid Azure identities templates
+	if err := handleErrs(filterInvalidTemplates(spec.GetApp().GetAzure().GetIdentities, spec.GetApp().GetAzure().SetIdentities)...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

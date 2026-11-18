@@ -206,10 +206,6 @@ func validateApp(app types.Application) error {
 		return trace.Wrap(err)
 	}
 
-	if app.IsAzureCloud() || app.IsGCP() {
-		return trace.BadParameter("scoped applications do not support Azure or GCP cloud apps")
-	}
-
 	if len(app.GetRequiredAppNames()) > 0 {
 		return trace.BadParameter("scoped applications do not support required app names")
 	}

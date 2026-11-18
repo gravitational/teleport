@@ -7336,7 +7336,7 @@ func (process *TeleportProcess) initApps() {
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
 			isScopedApp := scopePin.GetScope() != ""
-			if err := validateScopedAppRegistration(isScopedApp, app.Name, app.PublicAddr, app.Cloud, app.MCP, app.LLM, app.RequiredAppNames); err != nil {
+			if err := validateScopedAppRegistration(isScopedApp, app.Name, app.PublicAddr, app.MCP, app.LLM, app.RequiredAppNames); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -7651,16 +7651,12 @@ func (s *emitterShutdown) Cleanup() {
 }
 
 // TODO(williamo/scopes): Update this validate function when we add support for these features.
-func validateScopedAppRegistration(isScoped bool, appName string, publicAddr, cloud string, mcp *types.MCP, llm *types.LLM, requiredApps []string) error {
+func validateScopedAppRegistration(isScoped bool, appName string, publicAddr string, mcp *types.MCP, llm *types.LLM, requiredApps []string) error {
 	if !isScoped {
 		return nil
 	}
 	if publicAddr != "" {
 		return trace.BadParameter("app %q is scoped and must not set public_addr; it is derived from the app name and scope", appName)
-	}
-
-	if cloud == types.CloudGCP || cloud == types.CloudAzure {
-		return trace.BadParameter("app %q is scoped and does not support Azure or GCP applications", appName)
 	}
 	if mcp != nil {
 		return trace.BadParameter("app %q is scoped and does not support mcp applications", appName)

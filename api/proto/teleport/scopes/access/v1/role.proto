@@ -262,7 +262,7 @@ message ScopedRoleApp {
 
   // AWS specifies the AWS configuration for the scoped role.
   message AWS {
-    // RoleArns specifies the AWS role ARNs to allow for this scoped app.
+    // RoleArns specifies the AWS role ARNs to allow for this scoped role.
     repeated string role_arns = 1;
   }
 
@@ -286,6 +286,24 @@ message ScopedRoleApp {
   // declared so that version skew or a rollback cannot silently drop it and
   // widen a role's access.
   repeated string resources_expressions = 8;
+
+  // GCP contains the GCP configuration for the scoped role.
+  GCP gcp = 9;
+
+  // GCP specifies the GCP configuration for the scoped role.
+  message GCP {
+    // ServiceAccounts specifies the GCP service accounts to allow for this scoped role.
+    repeated string service_accounts = 1;
+  }
+
+  // Azure contains the Azure configuration for the scoped role.
+  Azure azure = 10;
+
+  // Azure specifies the Azure configuration for the scoped role.
+  message Azure {
+    // Identities specifies the Azure identities to allow for this scoped role.
+    repeated string identities = 1;
+  }
 }
 
 // AppResource is one rule under a scoped role's app.resources. It allows

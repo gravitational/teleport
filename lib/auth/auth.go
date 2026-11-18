@@ -4126,9 +4126,6 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	var (
 		kubeGroups, kubeUsers []string
 		dbNames, dbUsers      []string
-		roleARNs              []string
-		azureIdentities       []string
-		gcpAccounts           []string
 	)
 
 	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
@@ -4145,24 +4142,24 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
+	}
 
-		// See which AWS role ARNs this user is allowed to assume.
-		roleARNs, err = unscoped.CheckAWSRoleARNs(sessionTTL, req.OverrideRoleTTL)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
+	// See which AWS role ARNs this user is allowed to assume.
+	roleARNs, err := certParams.CheckAWSRoleARNs(ctx, sessionTTL, req.OverrideRoleTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		// See which Azure identities this user is allowed to assume.
-		azureIdentities, err = unscoped.CheckAzureIdentities(sessionTTL, req.OverrideRoleTTL)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
+	// See which Azure identities this user is allowed to assume.
+	azureIdentities, err := certParams.CheckAzureIdentities(ctx, sessionTTL, req.OverrideRoleTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		// Enumerate allowed GCP service accounts.
-		gcpAccounts, err = unscoped.CheckGCPServiceAccounts(sessionTTL, req.OverrideRoleTTL)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
+	// Enumerate allowed GCP service accounts.
+	gcpAccounts, err := certParams.CheckGCPServiceAccounts(ctx, sessionTTL, req.OverrideRoleTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Generate AWS client side credentials if the user is trying to access an AWS App with an AWS Roles Anywhere Integration.

@@ -1825,9 +1825,6 @@ func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]stri
 	if !matchedTTL {
 		return nil, trace.AccessDenied("this user cannot request AWS management console access for %v", ttl)
 	}
-	if len(arns) == 0 {
-		return nil, trace.NotFound("this user cannot request AWS management console, has no assigned role ARNs")
-	}
 	return arns.Elements(), nil
 }
 
@@ -1856,9 +1853,6 @@ func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]
 	}
 	if !matchedTTL {
 		return nil, trace.AccessDenied("this user cannot access Azure API for %v", ttl)
-	}
-	if len(identities) == 0 {
-		return nil, trace.NotFound("this user cannot access Azure API, has no assigned identities")
 	}
 
 	out := make([]string, 0, len(identities))
@@ -1894,9 +1888,6 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	}
 	if !matchedTTL {
 		return nil, trace.AccessDenied("this user cannot request GCP API access for %v", ttl)
-	}
-	if len(accounts) == 0 {
-		return nil, trace.NotFound("this user cannot request GCP API access, has no assigned service accounts")
 	}
 	return accounts.Elements(), nil
 }

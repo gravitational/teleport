@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -42,9 +43,6 @@ type UnscopedCertificateParameters interface {
 	CertificateExtensions() []*types.CertExtension
 	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error)
 	CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error)
-	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
-	CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]string, error)
-	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
 	GetAllowedResourceAccessIDs() []types.ResourceAccessID
 	CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
@@ -87,32 +85,19 @@ func (c *CertificateParameterContext) GetSSHLoginsForTTL(ctx context.Context, tt
 	// For scoped identities, enumerate all possible logins across all roles in the pin.
 	// We cannot restrict logins based on a single role since we don't know which role will
 	// grant access without knowing the target resource.
-	loginSet := make(map[string]struct{})
-
-	// Use of riskyEnumerateScopedCheckers is acceptable here because we are deliberately attempting to aggregate
-	// information across all roles, rather than making a specific access-control decision.
-	for checker, err := range c.ctx.riskyEnumerateScopedCheckers(ctx) {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Get logins from this checker. Pass 0 as TTL to get all logins without TTL restriction.
-		// We're not enforcing per-role TTL restrictions for scoped certs since the effective role
-		// is unknown at cert generation time.
-		for _, login := range checker.SSH().getScopedLogins() {
-			// Skip placeholder logins when aggregating across roles
-			if !strings.HasPrefix(login, constants.NoLoginPrefix) {
-				loginSet[login] = struct{}{}
-			}
-		}
+	//
+	// Get logins from this checker. Pass 0 as TTL to get all logins without TTL restriction.
+	// We're not enforcing per-role TTL restrictions for scoped certs since the effective role
+	// is unknown at cert generation time.
+	logins, err := c.aggregateScopedPrincipals(ctx, func(checker *ScopedAccessChecker) ([]string, error) {
+		// Skip placeholder logins when aggregating across roles
+		return slices.DeleteFunc(checker.SSH().getScopedLogins(), func(login string) bool {
+			return strings.HasPrefix(login, constants.NoLoginPrefix)
+		}), nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	// Convert map to sorted slice for deterministic output
-	logins := make([]string, 0, len(loginSet))
-	for login := range loginSet {
-		logins = append(logins, login)
-	}
-	slices.Sort(logins)
 
 	if len(logins) == 0 {
 		// User was deliberately configured to have no login capability,
@@ -123,6 +108,95 @@ func (c *CertificateParameterContext) GetSSHLoginsForTTL(ctx context.Context, tt
 	}
 
 	return logins, nil
+}
+
+// CheckGCPServiceAccounts returns the GCP service accounts to embed in the certificate.
+//
+//   - Unscoped: Returns the accounts from roles, restricted by role TTL rules
+//   - Scoped: Returns the accounts of every role in the pin, for the same reason as [GetSSHLoginsForTTL]:
+//     the effective role is unknown without a target app. The list is only used for selection; access to
+//     a specific app and account is checked against the effective role when the app is accessed.
+func (c *CertificateParameterContext) CheckGCPServiceAccounts(ctx context.Context, ttl time.Duration, overrideTTL bool) ([]string, error) {
+	if !c.ctx.isScoped() {
+		accounts, err := c.ctx.unscopedChecker.CheckGCPServiceAccounts(ttl, overrideTTL)
+		return accounts, trace.Wrap(err)
+	}
+
+	gcpServiceAccounts, err := c.aggregateScopedPrincipals(ctx, func(checker *ScopedAccessChecker) ([]string, error) {
+		return checker.scopedCompatChecker.CheckGCPServiceAccounts(ttl, overrideTTL)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return gcpServiceAccounts, nil
+}
+
+// CheckAzureIdentities returns the Azure identities to embed in the certificate.
+//
+//   - Unscoped: Returns the identities from roles, restricted by role TTL rules
+//   - Scoped: Returns the identities of every role in the pin, for the same reason as [GetSSHLoginsForTTL]:
+//     the effective role is unknown without a target app. The list is only used for selection; access to
+//     a specific app and account is checked against the effective role when the app is accessed.
+func (c *CertificateParameterContext) CheckAzureIdentities(ctx context.Context, ttl time.Duration, overrideTTL bool) ([]string, error) {
+	if !c.ctx.isScoped() {
+		identities, err := c.ctx.unscopedChecker.CheckAzureIdentities(ttl, overrideTTL)
+		return identities, trace.Wrap(err)
+	}
+
+	azureIdentities, err := c.aggregateScopedPrincipals(ctx, func(checker *ScopedAccessChecker) ([]string, error) {
+		return checker.scopedCompatChecker.CheckAzureIdentities(ttl, overrideTTL)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return azureIdentities, nil
+}
+
+// CheckAWSRoleARNs returns the AWS role arns to embed in the certificate.
+//
+//   - Unscoped: Returns the role arns from roles, restricted by role TTL rules
+//   - Scoped: Returns the role arns of every role in the pin, for the same reason as [GetSSHLoginsForTTL]:
+//     the effective role is unknown without a target app. The list is only used for selection; access to
+//     a specific app and account is checked against the effective role when the app is accessed.
+func (c *CertificateParameterContext) CheckAWSRoleARNs(ctx context.Context, ttl time.Duration, overrideTTL bool) ([]string, error) {
+	if !c.ctx.isScoped() {
+		arns, err := c.ctx.unscopedChecker.CheckAWSRoleARNs(ttl, overrideTTL)
+		return arns, trace.Wrap(err)
+	}
+
+	arns, err := c.aggregateScopedPrincipals(ctx, func(checker *ScopedAccessChecker) ([]string, error) {
+		return checker.scopedCompatChecker.CheckAWSRoleARNs(ttl, overrideTTL)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return arns, nil
+}
+
+func (c *CertificateParameterContext) aggregateScopedPrincipals(ctx context.Context, checkerFn func(*ScopedAccessChecker) ([]string, error)) ([]string, error) {
+	principalSet := make(map[string]struct{})
+
+	// Use of riskyEnumerateScopedCheckers is acceptable here because we are deliberately attempting to aggregate
+	// information across all roles, rather than making a specific access-control decision.
+	for checker, err := range c.ctx.riskyEnumerateScopedCheckers(ctx) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		principals, err := checkerFn(checker)
+		if trace.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, val := range principals {
+			principalSet[val] = struct{}{}
+		}
+	}
+
+	// Sorted for deterministic output.
+	return slices.Sorted(maps.Keys(principalSet)), nil
 }
 
 // AdjustSessionTTL adjusts the requested session TTL based on role/configuration policies.

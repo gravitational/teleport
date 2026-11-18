@@ -100,6 +100,14 @@ func applyAppBlock(src *scopedaccessv1.ScopedRoleApp, dst *types.RoleConditions)
 	if aws := src.GetAws(); aws != nil {
 		dst.AWSRoleARNs = aws.GetRoleArns()
 	}
+
+	if gcp := src.GetGcp(); gcp != nil {
+		dst.GCPServiceAccounts = gcp.GetServiceAccounts()
+	}
+
+	if azure := src.GetAzure(); azure != nil {
+		dst.AzureIdentities = azure.GetIdentities()
+	}
 }
 
 // applyWorkloadIdentityBlock writes/converts the relevant subset of the scoped role's workload_identity

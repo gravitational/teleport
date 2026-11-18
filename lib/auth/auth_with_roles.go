@@ -4577,12 +4577,6 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			// usages that have not been fully thought through or tested yet.
 			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for unsupported usage %q", req.Usage)
 		}
-
-		// Scoped identities cannot access Azure or GCP cloud apps yet.
-		// TODO(williamo/scopes): add support for Azure and GCP.
-		if req.RouteToApp.AzureIdentity != "" || req.RouteToApp.GCPServiceAccount != "" {
-			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for cloud app access")
-		}
 	}
 
 	hasAdminRole := !isScoped && authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin))

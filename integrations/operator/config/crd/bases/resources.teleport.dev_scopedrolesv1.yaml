@@ -63,7 +63,20 @@ spec:
                     properties:
                       role_arns:
                         description: RoleArns specifies the AWS role ARNs to allow
-                          for this scoped app.
+                          for this scoped role.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
+                  azure:
+                    description: Azure contains the Azure configuration for the scoped
+                      role.
+                    nullable: true
+                    properties:
+                      identities:
+                        description: Identities specifies the Azure identities to
+                          allow for this scoped role.
                         items:
                           type: string
                         nullable: true
@@ -80,6 +93,19 @@ spec:
                       are disconnected when the user certificate expires. If empty,
                       the defaults block value (or global default) applies.
                     type: boolean
+                  gcp:
+                    description: GCP contains the GCP configuration for the scoped
+                      role.
+                    nullable: true
+                    properties:
+                      service_accounts:
+                        description: ServiceAccounts specifies the GCP service accounts
+                          to allow for this scoped role.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   label_expression:
                     description: LabelExpression is an optional predicate expression
                       evaluated against an application's labels.
