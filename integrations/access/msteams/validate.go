@@ -95,11 +95,13 @@ func Validate(configPath, recipient string) error {
 
 	fmt.Printf(" - Message sent, ID: %v\n", id)
 
+	maxDuration := time.Now().Add(time.Hour)
 	data := plugindata.AccessRequestData{
 		User:          "foo",
 		Roles:         []string{"editor"},
 		RequestReason: "Example request posted by 'validate' command.",
 		ReviewsCount:  1,
+		MaxDuration:   &maxDuration,
 	}
 
 	reviews := []types.AccessReview{
