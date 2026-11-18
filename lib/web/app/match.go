@@ -24,8 +24,10 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/net/idna"
 
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
@@ -92,6 +94,44 @@ func appMatchesPublicAddr(app readonly.Application, publicAddr string) bool {
 	}
 
 	return app.GetPublicAddr() == publicAddr
+}
+
+// matchSNI matches an app server in clusterName when sni, a connection's SNI,
+// is the address that AssembleAppFQDN gives clients for its app under one of
+// proxyDNSNames, or an unscoped app's public address. Unlike ResolveFQDN, it
+// matches no other name, and never a Proxy DNS name itself.
+func matchSNI(sni, clusterName string, proxyDNSNames []string) Matcher {
+	proxyDNSNames = sniProxyDNSNames(proxyDNSNames)
+	isProxyDNSName := func(host string) bool {
+		return slices.Contains(proxyDNSNames, host)
+	}
+	// Stored and assembled addresses are lowercase, and a client's SNI needn't
+	// be. RFC 6066 forbids a trailing dot, which makes no difference to a name.
+	host := strings.TrimRight(strings.ToLower(sni), ".")
+	// SNIs are ASCII (RFC 6066), and lowercasing a non-ASCII one can turn it
+	// into an app's address. As ValidateApp does for public addresses, keep the
+	// Proxy's own names from reaching an app.
+	if strings.ContainsFunc(sni, func(r rune) bool { return r >= utf8.RuneSelf }) || isProxyDNSName(host) {
+		return func(readonly.AppServer) bool { return false }
+	}
+	// A scoped app's address is its hash directly under a Proxy DNS name.
+	_, parent, _ := strings.Cut(host, ".")
+	underProxy := isProxyDNSName(parent)
+	return func(server readonly.AppServer) bool {
+		app := server.GetApp()
+		if app.GetScope() != "" {
+			// Unlike AssembleAppFQDN, appMatchesPublicAddr rejects a label that
+			// isn't hash-shaped before hashing, and hashes once.
+			return underProxy && appMatchesPublicAddr(app, host)
+		}
+		// An agent that can't find an app's public address leaves it empty.
+		if host != "" && host == app.GetPublicAddr() {
+			return true
+		}
+		return slices.ContainsFunc(proxyDNSNames, func(name string) bool {
+			return host == utils.AssembleAppFQDN(clusterName, name, clusterName, app)
+		})
+	}
 }
 
 // matchUnscopedName matches an unscoped app by name. A scoped app answers only
@@ -185,6 +225,39 @@ func ResolveFQDN(
 	}
 
 	return nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
+}
+
+// sniProxyDNSNames returns the Proxy's DNS names as a client sends them in an
+// SNI: with no port or trailing dot, as lowercase ASCII. Unlike app addresses,
+// the Proxy's aren't validated, so they may be absolute or IDNs, which
+// ValidateApp normalizes the same way. A name with no ASCII form is dropped,
+// since no SNI can carry it.
+func sniProxyDNSNames(names []string) []string {
+	normalized := make([]string, 0, len(names))
+	for _, name := range names {
+		ascii, err := idna.ToASCII(strings.TrimRight(utils.TryHost(name), "."))
+		if err != nil || ascii == "" {
+			continue
+		}
+		normalized = append(normalized, strings.ToLower(ascii))
+	}
+	return normalized
+}
+
+// candidatesForSNI returns the servers in cluster, the Proxy's own, of the apps
+// that sni may reach, in sortAppServers order so that any choice among them is
+// the same everywhere. Scoped apps come first, so a caller that takes the first
+// candidate it may access falls back to an unscoped app at a scoped app's
+// address only when it can't reach the scoped one, as ResolveFQDN does. Each
+// agent labels its own copy of an app, so every copy is kept. Unlike
+// ResolveFQDN, it checks no access, picks nothing and looks in no other
+// cluster.
+func candidatesForSNI(ctx context.Context, cluster reversetunnelclient.Cluster, proxyDNSNames []string, sni string) ([]types.AppServer, error) {
+	servers, err := MatchUnshuffled(ctx, cluster, matchSNI(sni, cluster.GetName(), proxyDNSNames))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sortAppServers(servers), nil
 }
 
 // pickAppServer chooses one app server from a set of matches, the first in
