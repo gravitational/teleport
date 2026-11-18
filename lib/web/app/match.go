@@ -143,6 +143,22 @@ func matchUnscopedName(name string) Matcher {
 	}
 }
 
+// ProxyDNSNames returns the DNS names of publicAddrs, the Proxy's public
+// addresses, under which apps are addressed. Without one, the Web UI addresses
+// apps under clusterName.
+func ProxyDNSNames(publicAddrs []utils.NetAddr, clusterName string) []string {
+	var names []string
+	for _, addr := range publicAddrs {
+		if name, err := utils.DNSName(addr.String()); err == nil {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return []string{clusterName}
+	}
+	return names
+}
+
 // ResolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running a root or leaf cluster.
 //

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	appauthz "github.com/gravitational/teleport/lib/srv/app/authz"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -45,6 +46,17 @@ type RouteFreeConfig struct {
 	Next func(ctx context.Context, conn net.Conn) error
 	// ClusterName is the name of the local cluster.
 	ClusterName string
+	// AuthorizerOpts build the authorizer for the identity resolution forwards
+	// to each candidate app, checking that identity's locks and source IP
+	// pinning. It ignores the global device_trust.mode toggle, as the
+	// Application Service's authorizer does, since Auth issues App certificates
+	// without checking it, so only roles can require a trusted device.
+	AuthorizerOpts authz.AuthorizerOpts
+	// ClusterGetter finds the local cluster's app servers.
+	ClusterGetter reversetunnelclient.ClusterGetter
+	// ProxyPublicAddrs are the Proxy's public addresses, under whose hosts
+	// apps are addressed.
+	ProxyPublicAddrs []utils.NetAddr
 }
 
 // CheckAndSetDefaults checks that c holds everything a RouteFreeHandler needs.
@@ -67,13 +79,27 @@ type RouteFreeHandler struct {
 	enabled bool
 	auth    *authz.Middleware
 	// next hands a connection to the web listener.
-	next func(ctx context.Context, conn net.Conn) error
+	next     func(ctx context.Context, conn net.Conn) error
+	resolver *routeFreeResolver
 }
 
 // NewRouteFreeHandler returns a handler that passes every connection on to
 // cfg.Next. It wraps none unless common.AppForwardedIdentityEnvVar is set.
+//
+// A Proxy builds the handler whether or not the env var is set, so it fails
+// only on a config the Proxy could never have meant.
 func NewRouteFreeHandler(cfg RouteFreeConfig) (*RouteFreeHandler, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resolver, err := newRouteFreeResolver(routeFreeResolverConfig{
+		clusterName:      cfg.ClusterName,
+		authorizerOpts:   cfg.AuthorizerOpts,
+		clusterGetter:    cfg.ClusterGetter,
+		proxyPublicAddrs: cfg.ProxyPublicAddrs,
+		logger:           slog.With(teleport.ComponentKey, "alpn:app-route-free"),
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	enabled, _ := apiutils.ParseBool(os.Getenv(common.AppForwardedIdentityEnvVar))
@@ -83,7 +109,8 @@ func NewRouteFreeHandler(cfg RouteFreeConfig) (*RouteFreeHandler, error) {
 			ClusterName:   cfg.ClusterName,
 			AcceptedUsage: []string{teleport.UsageAppsOnly},
 		},
-		next: cfg.Next,
+		next:     cfg.Next,
+		resolver: resolver,
 	}, nil
 }
 
@@ -93,7 +120,7 @@ func NewRouteFreeHandler(cfg RouteFreeConfig) (*RouteFreeHandler, error) {
 // it may reach.
 func (h *RouteFreeHandler) HandleConnection(ctx context.Context, conn net.Conn) error {
 	if state, ok := h.accepts(ctx, conn); ok {
-		conn = h.wrap(conn, state)
+		conn = h.wrap(ctx, conn, state)
 	}
 	return trace.Wrap(h.next(ctx, conn))
 }
@@ -116,15 +143,17 @@ func (h *RouteFreeHandler) accepts(ctx context.Context, conn net.Conn) (tls.Conn
 	return state, true
 }
 
-// wrap returns the connection the web listener serves for the route-free
-// connection conn.
-func (h *RouteFreeHandler) wrap(conn net.Conn, state tls.ConnectionState) *resolvedConn {
-	// Resolving a connection to an app isn't implemented, so none is served.
-	return &resolvedConn{
-		Conn:  conn,
-		state: state,
-		err:   trace.AccessDenied("route-free App connections are not served"),
+// wrap resolves the route-free connection conn to an app, and returns the
+// connection the web listener serves for it. ctx holds the client's address,
+// which source IP pinning checks.
+func (h *RouteFreeHandler) wrap(ctx context.Context, conn net.Conn, state tls.ConnectionState) *resolvedConn {
+	ctx, cancel := context.WithTimeout(ctx, routeFreeResolveTimeout)
+	defer cancel()
+	_, _, err := h.resolver.resolve(ctx, state.PeerCertificates[0], state.ServerName)
+	if err == nil {
+		err = trace.NotImplemented("resolved route-free App connections aren't served yet")
 	}
+	return &resolvedConn{Conn: conn, state: state, err: err}
 }
 
 // isRouteFree reports whether state belongs to a route-free app connection

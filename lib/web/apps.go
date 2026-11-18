@@ -334,16 +334,6 @@ func (h *Handler) proxyDNSName() string {
 
 // proxyDNSNames returns DNS names the HTTP proxy is available at, the local
 // cluster name is used as a best-effort fallback.
-func (h *Handler) proxyDNSNames() (dnsNames []string) {
-	for _, addr := range h.cfg.ProxyPublicAddrs {
-		dnsName, err := utils.DNSName(addr.String())
-		if err != nil {
-			continue
-		}
-		dnsNames = append(dnsNames, dnsName)
-	}
-	if len(dnsNames) == 0 {
-		return []string{h.auth.clusterName}
-	}
-	return dnsNames
+func (h *Handler) proxyDNSNames() []string {
+	return app.ProxyDNSNames(h.cfg.ProxyPublicAddrs, h.auth.clusterName)
 }
