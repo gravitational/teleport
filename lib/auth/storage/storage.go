@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/kubernetes"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
@@ -69,8 +71,7 @@ const (
 type stateBackend interface {
 	// Create creates item if it does not exist
 	Create(ctx context.Context, i backend.Item) (*backend.Lease, error)
-	// Put puts value into backend (creates if it does not
-	// exists, updates it otherwise)
+	// Put puts value into backend (creates if it does not exist, updates it otherwise)
 	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
 	// Get returns a single item or not found error
 	Get(ctx context.Context, key backend.Key) (*backend.Item, error)
@@ -476,4 +477,38 @@ func writeHostIDToKubeSecret(ctx context.Context, kubeBackend stateBackend, id s
 		},
 	)
 	return trace.Wrap(err)
+}
+
+// NewProcessStorage returns a new instance of the process storage.
+func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error) {
+	if path == "" {
+		return nil, trace.BadParameter("missing parameter path")
+	}
+
+	litebk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:      path,
+		EventsOff: true,
+		Sync:      lite.SyncFull,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// identityStorage holds the storage backend for identity and state.
+	// if the agent is running in Kubernetes it's replaced by kubernetes secret storage
+	var identityStorage stateBackend = litebk
+
+	// if running in a K8S cluster and required env vars are available
+	// the agent will automatically switch state storage from local
+	// sqlite into a Kubernetes Secret.
+	if kubernetes.InKubeCluster() {
+		kubeStorage, err := kubernetes.New(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		identityStorage = kubeStorage
+	}
+
+	return &ProcessStorage{BackendStorage: litebk, stateStorage: identityStorage}, nil
 }

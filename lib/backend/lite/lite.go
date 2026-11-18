@@ -211,6 +211,12 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	}
 	connectionURI := cfg.ConnectionURI()
 	path := filepath.Join(cfg.Path, defaultDBFile)
+
+	setPermissions := false
+	if _, err := os.Stat(cfg.Path); errors.Is(err, os.ErrNotExist) {
+		setPermissions = true
+	}
+
 	// Ensure that the path to the root directory exists.
 	err := os.MkdirAll(cfg.Path, os.ModeDir|defaultDirMode)
 	if err != nil {
@@ -220,7 +226,13 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	setPermissions := false
+	if setPermissions {
+		if err := setDirectoryPermissions(cfg.Path); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	setPermissions = false
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		setPermissions = true
 	}
@@ -240,7 +252,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 			_ = db.Close()
 			return nil, trace.Wrap(err)
 		}
-		if err := os.Chmod(path, dbMode); err != nil {
+		if err := setDBPermissions(path); err != nil {
 			_ = db.Close()
 			return nil, trace.ConvertSystemError(err)
 		}
