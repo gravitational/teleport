@@ -51,6 +51,11 @@ const agentRouterCacheTTL = 5 * time.Second
 // forwarded identity.
 var errNoCapableAgent = errors.New("no capable Application Service agent could be reached")
 
+// errAgentsUnreachable is the errNoCapableAgent of a request whose capable
+// agents the Proxy dialed but couldn't reach. Clients get the same error code
+// as for the other causes, and the metrics tell them apart.
+var errAgentsUnreachable = fmt.Errorf("%w over a reverse tunnel", errNoCapableAgent)
+
 type agentRouterConfig struct {
 	// The router lists app servers in the cluster that agents dial.
 	agents *agentTransports
@@ -100,6 +105,35 @@ func newAgentForwarder(ctx context.Context, cfg agentRouterConfig) (*reverseprox
 // RoundTrip sends req to the first capable agent that answers. It moves on to
 // the next agent only when a dial fails because the agent can't be reached.
 func (r *agentRouter) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := r.roundTrip(req)
+	result := sharedForwardResult(err)
+	r.cfg.agents.cfg.metrics.countRequest(pathRouteFree, result)
+	// The forwarder logs the error too, but without the app or the client, and
+	// at Error for a client that gave up.
+	if err != nil && result != canceledResult {
+		r.logFailure(req, result, err)
+	}
+	return resp, err
+}
+
+// logFailure logs a request with result that the shared transport couldn't
+// forward because of err.
+func (r *agentRouter) logFailure(req *http.Request, result string, err error) {
+	attrs := []slog.Attr{slog.String("result", result)}
+	if user, userErr := authz.UserFromContext(req.Context()); userErr == nil {
+		identity := user.GetIdentity()
+		attrs = append(attrs,
+			slog.String("user", identity.Username),
+			slog.String("app", identity.RouteToApp.Name),
+			slog.String("cluster", identity.RouteToApp.ClusterName),
+		)
+	}
+	// The error goes last, since its trace report spans many lines.
+	attrs = append(attrs, slog.Any("error", err))
+	r.cfg.logger.LogAttrs(req.Context(), slog.LevelWarn, "Failed to forward a request over the shared transport", attrs...)
+}
+
+func (r *agentRouter) roundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 	// Failing these checks is a Proxy bug, since the Proxy sets the routed
 	// identity.
@@ -143,13 +177,13 @@ func (r *agentRouter) RoundTrip(req *http.Request) (*http.Response, error) {
 			return resp, nil
 		}
 		if !isReverseTunnelDownError(err) {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "forwarding to agent %q", server.GetHostID())
 		}
 		r.cfg.logger.DebugContext(ctx, "Failed to connect to Application Service agent",
-			"host_id", server.GetHostID(), "error", err)
+			"host_id", server.GetHostID(), "app", route.Name, "error", err)
 		lastErr = err
 	}
-	return nil, fmt.Errorf("%w: %w", errNoCapableAgent, lastErr)
+	return nil, fmt.Errorf("%w: %w", errAgentsUnreachable, lastErr)
 }
 
 // capableAppServers returns the route's app servers whose agents can serve it

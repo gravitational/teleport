@@ -72,6 +72,7 @@ func (h *Handler) newSession(ws types.WebSession) (*session, error) {
 		clusterName:           h.clusterName,
 		integrationAppHandler: h.c.IntegrationAppHandler,
 		mcpOAuthClient:        h.c.AuthClient,
+		metrics:               h.metrics,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

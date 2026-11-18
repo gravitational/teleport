@@ -23,6 +23,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -242,7 +243,19 @@ func (h *requestIdentityHandler) writeError(w http.ResponseWriter, r *http.Reque
 		h.c.writeHTTPError(w, r, err)
 		return
 	}
-	h.c.log.WarnContext(h.c.closeContext, "Failed to serve request", "code", code, "error", err)
+	attrs := []slog.Attr{slog.String("code", string(code))}
+	// The connection carries other clients' requests, so only the forwarded
+	// identity tells whose request was refused.
+	if user, userErr := authz.UserFromContext(r.Context()); userErr == nil {
+		identity := user.GetIdentity()
+		attrs = append(attrs,
+			slog.String("user", identity.Username),
+			slog.String("app", identity.RouteToApp.Name),
+		)
+	}
+	// The error goes last, since its trace report spans many lines.
+	attrs = append(attrs, slog.Any("error", err))
+	h.c.log.LogAttrs(r.Context(), slog.LevelWarn, "Failed to serve request", attrs...)
 }
 
 // writeProxyError answers a request that the Proxy shouldn't have sent. The

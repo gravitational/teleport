@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -51,6 +52,12 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 	return makeHandler(func(w http.ResponseWriter, r *http.Request) error {
 		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
+			// Only app requests come through here, so each counts once.
+			result := sessionInvalidResult
+			if errors.As(err, new(sessionUnavailableError)) {
+				result = forwardErrorResult
+			}
+			h.metrics.countRequest(pathRouteBound, result)
 			// If a certificate-backed app session expires on a reused
 			// connection, ask the client to reconnect with fresh credentials.
 			// Cookie/browser clients have no certificate and use the launcher

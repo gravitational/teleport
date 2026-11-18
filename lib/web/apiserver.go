@@ -106,6 +106,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -380,6 +381,10 @@ type Config struct {
 
 	// DatabaseREPLRegistry is used for retrieving database REPL.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
+
+	// MetricsRegistry is where the application handler registers its metrics.
+	// When nil, they are created but not registered.
+	MetricsRegistry *metrics.Registry
 
 	// HighRateLimiterConfig overrides the rate limiter applied to
 	// unauthenticated endpoints that expect high request rates, such as
@@ -893,6 +898,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			IntegrationAppHandler: cfg.IntegrationAppHandler,
 			GetConnTLSCertificate: cfg.GetProxyClientCertificate,
 			GetConnTLSRoots:       cfg.GetProxyClientRoots,
+			MetricsRegistry:       cfg.MetricsRegistry,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

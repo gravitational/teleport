@@ -28,6 +28,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/net/http/httpguts"
@@ -37,6 +38,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	appauthz "github.com/gravitational/teleport/lib/srv/app/authz"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -69,6 +71,9 @@ type RouteFreeConfig struct {
 	// ConnectionMonitor closes a connection when a lock, the granting role's
 	// client_idle_timeout or disconnect_expired_cert says it must.
 	ConnectionMonitor ConnMonitor
+	// MetricsRegistry is where the handler registers its metrics. When nil,
+	// they are created but not registered.
+	MetricsRegistry *metrics.Registry
 }
 
 // ConnMonitor installs the connection controls of the role that granted access
@@ -91,6 +96,9 @@ func (c *RouteFreeConfig) CheckAndSetDefaults() error {
 	if c.ConnectionMonitor == nil {
 		return trace.BadParameter("missing connection monitor")
 	}
+	if c.MetricsRegistry == nil {
+		c.MetricsRegistry = metrics.NoopRegistry()
+	}
 	return nil
 }
 
@@ -107,6 +115,7 @@ type RouteFreeHandler struct {
 	resolver        *routeFreeResolver
 	clusterFeatures func() proto.Features
 	connMonitor     ConnMonitor
+	metrics         *accessMetrics
 }
 
 // NewRouteFreeHandler returns a handler that passes every connection on to
@@ -128,6 +137,10 @@ func NewRouteFreeHandler(cfg RouteFreeConfig) (*RouteFreeHandler, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	m, err := newAccessMetrics(cfg.MetricsRegistry)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	enabled, _ := apiutils.ParseBool(os.Getenv(common.AppForwardedIdentityEnvVar))
 	return &RouteFreeHandler{
 		enabled: enabled,
@@ -139,6 +152,7 @@ func NewRouteFreeHandler(cfg RouteFreeConfig) (*RouteFreeHandler, error) {
 		resolver:        resolver,
 		clusterFeatures: cfg.ClusterFeatures,
 		connMonitor:     cfg.ConnectionMonitor,
+		metrics:         m,
 	}, nil
 }
 
@@ -181,15 +195,34 @@ func (h *RouteFreeHandler) accepts(ctx context.Context, conn net.Conn) (tls.Conn
 // connection controls, and returns the connection the web listener serves for
 // it. ctx holds the client's address, which source IP pinning checks.
 func (h *RouteFreeHandler) wrap(ctx context.Context, conn net.Conn, state tls.ConnectionState) *resolvedConn {
-	resolved, err := h.resolve(ctx, state)
+	start := time.Now()
+	identity, monitored, err := h.admit(ctx, conn, state)
+	h.metrics.routeFreeAdmissionDuration.Observe(time.Since(start).Seconds())
+	protocol := routeFreeProtocol(state)
+	h.metrics.routeFreeConnections.WithLabelValues(routeFreeResult(err), protocol).Inc()
 	if err != nil {
 		return &resolvedConn{Conn: conn, state: state, err: err}
+	}
+	return &resolvedConn{
+		Conn:     newGaugedConn(monitored, h.metrics.routeFreeActiveConnections.WithLabelValues(protocol)),
+		state:    state,
+		identity: identity,
+	}
+}
+
+// admit resolves the connection with handshake state to the app it may reach,
+// and returns the identity it forwards with the connection that conn's
+// controls monitor.
+func (h *RouteFreeHandler) admit(ctx context.Context, conn net.Conn, state tls.ConnectionState) (authz.LocalUser, net.Conn, error) {
+	resolved, err := h.resolve(ctx, state)
+	if err != nil {
+		return authz.LocalUser{}, nil, trace.Wrap(err)
 	}
 	monitored, err := h.monitor(ctx, conn, resolved.sessionCtx)
 	if err != nil {
-		return &resolvedConn{Conn: conn, state: state, err: err}
+		return authz.LocalUser{}, nil, trace.Wrap(err)
 	}
-	return &resolvedConn{Conn: monitored, state: state, identity: resolved.identity}
+	return resolved.identity, monitored, nil
 }
 
 // resolve resolves the connection with handshake state to the app it may
@@ -275,6 +308,15 @@ func (c *resolvedConn) ConnectionState() tls.ConnectionState {
 	return c.state
 }
 
+// clientUser returns the username of the client's certificate, which is set
+// even when the connection may reach no app.
+func (c *resolvedConn) clientUser() string {
+	if len(c.state.PeerCertificates) == 0 {
+		return ""
+	}
+	return c.state.PeerCertificates[0].Subject.CommonName
+}
+
 // NetConn returns the connection c wraps, as tls.Conn.NetConn does, so that
 // the ingress metrics find the *tls.Conn.
 func (c *resolvedConn) NetConn() net.Conn {
@@ -327,24 +369,29 @@ func findConn[T any](conn net.Conn) (T, bool) {
 // GOAWAY, so HTTP/2 refuses only a misdirected stream.
 func (h *Handler) serveResolved(w http.ResponseWriter, r *http.Request, conn *resolvedConn) {
 	if conn.err != nil {
+		h.metrics.countRequest(pathRouteFree, routeFreeResult(conn.err))
 		w.Header().Set("Connection", "close")
 		code, ok := appauthz.WriteForwardedError(w, r, conn.err)
 		if !ok {
 			status := trace.ErrorToCode(conn.err)
 			http.Error(w, http.StatusText(status), status)
 		}
-		h.logger.WarnContext(r.Context(), "Rejected a route-free App connection", "code", code, "error", conn.err)
+		h.logger.WarnContext(r.Context(), "Rejected a route-free App connection", "code", code,
+			"user", conn.clientUser(), "sni", conn.state.ServerName,
+			"client_addr", conn.RemoteAddr(), "error", conn.err)
 		return
 	}
 	// Checked before the authority, since a 421 would send the client to a new
 	// connection that would refuse the request too.
 	if r.Method == http.MethodConnect || (isUpgrade(r) && !upgradesOnlyToWebSocket(r)) {
+		h.metrics.countRequest(pathRouteFree, refusedNotImplemented)
 		http.Error(w, "This connection serves HTTP requests and WebSocket upgrades only.", http.StatusNotImplemented)
 		h.logger.DebugContext(r.Context(), "Refused a request a route-free App connection doesn't serve",
 			"method", r.Method, "upgrade", r.Header.Get("Upgrade"), "client_addr", conn.RemoteAddr())
 		return
 	}
 	if !authorityMatches(r.Host, conn.state.ServerName, h.externalWebPorts) {
+		h.metrics.countRequest(pathRouteFree, refusedMisdirected)
 		if r.ProtoMajor == 1 {
 			w.Header().Set("Connection", "close")
 		}

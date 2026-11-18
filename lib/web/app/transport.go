@@ -21,6 +21,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -71,6 +72,8 @@ type transportConfig struct {
 
 	// mcpOAuthClient gets the access tokens Auth stores for MCP servers.
 	mcpOAuthClient mcpOAuthCredentialClient
+
+	metrics *handlerMetrics
 }
 
 // Check validates configuration.
@@ -95,6 +98,9 @@ func (c *transportConfig) Check() error {
 	}
 	if c.integrationAppHandler == nil {
 		return trace.BadParameter("integration app handler missing")
+	}
+	if c.metrics == nil {
+		return trace.BadParameter("metrics missing")
 	}
 	if c.log == nil {
 		c.log = slog.Default()
@@ -155,9 +161,16 @@ func newTransport(c *transportConfig) (*transport, error) {
 	return t, nil
 }
 
-// RoundTrip will rewrite the request, forward the request to the target
-// application, emit an event to the audit log, then rewrite the response.
+// RoundTrip forwards r and counts the route-bound request's result.
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	resp, err := t.roundTrip(r)
+	t.c.metrics.countRequest(pathRouteBound, sessionForwardResult(err))
+	return resp, err
+}
+
+// roundTrip will rewrite the request, forward the request to the target
+// application, emit an event to the audit log, then rewrite the response.
+func (t *transport) roundTrip(r *http.Request) (*http.Response, error) {
 	// Clone the request so we can modify it without affecting the original.
 	// This is necessary because the request cookies are deleted when the web
 	// handler forward the request to the app proxy. When this happens, the
@@ -377,6 +390,8 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		return nil, trace.Wrap(err)
 	}
 
+	var unreached int
+
 	for _, appServer := range servers {
 		appIntegration := appServer.GetApp().GetIntegration()
 		if appIntegration != "" {
@@ -402,7 +417,9 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 			return dst, nil
 		}
 
-		conn, err = dialAppServer(ctx, clusterClient, appServer)
+		conn, err = t.c.metrics.sessionDial.dial(func() (net.Conn, error) {
+			return dialAppServer(ctx, clusterClient, appServer)
+		})
 		if err != nil && isReverseTunnelDownError(err) {
 			t.c.log.WarnContext(ctx, "Failed to connect to application server",
 				"app_server", appServer.GetName(), "host_id", appServer.GetHostID(), "error", err)
@@ -411,6 +428,7 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 			// healthy. Reset the error to avoid returning it if
 			// this is the last server.
 			err = nil
+			unreached++
 			continue
 		}
 
@@ -421,7 +439,12 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		return conn, trace.Wrap(err)
 	}
 
-	return nil, trace.ConnectionProblem(nil, "no application servers remaining to connect")
+	noneLeft := trace.ConnectionProblem(nil, "no application servers remaining to connect")
+	// The metrics tell an app server that was dialed apart from none at all.
+	if unreached > 0 {
+		return nil, fmt.Errorf("%w: %w", errAgentsUnreachable, noneLeft)
+	}
+	return nil, noneLeft
 }
 
 type connWithCustomRemoteAddr struct {

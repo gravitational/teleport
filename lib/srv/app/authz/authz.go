@@ -221,26 +221,8 @@ func (a Authorizer) authorizeWithState(ctx context.Context, authContext *authz.S
 // an app the client may not discover exists. It writes nothing and returns
 // false if err isn't an authorization failure.
 func WriteForwardedError(w http.ResponseWriter, r *http.Request, err error) (common.AppErrorCode, bool) {
-	var code common.AppErrorCode
-	var message string
-	switch {
-	case errors.Is(err, ErrUnsupportedApplicationType):
-		code = common.AppErrorCodeUnsupportedApplicationType
-		message = "This application requires a certificate for the application, such as one from `tsh app login`."
-	case errors.Is(err, services.ErrSessionMFARequired):
-		code = common.AppErrorCodeMFARequired
-		message = "This application requires per-session MFA, which needs a certificate for the application."
-	case errors.Is(err, authz.ErrUserNotFound), errors.Is(err, authz.ErrUserSessionRoleNotFound):
-		code = common.AppErrorCodeSessionInvalid
-		message = http.StatusText(http.StatusForbidden)
-	// An unmet private key policy is a BadParameter whose message tells tsh to
-	// log in again with a hardware key, which a client of this path can't
-	// act on.
-	case errors.Is(err, services.ErrTrustedDeviceRequired), trace.IsAccessDenied(err), trace.IsNotFound(err),
-		keys.IsPrivateKeyPolicyError(err):
-		code = common.AppErrorCodeAccessDenied
-		message = http.StatusText(http.StatusForbidden)
-	default:
+	code, ok := ForwardedErrorCode(err)
+	if !ok {
 		return "", false
 	}
 
@@ -249,8 +231,36 @@ func WriteForwardedError(w http.ResponseWriter, r *http.Request, err error) (com
 		WriteTrustedDeviceRequired(w, r, http.StatusForbidden)
 		return code, true
 	}
+	message := http.StatusText(http.StatusForbidden)
+	switch code {
+	case common.AppErrorCodeUnsupportedApplicationType:
+		message = "This application requires a certificate for the application, such as one from `tsh app login`."
+	case common.AppErrorCodeMFARequired:
+		message = "This application requires per-session MFA, which needs a certificate for the application."
+	}
 	http.Error(w, message, http.StatusForbidden)
 	return code, true
+}
+
+// ForwardedErrorCode returns the [common.AppErrorCode] that WriteForwardedError
+// answers err with, or false if err isn't an authorization failure.
+func ForwardedErrorCode(err error) (common.AppErrorCode, bool) {
+	switch {
+	case errors.Is(err, ErrUnsupportedApplicationType):
+		return common.AppErrorCodeUnsupportedApplicationType, true
+	case errors.Is(err, services.ErrSessionMFARequired):
+		return common.AppErrorCodeMFARequired, true
+	case errors.Is(err, authz.ErrUserNotFound), errors.Is(err, authz.ErrUserSessionRoleNotFound):
+		return common.AppErrorCodeSessionInvalid, true
+	// An unmet private key policy is a BadParameter whose message tells tsh to
+	// log in again with a hardware key, which a client of this path can't
+	// act on.
+	case errors.Is(err, services.ErrTrustedDeviceRequired), trace.IsAccessDenied(err), trace.IsNotFound(err),
+		keys.IsPrivateKeyPolicyError(err):
+		return common.AppErrorCodeAccessDenied, true
+	default:
+		return "", false
+	}
 }
 
 const (

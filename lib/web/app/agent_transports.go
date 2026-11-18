@@ -58,6 +58,7 @@ type agentTransportsConfig struct {
 	// certificates.
 	getRoots     utils.GetRootsFunc
 	cipherSuites []uint16
+	metrics      *handlerMetrics
 }
 
 func (c *agentTransportsConfig) checkAndSetDefaults() error {
@@ -75,6 +76,9 @@ func (c *agentTransportsConfig) checkAndSetDefaults() error {
 	}
 	if len(c.cipherSuites) == 0 {
 		return trace.BadParameter("missing cipher suites")
+	}
+	if c.metrics == nil {
+		return trace.BadParameter("missing metrics")
 	}
 	return nil
 }
@@ -188,6 +192,8 @@ func (t *agentTransports) dial(ctx context.Context, hostID string) (net.Conn, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	conn, err := dialAppServerFrom(cluster, server, agentDialSource, nil)
+	conn, err := t.cfg.metrics.sharedDial.dial(func() (net.Conn, error) {
+		return dialAppServerFrom(cluster, server, agentDialSource, nil)
+	})
 	return conn, trace.Wrap(err)
 }

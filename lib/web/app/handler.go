@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -77,6 +78,9 @@ type HandlerConfig struct {
 	// GetConnTLSRoots returns the local cluster's Host CA, which signs agents'
 	// certificates.
 	GetConnTLSRoots utils.GetRootsFunc
+	// MetricsRegistry is where the handler registers its metrics. When nil,
+	// they are created but not registered.
+	MetricsRegistry *metrics.Registry
 }
 
 // CheckAndSetDefaults validates configuration.
@@ -105,6 +109,9 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	}
 	if c.GetConnTLSRoots == nil {
 		return trace.BadParameter("connection TLS roots getter missing")
+	}
+	if c.MetricsRegistry == nil {
+		c.MetricsRegistry = metrics.NoopRegistry()
 	}
 
 	return nil
@@ -140,6 +147,10 @@ type Handler struct {
 	// agentForwarder forwards requests on route-free connections to the agents
 	// that serve their apps.
 	agentForwarder http.Handler
+
+	// metrics are shared by the agent transports, every app session's
+	// transport, and the route-free requests the handler serves.
+	metrics *handlerMetrics
 }
 
 // NewHandler returns a new application handler.
@@ -185,12 +196,17 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	}
 	h.clusterName = cn.GetClusterName()
 
+	h.metrics, err = newHandlerMetrics(c.MetricsRegistry)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	agents, err := newAgentTransports(ctx, agentTransportsConfig{
 		clusterName:    h.clusterName,
 		clusterGetter:  c.ClusterGetter,
 		getCertificate: c.GetConnTLSCertificate,
 		getRoots:       c.GetConnTLSRoots,
 		cipherSuites:   c.CipherSuites,
+		metrics:        h.metrics,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -325,11 +341,13 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 	// Reject (or, in report-only mode, log) cross-site WebSocket upgrades
 	// before forwarding to the application (CSWSH protection).
 	if err := h.guardCrossSiteWebSocket(r); err != nil {
+		h.metrics.countRequest(pathRouteBound, crossSiteWebSocketResult)
 		return trace.Wrap(err)
 	}
 
 	servers, err := session.tr.c.appServers.forChecks(r.Context())
 	if err != nil {
+		h.metrics.countRequest(pathRouteBound, noAgentResult)
 		// Resolution errors can carry internal details such as backend addresses, so they are logged rather than
 		// written to the client. Any of them leaves no app server to forward to, so the client is answered as when no
 		// app server can be reached.
@@ -348,10 +366,12 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 	}
 
 	if redirectURI != "" {
+		h.metrics.countRequest(pathRouteBound, redirectedResult)
 		http.Redirect(w, r, redirectURI, http.StatusFound)
 		return nil
 	}
 
+	// The session's transport counts the request once it is forwarded.
 	session.fwd.ServeHTTP(w, r)
 	return nil
 }
@@ -359,6 +379,15 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 // ErrInvalidAppSession indicate an invalid app session, e.g. due to a
 // user or role backing their cert being removed.
 var ErrInvalidAppSession = trace.AccessDenied("invalid session")
+
+// sessionUnavailableError is the error of a request whose app session the
+// Proxy failed to look up or set up. The client gets the same error as for an
+// invalid session, and the metrics count it as an error. It is a type rather
+// than a sentinel because AccessDenied errors with the same message match each
+// other in errors.Is.
+type sessionUnavailableError struct{ error }
+
+func (e sessionUnavailableError) Unwrap() error { return e.error }
 
 // handleForwardError answers a request that could not be forwarded, whether
 // the forwarder failed or handleHttp could not resolve the app servers.
@@ -392,7 +421,8 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		return nil, trace.AccessDenied("invalid session")
+		// getAppSession already returns the error a client may see.
+		return nil, err
 	}
 
 	// Fetch a cached session or create one if this is the first request this
@@ -400,7 +430,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	session, err := h.getSession(ctx, ws)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get session", "error", err)
-		return nil, trace.AccessDenied("invalid session")
+		return nil, sessionUnavailableError{trace.AccessDenied("invalid session")}
 	}
 
 	return session, nil
@@ -429,10 +459,10 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 		// warning level.
 		if trace.IsNotFound(err) || trace.IsAccessDenied(err) {
 			h.logger.DebugContext(r.Context(), "Failed to fetch application session", "error", err)
-		} else {
-			h.logger.WarnContext(r.Context(), "Failed to fetch application session", "error", err)
+			return nil, trace.AccessDenied("invalid session")
 		}
-		return nil, trace.AccessDenied("invalid session")
+		h.logger.WarnContext(r.Context(), "Failed to fetch application session", "error", err)
+		return nil, sessionUnavailableError{trace.AccessDenied("invalid session")}
 	}
 	return ws, nil
 }
