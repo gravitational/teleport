@@ -5041,8 +5041,12 @@ message Rule {
   repeated string Verbs = 2 [(gogoproto.jsontag) = "verbs,omitempty"];
   // Where specifies optional advanced matcher
   string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
-  // Actions specifies optional actions taken when this rule matches
-  repeated string Actions = 4 [(gogoproto.jsontag) = "actions,omitempty"];
+  // Actions specifies optional actions taken when this rule matches.
+  // Deprecated: Actions are no longer supported and are ignored.
+  repeated string Actions = 4 [
+    (gogoproto.jsontag) = "actions,omitempty",
+    deprecated = true
+  ];
 }
 
 // ImpersonateConditions specifies whether users are allowed

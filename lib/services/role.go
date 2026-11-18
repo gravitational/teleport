@@ -635,18 +635,21 @@ func validateRule(r types.Rule) error {
 		}
 	}
 
-	if len(r.Actions) != 0 {
-		parser, err := NewActionsParser(&Context{})
+	// Actions are deprecated and no longer evaluated, but are still validated
+	// so that stored roles remain usable by older versions after a rollback.
+	// TODO(okraport): remove once no supported version evaluates actions.
+	if len(r.Actions) != 0 { //nolint:staticcheck // validating deprecated field.
+		parser, err := newActionsValidationParser(&Context{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		for i, action := range r.Actions {
-			_, err = parser.Parse(action)
-			if err != nil {
+		for i, action := range r.Actions { //nolint:staticcheck // validating deprecated field.
+			if _, err := parser.Parse(action); err != nil {
 				return trace.BadParameter("could not parse action %v %q, error: %v", i, action, err)
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -1022,30 +1025,25 @@ func ruleScore(r *types.Rule) int {
 	if slices.Contains(r.Verbs, types.Wildcard) {
 		score -= 2
 	}
-	// rules that supply 'where' or 'actions' are more specific
-	// having 'where' or 'actions' is more important than
+	// rules that supply 'where' are more specific
+	// having 'where' is more important than
 	// whether the rules are wildcard or not, so here we have +8 vs
 	// -4 and -2 score penalty for wildcards in resources and verbs
 	if len(r.Where) > 0 {
 		score += 8
 	}
-	// rules featuring actions are more specific
-	if len(r.Actions) > 0 {
-		score += 8
-	}
+
 	return score
 }
 
 // CompareRuleScore returns true if the first rule is more specific than the other.
 //
-// * nRule matching wildcard resource is less specific
+// * Rule matching wildcard resource is less specific
 // than same rule matching specific resource.
 // * Rule that has wildcard verbs is less specific
 // than the same rules matching specific verb.
 // * Rule that has where section is more specific
 // than the same rule without where section.
-// * Rule that has actions list is more specific than
-// rule without actions list.
 func CompareRuleScore(r *types.Rule, o *types.Rule) bool {
 	return ruleScore(r) > ruleScore(o)
 }
@@ -1063,8 +1061,14 @@ func MakeRuleSet(rules []types.Rule) RuleSet {
 	}
 	for resource := range set {
 		rules := set[resource]
-		// sort rules by most specific rule, the rule that has actions
-		// is more specific than the one that has no actions
+		// TODO(okraport): Figure out whether sorting is still needed at all. As far as I can tell it was
+		// introduced so that more specific rules with side effecting actions were evaluated before other
+		// rules could short circuit Match. With actions removed, there is no way the order can affect the outcome of
+		// Match but it does still affect the order of evaluation.
+		// Note that sort.Slice is unstable, so rules with equal
+		// scores are already evaluated in arbitrary order. If sorting is not
+		// needed, we can drop it and the per-check RuleSet map allocation
+		// entirely by iterating the role's rules directly.
 		sort.Slice(rules, func(i, j int) bool {
 			return CompareRuleScore(&rules[i], &rules[j])
 		})
@@ -1074,20 +1078,14 @@ func MakeRuleSet(rules []types.Rule) RuleSet {
 }
 
 // Match tests if the resource name and verb are in a given list of rules.
-// More specific rules will be matched first. See Rule.IsMoreSpecificThan
-// for exact specs on whether the rule is more or less specific.
-//
-// Specifying order solves the problem on having multiple rules, e.g. one wildcard
-// rule can override more specific rules with 'where' sections that can have
-// 'actions' lists with side effects that will not be triggered otherwise.
-func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.Parser, resource string, verb string) (bool, error) {
+// More specific rules will be matched first, see [CompareRuleScore].
+func (set RuleSet) Match(whereParser predicate.Parser, resource string, verb string) (bool, error) {
 	// empty set matches nothing
 	if len(set) == 0 {
 		return false, nil
 	}
 
 	// check for matching resource by name
-	// the most specific rule should win
 	rules := set[resource]
 	for _, rule := range rules {
 		match, err := matchesWhere(&rule, whereParser)
@@ -1095,9 +1093,6 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 			return false, trace.Wrap(err)
 		}
 		if match && (rule.HasVerb(types.Wildcard) || rule.HasVerb(verb)) {
-			if err := processActions(&rule, actionsParser); err != nil {
-				return true, trace.Wrap(err)
-			}
 			return true, nil
 		}
 	}
@@ -1109,9 +1104,6 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 			return false, trace.Wrap(err)
 		}
 		if match && (rule.HasVerb(types.Wildcard) || rule.HasVerb(verb)) {
-			if err := processActions(&rule, actionsParser); err != nil {
-				return true, trace.Wrap(err)
-			}
 			return true, nil
 		}
 	}
@@ -1134,22 +1126,6 @@ func matchesWhere(r *types.Rule, parser predicate.Parser) (bool, error) {
 		return false, trace.BadParameter("invalid predicate type for where expression: %v", r.Where)
 	}
 	return fn(), nil
-}
-
-// processActions processes actions specified for this rule
-func processActions(r *types.Rule, parser predicate.Parser) error {
-	for _, action := range r.Actions {
-		ifn, err := parser.Parse(action)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fn, ok := ifn.(predicate.BoolPredicate)
-		if !ok {
-			return trace.BadParameter("invalid predicate type for action expression: %v", action)
-		}
-		fn()
-	}
-	return nil
 }
 
 // Slice returns slice from a set
@@ -3852,16 +3828,11 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 		}
 	}()
 
-	actionsParser, err := NewActionsParser(p.ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
-			matched, err := MakeRuleSet(role.GetRules(types.Deny)).Match(p.denyWhere, actionsParser, p.resource, p.verb)
+			matched, err := MakeRuleSet(role.GetRules(types.Deny)).Match(p.denyWhere, p.resource, p.verb)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -3882,7 +3853,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 	for _, role := range set {
 		matchNamespace := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
-			match, err := MakeRuleSet(role.GetRules(types.Allow)).Match(p.allowWhere, actionsParser, p.resource, p.verb)
+			match, err := MakeRuleSet(role.GetRules(types.Allow)).Match(p.allowWhere, p.resource, p.verb)
 			if err != nil {
 				return trace.Wrap(err)
 			}

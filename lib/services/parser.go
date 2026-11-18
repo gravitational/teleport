@@ -19,12 +19,10 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"go/ast"
 	goparser "go/parser"
 	"go/token"
-	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -42,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/session"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -315,58 +312,24 @@ func GetStringMapValue(mapVal, keyVal any) (any, error) {
 	}
 }
 
-// NewActionsParser returns standard parser for 'actions' section in access rules
-func NewActionsParser(ctx RuleContext) (predicate.Parser, error) {
+// newActionsValidationParser returns a parser for the deprecated 'actions'
+// section in access rules. It is only used for validation, so that stored
+// roles remain parseable by older versions that still evaluate actions.
+// It accepts the same functions and signatures as the parser in older versions,
+// but none of them have any effect.
+//
+// TODO(okraport): remove once no supported version evaluates actions.
+func newActionsValidationParser(ctx RuleContext) (predicate.Parser, error) {
 	return predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{},
 		Functions: map[string]any{
-			"log": NewLogActionFn(ctx),
+			"log": func(level, msg string, args ...any) predicate.BoolPredicate {
+				return func() bool { return true }
+			},
 		},
 		GetIdentifier: ctx.GetIdentifier,
 		GetProperty:   predicate.GetStringMapValue,
 	})
-}
-
-// NewLogActionFn creates logger functions
-func NewLogActionFn(ctx RuleContext) any {
-	l := &LogAction{ctx: ctx}
-
-	return l.Log
-}
-
-// LogAction represents action that will emit log entry
-// when specified in the actions of a matched rule
-type LogAction struct {
-	ctx RuleContext
-}
-
-// Log logs with specified level and message string and attributes
-func (l *LogAction) Log(level, msg string, args ...any) predicate.BoolPredicate {
-	return func() bool {
-		slevel := slog.LevelDebug
-		switch strings.ToLower(level) {
-		case "error":
-			slevel = slog.LevelError
-		case "warn", "warning":
-			slevel = slog.LevelWarn
-		case "info":
-			slevel = slog.LevelInfo
-		case "debug":
-			slevel = slog.LevelDebug
-		case "trace":
-			slevel = logutils.TraceLevel
-		}
-
-		ctx := context.Background()
-		// Expicitly check whether logging is enabled for the level
-		// to avoid formatting the message if the log won't be sampled.
-		if slog.Default().Handler().Enabled(ctx, slevel) {
-			//nolint:sloglint // msg cannot be constant
-			slog.Log(context.Background(), slevel, fmt.Sprintf(msg, args...))
-		}
-
-		return true
-	}
 }
 
 // Context is a default rule context used in teleport

@@ -7063,7 +7063,7 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 							NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
 								"actions": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 									Computed:      true,
-									Description:   "Actions specifies optional actions taken when this rule matches",
+									Description:   "Actions specifies optional actions taken when this rule matches. Deprecated: Actions are no longer supported and are ignored.",
 									ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseNonNullStateForUnknown()},
@@ -7796,7 +7796,7 @@ func GenSchemaRoleV6Resource(ctx context.Context) (github_com_hashicorp_terrafor
 							NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
 								"actions": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
 									Computed:      true,
-									Description:   "Actions specifies optional actions taken when this rule matches",
+									Description:   "Actions specifies optional actions taken when this rule matches. Deprecated: Actions are no longer supported and are ignored.",
 									ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:      true,
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseNonNullStateForUnknown()},
@@ -8843,7 +8843,7 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 							NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
 								"actions": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 									Computed:    true,
-									Description: "Actions specifies optional actions taken when this rule matches",
+									Description: "Actions specifies optional actions taken when this rule matches. Deprecated: Actions are no longer supported and are ignored.",
 									ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:    true,
 								},
@@ -9470,7 +9470,7 @@ func GenSchemaRoleV6DataSource(ctx context.Context) (github_com_hashicorp_terraf
 							NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
 								"actions": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
 									Computed:    true,
-									Description: "Actions specifies optional actions taken when this rule matches",
+									Description: "Actions specifies optional actions taken when this rule matches. Deprecated: Actions are no longer supported and are ignored.",
 									ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									Optional:    true,
 								},
