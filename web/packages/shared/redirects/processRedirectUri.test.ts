@@ -95,6 +95,16 @@ describe('processRedirectURI', () => {
         expected: '/enterprise/saml-idp/login/example-app',
       },
       {
+        name: 'saml idp identity provider initiated SSO URL as a relative path',
+        input: '/enterprise/saml-idp/login/example-app',
+        expected: '/enterprise/saml-idp/login/example-app',
+      },
+      {
+        name: 'saml idp service provider initiated SSO URL as a relative path',
+        input: '/enterprise/saml-idp/sso?SAMLRequest=example-authn-request',
+        expected: '/enterprise/saml-idp/sso?SAMLRequest=example-authn-request',
+      },
+      {
         name: 'query params with base path',
         input: '/web/foo?bar=quux',
         expected: '/web/foo?bar=quux',

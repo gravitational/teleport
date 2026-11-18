@@ -133,7 +133,10 @@ func (h *Handler) getRedirectURL(host, unsafeRedirectURI string) (string, error)
 	// IDP initiated SSO path format: "/enterprise/saml-idp/login/<service provider name>"
 	isIdpInitiatedSSOPath := strings.HasPrefix(cleanPath, samlIDPInitiatedSSOPath) && len(strings.Split(cleanPath, "/")) == 5
 	if cleanPath == samlSPInitiatedSSOPath || isIdpInitiatedSSOPath {
-		if parsedURL.Host != host {
+		// During SSO user login, unsafeRedirectURI will be a relative path e.g., `/enterprise/saml-idp/sso?SAMLAuthRequest=...`
+		// During local user login, unsafeRedirectURI will be a full URL e.g., `https://example.teleport.sh/enterprise/saml-idp/sso?SAMLAuthRequest=...` and the host should match.
+		isRelativeReference := !parsedURL.IsAbs() && parsedURL.Host == ""
+		if !isRelativeReference && parsedURL.Host != host {
 			return "", trace.BadParameter("host mismatch")
 		}
 		path := samlSPInitiatedSSOPath

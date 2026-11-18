@@ -17,8 +17,6 @@
  */
 
 const BASE_PATH = '/web';
-const SAML_SP_INITIATED_SSO_PATH = '/enterprise/saml-idp/sso';
-const SAML_IDP_INITIATED_SSO_PATH = '/enterprise/saml-idp/login';
 
 /**
  * Processes a redirect URI to ensure it's valid and follows the expected format.
@@ -50,6 +48,8 @@ const SAML_IDP_INITIATED_SSO_PATH = '/enterprise/saml-idp/login';
  * processRedirectURI('/custom/path') // returns '/web/custom/path'
  * processRedirectURI('/web/existing/path') // returns '/web/existing/path'
  * processRedirectURI('invalid://url') // returns '/web'
+ * processRedirectURI('https://example.com/enterprise/saml-idp/sso') // returns '/enterprise/saml-idp/sso'
+ * processRedirectURI('/enterprise/saml-idp/sso') // returns '/enterprise/saml-idp/sso'
  */
 export function processRedirectUri(redirectUri: string | null): string {
   // should be equal to cfg.routes.root
@@ -59,6 +59,12 @@ export function processRedirectUri(redirectUri: string | null): string {
 
   // Handle relative paths first.
   if (redirectUri.startsWith('/')) {
+    if (isSamlIdpPath(redirectUri)) {
+      // Do not prepend BASE_PATH to SAML redirects because the
+      // URL should land on the SAML IdP proxy endpoint.
+      return redirectUri;
+    }
+
     return redirectUri.startsWith(BASE_PATH)
       ? redirectUri
       : `${BASE_PATH}${redirectUri}`;
@@ -71,12 +77,10 @@ export function processRedirectUri(redirectUri: string | null): string {
     return BASE_PATH;
   }
 
-  // Do not prepend BASE_PATH to SAML redirects.
   let path = url.pathname;
-  if (
-    path.startsWith(SAML_IDP_INITIATED_SSO_PATH) ||
-    path.startsWith(SAML_SP_INITIATED_SSO_PATH)
-  ) {
+  if (isSamlIdpPath(path)) {
+    // Do not prepend BASE_PATH to SAML redirects because the
+    // URL should land on the SAML IdP proxy endpoint.
     return path + url.search;
   }
 
@@ -87,4 +91,15 @@ export function processRedirectUri(redirectUri: string | null): string {
   }
 
   return path + url.search;
+}
+
+/**
+ * isSamlIdpPath checks if the path is a SAML IdP login path.
+ */
+function isSamlIdpPath(path: string): boolean {
+  const spInitiatedSsoPath = '/enterprise/saml-idp/sso';
+  const idpInitiatedSsoPath = '/enterprise/saml-idp/login';
+  return (
+    path.startsWith(spInitiatedSsoPath) || path.startsWith(idpInitiatedSsoPath)
+  );
 }
