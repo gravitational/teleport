@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -307,4 +308,75 @@ func (p noopProcessor) ProcessResponse(_ context.Context, resp *JSONRPCResponse)
 
 func (p noopProcessor) ProcessNotification(_ context.Context, notif *JSONRPCNotification) mcp.JSONRPCMessage {
 	return notif
+}
+
+// TestHTTPReaderWriterRequestParams verifies that a request without params is
+// forwarded without a "params" member, instead of "params": null.
+func TestHTTPReaderWriterRequestParams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		params     JSONRPCParams
+		wantParams string
+	}{
+		{
+			name:   "no params",
+			params: nil,
+		},
+		{
+			name:       "empty params",
+			params:     JSONRPCParams{},
+			wantParams: `{}`,
+		},
+		{
+			name:       "with params",
+			params:     JSONRPCParams{"name": "test"},
+			wantParams: `{"name":"test"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			bodies := make(chan map[string]json.RawMessage, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost {
+					w.WriteHeader(http.StatusMethodNotAllowed)
+					return
+				}
+				var body map[string]json.RawMessage
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				bodies <- body
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{}}`, body["id"])
+			}))
+			t.Cleanup(server.Close)
+
+			readerWriter, err := NewHTTPReaderWriter(t.Context(), server.URL)
+			require.NoError(t, err)
+			t.Cleanup(func() { readerWriter.Close() })
+
+			err = readerWriter.WriteMessage(t.Context(), &JSONRPCRequest{
+				JSONRPC: mcp.JSONRPC_VERSION,
+				ID:      mcp.NewRequestId(int64(1)),
+				Method:  "ping",
+				Params:  tt.params,
+			})
+			require.NoError(t, err)
+
+			body := <-bodies
+			params, ok := body["params"]
+			if tt.wantParams == "" {
+				require.False(t, ok, "unexpected params: %s", params)
+			} else {
+				require.True(t, ok)
+				require.JSONEq(t, tt.wantParams, string(params))
+			}
+		})
+	}
 }

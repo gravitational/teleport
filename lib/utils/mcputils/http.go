@@ -230,12 +230,19 @@ func (h *HTTPReaderWriter) sendMessageToRead(msg any) error {
 func (h *HTTPReaderWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
 	switch v := msg.(type) {
 	case *JSONRPCRequest:
-		resp, err := h.targetClient.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
+		req := mcpclienttransport.JSONRPCRequest{
 			JSONRPC: v.JSONRPC,
 			ID:      v.ID,
 			Method:  v.Method,
-			Params:  v.Params,
-		})
+		}
+		// Only set Params when the request has them. A nil JSONRPCParams
+		// stored in the "any" field is not omitted and gets encoded as
+		// "params": null, which is not valid JSON-RPC and is rejected by
+		// strict servers.
+		if v.Params != nil {
+			req.Params = v.Params
+		}
+		resp, err := h.targetClient.SendRequest(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
