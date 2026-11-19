@@ -1258,29 +1258,41 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 	switch remote.State {
 	case "", types.RotationStateStandby:
 		switch local.State {
-		// There is nothing to do, it could happen
-		// that the old node came up and missed the whole rotation
-		// rollback cycle.
+		// Both sides are standby. That is the idle state, and it is also how a
+		// finished rotation looks to a process that never observed the
+		// in-progress phases: the cluster has a new rotation ID and the old CA
+		// is gone. Re-register in that case. A missed rollback lands here too,
+		// and re-registration then issues certificates for the CA that is active.
 		case "", types.RotationStateStandby:
+			rotationIDChanged := local.CurrentID != remote.CurrentID
+			if !rotationIDChanged && !regenerateCertificate {
+				return &rotationStatus{}, nil
+			}
 			if regenerateCertificate {
 				process.logger.InfoContext(process.ExitContext(), "Service has updated principals and DNS Names, going to request new principals and update.", "identity", id.Role, "principals", additionalPrincipals, "dns_names", dnsNames)
-				identity, err := process.reRegister(conn, additionalPrincipals, dnsNames, remote, systemRoles, assertionID)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				connState, err := newConnectorState(identity)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				err = storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *identity)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				conn.clientState.Store(connState)
-				conn.serverState.Store(connState)
-				return &rotationStatus{credentialsUpdated: true}, nil
+			} else {
+				process.logger.InfoContext(process.ExitContext(), "Cluster rotation ID changed while standby, requesting new credentials.", "identity", id.Role, "local_rotation_id", local.CurrentID, "remote_rotation_id", remote.CurrentID)
 			}
-			return &rotationStatus{}, nil
+			identity, err := process.reRegister(conn, additionalPrincipals, dnsNames, remote, systemRoles, assertionID)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			connState, err := newConnectorState(identity)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if rotationIDChanged {
+				// Persist the new rotation ID. Writing only the identity would
+				// leave the next sync believing the rotation was still missed.
+				if err := writeStateAndIdentity(state.IdentityCurrent, identity); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			} else if err := storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *identity); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			conn.clientState.Store(connState)
+			conn.serverState.Store(connState)
+			return &rotationStatus{credentialsUpdated: true}, nil
 		case types.RotationStateInProgress:
 			// Rollback phase has been completed, all services
 			// will receive new identities.
