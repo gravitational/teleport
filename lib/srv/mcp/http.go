@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -111,14 +112,7 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 			if resp.StatusCode >= http.StatusInternalServerError {
 				resp.Header.Set(mcputils.TeleportErrorOriginHeader, mcputils.ErrorOriginUpstream)
 			}
-			if resp.Request != nil {
-				// Nothing to modify for these.
-				if resp.Request.Method == http.MethodDelete ||
-					isWellKnownPath(resp.Request.URL.Path) {
-					return nil
-				}
-			}
-			return trace.Wrap(mcputils.ReplaceHTTPResponse(ctx, resp, newHTTPResponseReplacer(session)))
+			return nil
 		}),
 		reverseproxy.WithErrorHandler(makeProxyErrorHandler(session.logger)),
 	)
@@ -126,7 +120,7 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 		return trace.Wrap(err, "creating reverse proxy")
 	}
 
-	return trace.Wrap(s.serveHTTPConn(ctx, sessionCtx.ClientConn, reverseProxy))
+	return trace.Wrap(s.serveHTTPConn(ctx, sessionCtx.ClientConn, http.MaxBytesHandler(reverseProxy, teleport.MaxHTTPRequestSize)))
 }
 
 func makeProxyErrorHandler(logger *slog.Logger) reverseproxy.ErrorHandlerFunc {
@@ -265,8 +259,7 @@ func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.
 }
 
 // fetchProtectedResourceMetadata follows redirects within the registered app so
-// private metadata endpoints remain reachable and their responses retain the
-// well-known request's exemption from MCP message processing.
+// private metadata endpoints remain reachable.
 func (t *streamableHTTPTransport) fetchProtectedResourceMetadata(r *http.Request) (*http.Response, error) {
 	var redirectErr error
 	client := &http.Client{
@@ -311,9 +304,6 @@ func (t *streamableHTTPTransport) fetchProtectedResourceMetadata(r *http.Request
 			})
 		}
 	}
-	// Response processing must use the original discovery request, even when
-	// the final upstream URL has no well-known prefix.
-	resp.Request = r
 	return resp, nil
 }
 
@@ -326,7 +316,10 @@ func (t *streamableHTTPTransport) handleSessionEndRequest(r *http.Request) (*htt
 func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) (*http.Response, error) {
 	resp, err := t.rewriteAndSendRequest(r)
 	t.emitListenSSEStreamEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r.Header))
-	return resp, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t.replaceResponse(r.Context(), resp)
 }
 
 func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Response, error) {
@@ -403,7 +396,30 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	case baseMessage.IsNotification():
 		t.emitNotificationEvent(r.Context(), baseMessage.MakeNotification(), eventWithError(auditErr), eventWithHeader(r.Header))
 	}
-	return resp, trace.Wrap(sendReqErr)
+	if sendReqErr != nil || !baseMessage.IsRequest() {
+		return resp, trace.Wrap(sendReqErr)
+	}
+
+	switch baseMessage.Method {
+	case mcputils.MethodInitialize, mcputils.MethodToolsList:
+		return t.replaceResponse(r.Context(), resp)
+	default:
+		// Other responses, such as tools/call results, can be arbitrarily
+		// large, so forward them without reading them.
+		t.idTracker.PopByID(baseMessage.ID)
+		if resp.StatusCode == http.StatusOK {
+			messagesFromServer.WithLabelValues(t.transport, "response", reportRequestMethod(baseMessage.Method)).Inc()
+		}
+		return resp, nil
+	}
+}
+
+func (t *streamableHTTPTransport) replaceResponse(ctx context.Context, resp *http.Response) (*http.Response, error) {
+	if err := mcputils.ReplaceHTTPResponse(ctx, resp, newHTTPResponseReplacer(t.sessionHandler)); err != nil {
+		_ = resp.Body.Close()
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }
 
 func (t *streamableHTTPTransport) handleRequestError(r *http.Request, errResp mcp.JSONRPCMessage) (*http.Response, error) {
