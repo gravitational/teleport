@@ -49,6 +49,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SESSION_SUMMARIES_COLLAPSED_CLASSIFIER_SECTIONS,
   KeysEnum.SESSION_SUMMARIES_DISMISSED_ACCESS_GRAPH_HINT,
   KeysEnum.DESKTOP_HIDPI,
+  KeysEnum.BEAMS_QUICKSTART_VISITED,
 ];
 
 const RECENT_HISTORY_MAX_LENGTH = 10;
@@ -285,6 +286,17 @@ export const storageService = {
   disableExternalAuditStorageCta(): void {
     window.localStorage.setItem(
       KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
+      JSON.stringify(true)
+    );
+  },
+
+  getBeamsQuickstartVisited(): boolean {
+    return this.getParsedJSONValue(KeysEnum.BEAMS_QUICKSTART_VISITED, false);
+  },
+
+  setBeamsQuickstartVisited(): void {
+    window.localStorage.setItem(
+      KeysEnum.BEAMS_QUICKSTART_VISITED,
       JSON.stringify(true)
     );
   },

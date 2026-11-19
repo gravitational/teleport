@@ -120,6 +120,11 @@ export type NavigationSubsection = {
   onClick?: () => void;
   /** isHyperLink is whether this subsection is merely a hyperlink/shortcut to another subsection. */
   isHyperLink?: boolean;
+  /**
+   * isCategoryDefault is whether clicking the parent category should navigate
+   * to this subsection instead of the first one.
+   */
+  isCategoryDefault?: boolean;
 };
 
 function getNavigationSections(
@@ -169,6 +174,7 @@ function getSubsectionsForCategory(
       icon: feature.navigationItem.icon,
       searchableTags: feature.navigationItem.searchableTags,
       isHyperLink: feature.isHyperLink,
+      isCategoryDefault: feature.navigationItem.isCategoryDefault,
     };
   });
 }

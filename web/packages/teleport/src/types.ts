@@ -42,6 +42,12 @@ interface TeleportFeatureNavigationItem {
   isSelected?: (clusterId: string, pathname: string) => boolean;
   /** searchableTags is a list of strings by which this feature should be searchable in the nav search. */
   searchableTags?: string[];
+  /**
+   * isCategoryDefault marks this item as the destination when the user clicks
+   * its category in the side nav. If no item in the category sets it, the
+   * first item is used.
+   */
+  isCategoryDefault?: boolean;
 }
 
 export enum NavTitle {

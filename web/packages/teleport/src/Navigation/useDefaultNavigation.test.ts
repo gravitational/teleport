@@ -64,4 +64,39 @@ describe('useDefaultNavigation', () => {
     expect(sectionOnclickMock).toHaveBeenCalled();
     expect(navigateMock).toHaveBeenCalledWith(testRoute);
   });
+
+  it('navigates to the subsection marked as the category default', () => {
+    const firstOnClickMock = jest.fn();
+    const defaultOnClickMock = jest.fn();
+
+    const section = {
+      subsections: [
+        {
+          title: 'first',
+          exact: true,
+          icon: () => null,
+          route: '/first',
+          onClick: firstOnClickMock,
+        },
+        {
+          title: 'default',
+          exact: true,
+          icon: () => null,
+          route: '/default',
+          onClick: defaultOnClickMock,
+          isCategoryDefault: true,
+        },
+      ] as NavigationSubsection[],
+    } as NavigationSection;
+
+    const { result } = renderHook(() => useDefaultNavigation(section));
+
+    act(() => {
+      result.current.onClick?.();
+    });
+
+    expect(firstOnClickMock).not.toHaveBeenCalled();
+    expect(defaultOnClickMock).toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith('/default');
+  });
 });

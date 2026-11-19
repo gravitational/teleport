@@ -72,6 +72,7 @@ export const KeysEnum = {
   APP_LAUNCHER_FRAGMENT: 'grv_teleport_app_launcher_fragment',
   DESKTOP_HIDPI: 'grv_teleport_desktop_hidpi',
   SCOPE_SELECTED: 'grv_teleport_scope_selected',
+  BEAMS_QUICKSTART_VISITED: 'grv_teleport_beams_quickstart_visited',
 };
 
 // SurveyRequest is the request for sending data to the back end

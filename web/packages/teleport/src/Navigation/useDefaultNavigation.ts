@@ -27,12 +27,14 @@ export function useDefaultNavigation(section: NavigationSection) {
     return {};
   }
 
-  const first = section.subsections[0];
+  const target =
+    section.subsections.find(s => s.isCategoryDefault) ??
+    section.subsections[0];
 
   return {
     onClick: () => {
-      first.onClick?.();
-      navigate(first.route);
+      target.onClick?.();
+      navigate(target.route);
     },
   };
 }
