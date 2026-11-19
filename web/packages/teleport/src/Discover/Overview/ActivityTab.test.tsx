@@ -17,8 +17,10 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import {
+  fireEvent,
   render,
   screen,
   testQueryClient,
@@ -28,9 +30,12 @@ import {
 } from 'design/utils/testing';
 import { useToastNotifications } from 'shared/components/ToastNotification';
 
-import { integrationService } from 'teleport/services/integrations';
+import {
+  integrationService,
+  type UserTask,
+} from 'teleport/services/integrations';
 
-import { ActivityTab } from './ActivityTab';
+import { ActivityTab, type TaskResourceTypeFilter } from './ActivityTab';
 
 jest.mock(
   '../../../../shared/components/ToastNotification/ToastNotificationContext',
@@ -47,6 +52,79 @@ jest.mock(
 
 afterEach(() => {
   jest.clearAllMocks();
+});
+
+test('hides and ignores the resource type filter for Azure', () => {
+  (useToastNotifications as jest.Mock).mockReturnValue({
+    add: jest.fn(),
+  });
+
+  render(
+    <QueryClientProvider client={testQueryClient}>
+      <ControlledActivityTab
+        initialFilter="RDS"
+        showResourceTypeFilter={false}
+        stats={{
+          name: 'azure-integration',
+          userTasks: [
+            {
+              name: 'task-azure',
+              taskType: 'discover-azure-vm',
+              state: 'OPEN',
+              issueType: 'azure-vm-enrollment-error',
+              title: 'Azure VM failure',
+              integration: 'azure-integration',
+              lastStateChange: '2025-10-24T12:30:00Z',
+            },
+          ],
+        }}
+      />
+    </QueryClientProvider>
+  );
+
+  expect(screen.queryByText(/Resource Type:/)).not.toBeInTheDocument();
+  expect(screen.getByText('Azure VM failure')).toBeVisible();
+});
+
+test('filters AWS issues by resource type', () => {
+  (useToastNotifications as jest.Mock).mockReturnValue({
+    add: jest.fn(),
+  });
+
+  render(
+    <QueryClientProvider client={testQueryClient}>
+      <ControlledActivityTab
+        initialFilter="RDS"
+        stats={{
+          name: 'aws-integration',
+          userTasks: [
+            {
+              name: 'task-ec2',
+              taskType: 'discover-ec2',
+              state: 'OPEN',
+              issueType: 'ec2-ssm-invocation-failure',
+              title: 'EC2 failure',
+              integration: 'aws-integration',
+              lastStateChange: '2025-10-24T12:30:00Z',
+            },
+            {
+              name: 'task-rds',
+              taskType: 'discover-rds',
+              state: 'OPEN',
+              issueType: 'rds-agent-not-connecting',
+              title: 'RDS failure',
+              integration: 'aws-integration',
+              lastStateChange: '2025-10-24T12:30:00Z',
+            },
+          ],
+        }}
+      />
+    </QueryClientProvider>
+  );
+
+  expect(screen.getByText('Resource Type: RDS')).toBeVisible();
+  expect(screen.getByText('RDS failure')).toBeVisible();
+  expect(screen.queryByText('EC2 failure')).not.toBeInTheDocument();
 });
 
 test('opens issue drawer and resolves a task', async () => {
@@ -91,7 +169,7 @@ test('opens issue drawer and resolves a task', async () => {
 
   render(
     <QueryClientProvider client={testQueryClient}>
-      <ActivityTab
+      <ControlledActivityTab
         stats={{
           name: 'aws-integration-org-foo',
           userTasks: [
@@ -147,7 +225,7 @@ test('shows Azure integration identity in the issue drawer', async () => {
 
   render(
     <QueryClientProvider client={testQueryClient}>
-      <ActivityTab
+      <ControlledActivityTab
         stats={{
           name: 'azure-integration',
           userTasks: [
@@ -198,7 +276,7 @@ test('keeps failed tasks selected when bulk resolve partially fails', async () =
 
   render(
     <QueryClientProvider client={testQueryClient}>
-      <ActivityTab
+      <ControlledActivityTab
         stats={{
           name: 'aws-integration-org-foo',
           userTasks: [
@@ -226,10 +304,14 @@ test('keeps failed tasks selected when bulk resolve partially fails', async () =
     </QueryClientProvider>
   );
 
-  await userEvent.click(
+  expect(screen.queryByText('Mark as Resolved')).not.toBeInTheDocument();
+
+  // fireEvent avoids focusing the checkbox; its blur handler constructs a
+  // PointerEvent, which jsdom doesn't implement.
+  fireEvent.click(
     screen.getByRole('checkbox', { name: 'Select all visible issues' })
   );
-  await userEvent.click(screen.getByText('Mark as Resolved'));
+  await userEvent.click(await screen.findByText('Mark as Resolved'));
 
   const dialog = await screen.findByTestId('dialogbox');
   await userEvent.click(
@@ -245,3 +327,106 @@ test('keeps failed tasks selected when bulk resolve partially fails', async () =
   ).toBeInTheDocument();
   expect(screen.getByText('1 selected')).toBeInTheDocument();
 });
+
+test('clicking on "mark as resolved" button only resolves tasks that is visibly selected (hidden ones from filters are ignored)', async () => {
+  (useToastNotifications as jest.Mock).mockReturnValue({ add: jest.fn() });
+
+  jest.spyOn(integrationService, 'resolveUserTask').mockResolvedValue({
+    name: 'task-ec2',
+    taskType: 'discover-ec2',
+    state: 'RESOLVED',
+    issueType: 'ec2-ssm-invocation-failure',
+    title: 'EC2 failure',
+    integration: 'aws-integration',
+    lastStateChange: '2025-10-24T12:30:00Z',
+  });
+
+  render(
+    <QueryClientProvider client={testQueryClient}>
+      <ControlledActivityTab
+        stats={{
+          name: 'aws-integration',
+          userTasks: [
+            {
+              name: 'task-ec2',
+              taskType: 'discover-ec2',
+              state: 'OPEN',
+              issueType: 'ec2-ssm-invocation-failure',
+              title: 'EC2 failure',
+              integration: 'aws-integration',
+              lastStateChange: '2025-10-24T12:30:00Z',
+            },
+            {
+              name: 'task-rds',
+              taskType: 'discover-rds',
+              state: 'OPEN',
+              issueType: 'rds-agent-not-connecting',
+              title: 'RDS failure',
+              integration: 'aws-integration',
+              lastStateChange: '2025-10-23T12:30:00Z',
+            },
+            {
+              name: 'task-eks',
+              taskType: 'discover-eks',
+              state: 'OPEN',
+              issueType: 'eks-join-failure',
+              title: 'EKS failure',
+              integration: 'aws-integration',
+              lastStateChange: '2025-10-22T12:30:00Z',
+            },
+          ],
+        }}
+      />
+    </QueryClientProvider>
+  );
+
+  // Checkbox all issues.
+  fireEvent.click(
+    screen.getByRole('checkbox', { name: 'Select issue EC2 failure' })
+  );
+  fireEvent.click(
+    screen.getByRole('checkbox', { name: 'Select issue RDS failure' })
+  );
+  fireEvent.click(
+    screen.getByRole('checkbox', { name: 'Select issue EKS failure' })
+  );
+
+  // Filter only EC2 so the RDS and EKS tasks are hidden.
+  await userEvent.click(screen.getByText('Resource Type: All'));
+  await userEvent.click(screen.getByText('EC2'));
+
+  await userEvent.click(screen.getByText('Mark as Resolved'));
+  const dialog = await screen.findByTestId('dialogbox');
+  await userEvent.click(
+    within(dialog).getByRole('button', { name: 'Mark as Resolved' })
+  );
+
+  await waitFor(() =>
+    expect(integrationService.resolveUserTask).toHaveBeenCalledTimes(1)
+  );
+
+  // Only the issue visibly rendered is resolved.
+  expect(integrationService.resolveUserTask).toHaveBeenCalledWith('task-ec2');
+});
+
+function ControlledActivityTab({
+  stats,
+  initialFilter = 'All',
+  showResourceTypeFilter,
+}: {
+  stats: { name: string; userTasks?: UserTask[] };
+  initialFilter?: TaskResourceTypeFilter;
+  showResourceTypeFilter?: boolean;
+}) {
+  const [targetedResourceTypeFilter, setTargetedResourceTypeFilter] =
+    useState(initialFilter);
+
+  return (
+    <ActivityTab
+      stats={stats}
+      targetedResourceTypeFilter={targetedResourceTypeFilter}
+      onResourceTypeFilterChange={setTargetedResourceTypeFilter}
+      showResourceTypeFilter={showResourceTypeFilter}
+    />
+  );
+}

@@ -85,7 +85,7 @@ export function InfoGuideContent() {
       <InfoUl>
         <InfoLinkLi>
           <ExternalLink
-            href="https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-discovery/#step-35-set-up-an-identity-for-discovered-nodes"
+            href="https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-vm-discovery/azure-vm-discovery-terraform/#step-25-set-up-an-identity-for-discovered-vms"
             target="_blank"
           >
             <Flex>

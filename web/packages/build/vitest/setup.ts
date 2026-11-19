@@ -41,7 +41,17 @@ if (typeof globalThis.requestIdleCallback === 'undefined') {
 
 expect.extend(jestDomMatchers);
 
-failOnConsole();
+// Emotion (used by Chakra in the design system) warns about `:first-child`
+// selectors from the design-system table. We don't server-side render,
+// so the warning doesn't apply. This console error can make valid test fail.
+const silencedMessages = [
+  'is potentially unsafe when doing server-side rendering',
+];
+
+failOnConsole({
+  silenceMessage: message =>
+    silencedMessages.some(fragment => message.includes(fragment)),
+});
 
 // React reads this to decide whether act() is supported. RTL only sets it around its own act() calls, so without
 // it React warns on every state update and vitest-fail-on-console turns that into a failure.

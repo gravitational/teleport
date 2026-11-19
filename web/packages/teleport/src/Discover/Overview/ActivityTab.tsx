@@ -16,11 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  ComposedCheckbox,
+  DataTable,
+  type ColumnDef,
+  type Row,
+} from '@gravitational/design-system';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  createContext,
+  useContext,
   useMemo,
   useState,
-  type ChangeEvent,
   type MouseEventHandler,
 } from 'react';
 import styled, { useTheme } from 'styled-components';
@@ -28,8 +35,6 @@ import styled, { useTheme } from 'styled-components';
 import { Box, Flex, Indicator, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { ButtonBorder, ButtonPrimaryBorder } from 'design/Button';
-import { CheckboxInput } from 'design/Checkbox';
-import Table, { Cell } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
 import { Check, CircleCross, Warning } from 'design/Icon';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
@@ -48,6 +53,10 @@ import { MarkAsResolvedDialog } from './MarkAsResolvedDialog';
 import { UserTaskDrawer } from './UserTaskDrawer';
 
 type EventTypeFilter = 'All' | TaskEventType;
+
+const taskResourceTypeFilters = ['All', 'EC2', 'RDS', 'EKS'] as const;
+export type TaskResourceTypeFilter = (typeof taskResourceTypeFilters)[number];
+
 enum DateOrder {
   NewestFirst = 'Newest first',
   OldestFirst = 'Oldest first',
@@ -55,17 +64,23 @@ enum DateOrder {
 
 export function ActivityTab({
   stats,
+  targetedResourceTypeFilter,
+  onResourceTypeFilterChange,
+  showResourceTypeFilter = true,
 }: {
   stats: { name: string; userTasks?: UserTask[] };
+  targetedResourceTypeFilter: TaskResourceTypeFilter;
+  onResourceTypeFilterChange: (filter: TaskResourceTypeFilter) => void;
+  showResourceTypeFilter?: boolean;
 }) {
   const tasks = stats.userTasks;
+  const resourceTypeFilter = showResourceTypeFilter
+    ? targetedResourceTypeFilter
+    : 'All';
 
   const theme = useTheme();
   const queryClient = useQueryClient();
   const toastNotification = useToastNotifications();
-
-  // we dont want the row click to happen if we are clicking the checkbox input so we stop the propagation
-  const stopRowClick: MouseEventHandler = e => e.stopPropagation();
 
   const [search, setSearch] = useState('');
   const [eventTypeFilter, setEventTypeFilter] =
@@ -84,6 +99,12 @@ export function ActivityTab({
     const filtered = (tasks ?? []).filter(t => {
       const type = getTaskEventType(t);
       if (eventTypeFilter !== 'All' && type !== eventTypeFilter) {
+        return false;
+      }
+      if (
+        resourceTypeFilter !== 'All' &&
+        getTaskResourceType(t) !== resourceTypeFilter
+      ) {
         return false;
       }
       if (!q) {
@@ -105,35 +126,29 @@ export function ActivityTab({
     });
 
     return filtered;
-  }, [tasks, search, eventTypeFilter, dateOrder]);
+  }, [tasks, search, eventTypeFilter, resourceTypeFilter, dateOrder]);
 
   const selectedNames = useMemo(
-    () => Object.keys(selected).filter(k => selected[k]),
-    [selected]
+    () => filteredTasks.filter(t => selected[t.name]).map(t => t.name),
+    [filteredTasks, selected]
   );
 
-  function handleEventTypeFilterChange(newFilter: EventTypeFilter) {
-    setEventTypeFilter(newFilter);
-    if (newFilter === 'All') {
-      return;
-    }
-    setSelected(prev => {
-      const next = { ...prev };
-      for (const task of tasks ?? []) {
-        if (prev[task.name] && getTaskEventType(task) !== newFilter) {
-          delete next[task.name];
+  const tableContextValue: ActivityTableContextValue = {
+    selected,
+    tasks: filteredTasks,
+    disabled: bulkProcessing,
+    onOpenDetails: setDrawerTaskName,
+    onToggleOne: (name, checked) =>
+      setSelected(prev => ({ ...prev, [name]: checked })),
+    onToggleAll: checked =>
+      setSelected(prev => {
+        const next = { ...prev };
+        for (const t of filteredTasks) {
+          next[t.name] = checked;
         }
-      }
-      return next;
-    });
-  }
-
-  const allVisibleSelected =
-    filteredTasks.length > 0 &&
-    filteredTasks.every(t => Boolean(selected[t.name]));
-
-  const someVisibleSelected =
-    filteredTasks.some(t => Boolean(selected[t.name])) && !allVisibleSelected;
+        return next;
+      }),
+  };
 
   async function markSelectedAsResolved() {
     setBulkError('');
@@ -235,23 +250,18 @@ export function ActivityTab({
     <>
       <Box>
         <Flex mb={3} alignItems="center" gap={2} flexWrap="wrap">
-          <Box width="600px">
-            <InputSearch
-              searchValue={search}
-              setSearchValue={setSearch}
-              placeholder="Search..."
-            />
-          </Box>
-        </Flex>
-        <Flex mb={3} alignItems="center" gap={2} flexWrap="wrap">
-          <MenuButton buttonText={`Event Type: ${eventTypeFilter}`}>
+          <MenuButton
+            buttonText={`Event Type: ${eventTypeFilter}`}
+            onClear={
+              eventTypeFilter === 'All'
+                ? undefined
+                : () => setEventTypeFilter('All')
+            }
+          >
             {(
               ['All', ...Object.values(TaskEventType)] as EventTypeFilter[]
             ).map(option => (
-              <MenuItem
-                key={option}
-                onClick={() => handleEventTypeFilterChange(option)}
-              >
+              <MenuItem key={option} onClick={() => setEventTypeFilter(option)}>
                 <Flex alignItems="center" gap={2}>
                   <Box width="14px">
                     {option === eventTypeFilter && <Check size={14} />}
@@ -261,14 +271,39 @@ export function ActivityTab({
               </MenuItem>
             ))}
           </MenuButton>
-          <MenuButton buttonText={`Date: ${dateOrder}`}>
-            <MenuItem onClick={() => setDateOrder(DateOrder.NewestFirst)}>
-              Newest first
-            </MenuItem>
-            <MenuItem onClick={() => setDateOrder(DateOrder.OldestFirst)}>
-              Oldest first
-            </MenuItem>
-          </MenuButton>
+          {showResourceTypeFilter && (
+            <MenuButton
+              buttonText={`Resource Type: ${targetedResourceTypeFilter}`}
+              onClear={
+                targetedResourceTypeFilter === 'All'
+                  ? undefined
+                  : () => onResourceTypeFilterChange('All')
+              }
+            >
+              {taskResourceTypeFilters.map(filter => (
+                <MenuItem
+                  key={filter}
+                  onClick={() => onResourceTypeFilterChange(filter)}
+                >
+                  <Flex alignItems="center" gap={2}>
+                    <Box width="14px">
+                      {filter === targetedResourceTypeFilter && (
+                        <Check size={14} />
+                      )}
+                    </Box>
+                    <Text>{filter}</Text>
+                  </Flex>
+                </MenuItem>
+              ))}
+            </MenuButton>
+          )}
+          <Box width="600px">
+            <InputSearch
+              searchValue={search}
+              setSearchValue={setSearch}
+              placeholder="Search..."
+            />
+          </Box>
         </Flex>
         {bulkError && (
           <Box mb={3}>
@@ -278,149 +313,59 @@ export function ActivityTab({
           </Box>
         )}
         <Flex alignItems="center" gap={2} mb={2}>
-          <Box>
-            <CheckboxInput
-              checked={allVisibleSelected}
-              disabled={bulkProcessing}
-              // we dont support indeterminate via props so we can set via ref in a wrapper
-              ref={node => {
-                if (node) {
-                  node.indeterminate = someVisibleSelected;
-                }
-              }}
-              onChange={e => {
-                const checked = e.currentTarget.checked;
-                setSelected(prev => {
-                  const next = { ...prev };
-                  for (const t of filteredTasks) {
-                    next[t.name] = checked;
-                  }
-                  return next;
-                });
-              }}
-              aria-label="Select all visible issues"
-            />
-          </Box>
-          <ButtonPrimaryBorder
-            size="small"
-            disabled={bulkProcessing || selectedNames.length === 0}
-            onClick={() => setShowBulkResolveDialog(true)}
-            css={{ minWidth: '140px' }}
-          >
-            {bulkProcessing ? (
-              <Indicator size={14} color="text.muted" delay="none" />
-            ) : (
-              'Mark as Resolved'
-            )}
-          </ButtonPrimaryBorder>
           {selectedNames.length > 0 && (
-            <Text typography="body3" color="text.slightlyMuted">
-              {selectedNames.length} selected
-            </Text>
+            <>
+              <ButtonPrimaryBorder
+                size="small"
+                disabled={bulkProcessing}
+                onClick={() => setShowBulkResolveDialog(true)}
+                css={{ minWidth: '140px' }}
+              >
+                {bulkProcessing ? (
+                  <Indicator size={14} color="text.muted" delay="none" />
+                ) : (
+                  'Mark as Resolved'
+                )}
+              </ButtonPrimaryBorder>
+              <Text typography="body3" color="text.slightlyMuted">
+                {selectedNames.length} selected
+              </Text>
+            </>
           )}
+          <Box ml="auto">
+            <MenuButton buttonText={`Date: ${dateOrder}`}>
+              <MenuItem onClick={() => setDateOrder(DateOrder.NewestFirst)}>
+                Newest first
+              </MenuItem>
+              <MenuItem onClick={() => setDateOrder(DateOrder.OldestFirst)}>
+                Oldest first
+              </MenuItem>
+            </MenuButton>
+          </Box>
         </Flex>
-        <Table<UserTask>
-          className={filteredTasks.length === 0 ? 'activity-empty' : undefined}
-          hideEmptyIcon
-          data={filteredTasks}
-          emptyText=" "
-          emptyHint="No issues found"
-          row={{
-            onClick: row => setDrawerTaskName(row.name),
-            getStyle: row => {
-              if (row.name === drawerTaskName) {
-                return {
-                  backgroundColor: theme.colors.interactive.tonal.primary[0],
-                  cursor: 'pointer',
-                };
-              }
-              return { cursor: 'pointer' };
-            },
-            getKey: row => row.name,
-          }}
-          columns={[
-            {
-              altKey: 'select',
-              headerText: '',
-              render: task => (
-                <Cell width="20px">
-                  <Flex
-                    alignItems="center"
-                    justifyContent="center"
-                    onMouseDown={stopRowClick}
-                    onClick={stopRowClick}
-                  >
-                    <CheckboxInput
-                      checked={Boolean(selected[task.name])}
-                      disabled={bulkProcessing}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                        e.stopPropagation();
-                        const checked = e.currentTarget.checked;
-                        setSelected(prev => ({
-                          ...prev,
-                          [task.name]: checked,
-                        }));
-                      }}
-                      aria-label={`Select issue ${task.title}`}
-                    />
-                  </Flex>
-                </Cell>
-              ),
-            },
-            {
-              altKey: 'eventType',
-              headerText: 'Event Type',
-              render: task => {
-                const type = getTaskEventType(task);
-                return (
-                  <Cell>
-                    <Flex alignItems="center" gap={2}>
-                      {type === 'Error' ? (
-                        <CircleCross size={16} color="error.main" />
-                      ) : (
-                        <Warning size={16} color="warning.main" />
-                      )}
-                      <Text typography="body3">{type}</Text>
-                    </Flex>
-                  </Cell>
-                );
-              },
-            },
-            {
-              key: 'title',
-              headerText: 'Description',
-              render: task => (
-                <Cell>
-                  <Text typography="body3">{task.title}</Text>
-                </Cell>
-              ),
-            },
-            {
-              key: 'lastStateChange',
-              headerText: 'Date',
-              render: task => (
-                <Cell>{formatRelativeDate(task.lastStateChange)}</Cell>
-              ),
-            },
-            {
-              altKey: 'details',
-              headerText: '',
-              render: task => (
-                <Cell align="right">
-                  <ButtonBorder
-                    size="small"
-                    onClick={e => {
-                      e.stopPropagation();
-                      setDrawerTaskName(task.name);
-                    }}
-                  >
-                    Details
-                  </ButtonBorder>
-                </Cell>
-              ),
-            },
-          ]}
-        />
+        <ActivityTableContext.Provider value={tableContextValue}>
+          <TableWrapper>
+            <DataTable<UserTask>
+              data={filteredTasks}
+              columns={COLUMNS}
+              getRowId={task => task.name}
+              emptyText="No issues found"
+              row={{
+                onClick: task => setDrawerTaskName(task.name),
+                getStyle: task => {
+                  if (task.name === drawerTaskName) {
+                    return {
+                      backgroundColor:
+                        theme.colors.interactive.tonal.primary[0],
+                      cursor: 'pointer',
+                    };
+                  }
+                  return { cursor: 'pointer' };
+                },
+              }}
+            />
+          </TableWrapper>
+        </ActivityTableContext.Provider>
       </Box>
 
       <Backdrop
@@ -463,6 +408,137 @@ export function ActivityTab({
   );
 }
 
+type ActivityTableContextValue = {
+  tasks: UserTask[];
+  selected: Record<string, boolean>;
+  disabled: boolean;
+  onToggleAll: (checked: boolean) => void;
+  onToggleOne: (name: string, checked: boolean) => void;
+  onOpenDetails: (name: string) => void;
+};
+
+const ActivityTableContext = createContext<ActivityTableContextValue | null>(
+  null
+);
+
+function useActivityTableContext(): ActivityTableContextValue {
+  return useContext(ActivityTableContext)!;
+}
+
+function SelectAllHeader() {
+  const { tasks, selected, onToggleAll, disabled } = useActivityTableContext();
+  const allSelected = tasks.length > 0 && tasks.every(t => selected[t.name]);
+  const someSelected = !allSelected && tasks.some(t => selected[t.name]);
+
+  return (
+    <ComposedCheckbox
+      size="sm"
+      aria-label="Select all visible issues"
+      checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+      onCheckedChange={() => onToggleAll(!allSelected)}
+      disabled={disabled || tasks.length === 0}
+    />
+  );
+}
+
+// we dont want the row click to happen if we are clicking the checkbox input so we stop the propagation
+const stopRowClick: MouseEventHandler = e => e.stopPropagation();
+function RowSelectCell({ row }: { row: Row<UserTask> }) {
+  const { selected, onToggleOne, disabled } = useActivityTableContext();
+  const task = row.original;
+  return (
+    <Flex alignItems="center" onClick={stopRowClick}>
+      <ComposedCheckbox
+        size="sm"
+        aria-label={`Select issue ${task.title}`}
+        checked={Boolean(selected[task.name])}
+        onCheckedChange={details =>
+          onToggleOne(task.name, details.checked === true)
+        }
+        disabled={disabled}
+      />
+    </Flex>
+  );
+}
+
+function EventTypeCell({ row }: { row: Row<UserTask> }) {
+  const type = getTaskEventType(row.original);
+  return (
+    <Flex alignItems="center" gap={2}>
+      {type === 'Error' ? (
+        <CircleCross size={16} color="error.main" />
+      ) : (
+        <Warning size={16} color="warning.main" />
+      )}
+      <Text typography="body3">{type}</Text>
+    </Flex>
+  );
+}
+
+function DescriptionCell({ row }: { row: Row<UserTask> }) {
+  return <Text typography="body3">{row.original.title}</Text>;
+}
+
+function DateCell({ row }: { row: Row<UserTask> }) {
+  return <>{formatRelativeDate(row.original.lastStateChange)}</>;
+}
+
+function DetailsCell({ row }: { row: Row<UserTask> }) {
+  const { onOpenDetails } = useActivityTableContext();
+  return (
+    <Flex justifyContent="flex-end">
+      <ButtonBorder
+        size="small"
+        onClick={e => {
+          e.stopPropagation();
+          onOpenDetails(row.original.name);
+        }}
+      >
+        Details
+      </ButtonBorder>
+    </Flex>
+  );
+}
+
+const COLUMNS: ColumnDef<UserTask>[] = [
+  { id: 'select', header: SelectAllHeader, cell: RowSelectCell },
+  { id: 'eventType', header: 'Event Type', cell: EventTypeCell },
+  { id: 'title', header: 'Description', cell: DescriptionCell },
+  { id: 'lastStateChange', header: 'Date', cell: DateCell },
+  { id: 'details', header: () => null, cell: DetailsCell },
+];
+
+const TableWrapper = styled.div`
+  table {
+    thead tr {
+      background-color: ${({ theme }) =>
+        theme.type === 'light'
+          ? theme.colors.levels.deep
+          : theme.colors.levels.elevated};
+    }
+
+    thead > tr > th:first-child,
+    tbody > tr > td:first-child {
+      width: 1%;
+      white-space: nowrap;
+    }
+
+    tbody > tr:first-child {
+      border-top: none;
+    }
+
+    tbody tr {
+      &:hover {
+        background-color: ${({ theme }) =>
+          theme.colors.interactive.tonal.neutral[0]};
+        &:after {
+          box-shadow: none;
+        }
+      }
+    }
+  }
+`;
+
 const Backdrop = styled.div<{ isVisible: boolean }>`
   position: fixed;
   inset: 0;
@@ -488,4 +564,19 @@ export function getTaskEventType(task: { issueType?: string }): TaskEventType {
     return TaskEventType.Warning;
   }
   return TaskEventType.Error;
+}
+
+function getTaskResourceType(task: {
+  taskType?: string;
+}): Exclude<TaskResourceTypeFilter, 'All'> | undefined {
+  const taskType = (task.taskType || '').toLowerCase();
+  if (taskType.includes('ec2')) {
+    return 'EC2';
+  }
+  if (taskType.includes('rds')) {
+    return 'RDS';
+  }
+  if (taskType.includes('eks')) {
+    return 'EKS';
+  }
 }

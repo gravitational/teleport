@@ -107,6 +107,9 @@ export function installableIntegrations() {
     // IaC integrations are built against Cloud environments -- expecting
     // a discovery service to be running and a public proxy for OIDC.
     // This check will be removed when the flow is polished for self-hosted.
+    // TODO: if these IaC integrations are for OSS as well, we need to add
+    // access list CTA buttons for the "set up access" button
+    // located in IaCIntegrationOverview.tsx.
     const requiresCloudEnvironment =
       i.kind === IntegrationKind.AwsCloud ||
       i.kind === IntegrationKind.AzureCloud ||

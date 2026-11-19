@@ -21,9 +21,8 @@ import styled from 'styled-components';
 
 import { Alert, Box, Flex, Label, Link, Mark, Text } from 'design';
 import { CollapsibleInfoSection } from 'design/CollapsibleInfoSection';
-import { ChevronDown } from 'design/Icon';
+import { ChevronDown, Info } from 'design/Icon';
 import { SpaceProps } from 'design/system';
-import { H3 } from 'design/Text';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 import { Tabs } from 'teleport/components/Tabs';
@@ -65,32 +64,7 @@ export function AwsRdsAuthRequirements({
   if (wantAutoDiscover) {
     // If auto discovery was enabled, users need to see all supported engine info
     // to help setup access to their databases.
-    // The id is specifically Aurora here since the AWS documentation for creating
-    // IAM users are equivalent (and Teleport doc does the same).
-    createInfo = (
-      <Box width="100%">
-        <Tabs
-          tabs={[
-            {
-              title: 'PostgreSQL',
-              content: (
-                <AwsPostgresUserInfo
-                  id={DiscoverGuideId.DatabaseAwsRdsAuroraPostgres}
-                />
-              ),
-            },
-            {
-              title: `MySQL`,
-              content: (
-                <AwsMysqlUserInfo
-                  id={DiscoverGuideId.DatabaseAwsRdsAuroraMysql}
-                />
-              ),
-            },
-          ]}
-        />
-      </Box>
-    );
+    createInfo = <AwsRdsDatabaseUserInfo />;
   }
 
   return (
@@ -142,53 +116,78 @@ export function AwsRdsAuthRequirements({
       {showCreateInfo && (
         <Box mx={4}>
           <Box width="100%">{createInfo}</Box>
-          <H3 mt={4}>Connecting to your RDS Databases</H3>
-          <Text mb={2}>
-            AWS documents how to{' '}
-            <Link target="_blank" href={getAwsRdsConnectLink(id)}>
-              connect to your RDS database
-            </Link>{' '}
-            in various ways.
-          </Text>
-          {!wantAutoDiscover && uri && (
-            <Box mt={2} mb={3}>
-              Database URI:
-              <TextSelectCopyMulti lines={[{ text: uri }]} />
-            </Box>
-          )}
-          <CollapsibleInfoSection
-            mt={3}
-            size="small"
-            openLabel="Connect with AWS CloudShell"
-            closeLabel="Connect with AWS CloudShell"
-          >
-            Alternatively, you can use{' '}
-            <Link
-              href="https://console.aws.amazon.com/cloudshell/home"
-              target="_blank"
-            >
-              AWS CloudShell
-            </Link>{' '}
-            to connect to your RDS database. See{' '}
-            <Link
-              target="_blank"
-              href="https://docs.aws.amazon.com/cloudshell/latest/userguide/creating-vpc-environment.html"
-            >
-              Creating a CloudShell VPC environment
-            </Link>{' '}
-            for more information.
-            {serviceDeploy && (
-              <>
-                {
-                  ' Use the same security groups and subnets you specified for your database service.'
-                }
-                <DatabaseInfo serviceDeploy={serviceDeploy} />
-              </>
-            )}
-          </CollapsibleInfoSection>
+          <AwsRdsConnectInfo
+            id={id}
+            uri={wantAutoDiscover ? undefined : uri}
+            serviceDeploy={serviceDeploy}
+          />
         </Box>
       )}
     </Box>
+  );
+}
+
+export function AwsRdsConnectInfo({
+  id,
+  uri,
+  serviceDeploy,
+}: {
+  id?: AwsRdsGuideIds;
+  uri?: string;
+  serviceDeploy?: DatabaseServiceDeploy;
+}) {
+  return (
+    <>
+      <Text mt={4} fontWeight={'400'}>
+        <Flex gap={1}>
+          <Info size="small" />
+          Connecting to your RDS Databases
+        </Flex>
+      </Text>
+      <Text mb={2}>
+        AWS documents how to{' '}
+        <Link target="_blank" href={getAwsRdsConnectLink(id)}>
+          connect to your RDS database
+        </Link>{' '}
+        in various ways.
+      </Text>
+      {uri && (
+        <Box mt={2} mb={3}>
+          Database URI:
+          <TextSelectCopyMulti lines={[{ text: uri }]} />
+        </Box>
+      )}
+      <CollapsibleInfoSection
+        mt={3}
+        size="small"
+        openLabel="Connect with AWS CloudShell"
+        closeLabel="Connect with AWS CloudShell"
+      >
+        Alternatively, you can use{' '}
+        <Link
+          href="https://console.aws.amazon.com/cloudshell/home"
+          target="_blank"
+        >
+          AWS CloudShell
+        </Link>{' '}
+        to connect to your RDS database. See{' '}
+        <Link
+          target="_blank"
+          href="https://docs.aws.amazon.com/cloudshell/latest/userguide/creating-vpc-environment.html"
+        >
+          Creating a CloudShell VPC environment
+        </Link>{' '}
+        for more information.
+        {serviceDeploy && (
+          <>
+            {
+              ' Use the same VPC, one of the subnets, and the security groups you specified for your database service.'
+            }
+            <DatabaseInfo serviceDeploy={serviceDeploy} />
+          </>
+        )}
+      </CollapsibleInfoSection>
+    </>
   );
 }
 
@@ -233,6 +232,35 @@ function DatabaseInfo({
     <Box mt={3}>
       {securityGroups}
       {subnetIds}
+    </Box>
+  );
+}
+
+export function AwsRdsDatabaseUserInfo() {
+  // The id is specifically Aurora here since the AWS documentation for creating
+  // IAM users are equivalent (and Teleport doc does the same).
+  return (
+    <Box width="100%">
+      <Tabs
+        tabs={[
+          {
+            title: 'PostgreSQL',
+            content: (
+              <AwsPostgresUserInfo
+                id={DiscoverGuideId.DatabaseAwsRdsAuroraPostgres}
+              />
+            ),
+          },
+          {
+            title: `MySQL`,
+            content: (
+              <AwsMysqlUserInfo
+                id={DiscoverGuideId.DatabaseAwsRdsAuroraMysql}
+              />
+            ),
+          },
+        ]}
+      />
     </Box>
   );
 }
@@ -305,8 +333,10 @@ function CreateRdsIamAccountText({ id }: { id: AwsRdsGuideIds }) {
   );
 }
 
-function getAwsRdsConnectLink(id: AwsRdsGuideIds) {
+function getAwsRdsConnectLink(id: AwsRdsGuideIds | undefined) {
   switch (id) {
+    case undefined:
+      return 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_CommonTasks.Connect.html';
     case DiscoverGuideId.DatabaseAwsRdsPostgres:
       return 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ConnectToPostgreSQLInstance.html';
     case DiscoverGuideId.DatabaseAwsRdsMysqlMariaDb:

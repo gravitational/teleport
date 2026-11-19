@@ -195,6 +195,7 @@ const ossRoutes = {
   locks: '/web/locks',
   newLock: '/web/locks/new',
   requests: '/web/requests/:requestId?',
+  accessListNew: '/web/accesslists/new',
 
   downloadCenter: '/web/downloads',
   managedUpdates: '/web/managedupdates',

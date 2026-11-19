@@ -16,34 +16,60 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { Button, ButtonBorder } from '@gravitational/design-system';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { formatDistanceStrict, formatDistanceToNowStrict } from 'date-fns';
 import { useState, useEffect } from 'react';
-import { Link as RouterLink, useParams } from 'react-router';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router';
 import styled, { keyframes } from 'styled-components';
 
 import { Card, Flex, H2, Indicator, Text } from 'design';
 import { Danger } from 'design/Alert';
-import { ButtonPrimary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import { displayDateTime } from 'design/datetime';
-import { ArrowLeft, CircleCheck, Clock, SyncAlt } from 'design/Icon';
+import {
+  ArrowForward,
+  ArrowLeft,
+  ArrowRight,
+  CircleCheck,
+  Clock,
+  SyncAlt,
+  Warning,
+} from 'design/Icon';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import { Status as StatusBadge } from 'design/Status';
 import { HoverTooltip } from 'design/Tooltip';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 import { pluralize } from 'shared/utils/text';
 
+import { useTeleport } from 'teleport';
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
+import { shouldHideInaccessibleFeatures } from 'teleport/features';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { useNoMinWidth } from 'teleport/Main';
 import {
+  AzureResource,
   IntegrationKind,
   integrationService,
   IntegrationWithSummary,
   ResourceTypeSummary,
 } from 'teleport/services/integrations';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
-import { ActivityTab } from './ActivityTab';
+import { ActivityTab, TaskResourceTypeFilter } from './ActivityTab';
+import {
+  getListResourceRoute,
+  getResourceKindFromResource,
+  ListResourceRouteParams,
+  requiresDiscoveryRules,
+} from './resources';
+import {
+  getAwsResourceMatchingLabels,
+  getSetupAccessEnrollment,
+  AwsResourceLabels,
+  SetupAccessRouteState,
+} from './setupAccess';
 
 export function formatRelativeDate(value?: string | Date): string {
   if (!value) {
@@ -64,6 +90,14 @@ export function formatRelativeDate(value?: string | Date): string {
 const OVERDUE_REFETCH_INTERVAL_MS = 10 * 1000;
 
 export function IaCIntegrationOverview() {
+  const navigate = useNavigate();
+  const toastNotification = useToastNotifications();
+  const ctx = useTeleport();
+  const canCreateAccessList = ctx.getFeatureFlags().addAccessList;
+  const showSetUpAccessBtn =
+    !cfg.isDashboard &&
+    (canCreateAccessList || !shouldHideInaccessibleFeatures(cfg));
+
   const { name, type } = useParams<{ name: string; type: string }>();
 
   const {
@@ -79,6 +113,123 @@ export function IaCIntegrationOverview() {
   });
 
   useNoMinWidth();
+
+  const isAwsIntegration = stats?.subKind === IntegrationKind.AwsOidc;
+  const isAzureIntegration = stats?.subKind === IntegrationKind.AzureOidc;
+  const integrationName = stats?.name ?? name;
+  const { ec2Enrolled, rdsEnrolled, eksEnrolled, startAccessListWizardWith } =
+    getSetupAccessEnrollment(stats);
+
+  function navigateToSetUpAccess(labels?: AwsResourceLabels) {
+    let integrationKind: IntegrationKind;
+    if (isAwsIntegration) {
+      integrationKind = IntegrationKind.AwsOidc;
+    } else if (isAzureIntegration) {
+      integrationKind = IntegrationKind.AzureOidc;
+    }
+    const state: SetupAccessRouteState = {
+      integrationName: stats.name,
+      integrationKind,
+      initialResourceKind: startAccessListWizardWith,
+      labels,
+    };
+    navigate(cfg.routes.accessListNew, { state });
+  }
+
+  const setUpAccess = useMutation({
+    mutationFn: async (accountId: string): Promise<AwsResourceLabels> => {
+      const fetchRegions = async (enabled: boolean, resource: AwsResource) => {
+        if (!enabled) {
+          return undefined;
+        }
+        const { rules } = await integrationService.fetchIntegrationRules(
+          integrationName,
+          resource
+        );
+
+        const regions = rules.map(rule => rule.region).filter(Boolean);
+        if (regions.some(region => region === '*' || region === 'aws-global')) {
+          return ['*'];
+        }
+        return [...new Set(regions)];
+      };
+
+      // Ec2 is not required since there's nothing in the fetched resource
+      // we will need for it.
+      const [rdsRegions, eksRegions] = await Promise.all([
+        fetchRegions(rdsEnrolled, AwsResource.rds),
+        fetchRegions(eksEnrolled, AwsResource.eks),
+      ]);
+
+      return getAwsResourceMatchingLabels({
+        accountId,
+        ec2Enrolled,
+        rdsRegions,
+        eksRegions,
+      });
+    },
+    onSuccess: navigateToSetUpAccess,
+    // A failed fetch shouldn't stop the flow since adding filters FOR the user
+    // is nice to have. A toast notification is rendered so users are aware
+    // that region filters were not added at this time.
+    onError: (_, accountId) => {
+      let resources = '';
+      if (rdsEnrolled && eksEnrolled) {
+        resources = 'Database and Kubernetes';
+      } else if (rdsEnrolled) {
+        resources = 'Database';
+      } else if (eksEnrolled) {
+        resources = 'Kubernetes';
+      }
+      toastNotification.add({
+        severity: 'warn',
+        content: {
+          title: 'Unable to filter by region',
+          description: `${resources} access isn't limited by region. Add region labels when defining access if needed.`,
+          isAutoRemovable: false,
+        },
+      });
+      navigateToSetUpAccess(
+        getAwsResourceMatchingLabels({
+          accountId,
+          ec2Enrolled,
+          rdsRegions: rdsEnrolled ? [] : undefined,
+          eksRegions: eksEnrolled ? [] : undefined,
+        })
+      );
+    },
+  });
+
+  // handleSetUpAccess navigates to the access list wizard with labels
+  // prefilled to best attempt target the resources this integration
+  // discovered (e.g. match resources by aws account id and region).
+  //
+  // RDS and EKS labels are limited to the regions in their discovery rules,
+  // so those rules are fetched first. No fetch is needed when:
+  // - The integration is Azure (subscriptions and resource groups can be
+  //   wildcards), an AWS organization (resources come from child accounts).
+  //   No labels are prebuilt for the user.
+  // - If EC2 is enrolled: nodes are matched by account ID alone (which we already have)
+  //   b/c region labels are not defined in these resources.
+  function handleSetUpAccess() {
+    const { awsAccountId: accountId } = splitAwsIamArn(
+      stats.awsoidc?.roleArn ?? ''
+    );
+
+    if (isAzureIntegration || stats.awsoidc?.organization || !accountId) {
+      navigateToSetUpAccess();
+      return;
+    }
+
+    if (!rdsEnrolled && !eksEnrolled) {
+      navigateToSetUpAccess(
+        getAwsResourceMatchingLabels({ accountId, ec2Enrolled })
+      );
+      return;
+    }
+
+    setUpAccess.mutate(accountId);
+  }
 
   if (isLoading) {
     return (
@@ -128,34 +279,146 @@ export function IaCIntegrationOverview() {
             )}
           </Flex>
         </Flex>
-        <ButtonPrimary as={RouterLink} to={settingsPath} size="small">
-          Edit configuration
-        </ButtonPrimary>
+        <Flex gap={2}>
+          <ButtonBorder asChild>
+            <RouterLink to={settingsPath}>Edit Configuration</RouterLink>
+          </ButtonBorder>
+          {showSetUpAccessBtn && (
+            <HoverTooltip
+              disabled={!!startAccessListWizardWith}
+              placement="bottom"
+              tipContent="No resources are enrolled yet."
+            >
+              <span>
+                <Button
+                  fill="border"
+                  intent="primary"
+                  disabled={setUpAccess.isPending || !startAccessListWizardWith}
+                  onClick={handleSetUpAccess}
+                >
+                  Set Up Access
+                </Button>
+              </span>
+            </HoverTooltip>
+          )}
+        </Flex>
       </Flex>
 
-      <OverviewContent stats={stats} />
+      <OverviewContent stats={stats} settingsPath={settingsPath} />
     </FeatureBox>
   );
 }
 
-function OverviewContent({ stats }: { stats: IntegrationWithSummary }) {
+export function OverviewContent({
+  stats,
+  settingsPath,
+}: {
+  stats: IntegrationWithSummary;
+  settingsPath: string;
+}) {
+  const navigate = useNavigate();
+
+  const [resourceTypeFilter, setResourceTypeFilter] =
+    useState<TaskResourceTypeFilter>('All');
+
   const hasIssues = stats.unresolvedUserTasks > 0;
   const isAzure = stats.subKind === IntegrationKind.AzureOidc;
+  const isAwsOrganization = Boolean(stats.awsoidc?.organization);
+
+  const viewResources = useMutation({
+    mutationFn: async (resourceType: AwsResource | AzureResource) => {
+      if (!requiresDiscoveryRules(resourceType, isAwsOrganization)) {
+        // Some resource types does not require discovery rules to
+        // build the list resource route.
+        return [];
+      }
+      const { rules } = await integrationService.fetchIntegrationRules(
+        stats.name,
+        resourceType
+      );
+      return rules;
+    },
+    onSuccess: (rules, resourceType) => {
+      let params: ListResourceRouteParams = {
+        resource: AzureResource.vm,
+        rules,
+      };
+      if (resourceType !== AzureResource.vm) {
+        const { awsAccountId: accountId } = splitAwsIamArn(
+          stats.awsoidc?.roleArn ?? ''
+        );
+        params = {
+          resource: resourceType,
+          integrationName: stats.name,
+          isOrganization: isAwsOrganization,
+          accountId,
+          rules,
+        };
+      }
+      navigate(getListResourceRoute(params));
+    },
+  });
 
   return (
     <Flex flexDirection="column" gap={4}>
+      {viewResources.isError && (
+        <Danger
+          mb={4}
+          dismissible
+          secondaryAction={{
+            content: 'Retry',
+            onClick: () => viewResources.mutate(viewResources.variables),
+          }}
+        >
+          Failed to load discovery rules required to filter{' '}
+          {getResourceKindFromResource(viewResources.variables)} resources:{' '}
+          {viewResources.error.message}
+        </Danger>
+      )}
       <CardsContainer>
         {isAzure ? (
-          <ResourceTypeCard resourceType="azurevm" summary={stats.azurevm} />
+          <ResourceTypeCard
+            resourceType="azurevm"
+            summary={stats.azurevm}
+            settingsPath={settingsPath}
+            onViewResources={() => viewResources.mutate(AzureResource.vm)}
+            viewResourceBtnDisabled={viewResources.isPending}
+          />
         ) : (
           <>
-            <ResourceTypeCard resourceType="ec2" summary={stats.awsec2} />
-            <ResourceTypeCard resourceType="rds" summary={stats.awsrds} />
-            <ResourceTypeCard resourceType="eks" summary={stats.awseks} />
+            <ResourceTypeCard
+              resourceType="ec2"
+              summary={stats.awsec2}
+              settingsPath={settingsPath}
+              onViewResources={() => viewResources.mutate(AwsResource.ec2)}
+              onViewIssues={() => setResourceTypeFilter('EC2')}
+              viewResourceBtnDisabled={viewResources.isPending}
+            />
+            <ResourceTypeCard
+              resourceType="rds"
+              summary={stats.awsrds}
+              settingsPath={settingsPath}
+              onViewResources={() => viewResources.mutate(AwsResource.rds)}
+              onViewIssues={() => setResourceTypeFilter('RDS')}
+              viewResourceBtnDisabled={viewResources.isPending}
+            />
+            <ResourceTypeCard
+              resourceType="eks"
+              summary={stats.awseks}
+              settingsPath={settingsPath}
+              onViewResources={() => viewResources.mutate(AwsResource.eks)}
+              onViewIssues={() => setResourceTypeFilter('EKS')}
+              viewResourceBtnDisabled={viewResources.isPending}
+            />
           </>
         )}
       </CardsContainer>
-      <IntegrationHealthCard stats={stats} hasIssues={hasIssues} />
+      <IntegrationHealthCard
+        stats={stats}
+        hasIssues={hasIssues}
+        resourceTypeFilter={resourceTypeFilter}
+        onResourceTypeFilterChange={setResourceTypeFilter}
+      />
     </Flex>
   );
 }
@@ -163,9 +426,13 @@ function OverviewContent({ stats }: { stats: IntegrationWithSummary }) {
 function IntegrationHealthCard({
   stats,
   hasIssues,
+  resourceTypeFilter,
+  onResourceTypeFilterChange,
 }: {
   stats: IntegrationWithSummary;
   hasIssues: boolean;
+  resourceTypeFilter: TaskResourceTypeFilter;
+  onResourceTypeFilterChange: (filter: TaskResourceTypeFilter) => void;
 }) {
   return (
     <Card p={4}>
@@ -197,7 +464,14 @@ function IntegrationHealthCard({
         )}
       </Flex>
 
-      {hasIssues && <ActivityTab stats={stats} />}
+      {hasIssues && (
+        <ActivityTab
+          stats={stats}
+          targetedResourceTypeFilter={resourceTypeFilter}
+          onResourceTypeFilterChange={onResourceTypeFilterChange}
+          showResourceTypeFilter={stats.subKind === IntegrationKind.AwsOidc}
+        />
+      )}
     </Card>
   );
 }
@@ -257,27 +531,36 @@ type ResourceType = 'ec2' | 'rds' | 'eks' | 'azurevm';
 
 const RESOURCE_TYPE_CONFIG: Record<
   ResourceType,
-  { icon: ResourceIconName; label: string; instanceLabel: string }
+  {
+    icon: ResourceIconName;
+    label: string;
+    instanceLabel: string;
+    resourceType: string;
+  }
 > = {
   ec2: {
     icon: 'awsec2',
     label: 'EC2 Discovered Instances',
     instanceLabel: 'instances',
+    resourceType: 'EC2',
   },
   rds: {
     icon: 'awsrds',
     label: 'RDS Discovered Instances',
     instanceLabel: 'instances',
+    resourceType: 'RDS',
   },
   azurevm: {
     icon: 'azure',
     label: 'Azure Discovered VMs',
     instanceLabel: 'VMs',
+    resourceType: 'Azure',
   },
   eks: {
     icon: 'eks',
     label: 'EKS Discovered Clusters',
     instanceLabel: 'clusters',
+    resourceType: 'EKS',
   },
 };
 
@@ -310,10 +593,19 @@ function getResourceScanState(
 function ResourceTypeCard({
   resourceType,
   summary,
+  settingsPath,
+  onViewIssues,
+  onViewResources,
+  viewResourceBtnDisabled = false,
 }: {
   resourceType: ResourceType;
   summary: ResourceTypeSummary | undefined;
+  settingsPath: string;
+  onViewIssues?(): void;
+  onViewResources(): void;
+  viewResourceBtnDisabled?: boolean;
 }) {
+  const navigate = useNavigate();
   const config = RESOURCE_TYPE_CONFIG[resourceType];
   const isConfigured = summary && summary.rulesCount > 0;
 
@@ -330,11 +622,20 @@ function ResourceTypeCard({
           flex="1"
           alignItems="center"
           justifyContent="center"
-          color="text.muted"
+          flexDirection={'column'}
+          gap={1}
         >
-          <Text typography="body3">
+          <Text typography="body3" color="text.muted">
             {resourceType.toUpperCase()} not configured.
           </Text>
+          <ButtonBorder
+            color="text.main"
+            onClick={() => navigate(settingsPath)}
+          >
+            <Flex gap={2}>
+              Configure {resourceType.toUpperCase()} <ArrowRight />
+            </Flex>
+          </ButtonBorder>
         </Flex>
       </ResourceCard>
     );
@@ -342,8 +643,7 @@ function ResourceTypeCard({
 
   const discovered = summary.resourcesFound || 0;
   const enrolled = summary.resourcesEnrollmentSuccess || 0;
-  const enrollmentPercent = discovered > 0 ? (enrolled / discovered) * 100 : 0;
-  const isFullyEnrolled = discovered > 0 && enrolled === discovered;
+  const hasIssues = (summary.unresolvedUserTasks ?? 0) > 0;
 
   return (
     <ResourceCard>
@@ -358,26 +658,80 @@ function ResourceTypeCard({
 
       <CardDivider />
 
-      <Text fontSize={6} bold mb={1} mt={3}>
-        {discovered}
+      <Text fontSize={1} bold mb={1} mt={3}>
+        What's been found
       </Text>
-      <Text typography="body3" color="text.slightlyMuted" mb={3}>
-        Discovered {config.instanceLabel}
-      </Text>
-
-      <Flex alignItems="center" gap={2} mb={2}>
-        {isFullyEnrolled && <CircleCheck size="small" color="success.main" />}
+      <Flex gap={1} alignItems={'center'}>
+        {discovered > 0 ? (
+          <CircleCheck size="small" color="success.main" />
+        ) : (
+          <Warning size="small" color="warning.main" />
+        )}{' '}
         <Text typography="body3">
-          {Math.round(enrollmentPercent)}% enrolled ({enrolled} of {discovered})
+          Discovered: <span css={{ fontWeight: 600 }}>{discovered}</span>
         </Text>
       </Flex>
 
-      <ProgressBar>
-        <ProgressFill
-          $percent={enrollmentPercent}
-          $isComplete={isFullyEnrolled}
-        />
-      </ProgressBar>
+      <Flex
+        alignItems={'center'}
+        mb={3}
+        gap={2}
+        justifyContent={'space-between'}
+      >
+        <Flex gap={1}>
+          {enrolled > 0 && enrolled === discovered ? (
+            <CircleCheck size="small" color="success.main" />
+          ) : (
+            <Warning size="small" color="warning.main" />
+          )}
+          <Text typography="body3">
+            Enrolled:{' '}
+            <span css={{ fontWeight: 600 }}>
+              {enrolled} of {discovered}
+            </span>
+          </Text>
+        </Flex>
+        {resourceType !== 'azurevm' && hasIssues && (
+          <Button
+            fill="minimal"
+            size="sm"
+            px={1}
+            py={0}
+            onClick={() => onViewIssues()}
+          >
+            <Flex gap={1}>
+              <Text>View Issues</Text>
+              <ArrowForward />
+            </Flex>
+          </Button>
+        )}
+      </Flex>
+
+      <CardDivider />
+      <Flex mt={3}></Flex>
+      <Flex justifyContent={'flex-end'} mt="auto">
+        <HoverTooltip
+          tipContent={
+            enrolled === 0
+              ? `No ${config.resourceType} Resources are enrolled`
+              : undefined
+          }
+        >
+          <Button
+            onClick={onViewResources}
+            disabled={viewResourceBtnDisabled || enrolled === 0}
+            fill="minimal"
+            size="sm"
+            px={1}
+            py={0}
+          >
+            <Flex gap={1}>
+              <Text>View {config.resourceType} Resources</Text>
+              <ArrowForward />
+            </Flex>
+          </Button>
+        </HoverTooltip>
+      </Flex>
     </ResourceCard>
   );
 }
@@ -396,6 +750,7 @@ const ResourceCard = styled(Card)`
   padding: ${props => props.theme.space[3]}px;
   display: flex;
   flex-direction: column;
+  border: 1px solid ${props => props.theme.colors.interactive.tonal.neutral[2]};
 `;
 
 const CardDivider = styled.hr`
@@ -404,25 +759,6 @@ const CardDivider = styled.hr`
   border: none;
   background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
   margin: 0;
-`;
-
-const ProgressBar = styled.div`
-  width: 100%;
-  height: 8px;
-  background-color: ${props => props.theme.colors.levels.sunken};
-  border-radius: 4px;
-  overflow: hidden;
-`;
-
-const ProgressFill = styled.div<{ $percent: number; $isComplete: boolean }>`
-  height: 100%;
-  width: ${props => props.$percent}%;
-  background-color: ${props =>
-    props.$isComplete
-      ? props.theme.colors.success.main
-      : props.theme.colors.info};
-  border-radius: 4px;
-  transition: width 0.3s ease;
 `;
 
 const spin = keyframes`
