@@ -19,12 +19,15 @@
 package responsewriters
 
 import (
+	"bufio"
+	"compress/gzip"
 	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -142,8 +145,16 @@ func (w *WatcherResponseWriter) PushVirtualEventToClient(ctx context.Context, ev
 // and analyze if they must be forwarded to target.
 func (w *WatcherResponseWriter) WriteHeader(code int) {
 	w.status = code
-	w.target.WriteHeader(code)
 	contentType := GetContentTypeHeader(w.Header())
+	// Kubernetes 1.37 gzips watch-list streams (the WatchListCompression feature
+	// gate, beta and on by default) when the client accepts gzip. The events must
+	// be decompressed before they are decoded and filtered. They are re-encoded
+	// uncompressed, so the upstream Content-Encoding must not reach the client.
+	gzipped := code >= http.StatusOK && code <= http.StatusPartialContent && isGzipEncoded(w.Header())
+	if gzipped {
+		w.Header().Del(contentEncodingHeader)
+	}
+	w.target.WriteHeader(code)
 	w.group.Go(
 		func() error {
 			switch {
@@ -161,11 +172,47 @@ func (w *WatcherResponseWriter) WriteHeader(code int) {
 				_, err := io.Copy(w.target, w.pipeReader)
 				return trace.Wrap(err)
 			default:
-				err := w.watchDecoder(contentType, w.target, w.pipeReader)
+				var reader io.ReadCloser = w.pipeReader
+				if gzipped {
+					decompressed, decompressedWriter := io.Pipe()
+					defer decompressed.Close()
+					go gunzipMembers(decompressedWriter, w.pipeReader)
+					reader = decompressed
+				}
+				err := w.watchDecoder(contentType, w.target, reader)
 				return trace.Wrap(err)
 			}
 		},
 	)
+}
+
+// contentEncodingHeader is the header the Kubernetes API sets on a compressed response.
+const contentEncodingHeader = "Content-Encoding"
+
+// isGzipEncoded reports whether the upstream response body is gzip-compressed.
+func isGzipEncoded(h http.Header) bool {
+	return strings.EqualFold(strings.TrimSpace(h.Get(contentEncodingHeader)), "gzip")
+}
+
+// gunzipMembers decompresses src into dst until src ends, then closes dst.
+// The Kubernetes API compresses each flush of a watch stream as its own gzip
+// member. A multistream gzip.Reader returns the end of a member only once it has
+// read the next member's header, which would hold every event back until the
+// next one arrives, so each member is copied out before the next is awaited.
+func gunzipMembers(dst *io.PipeWriter, src io.Reader) {
+	buffered := bufio.NewReader(src)
+	gzipReader, err := gzip.NewReader(buffered)
+	for err == nil {
+		gzipReader.Multistream(false)
+		if _, err = io.Copy(dst, gzipReader); err != nil {
+			break
+		}
+		err = gzipReader.Reset(buffered)
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
+		err = nil
+	}
+	dst.CloseWithError(err)
 }
 
 // Status returns the http status response.
