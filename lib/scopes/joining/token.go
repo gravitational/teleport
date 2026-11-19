@@ -941,6 +941,8 @@ var ErrTokenExpired = &trace.LimitExceededError{Message: "scoped token is expire
 
 var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage exhausted"}
 
+const singleUseTokenRetryClockSkewGracePeriod = 5 * time.Minute
+
 // ValidateTokenForUse checks if a given scoped token can be used for
 // provisioning. Returns a [*trace.LimitExceededError] if the token is expired
 func ValidateTokenForUse(token *joiningv1.ScopedToken, features scopes.Features) error {
@@ -962,7 +964,7 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken, features scopes.Features)
 
 	reusableUntil := token.GetStatus().GetUsage().GetSingleUse().GetReusableUntil()
 	if reusableUntil != nil && !reusableUntil.AsTime().IsZero() {
-		if reusableUntil.AsTime().Before(now) {
+		if reusableUntil.AsTime().Add(singleUseTokenRetryClockSkewGracePeriod).Before(now) {
 			return trace.Wrap(ErrTokenExhausted)
 		}
 	}
