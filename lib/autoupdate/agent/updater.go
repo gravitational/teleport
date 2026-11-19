@@ -1120,7 +1120,10 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	var processActive []bool
 	for _, p := range pg {
 		active, err := p.IsActive(ctx)
-		if err != nil {
+		if errors.Is(err, ErrNotSupported) {
+			// Systemd is not present, so the service cannot have been running under it.
+			active = false
+		} else if err != nil {
 			return trace.Wrap(err, "failed to determine if process is active")
 		}
 		processActive = append(processActive, active)
