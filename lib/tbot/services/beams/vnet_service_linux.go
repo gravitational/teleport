@@ -44,7 +44,7 @@ func platformCreateTUN() (vnet.TUNDevice, error) {
 
 func platformUpstreamNameserverSource(logger *slog.Logger) (dns.UpstreamNameserverSource, error) {
 	src, err := dns.CachingUpstreamNameserverSource(
-		dns.ResolvConfUpstreamNameserverSource(logger),
+		dns.DefaultResolvConfUpstreamNameserverSource(logger),
 		10*time.Minute, // The /etc/resolv.conf file is essentially static in the Beam environment.
 	)
 	if err != nil {

@@ -16,4 +16,4 @@
 
 package dns
 
-var platformUpstreamNameserverSource = ResolvConfUpstreamNameserverSource
+var platformUpstreamNameserverSource = DefaultResolvConfUpstreamNameserverSource

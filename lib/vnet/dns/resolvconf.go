@@ -33,8 +33,14 @@ const (
 	confFilePath = "/etc/resolv.conf"
 )
 
+// DefaultResolvConfUpstreamNameserverSource reads the OS DNS nameservers found
+// in /etc/resolv.conf.
+func DefaultResolvConfUpstreamNameserverSource(slog *slog.Logger) UpstreamNameserverSource {
+	return ResolvConfUpstreamNameserverSource(slog, confFilePath)
+}
+
 // ResolvConfUpstreamNameserverSource reads the OS DNS nameservers found in the
-// /etc/resolv.conf file on unix-like systems.
+// resolv.conf file at configPath.
 //
 // https://man7.org/linux/man-pages/man5/resolver.5.html
 //
@@ -43,11 +49,11 @@ const (
 // current default nameservers as configured for the OS, and it is the easiest
 // place to read them. Eventually, we should probably use a better method, but
 // for now this works.
-func ResolvConfUpstreamNameserverSource(slog *slog.Logger) UpstreamNameserverSource {
+func ResolvConfUpstreamNameserverSource(slog *slog.Logger, configPath string) UpstreamNameserverSource {
 	return upstreamNameserverSourceFn(func(ctx context.Context) ([]string, error) {
-		f, err := os.Open(confFilePath)
+		f, err := os.Open(configPath)
 		if err != nil {
-			return nil, trace.Wrap(err, "opening %s", confFilePath)
+			return nil, trace.Wrap(err, "opening %s", configPath)
 		}
 		defer f.Close()
 
@@ -72,8 +78,11 @@ func ResolvConfUpstreamNameserverSource(slog *slog.Logger) UpstreamNameserverSou
 
 			nameservers = append(nameservers, AddrWithDNSPort(ip))
 		}
+		if err := scanner.Err(); err != nil {
+			return nil, trace.Wrap(err, "reading %s", configPath)
+		}
 
-		slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "config_file", confFilePath)
+		slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "config_file", configPath)
 		return nameservers, nil
 	})
 }
