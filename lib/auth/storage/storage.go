@@ -33,7 +33,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/util/retry"
 
@@ -55,10 +54,6 @@ const (
 	statesPrefix = "states"
 	// idsPrefix is a key prefix for identities
 	idsPrefix = "ids"
-	// teleportPrefix is a key prefix to store internal data
-	teleportPrefix = "teleport"
-	// lastKnownVersion is a key for storing version of teleport
-	lastKnownVersion = "last-known-version"
 	// boundKeypairPrefix is a key prefix for the agent's bound keypair state,
 	// if any
 	boundKeypairPrefix = "bound-keypair"
@@ -223,41 +218,6 @@ func (p *ProcessStorage) WriteIdentity(ctx context.Context, name string, id stat
 	}
 	_, err = p.stateStorage.Put(ctx, item)
 	return trace.Wrap(err)
-}
-
-// GetTeleportVersion reads the last known Teleport version from storage.
-func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (semver.Version, error) {
-	item, err := p.BackendStorage.Get(ctx, backend.NewKey(teleportPrefix, lastKnownVersion))
-	if err != nil {
-		return semver.Version{}, trace.Wrap(err)
-	}
-	version, err := semver.NewVersion(string(item.Value))
-	if err != nil {
-		return semver.Version{}, trace.Wrap(err)
-	}
-	return *version, nil
-}
-
-// WriteTeleportVersion writes the last known Teleport version to the storage.
-func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version semver.Version) error {
-	item := backend.Item{
-		Key:   backend.NewKey(teleportPrefix, lastKnownVersion),
-		Value: []byte(version.String()),
-	}
-	_, err := p.BackendStorage.Put(ctx, item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteTeleportVersion removes last known Teleport version from the process storage.
-func (p *ProcessStorage) DeleteTeleportVersion(ctx context.Context) error {
-	err := p.BackendStorage.Delete(ctx, backend.NewKey(teleportPrefix, lastKnownVersion))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func rdpLicenseKey(key *types.RDPLicenseKey) backend.Key {

@@ -2558,7 +2558,6 @@ func (process *TeleportProcess) initAuthService() error {
 			Modules:                     cfg.Modules,
 			ScopesFeatures:              process.scopesFeatures,
 			UnstableFeatures:            unstableFeatures,
-			VersionStorage:              process.storage,
 			SkipVersionCheck:            cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:                   cfg.Keygen,
 			ClusterConfiguration:        clusterConfig,

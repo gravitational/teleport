@@ -32,7 +32,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel/attribute"
@@ -86,16 +85,6 @@ import (
 
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuth)
 
-// VersionStorage local storage for saving the version.
-type VersionStorage interface {
-	// GetTeleportVersion reads the last known Teleport version from storage.
-	GetTeleportVersion(ctx context.Context) (semver.Version, error)
-	// WriteTeleportVersion writes the last known Teleport version to the storage.
-	WriteTeleportVersion(ctx context.Context, version semver.Version) error
-	// DeleteTeleportVersion removes the last known Teleport version in storage.
-	DeleteTeleportVersion(ctx context.Context) error
-}
-
 // RecordingEncryptionManager wraps a RecordingEncryption backend service with higher level
 // operations.
 type RecordingEncryptionManager interface {
@@ -112,9 +101,6 @@ type InitConfig struct {
 
 	// Backend is auth backend to use
 	Backend backend.Backend
-
-	// VersionStorage is a version storage for local process
-	VersionStorage VersionStorage
 
 	// Authority is key generator that we use
 	Authority sshca.Authority
@@ -588,11 +574,11 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	}
 
 	if cfg.SkipVersionCheck {
-		if err := upsertTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+		if err := upsertTeleportVersion(ctx, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+		if err := validateAndUpdateTeleportVersion(ctx, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
 			return trace.Wrap(err)
 		}
 	}

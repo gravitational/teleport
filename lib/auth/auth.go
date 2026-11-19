@@ -249,9 +249,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.Modules = modules.GetModules()
 	}
 
-	if cfg.VersionStorage == nil {
-		return nil, trace.BadParameter("version storage is not set")
-	}
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}

@@ -41,27 +41,16 @@ const (
 // meets our upgrade compatibility guide.
 func validateAndUpdateTeleportVersion(
 	ctx context.Context,
-	procStorage VersionStorage,
 	backendStorage services.BackendInfoService,
 	currentVersion semver.Version,
 ) error {
-	// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
-	// Fallback to local process storage for backward compatibility with previous versions.
-	cleanProcVersion := true
-	teleportVersion, err := procStorage.GetTeleportVersion(ctx)
-	if trace.IsNotFound(err) {
-		cleanProcVersion = false
-		teleportVersion = currentVersion
-	} else if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var createNewResource bool
+	var lastErr error
 	for range versionUpgradeCheckMaxWriteRetry {
+		var createNewResource bool
 		backendInfo, err := backendStorage.GetBackendInfo(ctx)
 		if trace.IsNotFound(err) {
 			createNewResource = true
-			backendInfo, err = backendinfo.NewBackendInfo(backendinfov1.BackendInfoSpec_builder{TeleportVersion: teleportVersion.String()}.Build())
+			backendInfo, err = backendinfo.NewBackendInfo(backendinfov1.BackendInfoSpec_builder{TeleportVersion: currentVersion.String()}.Build())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -99,8 +88,8 @@ func validateAndUpdateTeleportVersion(
 		if createNewResource {
 			_, err = backendStorage.CreateBackendInfo(ctx, backendInfo)
 			if trace.IsAlreadyExists(err) {
-				err = trace.Wrap(err)
-				slog.WarnContext(ctx, "Failed to create BackendInfo resource", "error", err)
+				lastErr = trace.Wrap(err)
+				slog.WarnContext(ctx, "Failed to create BackendInfo resource", "error", lastErr)
 				continue
 			} else if err != nil {
 				return trace.Wrap(err)
@@ -108,30 +97,22 @@ func validateAndUpdateTeleportVersion(
 		} else {
 			_, err = backendStorage.UpdateBackendInfo(ctx, backendInfo)
 			if errors.Is(err, backend.ErrIncorrectRevision) || trace.IsNotFound(err) {
-				err = trace.Wrap(err)
-				slog.WarnContext(ctx, "Failed to update BackendInfo resource", "error", err)
+				lastErr = trace.Wrap(err)
+				slog.WarnContext(ctx, "Failed to update BackendInfo resource", "error", lastErr)
 				continue
 			} else if err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
-		if cleanProcVersion {
-			if err := procStorage.DeleteTeleportVersion(ctx); err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		}
-
 		return nil
 	}
-	return err
+	return trace.Wrap(lastErr, "failed to persist Teleport version after %d attempts", versionUpgradeCheckMaxWriteRetry)
 }
 
 // upsertTeleportVersion overrides major version persistent in the backend.
 func upsertTeleportVersion(
 	ctx context.Context,
-	procStorage VersionStorage,
 	backendStorage services.BackendInfoService,
 	currentVersion semver.Version,
 ) error {
@@ -146,11 +127,6 @@ func upsertTeleportVersion(
 	}
 	slog.WarnContext(ctx, "Version check skipped, Teleport might perform unsupported backend version transitions",
 		"upgrade_version", currentVersion.String())
-
-	// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
-	if err := procStorage.DeleteTeleportVersion(ctx); err != nil && !trace.IsNotFound(err) {
-		slog.ErrorContext(ctx, "Failed to delete Teleport version from process storage", "error", err)
-	}
 
 	return nil
 }
