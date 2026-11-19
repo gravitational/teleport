@@ -35,10 +35,13 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// Confirm the auth client still satisfies the provisioning lock API.
+var _ types.Semaphores = (*authclient.Client)(nil)
+
 // UserProvisioner handles automatic database user creation.
 type UserProvisioner struct {
-	// AuthClient is the cluster auth server client.
-	AuthClient *authclient.Client
+	// AuthClient serializes provisioning for one database user.
+	AuthClient types.Semaphores
 	// Backend is the particular database implementation.
 	Backend AutoUsers
 	// Log is the logger.
@@ -102,6 +105,14 @@ func (a *UserProvisioner) Activate(ctx context.Context, sessionCtx *Session) (fu
 	return release, nil
 }
 
+// teardownContext keeps auto-user cleanup alive after the session context is
+// canceled. The connection monitor cancels that context when it closes the
+// connection, and an immediate process exit does the same. Disable and delete
+// still have to finish, bounded by the usual database connect timeout.
+func teardownContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), defaults.DatabaseConnectTimeout)
+}
+
 // Teardown chooses and call the auto provisioner method used to cleanup a
 // database user.
 func (a *UserProvisioner) Teardown(ctx context.Context, sessionCtx *Session) error {
@@ -121,22 +132,22 @@ func (a *UserProvisioner) deactivate(ctx context.Context, sessionCtx *Session) e
 	defer methodCallMetrics("UserProvisioner:Deactivate", teleport.ComponentDatabase, sessionCtx.Database)()
 	a.Log.DebugContext(ctx, "Deactivating database user", "user", sessionCtx.DatabaseUser)
 
-	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
+	cleanupCtx, cancel := teardownContext(ctx)
 	defer cancel()
 
-	lease, err := services.AcquireSemaphoreWithRetry(retryCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
+	lease, err := services.AcquireSemaphoreWithRetry(cleanupCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	defer func() {
-		err := a.AuthClient.CancelSemaphoreLease(ctx, *lease)
+		err := a.AuthClient.CancelSemaphoreLease(cleanupCtx, *lease)
 		if err != nil {
 			a.Log.ErrorContext(ctx, "Failed to cancel lease.", "lease", lease, "error", err)
 		}
 	}()
 
-	err = a.Backend.DeactivateUser(ctx, sessionCtx)
+	err = a.Backend.DeactivateUser(cleanupCtx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -150,22 +161,22 @@ func (a *UserProvisioner) delete(ctx context.Context, sessionCtx *Session) error
 	defer methodCallMetrics("UserProvisioner:Delete", teleport.ComponentDatabase, sessionCtx.Database)()
 	a.Log.DebugContext(ctx, "Deleting database user", "user", sessionCtx.DatabaseUser)
 
-	retryCtx, cancel := context.WithTimeout(ctx, defaults.DatabaseConnectTimeout)
+	cleanupCtx, cancel := teardownContext(ctx)
 	defer cancel()
 
-	lease, err := services.AcquireSemaphoreWithRetry(retryCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
+	lease, err := services.AcquireSemaphoreWithRetry(cleanupCtx, a.makeAcquireSemaphoreConfig(sessionCtx))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	defer func() {
-		err := a.AuthClient.CancelSemaphoreLease(ctx, *lease)
+		err := a.AuthClient.CancelSemaphoreLease(cleanupCtx, *lease)
 		if err != nil {
 			a.Log.ErrorContext(ctx, "Failed to cancel lease.", "lease", lease, "error", err)
 		}
 	}()
 
-	err = a.Backend.DeleteUser(ctx, sessionCtx)
+	err = a.Backend.DeleteUser(cleanupCtx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
