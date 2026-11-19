@@ -26,6 +26,7 @@ import { Option } from 'shared/components/Select';
 import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
 
 import {
+  getDurationOptionIndexClosestToHours,
   getDurationOptionIndexClosestToOneWeek,
   getDurationOptionsFromStartTime,
 } from '../AccessDuration/durationOptions';
@@ -239,7 +240,9 @@ function getDefaultAccessEndOption(
   accessRequest: AccessRequest
 ): Option<number> {
   const options = getDurationOptionsFromStartTime(start, accessRequest);
-  const index = getDurationOptionIndexClosestToOneWeek(options, start);
+  const index = accessRequest.timing?.scheduled
+    ? getDurationOptionIndexClosestToHours(options, start, 8)
+    : getDurationOptionIndexClosestToOneWeek(options, start);
   return options[index];
 }
 

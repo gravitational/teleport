@@ -145,23 +145,38 @@ export function getDurationOptionIndexClosestToOneWeek(
   durationOptions: DurationOption[],
   startDate: Date
 ) {
-  const oneWeekFromSelectedTime = addHours(startDate, 7 * 24).getTime();
+  return getDurationOptionIndexClosestToHours(
+    durationOptions,
+    startDate,
+    7 * 24
+  );
+}
+
+// Returns the index of the option closest to, but no greater than,
+// the given hours from the start date. Returns the last index when
+// the last option is shorter than the given hours.
+export function getDurationOptionIndexClosestToHours(
+  durationOptions: DurationOption[],
+  startDate: Date,
+  hours: number
+) {
+  const targetTime = addHours(startDate, hours).getTime();
   const lastDurationIndex = durationOptions.length - 1;
 
   // Default to the last option, since that is the max the user can get.
-  if (oneWeekFromSelectedTime >= durationOptions[lastDurationIndex].value) {
+  if (targetTime >= durationOptions[lastDurationIndex].value) {
     return lastDurationIndex;
   }
 
-  // Find an option that is nearest to one week, but no greater.
+  // Find an option that is nearest to the target, but no greater.
   let closestIndex = 0;
   for (let i = 0; i < durationOptions.length; i++) {
     const currentTime = durationOptions[i].value;
-    if (currentTime === oneWeekFromSelectedTime) {
+    if (currentTime === targetTime) {
       closestIndex = i;
       break;
-    } else if (currentTime > oneWeekFromSelectedTime) {
-      // the last stored index was closest to the one week but no greater
+    } else if (currentTime > targetTime) {
+      // the last stored index was closest to the target but no greater
       break;
     }
     closestIndex = i;

@@ -91,6 +91,17 @@ function dateToUtc(date: Date): Date {
 }
 
 /**
+ * Accepts a date and returns the formatted date part of the date.
+ * eg: if locale was `en-US` the returned value will be say `Oct 8, 2026`.
+ *
+ * During tests, the locale will always default to `en-US`.
+ */
+export function dateMediumFormat(date: Date): string {
+  const locale = isTest ? DEFAULT_LOCALE : undefined;
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(date);
+}
+
+/**
  * Accepts a date and returns the formatted time part of the date.
  * The format depends on the browser and system settings locale,
  * eg: if locale was `en-US` the returned value will be say `4:00 PM`.
@@ -102,18 +113,19 @@ export function dateTimeShortFormat(date: Date): string {
   return new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(date);
 }
 
-export function formatTimeZone(date: Date, timeZone?: string): string {
-  const abbreviation = formatTimeZoneAbbreviation(date, timeZone);
-  const offset = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
-    timeZone,
-    timeZoneName: 'longOffset',
-  })
-    .formatToParts(date)
-    .find(part => part.type === 'timeZoneName')?.value;
-  const utcOffset =
-    offset === 'GMT' ? 'UTC+00:00' : offset?.replace('GMT', 'UTC');
-
-  return [utcOffset, abbreviation].filter(Boolean).join(' ');
+/**
+ * Accepts a date and returns the formatted date part of the date in numeric
+ * form. eg: if locale was `en-US` the returned value will be say `10/30/2026`.
+ *
+ * During tests, the locale will always default to `en-US`.
+ */
+function dateNumericFormat(date: Date): string {
+  const locale = isTest ? DEFAULT_LOCALE : undefined;
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
 }
 
 export function formatTimeZoneOffset(date: Date, timeZone?: string): string {
@@ -127,7 +139,14 @@ export function formatTimeZoneOffset(date: Date, timeZone?: string): string {
   return offset === 'GMT' ? 'UTC+0' : offset?.replace('GMT', 'UTC') || '';
 }
 
-function formatTimeZoneAbbreviation(date: Date, timeZone?: string): string {
+/**
+ * Accepts a date and returns the short name of its time zone,
+ * eg: `MDT` or `UTC`.
+ */
+export function formatTimeZoneAbbreviation(
+  date: Date,
+  timeZone?: string
+): string {
   return (
     new Intl.DateTimeFormat(DEFAULT_LOCALE, {
       timeZone,
@@ -138,24 +157,18 @@ function formatTimeZoneAbbreviation(date: Date, timeZone?: string): string {
   );
 }
 
-export function displayDateTimeWithTimeZone(
-  date: Date,
-  timeZone?: string
-): string {
-  const locale = isTest ? DEFAULT_LOCALE : undefined;
-  const formattedDate = new Intl.DateTimeFormat(locale, {
-    timeZone,
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-  return `${formattedDate} (${formatTimeZone(date, timeZone)})`;
+/**
+ * Accepts a date and returns it with its time zone in parentheses,
+ * eg: `Oct 30, 2026 at 4:00 PM (MDT)`.
+ */
+export function displayDateTimeWithTimeZone(date: Date): string {
+  return `${dateMediumFormat(date)} at ${dateTimeShortFormat(date)} (${formatTimeZoneAbbreviation(date)})`;
 }
 
-export function displayTimeWithTimeZone(date: Date, timeZone?: string): string {
-  const locale = isTest ? DEFAULT_LOCALE : undefined;
-  const formattedTime = new Intl.DateTimeFormat(locale, {
-    timeZone,
-    timeStyle: 'short',
-  }).format(date);
-  return `${formattedTime} (${formatTimeZoneAbbreviation(date, timeZone)})`;
+/**
+ * Accepts a date and returns it with a numeric date part and a bare time zone,
+ * eg: `10/30/2026 at 4:00 PM MDT`.
+ */
+export function displayNumericDateTimeWithTimeZone(date: Date): string {
+  return `${dateNumericFormat(date)} at ${dateTimeShortFormat(date)} ${formatTimeZoneAbbreviation(date)}`;
 }

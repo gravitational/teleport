@@ -32,8 +32,8 @@ import {
 } from 'design';
 import Table from 'design/DataTable';
 import {
-  displayDateTimeWithTimeZone,
   displayDateWithPrefixedTime,
+  displayNumericDateTimeWithTimeZone,
 } from 'design/datetime';
 import {
   ArrowFatLinesUp,
@@ -172,7 +172,7 @@ export function RequestView({
   let startingTime = displayDateWithPrefixedTime(request.created);
   const scheduledTiming = request.timing?.scheduled;
   if (scheduledTiming) {
-    startingTime = displayDateTimeWithTimeZone(scheduledTiming.start);
+    startingTime = displayNumericDateTimeWithTimeZone(scheduledTiming.start);
     requestedAccessTime = getFormattedDurationTxt({
       start: scheduledTiming.start,
       end: new Date(scheduledTiming.start.getTime() + scheduledTiming.duration),
@@ -329,7 +329,7 @@ export function RequestView({
                   fetchSuggestedAccessListsAttempt={
                     fetchSuggestedAccessListsAttempt
                   }
-                  shortTermDuration={requestedAccessTime}
+                  shortTermDuration={scheduledTiming ? '' : requestedAccessTime}
                   request={request}
                 />
               )}

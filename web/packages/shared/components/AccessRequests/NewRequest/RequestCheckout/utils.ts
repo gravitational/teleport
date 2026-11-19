@@ -18,7 +18,7 @@
 
 import { addHours, isAfter, isSameDay } from 'date-fns';
 
-import { displayTimeWithTimeZone } from 'design/datetime';
+import { dateTimeShortFormat } from 'design/datetime';
 import { Option } from 'shared/components/Select';
 
 import { TimeOption } from '../../Shared/types';
@@ -212,7 +212,7 @@ function getTimeOptionsWithinLimits(
     }
     options.push({
       value: option,
-      label: displayTimeWithTimeZone(option),
+      label: dateTimeShortFormat(option),
     });
   }
 
@@ -223,7 +223,7 @@ function getTimeOptionsWithinLimits(
   ) {
     options.push({
       value: maximum,
-      label: displayTimeWithTimeZone(maximum),
+      label: dateTimeShortFormat(maximum),
     });
   }
 

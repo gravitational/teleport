@@ -23,9 +23,46 @@ import {
 
 import {
   formatAWSRoleARNForDisplay,
+  getFormattedDurationTxt,
   toggleAWSConsoleConstraint,
   toggleSSHConstraint,
 } from './utils';
+
+describe('getFormattedDurationTxt', () => {
+  const start = new Date('2026-10-08T09:00:00Z');
+
+  test.each`
+    name                      | end                       | long                          | compact
+    ${'whole days'}           | ${'2026-10-16T09:00:00Z'} | ${'8 days'}                   | ${'8d'}
+    ${'days and hours'}       | ${'2026-10-16T10:00:00Z'} | ${'8 days 1 hour'}            | ${'8d 1h'}
+    ${'days, hours, minutes'} | ${'2026-10-16T10:30:00Z'} | ${'8 days 1 hour 30 minutes'} | ${'8d 1h 30m'}
+    ${'hours short of a day'} | ${'2026-10-16T07:00:00Z'} | ${'7 days 22 hours'}          | ${'7d 22h'}
+    ${'minutes only'}         | ${'2026-10-08T09:30:00Z'} | ${'30 minutes'}               | ${'30m'}
+    ${'no duration'}          | ${'2026-10-08T09:00:00Z'} | ${''}                         | ${''}
+  `(
+    'formats $name',
+    ({
+      end,
+      long,
+      compact,
+    }: {
+      end: string;
+      long: string;
+      compact: string;
+    }) => {
+      // Set up a duration bounded by the shared start and the case's end.
+      const range = { start, end: new Date(end) };
+
+      // Assert that omitting the flag keeps the spelled out units.
+      expect(getFormattedDurationTxt(range)).toBe(long);
+
+      // Assert that the compact flag shortens units to their initials.
+      expect(getFormattedDurationTxt({ ...range, compact: true })).toBe(
+        compact
+      );
+    }
+  );
+});
 
 describe('formatAWSRoleARNForDisplay', () => {
   it('formats a valid ARN as "accountId: rolePathAndName"', () => {

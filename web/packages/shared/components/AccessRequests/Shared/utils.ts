@@ -35,17 +35,26 @@ const DayInMs = 24 * HourInMs;
 export function getFormattedDurationTxt({
   start,
   end,
+  compact,
 }: {
   start: Date;
   end: Date;
+  /** Shortens units to their initials, eg: `8d 1h` instead of `8 days 1 hour`. */
+  compact?: boolean;
 }) {
   const totalMs = end.getTime() - start.getTime();
+  const days = Math.trunc(totalMs / DayInMs);
+  const hours = Math.trunc((totalMs % DayInMs) / HourInMs);
+  const minutes = Math.trunc((totalMs % HourInMs) / MinuteInMs);
+
+  if (compact) {
+    return [days && `${days}d`, hours && `${hours}h`, minutes && `${minutes}m`]
+      .filter(Boolean)
+      .join(' ');
+  }
+
   return formatDuration(
-    {
-      days: Math.trunc(totalMs / DayInMs),
-      hours: Math.trunc((totalMs % DayInMs) / HourInMs),
-      minutes: Math.trunc((totalMs % HourInMs) / MinuteInMs),
-    },
+    { days, hours, minutes },
     { format: ['days', 'hours', 'minutes'] }
   );
 }

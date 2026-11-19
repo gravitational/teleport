@@ -21,7 +21,8 @@ import {
   displayDate,
   displayDateTime,
   displayDateTimeWithTimeZone,
-  formatTimeZone,
+  displayNumericDateTimeWithTimeZone,
+  formatTimeZoneAbbreviation,
   formatTimeZoneOffset,
 } from './format';
 
@@ -43,18 +44,18 @@ test('dateTimeShortFormat', () => {
   expect(dateTimeShortFormat(testDate)).toEqual('4:00 PM');
 });
 
-test('formatTimeZone uses the offset and abbreviation at the displayed instant', () => {
+test('formatTimeZoneAbbreviation uses the abbreviation at the displayed instant', () => {
   // Setup winter and summer instants in New York.
   const winter = new Date('2026-01-15T12:00:00Z');
   const summer = new Date('2026-07-15T12:00:00Z');
 
   // Execute.
-  const winterZone = formatTimeZone(winter, 'America/New_York');
-  const summerZone = formatTimeZone(summer, 'America/New_York');
+  const winterZone = formatTimeZoneAbbreviation(winter, 'America/New_York');
+  const summerZone = formatTimeZoneAbbreviation(summer, 'America/New_York');
 
-  // Assert each instant uses its applicable offset and abbreviation.
-  expect(winterZone).toBe('UTC-05:00 EST');
-  expect(summerZone).toBe('UTC-04:00 EDT');
+  // Assert each instant uses the abbreviation applicable to it.
+  expect(winterZone).toBe('EST');
+  expect(summerZone).toBe('EDT');
 });
 
 test('formatTimeZoneOffset uses a compact UTC offset', () => {
@@ -63,13 +64,18 @@ test('formatTimeZoneOffset uses a compact UTC offset', () => {
   expect(formatTimeZoneOffset(date, 'America/Edmonton')).toBe('UTC-6');
 });
 
-test('displayDateTimeWithTimeZone formats the browser-local instant', () => {
-  // Setup a summer instant in Edmonton.
+test('displayDateTimeWithTimeZone separates date and time with "at" and parenthesizes the zone', () => {
   const date = new Date('2026-07-15T12:00:00Z');
 
-  // Execute.
-  const output = displayDateTimeWithTimeZone(date, 'America/Edmonton');
+  expect(displayDateTimeWithTimeZone(date)).toBe(
+    'Jul 15, 2026 at 12:00 PM (UTC)'
+  );
+});
 
-  // Assert the output includes local time, offset, and abbreviation.
-  expect(output).toBe('Jul 15, 2026, 6:00 AM (UTC-06:00 MDT)');
+test('displayNumericDateTimeWithTimeZone uses a numeric date and a bare zone', () => {
+  const date = new Date('2026-07-15T12:00:00Z');
+
+  expect(displayNumericDateTimeWithTimeZone(date)).toBe(
+    '07/15/2026 at 12:00 PM UTC'
+  );
 });

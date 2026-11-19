@@ -273,7 +273,7 @@ function ScheduledReviewTiming({ request }: { request: AccessRequest }) {
   );
 
   return (
-    <Flex flexDirection="column" gap={2}>
+    <TimingGrid>
       <ReadOnlyTimingRow
         label="Starts"
         value={displayDateTimeWithTimeZone(scheduled.start)}
@@ -289,18 +289,18 @@ function ScheduledReviewTiming({ request }: { request: AccessRequest }) {
           end: scheduledAccessEnd,
         })}
       />
-    </Flex>
+    </TimingGrid>
   );
 }
 
 function ReadOnlyTimingRow({ label, value }: { label: string; value: string }) {
   return (
-    <Box>
-      <Text typography="body4" color="text.slightlyMuted">
-        {label}
+    <>
+      <Text color="text.slightlyMuted">{label}:</Text>
+      <Text bold color="text.slightlyMuted">
+        {value}
       </Text>
-      <Text>{value}</Text>
-    </Box>
+    </>
   );
 }
 
@@ -414,6 +414,14 @@ function makeReviewStateOptions(
 
   return opts;
 }
+
+const TimingGrid = styled.div`
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  column-gap: ${p => p.theme.space[2]}px;
+  row-gap: ${p => p.theme.space[1]}px;
+`;
 
 const TextMutedNoEllipsis = styled.div`
   font-size: ${p => p.theme.fontSizes[0]}px;

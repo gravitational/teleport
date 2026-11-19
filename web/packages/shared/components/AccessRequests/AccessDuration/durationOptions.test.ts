@@ -20,8 +20,58 @@ import { addDays, addHours, addWeeks } from 'date-fns';
 
 import {
   DurationOption,
+  getDurationOptionIndexClosestToHours,
   getDurationOptionIndexClosestToOneWeek,
 } from './durationOptions';
+
+describe('getDurationOptionIndexClosestToHours', () => {
+  const start = new Date('2024-02-10T03:00:00.000000Z');
+
+  test('returns the index equal to the given hours', () => {
+    // Set up options that include exactly 8 hours.
+    const durationOpts: DurationOption[] = [
+      { value: addHours(start, 6).getTime(), label: '' },
+      { value: addHours(start, 8).getTime(), label: '' },
+      { value: addHours(start, 12).getTime(), label: '' },
+    ];
+
+    // Execute.
+    const index = getDurationOptionIndexClosestToHours(durationOpts, start, 8);
+
+    // Assert that the 8 hour option is picked.
+    expect(index).toBe(1);
+  });
+
+  test('returns the index closest to but no greater than the given hours', () => {
+    // Set up options that skip from 6 to 12 hours.
+    const durationOpts: DurationOption[] = [
+      { value: addHours(start, 4).getTime(), label: '' },
+      { value: addHours(start, 6).getTime(), label: '' },
+      { value: addHours(start, 12).getTime(), label: '' },
+    ];
+
+    // Execute.
+    const index = getDurationOptionIndexClosestToHours(durationOpts, start, 8);
+
+    // Assert that the 6 hour option is picked instead of going over 8 hours.
+    expect(index).toBe(1);
+  });
+
+  test('returns the last index when the max is shorter than the given hours', () => {
+    // Set up options that end at a 5 hour 15 minute max.
+    const durationOpts: DurationOption[] = [
+      { value: addHours(start, 1).getTime(), label: '' },
+      { value: addHours(start, 4).getTime(), label: '' },
+      { value: addHours(start, 5.25).getTime(), label: '' },
+    ];
+
+    // Execute.
+    const index = getDurationOptionIndexClosestToHours(durationOpts, start, 8);
+
+    // Assert that the max option is picked.
+    expect(index).toBe(2);
+  });
+});
 
 describe('getDurationOptionIndexClosestToOneWeek', () => {
   const beginDate = new Date('2024-02-10T03:00:00.000000Z');

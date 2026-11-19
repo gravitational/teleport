@@ -24,21 +24,21 @@ import { AccessRequest } from 'shared/services/accessRequests';
 
 import { useSpecifiableFields } from './useSpecifiableFields';
 
-test('scheduled state defaults to one week or the exact duration cap', () => {
-  // Setup scheduled dry runs with a ten-day limit and a shorter exact cap.
+test('scheduled state defaults to eight hours or the exact duration cap', () => {
+  // Setup scheduled dry runs with a ten-day limit and a cap under eight hours.
   const start = new Date('2026-11-01T10:00:00Z');
   const tenDayRequest = makeScheduledDryRun(start, 10 * 24 * 60 * 60 * 1000);
   const cappedRequest = makeScheduledDryRun(
     start,
-    (3 * 24 + 2) * 60 * 60 * 1000 + 15 * 60 * 1000
+    5 * 60 * 60 * 1000 + 15 * 60 * 1000
   );
   const { result } = renderHook(() => useSpecifiableFields());
 
   // Execute.
   act(() => result.current.onDryRunChange(tenDayRequest));
 
-  // Assert the ten-day request defaults to one week and includes its cap.
-  expect(result.current.maxDuration.value).toBe(addDays(start, 7).getTime());
+  // Assert the ten-day request defaults to eight hours and includes its cap.
+  expect(result.current.maxDuration.value).toBe(addHours(start, 8).getTime());
   expect(result.current.maxDurationOptions.at(-1).value).toBe(
     addDays(start, 10).getTime()
   );

@@ -19,21 +19,23 @@
 import { useState } from 'react';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/style.css';
+import { components, SingleValueProps } from 'react-select';
 import styled from 'styled-components';
 
 import { Box, ButtonSecondary, Flex, LabelInput, Text } from 'design';
 import { StyledDateRange } from 'design/DatePicker';
 import {
-  displayDateTimeWithTimeZone,
-  displayShortDate,
-  displayTimeWithTimeZone,
+  dateMediumFormat,
+  dateTimeShortFormat,
+  formatTimeZoneAbbreviation,
   formatTimeZoneOffset,
 } from 'design/datetime';
 import { Calendar as CalendarIcon } from 'design/Icon';
 import { FieldSelect } from 'shared/components/FieldSelect';
-import Select, { Option } from 'shared/components/Select';
+import { CustomSelectComponentProps, Option } from 'shared/components/Select';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
+import { AccessDurationRequest } from '../../AccessDuration';
 import { TimeOption } from '../../Shared/types';
 import { getFormattedDurationTxt } from '../../Shared/utils';
 import {
@@ -82,24 +84,31 @@ export function ScheduledAccessTiming({
   if (!start) {
     return (
       <Box mb={1}>
-        <DateControl
-          label="Start Date"
-          value="Immediately on Approval"
-          minimum={now}
-          maximum={startLimit}
-          onSelect={updateStartDate}
-          onImmediate={() => onStartChange(null)}
-        />
-        <LabelInput color="text.slightlyMuted">
-          <Text mb={1}>Access Duration</Text>
-          <Select
-            options={durationOptions}
-            onChange={onAccessEndChange}
-            value={selectedAccessEnd}
+        <TimingGrid>
+          <DateControl
+            label="Access starts"
+            value="Immediately on Approval"
+            minimum={now}
+            maximum={startLimit}
+            onSelect={updateStartDate}
+            onImmediate={() => onStartChange(null)}
           />
-        </LabelInput>
+          <AccessDurationRequest
+            maxDuration={selectedAccessEnd}
+            maxDurationOptions={durationOptions}
+            onMaxDurationChange={onAccessEndChange}
+          />
+        </TimingGrid>
         <Text typography="body3" color="text.slightlyMuted">
-          Access will end on {displayDateTimeWithTimeZone(end)}
+          Access will end on{' '}
+          <Text as="span" bold>
+            {dateMediumFormat(end)}
+          </Text>{' '}
+          at{' '}
+          <Text as="span" bold>
+            {dateTimeShortFormat(end)}
+          </Text>{' '}
+          {formatTimeZoneAbbreviation(end)}
         </Text>
       </Box>
     );
@@ -133,8 +142,8 @@ export function ScheduledAccessTiming({
     <Box mb={1}>
       <TimingGrid>
         <DateControl
-          label="Start Date"
-          value={displayShortDate(start)}
+          label="Access starts"
+          value={dateMediumFormat(start)}
           selected={start}
           minimum={now}
           maximum={startLimit}
@@ -145,14 +154,14 @@ export function ScheduledAccessTiming({
           label={`Start time (${formatTimeZoneOffset(start)})`}
           value={{
             value: start,
-            label: displayTimeWithTimeZone(start),
+            label: dateTimeShortFormat(start),
           }}
           options={startTimeOptions}
           onChange={option => onStartChange(option.value)}
         />
         <DateControl
-          label="End Date"
-          value={displayShortDate(end)}
+          label="Access ends"
+          value={dateMediumFormat(end)}
           selected={end}
           minimum={start}
           maximum={maxAccessEnd}
@@ -162,16 +171,19 @@ export function ScheduledAccessTiming({
           label={`End time (${formatTimeZoneOffset(end)})`}
           value={{
             value: end,
-            label: displayTimeWithTimeZone(end),
+            label: dateTimeShortFormat(end),
           }}
           options={endTimeOptions}
           onChange={option => updateAccessEnd(option.value)}
+          durationFrom={start}
         />
       </TimingGrid>
-      <LabelInput color="text.slightlyMuted">
-        <Text mb={1}>Access Duration</Text>
-        <Text>{getFormattedDurationTxt({ start, end })}</Text>
-      </LabelInput>
+      <Text typography="body3" color="text.slightlyMuted">
+        Access duration:{' '}
+        <Text as="span" bold>
+          {getFormattedDurationTxt({ start, end })}
+        </Text>
+      </Text>
     </Box>
   );
 }
@@ -252,25 +264,83 @@ function TimeControl({
   value,
   options,
   onChange,
+  durationFrom,
 }: {
   label: string;
   value: TimeOption;
   options: TimeOption[];
   onChange(option: TimeOption): void;
+  /** When set, every option also shows how long it is from this time. */
+  durationFrom?: Date;
 }) {
   return (
     <Box>
       <LabelInput>{label}</LabelInput>
-      <FieldSelect mb={0} value={value} options={options} onChange={onChange} />
+      <FieldSelect
+        mb={0}
+        value={value}
+        options={options}
+        onChange={onChange}
+        components={durationFrom ? timeWithDurationSelect : timeSelect}
+        customProps={{ durationFrom }}
+        stylesConfig={{
+          menu: base => ({
+            ...base,
+            width: 'max-content',
+            minWidth: '100%',
+            right: 0,
+          }),
+        }}
+      />
     </Box>
   );
 }
 
+/** Shows the selected time next to the time zone it belongs to. */
+function SingleValueWithTimeZone(props: SingleValueProps<TimeOption>) {
+  return (
+    <components.SingleValue {...props}>
+      <Flex justifyContent="space-between" alignItems="center" gap={2}>
+        <Text as="span">{props.children}</Text>
+        <Text as="span" typography="body3" color="text.muted">
+          ({formatTimeZoneAbbreviation(props.data.value)})
+        </Text>
+      </Flex>
+    </components.SingleValue>
+  );
+}
+
+/** Shows an option next to its duration from the time in `durationFrom`. */
+function OptionWithDuration(
+  props: CustomSelectComponentProps<{ durationFrom: Date }, TimeOption>
+) {
+  const { durationFrom } = props.selectProps.customProps;
+  return (
+    <components.Option {...props}>
+      <Flex flex="1" justifyContent="space-between" alignItems="center" gap={2}>
+        <Text as="span">{props.children}</Text>
+        <Text as="span" typography="body3" color="text.muted">
+          {getFormattedDurationTxt({
+            start: durationFrom,
+            end: props.data.value,
+            compact: true,
+          })}
+        </Text>
+      </Flex>
+    </components.Option>
+  );
+}
+
+const timeSelect = { SingleValue: SingleValueWithTimeZone };
+const timeWithDurationSelect = {
+  SingleValue: SingleValueWithTimeZone,
+  Option: OptionWithDuration,
+};
+
 const TimingGrid = styled.div`
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.5fr 1fr;
   gap: ${props => props.theme.space[2]}px;
-  margin-bottom: ${props => props.theme.space[2]}px;
 `;
 
 const CalendarPicker = styled(Flex)<{ $open: boolean }>`

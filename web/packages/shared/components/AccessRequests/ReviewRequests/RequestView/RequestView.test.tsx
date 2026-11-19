@@ -237,7 +237,9 @@ test('scheduled requests render fixed timing', async () => {
   const requestHeader = screen.getByText('is requesting roles:')
     .parentElement as HTMLElement;
   expect(within(requestHeader).getByText(/for 4 hours/)).toBeVisible();
-  expect(within(requestHeader).getByText(/UTC\+00:00 UTC/)).toBeVisible();
+  expect(
+    within(requestHeader).getByText(/11\/01\/2026 at 4:00 PM UTC/)
+  ).toBeVisible();
   expect(screen.getByText(/Request expires in/)).toBeVisible();
 
   // Execute approval selection.
@@ -246,12 +248,10 @@ test('scheduled requests render fixed timing', async () => {
   );
 
   // Assert scheduled review timing is read-only.
-  expect(screen.getByText('Starts')).toBeVisible();
-  expect(screen.getByText('Ends')).toBeVisible();
-  expect(
-    screen.getByText('Nov 1, 2026, 8:00 PM (UTC+00:00 UTC)')
-  ).toBeVisible();
-  expect(screen.getByText('Duration')).toBeVisible();
+  expect(screen.getByText('Starts:')).toBeVisible();
+  expect(screen.getByText('Ends:')).toBeVisible();
+  expect(screen.getByText('Nov 1, 2026 at 8:00 PM (UTC)')).toBeVisible();
+  expect(screen.getByText('Duration:')).toBeVisible();
   expect(screen.queryByText('Start Date')).not.toBeInTheDocument();
   expect(screen.queryByTestId('reset-btn')).not.toBeInTheDocument();
 });
