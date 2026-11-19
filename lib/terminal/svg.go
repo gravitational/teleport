@@ -20,6 +20,7 @@ package terminal
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/hinshun/vt10x"
@@ -116,11 +117,20 @@ func renderBackgrounds(buf *bytes.Buffer, terminal vt10x.Terminal, charWidthPx, 
 	if len(rects) > 0 {
 		buf.WriteString(`<g shape-rendering="crispEdges">`)
 		for _, rect := range rects {
-			fmt.Fprintf(buf, `<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"`,
-				rect.x, rect.y, rect.w, rect.h)
+			buf.WriteString(`<rect x="`)
+			writeFloat(buf, rect.x)
+			buf.WriteString(`" y="`)
+			writeFloat(buf, rect.y)
+			buf.WriteString(`" width="`)
+			writeFloat(buf, rect.w)
+			buf.WriteString(`" height="`)
+			writeFloat(buf, rect.h)
+			buf.WriteString(`"`)
 
 			if rect.color < 16 {
-				fmt.Fprintf(buf, ` class="bg-%d"`, rect.color)
+				buf.WriteString(` class="bg-`)
+				buf.Write(strconv.AppendUint(buf.AvailableBuffer(), uint64(rect.color), 10))
+				buf.WriteString(`"`)
 			} else {
 				fmt.Fprintf(buf, ` style="fill:%s"`, colorToHex(rect.color))
 			}
@@ -152,7 +162,9 @@ func renderText(buf *bytes.Buffer, terminal vt10x.Terminal, charWidthPx, rowHeig
 		}
 
 		yPos := float64(y) * rowHeightPx
-		fmt.Fprintf(buf, `<tspan y="%.1f" dy="1em">`, yPos)
+		buf.WriteString(`<tspan y="`)
+		writeFloat(buf, yPos)
+		buf.WriteString(`" dy="1em">`)
 
 		col := 0
 		for col < cols {
@@ -210,7 +222,9 @@ func renderText(buf *bytes.Buffer, terminal vt10x.Terminal, charWidthPx, rowHeig
 			}
 
 			xPos := float64(startCol) * charWidthPx
-			fmt.Fprintf(buf, `<tspan x="%.1f"`, xPos)
+			buf.WriteString(`<tspan x="`)
+			writeFloat(buf, xPos)
+			buf.WriteString(`"`)
 
 			var classes []string
 			var style string
@@ -218,7 +232,7 @@ func renderText(buf *bytes.Buffer, terminal vt10x.Terminal, charWidthPx, rowHeig
 			if attrs.foreground == vt10x.DefaultFG {
 				// No class needed for default foreground
 			} else if attrs.foreground < 16 {
-				classes = append(classes, fmt.Sprintf("fg-%d", attrs.foreground))
+				classes = append(classes, "fg-"+strconv.Itoa(int(attrs.foreground)))
 			} else {
 				style = fmt.Sprintf("fill:%s", colorToHex(attrs.foreground))
 			}
@@ -254,6 +268,11 @@ func renderText(buf *bytes.Buffer, terminal vt10x.Terminal, charWidthPx, rowHeig
 	}
 
 	buf.WriteString("</text>")
+}
+
+// writeFloat writes f formatted as %.1f without going through fmt.
+func writeFloat(buf *bytes.Buffer, f float64) {
+	buf.Write(strconv.AppendFloat(buf.AvailableBuffer(), f, 'f', 1, 64))
 }
 
 func colorToHex(color vt10x.Color) string {

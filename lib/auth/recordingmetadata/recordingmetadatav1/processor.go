@@ -124,6 +124,12 @@ func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time, i
 		}
 	}
 
+	// SVG output does not depend on the requested size, so the frame is already the representative.
+	if len(frame.GetSvg()) > 0 {
+		b.thumbnail = frame
+		return
+	}
+
 	representative, err := b.thumbnailGenerator.produceThumbnail(thumbnailMaxDimensions)
 	if err != nil {
 		b.logger.WarnContext(context.Background(), "Failed to produce representative thumbnail", "error", err)
