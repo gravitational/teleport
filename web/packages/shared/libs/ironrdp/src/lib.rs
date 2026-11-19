@@ -17,6 +17,8 @@
 // default trait not supported in wasm
 #![allow(clippy::new_without_default)]
 
+use std::borrow::Cow;
+
 use ironrdp_core::decode_cursor;
 use ironrdp_core::ReadCursor;
 use ironrdp_core::WriteBuf;
@@ -32,9 +34,9 @@ use ironrdp_session::{
     fast_path::Processor as IronRdpFastPathProcessor,
     fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder,
 };
-use js_sys::Uint8Array;
+use js_sys::{Uint8Array, Uint8ClampedArray};
 use log::{debug, warn};
-use wasm_bindgen::{prelude::*, Clamped};
+use wasm_bindgen::prelude::*;
 use web_sys::ImageData;
 
 #[wasm_bindgen]
@@ -99,8 +101,11 @@ fn create_image_data_from_image_and_region(
     image_data: &[u8],
     image_location: InclusiveRectangle,
 ) -> Result<ImageData, JsValue> {
-    ImageData::new_with_u8_clamped_array_and_sh(
-        Clamped(image_data),
+    // ImageData is a thin wrapper over a backing array. Copy the pixels into JS-owned
+    // memory first so that they remain valid after Rust frees the source buffer.
+    let pixels = Uint8ClampedArray::from(image_data);
+    ImageData::new_with_js_u8_clamped_array_and_sh(
+        &pixels,
         image_location.width().into(),
         image_location.height().into(),
     )
@@ -294,7 +299,7 @@ impl FastPathProcessor {
 
     fn apply_image_to_canvas(
         &self,
-        image_data: Vec<u8>,
+        image_data: Cow<'_, [u8]>,
         image_location: InclusiveRectangle,
         cb_context: &JsValue,
         callback: &js_sys::Function,
@@ -321,7 +326,7 @@ impl FastPathProcessor {
 pub fn extract_partial_image(
     image: &DecodedImage,
     region: InclusiveRectangle,
-) -> (InclusiveRectangle, Vec<u8>) {
+) -> (InclusiveRectangle, Cow<'_, [u8]>) {
     // PERF: needs actual benchmark to find a better heuristic
     if region.height() > 64 || region.width() > 512 {
         extract_whole_rows(image, region)
@@ -336,7 +341,7 @@ pub fn extract_partial_image(
 fn extract_smallest_rectangle(
     image: &DecodedImage,
     region: InclusiveRectangle,
-) -> (InclusiveRectangle, Vec<u8>) {
+) -> (InclusiveRectangle, Cow<'_, [u8]>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
     let image_width = usize::from(image.width());
@@ -365,7 +370,7 @@ fn extract_smallest_rectangle(
         target_slice.copy_from_slice(src_slice);
     }
 
-    (region, dst)
+    (region, Cow::Owned(dst))
 }
 
 /// Faster for high-height and bigger images
@@ -374,7 +379,7 @@ fn extract_smallest_rectangle(
 fn extract_whole_rows(
     image: &DecodedImage,
     region: InclusiveRectangle,
-) -> (InclusiveRectangle, Vec<u8>) {
+) -> (InclusiveRectangle, Cow<'_, [u8]>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
     let image_width = usize::from(image.width());
@@ -388,7 +393,9 @@ fn extract_whole_rows(
     let src_begin = region_top * image_stride;
     let src_end = (region_bottom + 1) * image_stride;
 
-    let dst = src[src_begin..src_end].to_vec();
+    // Optimization: we'll have to make a copy of the pixels before constructing
+    // the ImageData, so use Cow here to avoid an additional copy.
+    let dst = Cow::Borrowed(&src[src_begin..src_end]);
 
     let wider_region = InclusiveRectangle {
         left: 0,
