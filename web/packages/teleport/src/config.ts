@@ -2083,7 +2083,8 @@ const cfg = {
 
   getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {
     return (
-      cfg.baseUrl + generatePath(cfg.api.gcpWorkforceConfigurePath, { ...p })
+      cfg.baseUrl +
+      generateFullPath(cfg.api.gcpWorkforceConfigurePath, { ...p })
     );
   },
 
