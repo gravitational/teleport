@@ -154,7 +154,7 @@ func (h hostEnv) checkScopedServes(ctx context.Context, req PromoteRequest) erro
 	if err := h.checkConfigOwner("scoped", scopedConfigPath, req.Proxy, req.SourceHostUUID, "", true); err != nil {
 		return trace.Wrap(err)
 	}
-	active, err := unitActive(ctx, scopedUnit)
+	active, err := h.unitActive(ctx, scopedUnit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -186,11 +186,11 @@ func (h hostEnv) installPromoted(ctx context.Context, req PromoteRequest, promot
 		{"systemctl", "enable", promotedUnit},
 		{"systemctl", "restart", promotedUnit},
 	} {
-		if err := runCommand(ctx, args[0], args[1:]...); err != nil {
+		if err := h.runCommand(ctx, args[0], args[1:]...); err != nil {
 			return h.stopAfterFailure(ctx, req, trace.Wrap(err))
 		}
 	}
-	if err := runCommand(ctx, "systemctl", "is-active", "--quiet", promotedUnit); err != nil {
+	if err := h.runCommand(ctx, "systemctl", "is-active", "--quiet", promotedUnit); err != nil {
 		return h.stopAfterFailure(ctx, req, trace.Wrap(err, "%s is not running; check journalctl -u %s", promotedUnit, promotedUnit))
 	}
 	return nil
@@ -249,16 +249,16 @@ func (h hostEnv) stopPromoted(ctx context.Context, req PromoteRequest) error {
 	// on such a unit, so their results are checked instead of their exit
 	// codes; systemd reports a unit it does not know as inactive and not
 	// enabled.
-	_ = runCommand(ctx, "systemctl", "stop", promotedUnit)
-	_ = runCommand(ctx, "systemctl", "disable", promotedUnit)
-	stopped, state, err := unitStopped(ctx, promotedUnit)
+	_ = h.runCommand(ctx, "systemctl", "stop", promotedUnit)
+	_ = h.runCommand(ctx, "systemctl", "disable", promotedUnit)
+	stopped, state, err := h.unitStopped(ctx, promotedUnit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if !stopped {
 		return trace.CompareFailed("%s is %s after systemctl stop %s", promotedUnit, state, promotedUnit)
 	}
-	enabled, err := unitEnabled(ctx, promotedUnit)
+	enabled, err := h.unitEnabled(ctx, promotedUnit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -279,7 +279,7 @@ func (h hostEnv) promotedByHand(ctx context.Context, req PromoteRequest) (Instal
 	if err := h.checkConfigOwner("promoted", defaults.ConfigFilePath, req.Proxy, req.SourceHostUUID, "", true); err != nil {
 		return InstallResponse{}, trace.Wrap(err)
 	}
-	active, err := unitActive(ctx, promotedUnit)
+	active, err := h.unitActive(ctx, promotedUnit)
 	if err != nil {
 		return InstallResponse{}, trace.Wrap(err)
 	}
@@ -299,7 +299,7 @@ func (h hostEnv) checkDefaultPathsFree(ctx context.Context, req PromoteRequest) 
 	if h.exists(defaults.ConfigFilePath) {
 		return trace.Wrap(h.checkConfigOwner("promoted", defaults.ConfigFilePath, req.Proxy, req.SourceHostUUID, "", true))
 	}
-	active, err := unitActive(ctx, promotedUnit)
+	active, err := h.unitActive(ctx, promotedUnit)
 	if err != nil {
 		return trace.Wrap(err)
 	}

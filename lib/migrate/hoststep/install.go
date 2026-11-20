@@ -129,11 +129,11 @@ func (h hostEnv) install(ctx context.Context, req InstallRequest) (InstallRespon
 		{"systemctl", "enable", scopedUnit},
 		{"systemctl", "restart", scopedUnit},
 	} {
-		if err := runCommand(ctx, args[0], args[1:]...); err != nil {
+		if err := h.runCommand(ctx, args[0], args[1:]...); err != nil {
 			return InstallResponse{}, trace.Wrap(err)
 		}
 	}
-	if err := runCommand(ctx, "systemctl", "is-active", "--quiet", scopedUnit); err != nil {
+	if err := h.runCommand(ctx, "systemctl", "is-active", "--quiet", scopedUnit); err != nil {
 		return InstallResponse{}, trace.Wrap(err, "%s is not running; check journalctl -u %s", scopedUnit, scopedUnit)
 	}
 	retry, err := retryutils.NewConstant(time.Second)

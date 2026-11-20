@@ -124,14 +124,14 @@ func (h hostEnv) checkScopedAgent(ctx context.Context, targetHostUUID, sourceCon
 		return trace.NotFound("no install at teleport_migrated carries target agent %s; retire by hand", targetHostUUID)
 	}
 	// The state itself, not unitEnabled's boolean, so the refusal can name it.
-	state, err := unitProperty(ctx, scopedUnit, "UnitFileState")
+	state, err := h.unitProperty(ctx, scopedUnit, "UnitFileState")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if state != "enabled" {
 		return trace.CompareFailed("%s is %s, so the scoped agent would not come back after a reboot; run systemctl enable %s, then retire", scopedUnit, cmp.Or(state, "unknown"), scopedUnit)
 	}
-	active, err := unitActive(ctx, scopedUnit)
+	active, err := h.unitActive(ctx, scopedUnit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -193,11 +193,11 @@ func (h hostEnv) alreadyRetired(ctx context.Context, sourceConfigPath string) (b
 	if h.exists(sourceConfigPath) || h.exists(sourceInstallDir) {
 		return false, nil
 	}
-	active, err := unitActive(ctx, "teleport.service")
+	active, err := h.unitActive(ctx, "teleport.service")
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	enabled, err := unitEnabled(ctx, "teleport.service")
+	enabled, err := h.unitEnabled(ctx, "teleport.service")
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -272,7 +272,7 @@ func (h hostEnv) checkSourceRemoval(ctx context.Context, fileConfig *config.File
 			return "", trace.Wrap(err)
 		}
 	} else {
-		active, err := unitActive(ctx, "teleport.service")
+		active, err := h.unitActive(ctx, "teleport.service")
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -318,7 +318,7 @@ func (h hostEnv) checkDataDirOnDisk(ctx context.Context, dataDir, sourceHostUUID
 	case got != sourceHostUUID:
 		return trace.BadParameter("%q holds host_uuid %q, expected %q", dataDir, got, sourceHostUUID)
 	}
-	if mount, err := isMountPoint(ctx, h.path(dataDir)); err != nil || mount {
+	if mount, err := h.isMountPoint(ctx, h.path(dataDir)); err != nil || mount {
 		return trace.BadParameter("%q is a mount point, or its mount could not be checked; retire by hand", dataDir)
 	}
 	// A run cut short leaves .retired only once the data dir is gone, so one
@@ -335,8 +335,8 @@ func (h hostEnv) checkDataDirOnDisk(ctx context.Context, dataDir, sourceHostUUID
 func (h hostEnv) stopSource(ctx context.Context) error {
 	const restart = "teleport.service is stopped but still enabled; run systemctl start teleport.service to bring the source agent back"
 	// A unit that fails to stop is caught by the stopped check below.
-	_ = runCommand(ctx, "systemctl", "stop", "teleport.service")
-	stopped, state, err := unitStopped(ctx, "teleport.service")
+	_ = h.runCommand(ctx, "systemctl", "stop", "teleport.service")
+	stopped, state, err := h.unitStopped(ctx, "teleport.service")
 	if err != nil {
 		return trace.Wrap(err, "nothing was removed, and the stop of teleport.service could not be confirmed; %s", restart)
 	}
@@ -350,8 +350,8 @@ func (h hostEnv) stopSource(ctx context.Context) error {
 	}
 	// disable fails once an earlier retire's teleport-update uninstall removed
 	// the unit, so the result is checked instead of its exit code.
-	_ = runCommand(ctx, "systemctl", "disable", "teleport.service")
-	enabled, err := unitEnabled(ctx, "teleport.service")
+	_ = h.runCommand(ctx, "systemctl", "disable", "teleport.service")
+	enabled, err := h.unitEnabled(ctx, "teleport.service")
 	if err != nil {
 		return trace.Wrap(err, "nothing was removed; %s", restart)
 	}
@@ -359,7 +359,7 @@ func (h hostEnv) stopSource(ctx context.Context) error {
 		return trace.CompareFailed("systemctl disable teleport.service left it enabled; disable it, then retire; %s", restart)
 	}
 	if h.exists(sourceInstallDir) {
-		if err := runCommand(ctx, "teleport-update", "uninstall", "--force"); err != nil {
+		if err := h.runCommand(ctx, "teleport-update", "uninstall", "--force"); err != nil {
 			return trace.Wrap(err, "teleport.service is stopped and disabled; run systemctl enable teleport.service, then systemctl start teleport.service, to bring the source agent back")
 		}
 	}
@@ -412,14 +412,18 @@ func refuseOverlap(dataDir, configPath string) error {
 // sysvinit use 1 for "not a mount", util-linux for an error) or a signal
 // falls back to comparing dir's device with its parent's, as does a host
 // without mountpoint.
-func isMountPoint(ctx context.Context, dir string) (bool, error) {
-	if bin, err := exec.LookPath("mountpoint"); err == nil {
-		err := exec.CommandContext(ctx, bin, "-q", dir).Run()
-		var exitErr *exec.ExitError
+func (h hostEnv) isMountPoint(ctx context.Context, dir string) (bool, error) {
+	if bin, err := h.lookPath("mountpoint"); err == nil {
+		err := h.run(ctx, exec.CommandContext(ctx, bin, "-q", dir))
+		// Any exit error, not only *exec.ExitError.
+		exitErr, isExit := errors.AsType[interface {
+			error
+			ExitCode() int
+		}](err)
 		switch {
 		case err == nil:
 			return true, nil
-		case errors.As(err, &exitErr) && exitErr.ExitCode() == 32:
+		case isExit && exitErr.ExitCode() == 32:
 			return false, nil
 		}
 	}

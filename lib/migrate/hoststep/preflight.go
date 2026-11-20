@@ -20,7 +20,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"os/exec"
 	"path"
 	"strings"
 	"time"
@@ -91,7 +90,7 @@ func (h hostEnv) preflight(ctx context.Context, req PreflightRequest) (Preflight
 	facts.SuffixHostUUID = suffixHostUUID
 	if h.exists(sourceInstallDir) {
 		// Only a warning in plan, so a systemd that cannot answer leaves it unset.
-		facts.TbotActive, _ = unitActive(ctx, "tbot.service")
+		facts.TbotActive, _ = h.unitActive(ctx, "tbot.service")
 	}
 	if !hasSystemd {
 		return PreflightResponse{Facts: facts, Reason: "no systemd on the host"}, nil
@@ -180,11 +179,11 @@ func isAllowedUnitFlag(arg string) bool {
 // hasSELinuxModule reports whether semodule lists Teleport's SELinux module. A
 // host without semodule reports false: teleport-update cannot remove the module
 // without it either.
-func hasSELinuxModule(ctx context.Context) (bool, error) {
-	if _, err := exec.LookPath("semodule"); err != nil {
+func (h hostEnv) hasSELinuxModule(ctx context.Context) (bool, error) {
+	if _, err := h.lookPath("semodule"); err != nil {
 		return false, nil
 	}
-	out, err := exec.CommandContext(ctx, "semodule", "-l").Output()
+	out, _, err := h.output(ctx, "semodule", "-l")
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -201,10 +200,10 @@ func hasSELinuxModule(ctx context.Context) (bool, error) {
 // measured where the scoped install goes: the parent of the data dirs and
 // /opt, not /opt/teleport, which a host that never ran teleport-update lacks.
 func (h hostEnv) installReason(ctx context.Context, argv []string) string {
-	if _, err := exec.LookPath("teleport-update"); err != nil {
+	if _, err := h.lookPath("teleport-update"); err != nil {
 		return "teleport-update is not installed"
 	}
-	hasModule, err := hasSELinuxModule(ctx)
+	hasModule, err := h.hasSELinuxModule(ctx)
 	if err != nil {
 		return fmt.Sprintf("could not list the SELinux modules (semodule -l): %v", err)
 	}

@@ -99,17 +99,17 @@ func (h hostEnv) uninstall(ctx context.Context, req UninstallRequest) (struct{},
 		// A failed stop is refused here, not left to the active check below: the
 		// updater service is a oneshot, which systemd reports as activating, not
 		// active, while an update runs.
-		if err := runCommand(ctx, "systemctl", "stop", unit); err != nil {
+		if err := h.runCommand(ctx, "systemctl", "stop", unit); err != nil {
 			return struct{}{}, trace.Wrap(err, "stopping %s%s", unit, remedy("stop it, then roll back"))
 		}
-		if err := runCommand(ctx, "systemctl", "disable", unit); err != nil {
+		if err := h.runCommand(ctx, "systemctl", "disable", unit); err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
 	}
 	// The removal below is recursive, so these must be stopped, not just not
 	// active: a start queued behind the stop reports activating.
 	for _, unit := range units {
-		stopped, state, err := unitStopped(ctx, unit)
+		stopped, state, err := h.unitStopped(ctx, unit)
 		if err != nil {
 			return struct{}{}, trace.Wrap(err, "the scoped units are stopped and disabled and nothing was removed; enable and start %s and %s to keep the scoped agent", scopedUnit, scopedUpdaterTimer)
 		}
@@ -122,7 +122,7 @@ func (h hostEnv) uninstall(ctx context.Context, req UninstallRequest) (struct{},
 		if bundled := h.path(scopedUpdaterPath); isExecutable(bundled) {
 			updater = bundled
 		}
-		if err := runCommand(ctx, updater, "--install-suffix", scopedInstallSuffix, "uninstall"); err != nil {
+		if err := h.runCommand(ctx, updater, "--install-suffix", scopedInstallSuffix, "uninstall"); err != nil {
 			return struct{}{}, trace.Wrap(err, "teleport-update uninstall failed with %s stopped and disabled%s", scopedUnit, remedy("run teleport-update --install-suffix "+scopedInstallSuffix+" uninstall by hand, then roll back"))
 		}
 	}

@@ -109,7 +109,11 @@ func RunHostStep(ctx context.Context, step string, in io.Reader, out io.Writer) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	h := hostEnv{exe: exe}
+	h := hostEnv{
+		exe:      exe,
+		run:      func(_ context.Context, cmd *exec.Cmd) error { return cmd.Run() },
+		lookPath: exec.LookPath,
+	}
 	switch step {
 	case Preflight:
 		return runStep(ctx, in, out, h.preflight)
@@ -148,6 +152,9 @@ type hostEnv struct {
 	// copy the tool downloaded into /var/cache/teleport-migrate/<version>/, not
 	// the binary of the source, scoped or promoted installation.
 	exe string
+	// run and lookPath are cmd.Run and exec.LookPath outside tests.
+	run      func(ctx context.Context, cmd *exec.Cmd) error
+	lookPath func(file string) (string, error)
 }
 
 // path returns p under the host's root.
@@ -189,12 +196,12 @@ var updaterEnvKeys = []string{"TELEPORT_UPDATE_CONFIG_FILE", "TELEPORT_UPDATE_IN
 // from the scoped agent's unit, which runs as root and reads only
 // /etc/default/teleport.
 func (h hostEnv) sourceUnit(ctx context.Context) (argv []string, configPath string, err error) {
-	out, err := exec.CommandContext(ctx, "systemctl", "show", "--property=LoadState,ExecStart,User,DynamicUser,Environment,EnvironmentFiles,PassEnvironment", "teleport.service").Output()
+	out, stderr, err := h.output(ctx, "systemctl", "show", "--property=LoadState,ExecStart,User,DynamicUser,Environment,EnvironmentFiles,PassEnvironment", "teleport.service")
 	if err != nil {
 		// systemctl says why on stderr.
 		reason := err.Error()
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && len(bytes.TrimSpace(exitErr.Stderr)) > 0 {
-			reason = string(bytes.TrimSpace(exitErr.Stderr))
+		if len(bytes.TrimSpace(stderr)) > 0 {
+			reason = string(bytes.TrimSpace(stderr))
 		}
 		return nil, "", trace.NotFound("systemctl show teleport.service failed: %s; migrate this host by hand", reason)
 	}
@@ -360,12 +367,23 @@ func (h hostEnv) checkConfigOwner(kind, configPath, wantProxy, wantSourceHost, r
 
 // runCommand runs name with args and returns an error holding the command line
 // and its combined output when it fails.
-func runCommand(ctx context.Context, name string, args ...string) error {
-	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
-	if err != nil {
-		return trace.Wrap(err, "%s %s: %s", name, strings.Join(args, " "), strings.TrimSpace(string(out)))
+func (h hostEnv) runCommand(ctx context.Context, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := h.run(ctx, cmd); err != nil {
+		return trace.Wrap(err, "%s %s: %s", name, strings.Join(args, " "), strings.TrimSpace(out.String()))
 	}
 	return nil
+}
+
+// output runs name with args and returns its stdout and stderr.
+func (h hostEnv) output(ctx context.Context, name string, args ...string) (stdout, stderr []byte, err error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &outBuf, &errBuf
+	err = h.run(ctx, cmd)
+	return outBuf.Bytes(), errBuf.Bytes(), err
 }
 
 // isExecutable reports whether p is a regular file someone may execute.
@@ -379,13 +397,13 @@ func isExecutable(p string) bool {
 // exits 0 for a unit that does not exist, so a failure here is systemd itself,
 // which the callers must not read as a state: is-active and is-enabled cannot
 // tell the two apart.
-func unitProperty(ctx context.Context, unit, property string) (string, error) {
-	out, err := exec.CommandContext(ctx, "systemctl", "show", "-p", property, unit).Output()
+func (h hostEnv) unitProperty(ctx context.Context, unit, property string) (string, error) {
+	out, stderr, err := h.output(ctx, "systemctl", "show", "-p", property, unit)
 	if err != nil {
 		// systemctl says why on stderr, a host without systemd among the reasons.
 		reason := err.Error()
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && len(bytes.TrimSpace(exitErr.Stderr)) > 0 {
-			reason = string(bytes.TrimSpace(exitErr.Stderr))
+		if len(bytes.TrimSpace(stderr)) > 0 {
+			reason = string(bytes.TrimSpace(stderr))
 		}
 		return "", trace.NotFound("asking systemd for %s of %s failed: %s; handle this host by hand", property, unit, reason)
 	}
@@ -400,8 +418,8 @@ func unitProperty(ctx context.Context, unit, property string) (string, error) {
 // unitActive reports whether systemd says unit is active. reloading and
 // refreshing are not active here, though is-active exits 0 for them; a unit
 // caught mid-reload is refused and the step retried.
-func unitActive(ctx context.Context, unit string) (bool, error) {
-	state, err := unitProperty(ctx, unit, "ActiveState")
+func (h hostEnv) unitActive(ctx context.Context, unit string) (bool, error) {
+	state, err := h.unitProperty(ctx, unit, "ActiveState")
 	return state == "active", trace.Wrap(err)
 }
 
@@ -409,8 +427,8 @@ func unitActive(ctx context.Context, unit string) (bool, error) {
 // is in. Only inactive and failed mean the process is gone; activating,
 // deactivating and reloading are transitions, and the callers go on to delete
 // what the unit was running from.
-func unitStopped(ctx context.Context, unit string) (bool, string, error) {
-	state, err := unitProperty(ctx, unit, "ActiveState")
+func (h hostEnv) unitStopped(ctx context.Context, unit string) (bool, string, error) {
+	state, err := h.unitProperty(ctx, unit, "ActiveState")
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
@@ -421,8 +439,8 @@ func unitStopped(ctx context.Context, unit string) (bool, string, error) {
 // starts it at boot without a runtime-only link. enabled-runtime and static,
 // which do not survive a reboot, are not enabled here, though is-enabled exits
 // 0 for them.
-func unitEnabled(ctx context.Context, unit string) (bool, error) {
-	state, err := unitProperty(ctx, unit, "UnitFileState")
+func (h hostEnv) unitEnabled(ctx context.Context, unit string) (bool, error) {
+	state, err := h.unitProperty(ctx, unit, "UnitFileState")
 	return state == "enabled", trace.Wrap(err)
 }
 
