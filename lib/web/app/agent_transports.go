@@ -160,7 +160,11 @@ func (t *agentTransports) newTransport(hostID string) (http.RoundTripper, error)
 		return nil, trace.Wrap(err)
 	}
 	tr.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return t.dial(ctx, hostID)
+		conn, err := t.dial(ctx, hostID)
+		if err != nil {
+			return nil, agentDialError{err}
+		}
+		return conn, nil
 	}
 	tr.TLSClientConfig = t.tlsConfig.Clone()
 	// Set explicitly because the agent's forwardedIdleTimeout (lib/srv/app)
@@ -197,3 +201,9 @@ func (t *agentTransports) dial(ctx context.Context, hostID string) (net.Conn, er
 	})
 	return conn, trace.Wrap(err)
 }
+
+// agentDialError is a failed dial to an agent. An agent whose dial failed
+// received none of the request, so the router may send it to another agent.
+type agentDialError struct{ error }
+
+func (e agentDialError) Unwrap() error { return e.error }

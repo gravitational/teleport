@@ -176,7 +176,10 @@ func (r *agentRouter) roundTrip(req *http.Request) (*http.Response, error) {
 		if err == nil {
 			return resp, nil
 		}
-		if !isReverseTunnelDownError(err) {
+		// A proxy peering stream reports a broken connection as a connection
+		// problem too, after the agent may have acted on the request. Only a
+		// failed dial means it received none of it.
+		if !errors.As(err, new(agentDialError)) || !isReverseTunnelDownError(err) {
 			return nil, trace.Wrap(err, "forwarding to agent %q", server.GetHostID())
 		}
 		r.cfg.logger.DebugContext(ctx, "Failed to connect to Application Service agent",
