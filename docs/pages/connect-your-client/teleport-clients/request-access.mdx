@@ -14,8 +14,7 @@ If you cannot access a Teleport role or resource with your current Teleport
 permissions, you can create an Access Request to obtain elevated permissions for
 a limited time.
 
-This page describes the `tsh` commands that allow you to create Teleport Access
-Requests. 
+This page describes how to create Teleport Access Requests.
 
 <Admonition type="tip">
 
@@ -41,6 +40,9 @@ $ tsh request create --roles "dev,analyst"
 
 The command above creates an Access Request for the `dev` and `analyst` roles.
 
+For role requests in the Web UI, see
+[Requesting Access](../../identity-governance/access-requests/role-requests.mdx#requesting-access).
+
 ## Requesting access to Teleport cluster resources
 
 In addition to Teleport roles, you can request access to individual Teleport
@@ -60,11 +62,10 @@ navigating to **Resources** in the sidebar.
 1. Search for a resource to request access to:
 
    ```code
-   $ tsh request search --kind=<KIND>
+   $ tsh request search --kind=<Var name="node" description="Resource kind to search" />
    ```
 
-   Substitute `--kind` with the kind of Teleport resource you would like to
-   request access to. This can be one of the following:
+   Set <Var name="node" /> to one of the following resource kinds:
 
    - `node`
    - `kube_cluster`
@@ -77,7 +78,7 @@ navigating to **Resources** in the sidebar.
    following format:
 
    ```
-   /CLUSTER_ADDRESS/TYPE/RESOURCE_NAME
+   /CLUSTER_NAME/KIND/RESOURCE_NAME
    ```
 
    For example, assume that you have found the following Teleport-protected
@@ -103,6 +104,127 @@ navigating to **Resources** in the sidebar.
    ```code
    $ tsh request create --resource RESOURCE_ID
    ```
+
+## Requesting access with Resource Constraints
+
+When creating a Resource Access Request, you can select specific SSH logins
+or AWS roles for each supported resource. The Teleport Web UI and `tsh` show
+these separately, as granted or requestable for each resource. When using the
+approved request, Teleport enforces both role permissions and your selections
+for the resource you're accessing.
+
+### Availability
+
+(!docs/pages/includes/resource-constraints-availability.mdx!)
+
+### Listing SSH logins and AWS roles
+
+Run `tsh request show-principals` with a resource ID from your search results.
+This example lists SSH logins for a build server:
+
+```code
+$ tsh request show-principals /teleport.example.com/node/27f0e510-7119-4ac3-ae50-4b8300ff405f
+Resource:  /teleport.example.com/node/27f0e510-7119-4ac3-ae50-4b8300ff405f
+Name:      27f0e510-7119-4ac3-ae50-4b8300ff405f
+Hostname:  build
+Labels:    env=production
+
+Logins:
+  deploy  granted
+  admin  requestable
+  root   requestable
+
+hint: tsh request create --resource '/teleport.example.com/node/27f0e510-7119-4ac3-ae50-4b8300ff405f?logins=admin,root' --reason "..."
+```
+
+For AWS Console applications, the command similarly lists each role's Amazon
+Resource Name (ARN).
+
+### Creating an Access Request
+
+Append `?logins=` and the desired logins to the resource ID. For example,
+to request `admin` on the build server:
+
+```code
+$ tsh request create \
+    --resource '/teleport.example.com/node/27f0e510-7119-4ac3-ae50-4b8300ff405f?logins=admin' \
+    --reason "update deploy configuration"
+```
+
+For an AWS Console application, append `?role_arns=` and the desired role ARN:
+
+```code
+$ tsh request create \
+    --resource '/teleport.example.com/app/aws-console?role_arns=arn:aws:iam::123456789012:role/ReadOnly' \
+    --reason "investigating incident 123"
+```
+
+`tsh request create` waits for approval and activates the approved request
+automatically.
+
+Quote the resource ID to preserve special characters, and separate multiple
+values with commas. Within values, escape commas, ampersands, and backslashes
+with a leading `\`.
+
+## Creating Access Requests from a file
+
+Use `--resource-file` to read resources and optional Resource Constraints from
+a JSON file. In this example, a user requests the `admin` login on the build
+server with a file named `request.json`:
+
+```json
+{
+  "resources": [
+    {
+      "id": {
+        "cluster": "teleport.example.com",
+        "kind": "node",
+        "name": "27f0e510-7119-4ac3-ae50-4b8300ff405f"
+      },
+      "constraints": {
+        "version": "v1",
+        "ssh": { "logins": ["admin"] }
+      }
+    }
+  ]
+}
+```
+
+The corresponding command is:
+
+```code
+$ tsh request create --resource-file=request.json \
+    --reason "update deploy configuration"
+```
+
+For AWS Console applications, `id.kind` is `app` and `id.name` is the application
+name. Use a `constraints.aws_console` object with a `role_arns` array instead
+of `constraints.ssh`.
+
+Omit `constraints` to request a resource without Resource Constraints. You can
+combine `--resource-file` with `--resource` to include additional resources.
+
+The same request can be created from standard input with `--resource-file=-`:
+
+```code
+$ tsh request create --resource-file=- \
+    --reason "update deploy configuration" < request.json
+```
+
+With `--nowait --format=json`, `tsh request create` prints the request as JSON
+without waiting for approval:
+
+```code
+$ tsh request create --resource-file=request.json --nowait --format=json \
+    --reason "update deploy configuration"
+```
+
+After approval, the requester uses <Var name="request-id" /> from the command
+output to activate the request:
+
+```code
+$ tsh login --request-id=<Var name="request-id" />
+```
 
 ## Requesting access to Kubernetes resources
 

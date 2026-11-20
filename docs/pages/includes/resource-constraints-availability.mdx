@@ -1,0 +1,9 @@
+Support for Resource Constraints requires Teleport v18.7.6 or later for AWS
+Console applications, and Teleport v19.0.0 or later for SSH nodes. These
+minimums apply to all Auth Service and Proxy Service instances and any
+Teleport agents providing access to the requested resource.
+
+For request creation, the Teleport Web UI requires the same minimums.
+Alternatively, `tsh` and `tctl` clients v19.0.0 or later support either resource
+type. Teleport Connect can use approved requests with Resource Constraints,
+but does not support creating them.

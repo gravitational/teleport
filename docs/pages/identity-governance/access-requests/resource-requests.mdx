@@ -42,23 +42,19 @@ access, and request access to a resource.
 
 ## Resource Constraints
 
-Resource Access Requests can optionally include **Resource Constraints**,
-which narrow which principals — such as AWS Role ARNs, SSH logins, or database
-users — a user can assume on a resource when using an approved Access Request.
-The requester selects the specific principals they need when they create a request
-using the Web UI or Teleport Connect, and these constraints are encoded
-in the resulting short-lived certificates and enforced at authorization time,
-independent of any subsequent role changes.
+Resource Constraints let users select specific SSH logins or AWS roles for
+each resource in a Resource Access Request. When a user accesses a resource
+with an approved request, Teleport enforces both role permissions and the
+user's selections for that resource.
 
-Resource Constraints are distinct from the role-based restrictions described in
-[Restricting the resources a user can request access
-to](#restricting-the-resources-a-user-can-request-access-to) below. Those
-controls govern *which resources* are searchable and requestable. Resource
-Constraints govern which principals the user is authorized to use on a specific
-resource once the request is approved.
+Role permissions still determine which resources a user can search and
+request. See [Restricting the resources a user can request access
+to](#restricting-the-resources-a-user-can-request-access-to) for configuration
+examples.
 
 For example, consider a role `aws-full-access` that grants access to an AWS
-Console application with multiple ARNs:
+Console application with multiple AWS roles identified by Amazon Resource
+Names (ARNs):
 
 ```yaml
 kind: role
@@ -74,26 +70,19 @@ spec:
       - 'arn:aws:iam::123456789012:role/Admin'
 ```
 
-Without Resource Constraints, a user who requests and is approved for access to
-an AWS Console application via this role receives both ARNs. With Resource Constraints, the user can
-select only `ReadOnly` at request creation, and the approved certificate is
-scoped to that single ARN.
-
-Resource Constraints are currently supported for AWS Console application
-resources. Support for additional resource types (SSH, Windows Desktop,
-database, Kubernetes, and others) is planned.
+Without Resource Constraints, a user can access the application as either AWS
+role when using an approved request. Selecting only `ReadOnly` limits access
+to that role.
 
 ### Availability
 
-Constrained resource requests can only be created through the Teleport Web UI
-and Teleport Connect. The Teleport CLI (`tsh`) supports reviewing and assuming
-these requests, but not yet creating them.
+(!docs/pages/includes/resource-constraints-availability.mdx!)
 
-All Teleport components in the request path (Auth Service, Proxy Service, and
-relevant application servers) must support Resource Constraints. In
-mixed-version clusters, components that do not recognize constraints will
-prevent the creation of constrained resource requests and deny any access to
-constrained resources on existing Resource Access Requests.
+For local resources, Teleport rejects the request if a required service lacks
+support. For a resource in a [trusted
+cluster](../../configuration/resource-guides/trusted-cluster.mdx), verify that
+the leaf cluster supports Resource Constraints. Teleport checks only the root
+cluster at creation.
 
 ## Step 1/6. Grant roles to users
 
@@ -174,13 +163,13 @@ To request access to these resources, run
 Copy the command output by `tsh request search` in the previous step, optionally filling in a request reason.
 
 ```code
-$ tsh request create --resource /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f \
+$ tsh request create --resource /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 \
     --reason "responding to incident 123"
 Creating request...
 Request ID: f406f5d8-3c2a-428f-8547-a1d091a4ddab
 Username:   alice
 Roles:      access
-Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+Resources:  ["/teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738"]
 Reason:     "responding to incident 123"
 Reviewers:  [none] (suggested)
 Status:     PENDING
@@ -203,6 +192,10 @@ $ tsh login --proxy teleport.example.com --user bob
 
 Then list, review, and approve the Access Request.
 
+For requests with selected SSH logins or AWS roles, check the selections for
+each resource before approving. In the Teleport Web UI, these appear under
+**SSH Logins** or **Role ARNs** in the request details.
+
 ```code
 $ tsh request ls
 ID                                   User  Roles  Resources                   Created At (UTC)    Status
@@ -217,7 +210,7 @@ $ tsh request show f406f5d8-3c2a-428f-8547-a1d091a4ddab
 Request ID: f406f5d8-3c2a-428f-8547-a1d091a4ddab
 Username:   alice
 Roles:      access
-Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+Resources:  ["/teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738"]
 Reason:     "responding to incident 123"
 Reviewers:  [none] (suggested)
 Status:     PENDING
@@ -238,13 +231,13 @@ the right people about new Access Requests.
 `alice`'s `tsh request create` command should resolve now that the request has been approved.
 
 ```code
-$ tsh request create --resource /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f \
+$ tsh request create --resource /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 \
     --reason "responding to incident 123"
 Creating request...
 Request ID: f406f5d8-3c2a-428f-8547-a1d091a4ddab
 Username:   alice
 Roles:      access
-Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+Resources:  ["/teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738"]
 Reason:     "responding to incident 123"
 Reviewers:  [none] (suggested)
 Status:     PENDING
@@ -262,7 +255,7 @@ Approval received, getting updated certificates...
   Roles:              access, requester
   Logins:             alice
   Kubernetes:         disabled
-  Allowed Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+  Allowed Resources:  ["/teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738"]
   Valid until:        2022-06-23 22:46:22 -0700 PDT [valid for 11h16m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
@@ -305,7 +298,7 @@ Creating request...
 Request ID: ab43fc70-e893-471b-872e-ae65eb24fd76
 Username:   alice
 Roles:      access
-Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+Resources:  ["/teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738"]
 Reason:     "please"
 Reviewers:  [none] (suggested)
 Status:     PENDING
@@ -319,6 +312,43 @@ Getting updated certificates...
 
 iot:~ alice$
 ```
+
+## Specify Resource Constraints with `tctl`
+
+Before using this example, make sure `alice` can request the `root` login on
+the node through a role in `search_as_roles`.
+
+To request the `root` login on the node from Step 3 for `alice`, add
+`?logins=root` to its resource ID:
+
+```code
+$ tctl requests create alice \
+    --resource '/teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738?logins=root' \
+    --reason "responding to incident 123"
+6d644f9d-4fc7-4f17-9712-1a8ac40786f4
+```
+
+Use the printed request ID to inspect the request:
+
+```code
+$ tctl requests get 6d644f9d-4fc7-4f17-9712-1a8ac40786f4
+Token:            6d644f9d-4fc7-4f17-9712-1a8ac40786f4
+Requestor:        alice
+Metadata:         roles=access
+Resources:        ["/teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 (logins=root)"]
+Created At (UTC): 20 Oct 26 14:00 UTC
+Status:           PENDING
+Request Reason:   "responding to incident 123"
+Resolve Reason:   [none]
+```
+
+`tsh request show` uses the same **Resources** format. The text output of
+`tctl requests ls` lists resource IDs without Resource Constraints.
+
+`tctl requests create` accepts the same `--resource` and `--resource-file`
+values as `tsh request create`. For examples, see
+[Requesting access with Resource Constraints](../../connect-your-client/teleport-clients/request-access.mdx#requesting-access-with-resource-constraints)
+and [Creating Access Requests from a file](../../connect-your-client/teleport-clients/request-access.mdx#creating-access-requests-from-a-file).
 
 ## Restricting the resources a user can request access to
 
