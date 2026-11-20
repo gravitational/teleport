@@ -316,6 +316,27 @@ type Config struct {
 	// UserMonitor config contains configuration for the user monitor service, which is responsible for monitoring
 	// user related changes and updating user_state accordingly.
 	UserMonitor UserMonitorConfig
+
+	// AutoMemLimit config contains configuration for Go runtime memory limit
+	// dynamic configuration.
+	// https://go.dev/doc/gc-guide#Suggested_uses
+	AutoMemLimit AutoMemLimitConfig
+}
+
+// AutoMemLimitConfig is configuration for automatically configuring Go runtime
+// memory limit.
+type AutoMemLimitConfig struct {
+	// Enabled is true if the process should autoconfigure Go runtime memory
+	// limit from cgroups limit.
+	Enabled bool
+	// Ratio is the ratio of cgroups limit that the Go memory limit should be
+	// set to in range (0, 1].
+	Ratio float64
+	// RefreshInterval is the interval at which to re-read the cgroups limit. In
+	// practice, this is likely not a thing that should be exposed to users.
+	// Setting it to 0 disables refreshing.
+	// See https://github.com/gravitational/core/pull/2381#discussion_r4425053738
+	RefreshInterval time.Duration
 }
 
 type ConfigTesting struct {

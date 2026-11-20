@@ -3124,6 +3124,41 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.AuditQueue.Disabled = disabled
 	}
 
+	if rawAutoMemlimit := os.Getenv("TELEPORT_UNSTABLE_AUTO_MEMLIMIT"); rawAutoMemlimit != "" {
+		if runtime.GOOS != constants.LinuxOS {
+			return trace.BadParameter("TELEPORT_UNSTABLE_AUTO_MEMLIMIT is only supported on Linux")
+		}
+		enabled, err := apiutils.ParseBool(rawAutoMemlimit)
+		if err != nil {
+			return trace.Wrap(err, "invalid TELEPORT_UNSTABLE_AUTO_MEMLIMIT %q", rawAutoMemlimit)
+		}
+		const (
+			// https://go.dev/doc/gc-guide#Suggested_uses
+			defaultAutoMemLimitRatio = 0.9
+			// https://github.com/gravitational/core/pull/2381#discussion_r4425053738
+			defaultAutoMemLimitRefreshInterval = 30 * time.Second
+		)
+		cfg.AutoMemLimit = servicecfg.AutoMemLimitConfig{
+			Enabled:         enabled,
+			Ratio:           defaultAutoMemLimitRatio,
+			RefreshInterval: defaultAutoMemLimitRefreshInterval,
+		}
+		if rawRatio := os.Getenv("TELEPORT_UNSTABLE_AUTO_MEMLIMIT_RATIO"); rawRatio != "" {
+			ratio, err := strconv.ParseFloat(rawRatio, 64)
+			if err != nil || math.IsNaN(ratio) || ratio <= 0 || ratio > 1 {
+				return trace.BadParameter("invalid TELEPORT_UNSTABLE_AUTO_MEMLIMIT_RATIO %q, must be in (0, 1]", rawRatio)
+			}
+			cfg.AutoMemLimit.Ratio = ratio
+		}
+		if rawInterval := os.Getenv("TELEPORT_UNSTABLE_AUTO_MEMLIMIT_INTERVAL"); rawInterval != "" {
+			interval, err := time.ParseDuration(rawInterval)
+			if err != nil {
+				return trace.Wrap(err, "invalid TELEPORT_UNSTABLE_AUTO_MEMLIMIT_INTERVAL %q", rawInterval)
+			}
+			cfg.AutoMemLimit.RefreshInterval = interval
+		}
+	}
+
 	// pass the value of --insecure flag to the runtime
 	if clf.InsecureMode {
 		cfg.InsecureMode = true

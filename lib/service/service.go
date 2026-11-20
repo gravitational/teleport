@@ -47,6 +47,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -1573,6 +1574,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 
 	if address := os.Getenv("TELEPORT_PYROSCOPE_SERVER_ADDRESS"); address != "" {
 		process.initPyroscope(address)
+	}
+
+	if err := process.initAutoMemLimit(cfg.AutoMemLimit); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := process.initDebugService(cfg.DebugService.Enabled); err != nil {
@@ -4743,6 +4748,21 @@ func (process *TeleportProcess) initDebugService(exposeDebugRoutes bool) error {
 	})
 
 	return nil
+}
+
+// initAutoMemLimit autoconfigures Go runtime memory limit to a fraction of
+// cgroups limit (90% by default) and refreshes periodically. If cgroups limit
+// is not set, falls back to no limit, which is Go's default behavior.
+// Explicitly set GOMEMLIMIT env var overrides this.
+func (process *TeleportProcess) initAutoMemLimit(cfg servicecfg.AutoMemLimitConfig) error {
+	if !cfg.Enabled {
+		return nil
+	}
+	_, err := memlimit.Set(
+		memlimit.WithRatio(cfg.Ratio),
+		memlimit.WithRefreshInterval(process.ExitContext(), cfg.RefreshInterval),
+	)
+	return trace.Wrap(err, "setting Go memory limit from cgroup memory limit (unset TELEPORT_UNSTABLE_AUTO_MEMLIMIT to disable)")
 }
 
 func (process *TeleportProcess) initTracingService() error {
