@@ -70,8 +70,14 @@
     {
       "id": "application-access",
       "name": "Applications",
-      "segments": ["app", "aws_roles_anywhere", "git", "http", "vnet"],
+      "segments": ["app", "aws_roles_anywhere", "http", "vnet"],
       "introduction": "This page lists audit events related to Teleport-protected applications."
+    },
+    {
+      "id": "git-platforms",
+      "name": "Git",
+      "segments": ["git"],
+      "introduction": "This page lists audit events related to Teleport-protected Git platforms."
     },
     {
       "id": "kubernetes-access",

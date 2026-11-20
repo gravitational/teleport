@@ -1558,7 +1558,12 @@
     },
     {
       "source": "/admin-guides/management/guides/github-integration/",
-      "destination": "/enroll-resources/application-access/cloud-apis/github-integration/",
+      "destination": "/enroll-resources/git-platforms/github-ssh/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/cloud-apis/github-integration/",
+      "destination": "/enroll-resources/git-platforms/github-ssh/",
       "permanent": true
     },
     {
@@ -3423,7 +3428,7 @@
     },
     {
       "source": "/zero-trust-access/management/guides/github-integration/",
-      "destination": "/enroll-resources/application-access/cloud-apis/github-integration/",
+      "destination": "/enroll-resources/git-platforms/github-ssh/",
       "permanent": true
     },
     {
@@ -4009,6 +4014,11 @@
     {
       "source": "/zero-trust-access/rbac-get-started/scopes/",
       "destination": "/zero-trust-access/rbac-get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/git-platforms/getting-started/",
+      "destination": "/enroll-resources/git-platforms/github-https/",
       "permanent": true
     }
   ]

@@ -1,0 +1,13 @@
+- The GitHub CLI (`gh`) is only supported over HTTPS.
+- GitHub over SSH requires a GitHub Enterprise plan for the organization,
+  and always requires a Teleport Enterprise license. HTTPS works with any
+  GitHub plan, and only requires a Teleport Enterprise license if the
+  GitHub organization itself is on GitHub Enterprise.
+- HTTPS uses a GitHub App and Teleport stores the OAuth tokens securely. SSH
+  can use an OAuth app with minimal scope to retrieve user's GitHub identities and
+  short-lived SSH certificates are signed by a Teleport certificate authority that
+  GitHub trusts.
+- HTTPS is not supported when the Teleport cluster runs in FIPS mode. SSH
+  does not have this restriction.
+
+HTTPS is generally the recommended protocol as it also supports the `gh` CLI.

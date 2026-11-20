@@ -1,0 +1,56 @@
+---
+title: Access Controls for Git Platforms
+sidebar_label: Access Controls
+description: Role-based access control (RBAC) for Git platforms protected by Teleport.
+tags:
+ - conceptual
+ - zero-trust
+ - infrastructure-identity
+page_type: conceptual
+---
+
+This page describes the options available for managing role-based access
+controls for Git integrations connected to Teleport.
+
+## Role configuration
+
+To grant access to a GitHub organization such as <Var name="doc-example-org"/>,
+configure the `github_permissions` field of a role:
+
+```yaml
+# role_with_github_permissions.yaml
+kind: role
+metadata:
+  name: github-access
+spec:
+  allow:
+    github_permissions:
+    - orgs:
+      - <Var name="doc-example-org"/>
+      - "{{internal.github_orgs}}"
+      - "{{external.github_orgs}}"
+version: v8
+```
+
+To create the resource with `tctl`, run:
+```code
+$ tctl create role_with_github_permissions.yaml
+```
+
+## Template variables
+
+`github_permissions.orgs` supports trait templating, like other role fields.
+
+`{{internal.github_orgs}}` is populated by
+`tctl users update <user> --set-github-orgs=<org>` and is used by the preset
+`access` role. This applies to local users only, because Teleport rebuilds the
+traits of SSO users from the identity provider at each sign-in.
+
+`{{external.xyz}}` traits are replaced with values from external [single
+sign-on](../../zero-trust-access/sso/sso.mdx) providers. For OIDC, they are
+replaced with the value of an "xyz" claim. For SAML, they are replaced with an
+"xyz" assertion value. For example, `{{external.github_orgs}}` is replaced
+with a user's Okta `github_orgs` assertion.
+
+For full details on how traits work in Teleport roles, see the
+[Access Controls Reference](../../reference/access-controls/roles.mdx).

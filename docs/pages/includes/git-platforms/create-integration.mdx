@@ -1,0 +1,30 @@
+{{ protocol="https" }}
+Create a yaml file that represents the GitHub integration. Replace
+<Var name="doc-example-org" /> with the organization name,
+<Var name="teleport.example.com:443" /> with the host and
+web port of your Teleport Proxy Service, and <Var name="client-id" />
+and <Var name="client-secret" /> with the client ID and secret
+from the previous step.
+
+```yaml
+# github_integration.yaml
+kind: integration
+sub_kind: github
+version: v1
+metadata:
+  name: github-<Var name="doc-example-org"/>
+spec:
+  github:
+    organization: <Var name="doc-example-org"/>
+    oauth_callback_url: https://<Var name="teleport.example.com:443" />/web/github/integration/callback
+    allow_protocols: ["{{ protocol }}"]
+  credentials:
+    id_secret:
+      id: <Var name="client-id"/>
+      secret: <Var name="client-secret"/>
+```
+
+To create the resource with `tctl`, run:
+```code
+$ tctl create github_integration.yaml
+```

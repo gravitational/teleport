@@ -1,0 +1,13 @@
+- You must be an **owner** of the GitHub organization you want to connect.
+- If the organization is on GitHub Enterprise, your Teleport cluster requires
+  a valid Teleport Enterprise license.
+- `git` and `gh` installed and added to your system's `PATH` environment
+  variable.
+
+<Admonition type="warning" title="Compatibility">
+Git over HTTPS is not supported when the Teleport cluster runs in FIPS
+mode. For FIPS clusters, use [GitHub over
+SSH](../../enroll-resources/git-platforms/github-ssh.mdx) instead. Support for
+GitHub Enterprise Server (self-hosted) is not available as of the current
+release.
+</Admonition>

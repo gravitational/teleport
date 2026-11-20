@@ -1,5 +1,6 @@
 ---
-title: Proxy Git Commands with Teleport for GitHub
+title: Connect to GitHub over SSH
+sidebar_label: GitHub over SSH
 description: Use Teleport's short-lived SSH certificates with the GitHub Certificate Authority.
 tags:
  - how-to
@@ -8,8 +9,13 @@ tags:
 page_type: how-to
 ---
 
-Teleport can proxy Git commands and use short-lived SSH certificates to
-authenticate GitHub organizations.
+Teleport protects GitHub organizations with short-lived SSH certificates
+instead of long-lived personal access tokens and SSH keys.
+
+Teleport also supports [GitHub over HTTPS](github-https.mdx), which
+additionally allows the `gh` CLI. See
+[Differences from GitHub over HTTPS](#differences-from-github-over-https)
+for details.
 
 In this guide, you will:
 - Create a GitHub OAuth application.
@@ -29,13 +35,13 @@ use of personal SSH keys and access tokens.
 Teleport users can configure their Git repositories to proxy through Teleport.
 After setup, Git commands automatically route through Teleport, which
 impersonates their GitHub identities using short-lived SSH certificates signed
-by Teleport's CA for authentication with GitHub. Each Git command proxied
-through Teleport is also logged in Teleport's audit events.
+by Teleport's CA for authentication with GitHub. Teleport also records this
+activity in its audit log.
 
 To retrieve a user's GitHub identity, `tsh` initiates the GitHub OAuth flow by
 opening a browser window for the user to log in with their GitHub credentials.
 
-![GitHub SSH certificate authorities](../../../../img/management/how-it-works-github-proxy.svg)
+![GitHub SSH certificate authorities](../../../img/management/how-it-works-github-proxy.svg)
 
 Note that Teleport proxies Git commands through SSH but the users should
 continue to access GitHub through their browsers.
@@ -66,78 +72,36 @@ Go to "OAuth Apps" under "Developer Settings" of your organization's settings.
 Click on "New OAuth App".
 
 Fill in the details. Use the following for "Redirect URIs".
-Replace <Var name="teleport-proxy-address"/> with the host and HTTPS port of
-your Teleport Proxy Service:
+Replace <Var name="teleport.example.com:443" /> with the host and web
+port of your Teleport Proxy Service:
 
 ```code
-https://<Var name="teleport-proxy-address"/>/web/github/integration/callback
+https://<Var name="teleport.example.com:443" />/web/github/integration/callback
 ```
 
 Once the OAuth application is created, create a client secret and remember the
 client ID and the secret for the next step:
 
-![A GitHub Oauth App, highlighting Client ID and secret](../../../../img/sso/github-app-vars.png)
+![A GitHub Oauth App, highlighting Client ID and secret](../../../img/sso/github-app-vars.png)
 
 ## Step 2/4. Create a GitHub integration and export the CAs
 
-Now create a yaml file that represents the Github integration.  Replace
-<Var name="my-github-org" /> with the organization name,
-<Var name="teleport-proxy-address"/> with the host and HTTPS port of your
-Teleport Proxy Service, and replace <Var name="oauth-app-client-id" />
-and <Var name="oauth-app-client-secret" /> with values from the previous step.
-
-```yaml
-# github_integration.yaml
-kind: integration
-sub_kind: github
-version: v1
-metadata:
-  name: github-<Var name="my-github-org"/>
-spec:
-  github:
-    organization: <Var name="my-github-org"/>
-    oauth_callback_url: https://<Var name="teleport-proxy-address"/>/web/github/integration/callback
-  credentials:
-    id_secret:
-      id: <Var name="oauth-app-client-id"/>
-      secret: <Var name="oauth-app-client-secret"/>
-```
-
-To create the resource with `tctl`, run:
-```code
-$ tctl create github_integration.yaml
-```
+(!docs/pages/includes/git-platforms/create-integration.mdx protocol="ssh"!)
 
 Once the integration resource is created, export the CA to be used for GitHub:
 ```code
-$ tctl auth export --type github --integration github-<Var name="my-github-org"/>
+$ tctl auth export --type github --integration github-<Var name="doc-example-org"/>
 ```
 
 Now go to the "Authentication Security" page of your GitHub organization. Click
 on "New CA" under the "SSH certificate authorities" section, and paste the CA
 exported from the `tctl auth export` command above.
 
-![GitHub SSH certificate authorities](../../../../img/management/github-new-ca@2x.png)
+![GitHub SSH certificate authorities](../../../img/management/github-new-ca@2x.png)
 
 ## Step 3/4. Configure access
 
-User access is granted through `git_server` resources. The `git_server`
-references the integration created in the previous step:
-```yaml
-# git_server.yaml
-kind: git_server
-sub_kind: github
-version: v2
-spec:
-  github:
-    integration: github-<Var name="my-github-org"/>
-    organization: <Var name="my-github-org"/>
-```
-
-To create the resource with `tctl`, run:
-```code
-$ tctl create git_server.yaml
-```
+(!docs/pages/includes/git-platforms/create-git-server.mdx protocol="ssh"!)
 
 The user role must have `github_permissions` configured to allow access to your
 GitHub organization. For example:
@@ -150,15 +114,19 @@ spec:
   allow:
     github_permissions:
     - orgs:
-      - <Var name="my-github-org"/>
-version: v7
+      - <Var name="doc-example-org"/>
+version: v8
 ```
 
 (!docs/pages/includes/add-role-to-user.mdx role="github-access"!)
 
 ## Step 4/4. Connect
 
-(!docs/pages/connect-your-client/includes/tsh-git.mdx!)
+(!docs/pages/includes/git-platforms/tsh-git-ls.mdx!)
+
+(!docs/pages/includes/git-platforms/tsh-git-login.mdx authScreenshot="../../../img/github-sso-auth-screen.jpg"!)
+
+(!docs/pages/includes/git-platforms/tsh-git-clone-ssh.mdx!)
 
 ## Migrate to the authenticated callback URL
 
@@ -168,23 +136,23 @@ authenticated callback URL.
 
 First, go to the settings page for your GitHub OAuth application. Add the
 following to "Redirect URIs". Replace
-<Var name="teleport-proxy-address"/> with the host and HTTPS port of your
-Teleport Proxy Service:
+<Var name="teleport.example.com:443" /> with the host and web port of
+your Teleport Proxy Service:
 
 ```code
-https://<Var name="teleport-proxy-address"/>/web/github/integration/callback
+https://<Var name="teleport.example.com:443" />/web/github/integration/callback
 ```
 
 If the same OAuth application is also used for GitHub SSO login, keep the
 existing callback URL used for GitHub SSO (for example,
-`https://<Var name="teleport-proxy-address"/>/v1/webapi/github/callback`)
+`https://<Var name="teleport.example.com:443" />/v1/webapi/github/callback`)
 and add the new URL as an additional redirect URI. GitHub OAuth applications
 support multiple redirect URIs.
 
 Then update the Teleport integration resource:
 
 ```code
-$ tctl edit integration/github-<Var name="my-github-org"/>
+$ tctl edit integration/github-<Var name="doc-example-org"/>
 ```
 
 Set `oauth_callback_url` under the `github` spec:
@@ -192,32 +160,23 @@ Set `oauth_callback_url` under the `github` spec:
 ```yaml
 spec:
   github:
-    organization: <Var name="my-github-org"/>
-    oauth_callback_url: https://<Var name="teleport-proxy-address"/>/web/github/integration/callback
+    organization: <Var name="doc-example-org"/>
+    oauth_callback_url: https://<Var name="teleport.example.com:443" />/web/github/integration/callback
 ```
 
 ## Troubleshooting
 
-### `redirect_uri` is not associated with this application
-
-![GitHub redirect URI error](../../../../img/management/github-redirect-uri-error.png)
-
-This error from GitHub means the callback URL configured on the Teleport
-integration does not match the callback URL registered on the GitHub OAuth
-application. Verify both values match:
-
-1. Check the callback URL on GitHub in your OAuth application settings.
-2. Check the callback URL on the Teleport integration:
-
-```code
-$ tctl get integration/github-<Var name="my-github-org"/>
-```
-
-Verify that `oauth_callback_url` in the integration resource matches the
-callback URL registered on your GitHub OAuth application.
+(!docs/pages/includes/git-platforms/redirect-uri-error.mdx!)
 
 If you have not migrated to the authenticated callback URL, see
 [Migrate to the authenticated callback URL](#migrate-to-the-authenticated-callback-url).
+
+## Differences from GitHub over HTTPS
+
+Teleport also supports [GitHub over HTTPS](github-https.mdx). The two
+protocols differ in a few ways:
+
+(!docs/pages/includes/git-platforms/github-https-ssh-differences.mdx!)
 
 ## Further reading
 - [Creating a GitHub OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app)

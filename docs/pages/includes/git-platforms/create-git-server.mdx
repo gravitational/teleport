@@ -1,0 +1,21 @@
+{{ protocol="https" }}
+User access is granted through `git_server` resources. The `git_server`
+references the integration created above:
+```yaml
+# git_server.yaml
+kind: git_server
+sub_kind: github
+version: v2
+metadata:
+  name: github-<Var name="doc-example-org"/>
+spec:
+  github:
+    integration: github-<Var name="doc-example-org"/>
+    organization: <Var name="doc-example-org"/>
+    allow_protocols: ["{{ protocol }}"]
+```
+
+To create the resource with `tctl`, run:
+```code
+$ tctl create git_server.yaml
+```

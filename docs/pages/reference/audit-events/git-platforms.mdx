@@ -1,0 +1,152 @@
+---
+title: Git Audit Events
+description: "Provides a list of Git audit events."
+sidebar_label: Git
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, run `make audit-event-reference` */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+This page lists audit events related to Teleport-protected Git platforms.
+
+
+
+## git.access
+
+Git Accessed
+
+Example:
+
+```json
+{
+  "code": "TGIT003I",
+  "event": "git.access",
+  "time": "2024-12-07T11:11:11.115Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe376",
+  "user": "Linus.Torvalds",
+  "git_session_id": "session-001",
+  "git_service_type": "github",
+  "git_server_name": "github-my-org",
+  "git_organization": "my-org",
+  "git_protocol": "https"
+}
+```
+
+## git.command
+
+There are multiple events with the `git.command` type.
+
+### TGIT001E
+
+Git Command Failed
+
+Example:
+
+```json
+{
+  "code": "TGIT001E",
+  "event": "git.command",
+  "time": "2024-12-07T11:11:11.111Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe373",
+  "user": "Linus.Torvalds",
+  "service": "git-upload-pack",
+  "exitError": "some-error",
+  "path": "my-org/my-repo",
+  "git_service_type": "github",
+  "git_server_name": "github-my-org",
+  "git_organization": "my-org",
+  "git_integration": "github-my-org",
+  "git_protocol": "ssh"
+}
+```
+
+### TGIT001I
+
+Git Command
+
+Example:
+
+```json
+{
+  "code": "TGIT001I",
+  "event": "git.command",
+  "time": "2024-12-07T11:11:11.112Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe373",
+  "user": "Linus.Torvalds",
+  "service": "git-upload-pack",
+  "path": "my-org/my-repo",
+  "git_service_type": "github",
+  "git_server_name": "github-my-org",
+  "git_organization": "my-org",
+  "git_integration": "github-my-org",
+  "git_protocol": "ssh"
+}
+```
+
+## git.login
+
+There are multiple events with the `git.login` type.
+
+### TGIT002I
+
+Git Login
+
+Example:
+
+```json
+{
+  "code": "TGIT002I",
+  "event": "git.login",
+  "time": "2024-12-07T11:11:11.113Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe374",
+  "user": "Linus.Torvalds",
+  "git_service_type": "github",
+  "git_integration": "my-github-integration",
+  "external_username": "torvalds",
+  "credentials_stored": true
+}
+```
+
+### TGIT002E
+
+Git Login Failed
+
+Example:
+
+```json
+{
+  "code": "TGIT002E",
+  "event": "git.login",
+  "time": "2024-12-07T11:11:11.114Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe375",
+  "user": "Linus.Torvalds",
+  "git_service_type": "github"
+}
+```
+
+## git.session.chunk
+
+Git Session Data
+
+Example:
+
+```json
+{
+  "code": "TGIT004I",
+  "event": "git.session.chunk",
+  "time": "2024-12-07T11:11:11.116Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe377",
+  "user": "Linus.Torvalds",
+  "sid": "session-001",
+  "session_chunk_id": "chunk-001",
+  "git_service_type": "github",
+  "git_server_name": "github-my-org",
+  "git_organization": "my-org",
+  "git_protocol": "https"
+}
+```

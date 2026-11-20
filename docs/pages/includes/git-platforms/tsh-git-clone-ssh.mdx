@@ -1,0 +1,33 @@
+To clone a repository from your GitHub organization, copy its SSH clone URL
+from the repository page on GitHub (**Code** > **SSH**) and run:
+```code
+$ tsh git clone git@github.com:doc-example-org/my-repo.git
+Cloning into 'my-repo'...
+```
+
+<details>
+<summary>Configuring an existing Git repository instead</summary>
+
+To configure an existing Git repository to proxy through Teleport, go to the
+repository and run:
+```code
+$ tsh git config update
+Remote "origin" is updated to use Teleport over SSH.
+```
+
+`tsh git config update` configures the protocol matching the current URL
+scheme of the "origin" remote, for example SSH if the remote already uses an
+SSH URL. To switch protocols instead, update the remote URL first, for
+example:
+```code
+$ git remote set-url origin git@github.com:doc-example-org/my-repo.git
+```
+then run `tsh git config update` again.
+
+</details>
+
+Once the repo is cloned or configured, use `git` commands as normal:
+```code
+$ cd my-repo
+$ git fetch
+```

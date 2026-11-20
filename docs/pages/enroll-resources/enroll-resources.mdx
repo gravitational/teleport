@@ -22,6 +22,7 @@ import databaseSvg from "@site/src/components/Icon/teleport-svg/database-access.
 import kubernetesClustersSvg from "@site/src/components/Icon/teleport-svg/kubernetes-clusters.svg";
 import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-desktops.svg";
 import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
+import githubSvg from "@site/src/components/Icon/svg/github.svg";
 
 <LandingHero
   title="Enroll Resources"
@@ -229,6 +230,31 @@ tagLists={
 }
 >
 Secure the vibes with access controls and auditability for all Model Context Protocol access.
+</Method>
+<Method
+title="Git Platforms"
+icon={githubSvg}
+href="./git-platforms/"
+tagLists={
+  [
+    {
+      title: "Git Platform Guides",
+      tags:
+        [
+          {
+            name: "GitHub over HTTPS",
+            href: "./git-platforms/github-https/",
+          },
+          {
+            name: "Access Controls",
+            href: "./git-platforms/access-controls/",
+          },
+        ]
+    },
+  ]
+}
+>
+Protect your GitHub organizations with short-lived credentials instead of long-lived personal access tokens and SSH keys.
 </Method>
 </EnrollmentMethods>
 

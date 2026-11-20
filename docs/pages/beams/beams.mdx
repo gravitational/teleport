@@ -73,7 +73,9 @@ and inference endpoints with full audit and access control.
 ```code
 $ tsh beams add
 ◆ created tidal-memory
-beams@tidal-memory:~$ claude --dangerously-skip-permissions \
+
+# Inside the beam
+$ claude --dangerously-skip-permissions \
   "Connect to the HR database and tell me who hasn't had a pay raise in a while"
 ```
 
@@ -93,9 +95,15 @@ and return to it later:
 
 ```code
 $ tsh phase add workspace
+
+# Inside the build Beam, clone a repo through Teleport
+$ tsh git clone https://github.com/my-org/my-app.git
+$ cd my-app
+
+# Start an AI assistant and start coding
+$ claude init
 ```
 
-Inside the build Beam, clone your repository and start an assistant.
 See the [save-and-reopen workflow](#save-a-workspace-and-return-to-it) for how
 to save your work and return later.
 
@@ -114,6 +122,21 @@ Apps that expose gRPC APIs are better suited as [TCP
 applications](../enroll-resources/application-access/protect-apps/tcp.mdx)
 than web applications. Run `tsh beams publish` with the `--tcp` flag to register
 the app as a TCP application.
+
+When you're ready to commit your changes, push them and open a pull request
+with `gh` through Teleport:
+
+```code
+# Inside the beam
+$ git checkout -b my-change
+$ git commit -am "Update from a beam"
+$ git push -u origin my-change
+$ alias gh='tsh gh --'
+$ gh pr create --fill
+```
+
+To set up the GitHub integration, see [Connect to GitHub over
+HTTPS](../enroll-resources/git-platforms/github-https.mdx).
 
 ## Interacting with Beams via `tsh`
 

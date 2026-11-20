@@ -1,0 +1,9 @@
+{{ authScreenshot="../../../img/github-app-auth-screen.png" }}
+Connect your GitHub identity so Teleport can act on your behalf:
+```code
+$ tsh git login --github-org doc-example-org
+```
+
+This command opens a browser, prompting you to authorize access to your
+GitHub account:
+![GitHub authorization view]({{ authScreenshot }})

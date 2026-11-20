@@ -1,0 +1,42 @@
+You can grant access to the GitHub organization with a custom role or with
+the preset `access` role.
+
+<Tabs>
+<TabItem label="Use a custom role">
+
+Create a role that grants access to the organization:
+
+```yaml
+# role_with_github_permissions.yaml
+kind: role
+metadata:
+  name: github-access
+spec:
+  allow:
+    github_permissions:
+    - orgs:
+      - <Var name="doc-example-org" />
+version: v8
+```
+
+Create the role:
+```code
+$ tctl create role_with_github_permissions.yaml
+```
+
+(!docs/pages/includes/add-role-to-user.mdx role="github-access"!)
+
+</TabItem>
+<TabItem label="Use the preset access role (local users)">
+
+If a local user already has the preset `access` role, grant them access to the
+organization. Replace <Var name="teleport-user" /> with the name of the user:
+
+```code
+$ tctl users update <Var name="teleport-user" /> --set-github-orgs=<Var name="doc-example-org" />
+```
+
+Sign out of the Teleport cluster and sign in again to pick up the new access.
+
+</TabItem>
+</Tabs>

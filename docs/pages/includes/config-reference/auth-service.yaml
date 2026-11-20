@@ -543,3 +543,12 @@ auth_service:
       pin: "0001password"
       # pin_path can optionally be used to read the pin from a file
       # pin_path: /path/to/pin_file
+
+  # user_external_credentials configures user external credentials, e.g.
+  # GitHub credentials for Git over HTTPS.
+  user_external_credentials:
+    # encryption_mode configures how the Auth encryption key of user external
+    # credentials is managed. "" (default) uses the same keystore as the keys
+    # defined in "ca_key_params". "software" uses a software key stored in
+    # the backend instead, for Auth servers that do not share an HSM or KMS.
+    encryption_mode: ""

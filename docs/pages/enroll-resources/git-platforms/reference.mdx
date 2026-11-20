@@ -1,0 +1,89 @@
+---
+title: Git Platforms Reference
+sidebar_label: Reference
+description: Resource shapes, allowed protocols, and audit events for Git platforms protected by Teleport.
+tags:
+ - reference
+ - zero-trust
+ - infrastructure-identity
+page_type: reference
+---
+
+This page lists the configuration options, resource shapes, and audit events
+for Git platforms protected by Teleport.
+
+## Configuration
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+Git over HTTPS stores each user's GitHub credentials encrypted with an
+Auth-layer key, configured in the `auth_service` section of `teleport.yaml`:
+
+(!docs/pages/includes/git-platforms/user-external-credentials-config.mdx!)
+
+See [User External Credentials](../../reference/architecture/user-external-credentials.mdx)
+for more on how this encryption works.
+
+## `integration` resource
+
+A GitHub integration stores the OAuth or GitHub App credentials used to act
+on behalf of users. One integration resource exists per connected GitHub
+organization.
+
+```yaml
+kind: integration
+sub_kind: github
+version: v1
+metadata:
+  name: github-<Var name="doc-example-org"/>
+spec:
+  github:
+    # The GitHub organization name.
+    organization: <Var name="doc-example-org"/>
+    # The full callback URL for the GitHub OAuth flow, including the proxy's
+    # public address and web port.
+    oauth_callback_url: https://<Var name="teleport.example.com:443" />/web/github/integration/callback
+    # Which protocols the organization allows via Teleport: "ssh", "https", or both
+    allow_protocols: ["https"]
+
+  # Only settable when creating or updating the resource (e.g. tctl create/edit)
+  credentials:
+    # The client ID and secret of the OAuth app (SSH-only integrations) or
+    # GitHub App (HTTPS integrations).
+    id_secret:
+      id: <Var name="oauth-app-or-github-app-client-id"/>
+      secret: <Var name="oauth-app-or-github-app-client-secret"/>
+```
+
+Set <Var name="oauth-app-or-github-app-client-id"/> and
+<Var name="oauth-app-or-github-app-client-secret"/> to the client ID and
+secret of your GitHub OAuth app (SSH-only integrations) or GitHub App (HTTPS
+integrations). Replace <Var name="teleport.example.com:443" /> with the
+host and web port of your Teleport Proxy Service.
+
+## `git_server` resource
+
+A `git_server` resource grants users access to a GitHub organization through
+an `integration`. The `git_server`'s `allow_protocols` must match the
+integration's.
+
+```yaml
+kind: git_server
+sub_kind: github
+version: v2
+metadata:
+  name: github-<Var name="doc-example-org"/>
+spec:
+  github:
+    # Name of the integration resource this git_server references.
+    integration: github-<Var name="doc-example-org"/>
+    # The GitHub organization name. Must match integration's organization.
+    organization: <Var name="doc-example-org"/>
+    # Must match the integration's allow_protocols.
+    allow_protocols: ["https"]
+```
+
+## Audit events
+
+See the [Git audit event reference](../../reference/audit-events/git-platforms.mdx)
+for the events Teleport records for Git platforms.
