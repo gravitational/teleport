@@ -1120,4 +1120,6 @@ const (
 	// BeamsLLMRecordingEnvVar, when truthy, opts a beam's app service into
 	// recording LLM traffic for later replay.
 	BeamsLLMRecordingEnvVar = "TELEPORT_BEAMS_LLM_RECORDING"
+
+	EnvVarUnstableIncreasePIVCacheTTL = "TELEPORT_UNSTABLE_INCREASE_PIV_CACHE_TTL"
 )

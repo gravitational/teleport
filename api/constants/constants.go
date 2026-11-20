@@ -626,7 +626,11 @@ const (
 )
 
 // MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.
-const MaxPIVPINCacheTTL = time.Hour
+// Some older clients enforce a shorter limit of one hour.
+const MaxPIVPINCacheTTL = 23 * time.Hour
+
+// CompatibleMaxPIVPINCacheTTL is the maximum PIV PIN cache TTL supported for older client compatibility.
+const CompatibleMaxPIVPINCacheTTL = 1 * time.Hour
 
 // AutoUpdateAgentReportPeriod is the period of the autoupdate agent reporting
 // routine running in every auth server. Any report older than this period should

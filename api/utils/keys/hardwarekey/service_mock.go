@@ -101,7 +101,7 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 	var priv crypto.Signer
 	switch config.Algorithm {
 	// Use ECDSA key by default.
-	case SignatureAlgorithmEC256, 0:
+	case SignatureAlgorithmEC256, SignatureAlgorithmUnspecified:
 		priv, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	case SignatureAlgorithmEd25519:
 		_, priv, err = ed25519.GenerateKey(rand.Reader)

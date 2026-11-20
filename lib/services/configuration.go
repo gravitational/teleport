@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"iter"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -175,7 +176,7 @@ type StaticScopedTokenService interface {
 // ValidateAuthPreference performs checks that should happen before persisting a
 // new version of the preference resource, typically only as part of Auth
 // service operations.
-func ValidateAuthPreference(ap types.AuthPreference) error {
+func ValidateAuthPreference(ap types.AuthPreference, maxPIVPINCacheTTL time.Duration) error {
 	// TODO(espadolini): the checks that are duplicated in
 	// {Set,Create,Update,Upsert}AuthPreference should be moved here
 	if err := modules.ValidateResource(ap); err != nil {
@@ -189,6 +190,9 @@ func ValidateAuthPreference(ap types.AuthPreference) error {
 	if hk, err := ap.GetHardwareKey(); err == nil {
 		if err := ValidateHumanPrivateKeyPolicy(hk.HumanPrivateKeyPolicy); err != nil {
 			return trace.Wrap(err)
+		}
+		if hk.PinCacheTTL.Duration() > maxPIVPINCacheTTL {
+			return trace.BadParameter("hardware key PIN cache TTL %q is longer than max TTL %q", hk.PinCacheTTL.Duration(), maxPIVPINCacheTTL)
 		}
 	}
 

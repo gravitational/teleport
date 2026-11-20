@@ -112,7 +112,7 @@ func PIVSlotKeyFromProto(pivSlot hardwarekeyagentv1.PIVSlotKey) (PIVSlotKey, err
 	return slotKey, nil
 }
 
-// PIVSlotKeyFromProto convert the piv slot key to proto.
+// PIVSlotKeyToProto convert the piv slot key to proto.
 func PIVSlotKeyToProto(slotKey PIVSlotKey) (hardwarekeyagentv1.PIVSlotKey, error) {
 	switch slotKey {
 	case pivSlot9A:

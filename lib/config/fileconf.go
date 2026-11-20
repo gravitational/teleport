@@ -33,6 +33,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1510,7 +1511,17 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateAuthPreference(ap); err != nil {
+	pivCacheTTL := constants.CompatibleMaxPIVPINCacheTTL
+	if env := os.Getenv(teleport.EnvVarUnstableIncreasePIVCacheTTL); env != "" {
+		ok, err := strconv.ParseBool(env)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing env var: "+teleport.EnvVarUnstableIncreasePIVCacheTTL)
+		}
+		if ok {
+			pivCacheTTL = constants.MaxPIVPINCacheTTL
+		}
+	}
+	if err := services.ValidateAuthPreference(ap, pivCacheTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

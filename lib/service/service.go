@@ -2555,6 +2555,16 @@ func (process *TeleportProcess) initAuthService() error {
 		unstableFeatures.ReviewTraits = reviewTraits
 	}
 
+	if env := os.Getenv(teleport.EnvVarUnstableIncreasePIVCacheTTL); env != "" {
+		ok, err := strconv.ParseBool(env)
+		if err != nil {
+			return trace.Wrap(err, "parsing env var: "+teleport.EnvVarUnstableIncreasePIVCacheTTL)
+		}
+		if ok {
+			unstableFeatures.OverridePIVCacheTTL = constants.MaxPIVPINCacheTTL
+		}
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(
 		process.ExitContext(),

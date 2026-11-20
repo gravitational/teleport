@@ -46,3 +46,9 @@ func (s *unavailableYubiKeyPIVService) Sign(_ context.Context, _ *hardwarekey.Pr
 }
 
 func (s *unavailableYubiKeyPIVService) SetPrompt(_ hardwarekey.Prompt) {}
+
+// IsPIVBuild returns whether the current build supports PIV.
+// Used to fail early.
+func IsPIVBuild() bool {
+	return false
+}

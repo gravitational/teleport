@@ -23,6 +23,7 @@
 package hardwarekeyagentv1
 
 import (
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -138,6 +139,54 @@ func (Hash) Type() protoreflect.EnumType {
 }
 
 func (x Hash) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// SignatureAlgorithm is a signature key algorithm option.
+type SignatureAlgorithm int32
+
+const (
+	SignatureAlgorithm_SIGNATURE_ALGORITHM_UNSPECIFIED SignatureAlgorithm = 0
+	SignatureAlgorithm_SIGNATURE_ALGORITHM_EC256       SignatureAlgorithm = 1
+	SignatureAlgorithm_SIGNATURE_ALGORITHM_ED25519     SignatureAlgorithm = 2
+	SignatureAlgorithm_SIGNATURE_ALGORITHM_RSA2048     SignatureAlgorithm = 3
+)
+
+// Enum value maps for SignatureAlgorithm.
+var (
+	SignatureAlgorithm_name = map[int32]string{
+		0: "SIGNATURE_ALGORITHM_UNSPECIFIED",
+		1: "SIGNATURE_ALGORITHM_EC256",
+		2: "SIGNATURE_ALGORITHM_ED25519",
+		3: "SIGNATURE_ALGORITHM_RSA2048",
+	}
+	SignatureAlgorithm_value = map[string]int32{
+		"SIGNATURE_ALGORITHM_UNSPECIFIED": 0,
+		"SIGNATURE_ALGORITHM_EC256":       1,
+		"SIGNATURE_ALGORITHM_ED25519":     2,
+		"SIGNATURE_ALGORITHM_RSA2048":     3,
+	}
+)
+
+func (x SignatureAlgorithm) Enum() *SignatureAlgorithm {
+	p := new(SignatureAlgorithm)
+	*p = x
+	return p
+}
+
+func (x SignatureAlgorithm) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SignatureAlgorithm) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes[2].Descriptor()
+}
+
+func (SignatureAlgorithm) Type() protoreflect.EnumType {
+	return &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes[2]
+}
+
+func (x SignatureAlgorithm) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
@@ -871,11 +920,671 @@ func (b0 ECDHResponse_builder) Build() *ECDHResponse {
 	return m0
 }
 
+// NewPrivateKeyRequest is a request to check if a private key exists with the proper configuration and create it otherwise.
+type NewPrivateKeyRequest struct {
+	state                       protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_PrivateKeyConfig *PrivateKeyConfig      `protobuf:"bytes,1,opt,name=private_key_config,json=privateKeyConfig,proto3"`
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
+}
+
+func (x *NewPrivateKeyRequest) Reset() {
+	*x = NewPrivateKeyRequest{}
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NewPrivateKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NewPrivateKeyRequest) ProtoMessage() {}
+
+func (x *NewPrivateKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *NewPrivateKeyRequest) GetPrivateKeyConfig() *PrivateKeyConfig {
+	if x != nil {
+		return x.xxx_hidden_PrivateKeyConfig
+	}
+	return nil
+}
+
+func (x *NewPrivateKeyRequest) SetPrivateKeyConfig(v *PrivateKeyConfig) {
+	x.xxx_hidden_PrivateKeyConfig = v
+}
+
+func (x *NewPrivateKeyRequest) HasPrivateKeyConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_PrivateKeyConfig != nil
+}
+
+func (x *NewPrivateKeyRequest) ClearPrivateKeyConfig() {
+	x.xxx_hidden_PrivateKeyConfig = nil
+}
+
+type NewPrivateKeyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PrivateKeyConfig is the config of the desired key.
+	PrivateKeyConfig *PrivateKeyConfig
+}
+
+func (b0 NewPrivateKeyRequest_builder) Build() *NewPrivateKeyRequest {
+	m0 := &NewPrivateKeyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_PrivateKeyConfig = b.PrivateKeyConfig
+	return m0
+}
+
+// PrivateKeyConfig describes the desired properties of a private key.
+type PrivateKeyConfig struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Policy      *KeyPolicy             `protobuf:"bytes,1,opt,name=policy,proto3"`
+	xxx_hidden_CustomSlot  string                 `protobuf:"bytes,2,opt,name=custom_slot,json=customSlot,proto3"`
+	xxx_hidden_Algorithm   SignatureAlgorithm     `protobuf:"varint,3,opt,name=algorithm,proto3,enum=teleport.hardwarekeyagent.v1.SignatureAlgorithm"`
+	xxx_hidden_KeyInfo     *NewKeyInfo            `protobuf:"bytes,4,opt,name=key_info,json=keyInfo,proto3"`
+	xxx_hidden_PinCacheTtl *durationpb.Duration   `protobuf:"bytes,6,opt,name=pin_cache_ttl,json=pinCacheTtl,proto3"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *PrivateKeyConfig) Reset() {
+	*x = PrivateKeyConfig{}
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrivateKeyConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrivateKeyConfig) ProtoMessage() {}
+
+func (x *PrivateKeyConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *PrivateKeyConfig) GetPolicy() *KeyPolicy {
+	if x != nil {
+		return x.xxx_hidden_Policy
+	}
+	return nil
+}
+
+func (x *PrivateKeyConfig) GetCustomSlot() string {
+	if x != nil {
+		return x.xxx_hidden_CustomSlot
+	}
+	return ""
+}
+
+func (x *PrivateKeyConfig) GetAlgorithm() SignatureAlgorithm {
+	if x != nil {
+		return x.xxx_hidden_Algorithm
+	}
+	return SignatureAlgorithm_SIGNATURE_ALGORITHM_UNSPECIFIED
+}
+
+func (x *PrivateKeyConfig) GetKeyInfo() *NewKeyInfo {
+	if x != nil {
+		return x.xxx_hidden_KeyInfo
+	}
+	return nil
+}
+
+func (x *PrivateKeyConfig) GetPinCacheTtl() *durationpb.Duration {
+	if x != nil {
+		return x.xxx_hidden_PinCacheTtl
+	}
+	return nil
+}
+
+func (x *PrivateKeyConfig) SetPolicy(v *KeyPolicy) {
+	x.xxx_hidden_Policy = v
+}
+
+func (x *PrivateKeyConfig) SetCustomSlot(v string) {
+	x.xxx_hidden_CustomSlot = v
+}
+
+func (x *PrivateKeyConfig) SetAlgorithm(v SignatureAlgorithm) {
+	x.xxx_hidden_Algorithm = v
+}
+
+func (x *PrivateKeyConfig) SetKeyInfo(v *NewKeyInfo) {
+	x.xxx_hidden_KeyInfo = v
+}
+
+func (x *PrivateKeyConfig) SetPinCacheTtl(v *durationpb.Duration) {
+	x.xxx_hidden_PinCacheTtl = v
+}
+
+func (x *PrivateKeyConfig) HasPolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Policy != nil
+}
+
+func (x *PrivateKeyConfig) HasKeyInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_KeyInfo != nil
+}
+
+func (x *PrivateKeyConfig) HasPinCacheTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_PinCacheTtl != nil
+}
+
+func (x *PrivateKeyConfig) ClearPolicy() {
+	x.xxx_hidden_Policy = nil
+}
+
+func (x *PrivateKeyConfig) ClearKeyInfo() {
+	x.xxx_hidden_KeyInfo = nil
+}
+
+func (x *PrivateKeyConfig) ClearPinCacheTtl() {
+	x.xxx_hidden_PinCacheTtl = nil
+}
+
+type PrivateKeyConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Policy describes the hardware key prompt policy (touch, pin, ...)
+	Policy *KeyPolicy
+	// CustomSlot is a specific PIV slot to generate the hardware private key in.
+	// If unset, the default slot for the given policy will be used.
+	// Note: not reusing the PIVSlotKey enum because the custom slot can be null.
+	// Example values: "9a", "9b", "9c".
+	CustomSlot string
+	// Algorithm is the key algorithm to use. Defaults to [AlgorithmEC256].
+	// [AlgorithmEd25519] is not supported by all hardware keys.
+	Algorithm SignatureAlgorithm
+	// Contains ContextualKeyInfo
+	KeyInfo *NewKeyInfo
+	// PinCacheTtl is the amount of time that the PIN should be cached for
+	// PIN prompts associated with this key. A TTL of 0 means no PIN caching.
+	PinCacheTtl *durationpb.Duration
+}
+
+func (b0 PrivateKeyConfig_builder) Build() *PrivateKeyConfig {
+	m0 := &PrivateKeyConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Policy = b.Policy
+	x.xxx_hidden_CustomSlot = b.CustomSlot
+	x.xxx_hidden_Algorithm = b.Algorithm
+	x.xxx_hidden_KeyInfo = b.KeyInfo
+	x.xxx_hidden_PinCacheTtl = b.PinCacheTtl
+	return m0
+}
+
+// NewKeyInfo contains the information about what the new key can be used for.
+// It matches [hardwarekey.ContextualKeyInfo] structure more closely than KeyInfo.
+type NewKeyInfo struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ProxyHost   string                 `protobuf:"bytes,1,opt,name=proxy_host,json=proxyHost,proto3"`
+	xxx_hidden_Username    string                 `protobuf:"bytes,2,opt,name=username,proto3"`
+	xxx_hidden_ClusterName string                 `protobuf:"bytes,3,opt,name=cluster_name,json=clusterName,proto3"`
+	xxx_hidden_Command     string                 `protobuf:"bytes,4,opt,name=command,proto3"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *NewKeyInfo) Reset() {
+	*x = NewKeyInfo{}
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NewKeyInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NewKeyInfo) ProtoMessage() {}
+
+func (x *NewKeyInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *NewKeyInfo) GetProxyHost() string {
+	if x != nil {
+		return x.xxx_hidden_ProxyHost
+	}
+	return ""
+}
+
+func (x *NewKeyInfo) GetUsername() string {
+	if x != nil {
+		return x.xxx_hidden_Username
+	}
+	return ""
+}
+
+func (x *NewKeyInfo) GetClusterName() string {
+	if x != nil {
+		return x.xxx_hidden_ClusterName
+	}
+	return ""
+}
+
+func (x *NewKeyInfo) GetCommand() string {
+	if x != nil {
+		return x.xxx_hidden_Command
+	}
+	return ""
+}
+
+func (x *NewKeyInfo) SetProxyHost(v string) {
+	x.xxx_hidden_ProxyHost = v
+}
+
+func (x *NewKeyInfo) SetUsername(v string) {
+	x.xxx_hidden_Username = v
+}
+
+func (x *NewKeyInfo) SetClusterName(v string) {
+	x.xxx_hidden_ClusterName = v
+}
+
+func (x *NewKeyInfo) SetCommand(v string) {
+	x.xxx_hidden_Command = v
+}
+
+type NewKeyInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ProxyHost is the root proxy hostname that the key is associated with.
+	ProxyHost string
+	// Username is a Teleport username that the key is associated with.
+	// May be used to add context to PIN/touch prompts.
+	Username string
+	// ClusterName is a Teleport cluster name that the key is associated with.
+	// May be used to add context to PIN/touch prompts.
+	ClusterName string
+	// Command is the command reported by the agent client which this agent key is being utilized to
+	// complete, e.g. `tsh ssh server01`.
+	Command string
+}
+
+func (b0 NewKeyInfo_builder) Build() *NewKeyInfo {
+	m0 := &NewKeyInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_ProxyHost = b.ProxyHost
+	x.xxx_hidden_Username = b.Username
+	x.xxx_hidden_ClusterName = b.ClusterName
+	x.xxx_hidden_Command = b.Command
+	return m0
+}
+
+// KeyPolicy describes the hardware key prompt policy (touch, pin, ...)
+type KeyPolicy struct {
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_TouchRequired bool                   `protobuf:"varint,1,opt,name=touch_required,json=touchRequired,proto3"`
+	xxx_hidden_PinRequired   bool                   `protobuf:"varint,2,opt,name=pin_required,json=pinRequired,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *KeyPolicy) Reset() {
+	*x = KeyPolicy{}
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KeyPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KeyPolicy) ProtoMessage() {}
+
+func (x *KeyPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *KeyPolicy) GetTouchRequired() bool {
+	if x != nil {
+		return x.xxx_hidden_TouchRequired
+	}
+	return false
+}
+
+func (x *KeyPolicy) GetPinRequired() bool {
+	if x != nil {
+		return x.xxx_hidden_PinRequired
+	}
+	return false
+}
+
+func (x *KeyPolicy) SetTouchRequired(v bool) {
+	x.xxx_hidden_TouchRequired = v
+}
+
+func (x *KeyPolicy) SetPinRequired(v bool) {
+	x.xxx_hidden_PinRequired = v
+}
+
+type KeyPolicy_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TouchRequired is a client hint as to whether the hardware private key requires touch.
+	// The agent will use this to provide the ideal UX for the touch prompt. If this client
+	// hint is incorrect, touch will still be prompted.
+	TouchRequired bool
+	// PinRequired is a client hint as to whether the hardware private key requires PIN.
+	// The agent will use this to provide the ideal UX for the PIN prompt. If this client
+	// hint is incorrect, PIN will still be prompted for YubiKey versions >= 4.3.0, and
+	// failing with an auth error otherwise.
+	PinRequired bool
+}
+
+func (b0 KeyPolicy_builder) Build() *KeyPolicy {
+	m0 := &KeyPolicy{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_TouchRequired = b.TouchRequired
+	x.xxx_hidden_PinRequired = b.PinRequired
+	return m0
+}
+
+// NewPrivateKeyResponse is the response for a private key request.
+// It contains a reference to the key and its information.
+type NewPrivateKeyResponse struct {
+	state                     protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_PrivateKeyRef  *FullKeyRef            `protobuf:"bytes,1,opt,name=private_key_ref,json=privateKeyRef,proto3"`
+	xxx_hidden_PrivateKeyInfo *NewKeyInfo            `protobuf:"bytes,2,opt,name=private_key_info,json=privateKeyInfo,proto3"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
+}
+
+func (x *NewPrivateKeyResponse) Reset() {
+	*x = NewPrivateKeyResponse{}
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NewPrivateKeyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NewPrivateKeyResponse) ProtoMessage() {}
+
+func (x *NewPrivateKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *NewPrivateKeyResponse) GetPrivateKeyRef() *FullKeyRef {
+	if x != nil {
+		return x.xxx_hidden_PrivateKeyRef
+	}
+	return nil
+}
+
+func (x *NewPrivateKeyResponse) GetPrivateKeyInfo() *NewKeyInfo {
+	if x != nil {
+		return x.xxx_hidden_PrivateKeyInfo
+	}
+	return nil
+}
+
+func (x *NewPrivateKeyResponse) SetPrivateKeyRef(v *FullKeyRef) {
+	x.xxx_hidden_PrivateKeyRef = v
+}
+
+func (x *NewPrivateKeyResponse) SetPrivateKeyInfo(v *NewKeyInfo) {
+	x.xxx_hidden_PrivateKeyInfo = v
+}
+
+func (x *NewPrivateKeyResponse) HasPrivateKeyRef() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_PrivateKeyRef != nil
+}
+
+func (x *NewPrivateKeyResponse) HasPrivateKeyInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_PrivateKeyInfo != nil
+}
+
+func (x *NewPrivateKeyResponse) ClearPrivateKeyRef() {
+	x.xxx_hidden_PrivateKeyRef = nil
+}
+
+func (x *NewPrivateKeyResponse) ClearPrivateKeyInfo() {
+	x.xxx_hidden_PrivateKeyInfo = nil
+}
+
+type NewPrivateKeyResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PrivateKeyRef describes where the hardware key is.
+	PrivateKeyRef *FullKeyRef
+	// PrivateKeyInfo describes how the hardware key can be used.
+	PrivateKeyInfo *NewKeyInfo
+}
+
+func (b0 NewPrivateKeyResponse_builder) Build() *NewPrivateKeyResponse {
+	m0 := &NewPrivateKeyResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_PrivateKeyRef = b.PrivateKeyRef
+	x.xxx_hidden_PrivateKeyInfo = b.PrivateKeyInfo
+	return m0
+}
+
+// KeyRefV2 is a full key ref, including all the information needed to create a signer.
+// It is different from KeyRef which only contains information needed to identify a key when sending a signing request.
+type FullKeyRef struct {
+	state                           protoimpl.MessageState   `protogen:"opaque.v1"`
+	xxx_hidden_KeyRef               *KeyRef                  `protobuf:"bytes,1,opt,name=key_ref,json=keyRef,proto3"`
+	xxx_hidden_Policy               *KeyPolicy               `protobuf:"bytes,2,opt,name=policy,proto3"`
+	xxx_hidden_AttestationStatement *v1.AttestationStatement `protobuf:"bytes,3,opt,name=attestation_statement,json=attestationStatement,proto3"`
+	xxx_hidden_PinCacheTtl          *durationpb.Duration     `protobuf:"bytes,4,opt,name=pin_cache_ttl,json=pinCacheTtl,proto3"`
+	unknownFields                   protoimpl.UnknownFields
+	sizeCache                       protoimpl.SizeCache
+}
+
+func (x *FullKeyRef) Reset() {
+	*x = FullKeyRef{}
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FullKeyRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FullKeyRef) ProtoMessage() {}
+
+func (x *FullKeyRef) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *FullKeyRef) GetKeyRef() *KeyRef {
+	if x != nil {
+		return x.xxx_hidden_KeyRef
+	}
+	return nil
+}
+
+func (x *FullKeyRef) GetPolicy() *KeyPolicy {
+	if x != nil {
+		return x.xxx_hidden_Policy
+	}
+	return nil
+}
+
+func (x *FullKeyRef) GetAttestationStatement() *v1.AttestationStatement {
+	if x != nil {
+		return x.xxx_hidden_AttestationStatement
+	}
+	return nil
+}
+
+func (x *FullKeyRef) GetPinCacheTtl() *durationpb.Duration {
+	if x != nil {
+		return x.xxx_hidden_PinCacheTtl
+	}
+	return nil
+}
+
+func (x *FullKeyRef) SetKeyRef(v *KeyRef) {
+	x.xxx_hidden_KeyRef = v
+}
+
+func (x *FullKeyRef) SetPolicy(v *KeyPolicy) {
+	x.xxx_hidden_Policy = v
+}
+
+func (x *FullKeyRef) SetAttestationStatement(v *v1.AttestationStatement) {
+	x.xxx_hidden_AttestationStatement = v
+}
+
+func (x *FullKeyRef) SetPinCacheTtl(v *durationpb.Duration) {
+	x.xxx_hidden_PinCacheTtl = v
+}
+
+func (x *FullKeyRef) HasKeyRef() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_KeyRef != nil
+}
+
+func (x *FullKeyRef) HasPolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Policy != nil
+}
+
+func (x *FullKeyRef) HasAttestationStatement() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_AttestationStatement != nil
+}
+
+func (x *FullKeyRef) HasPinCacheTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_PinCacheTtl != nil
+}
+
+func (x *FullKeyRef) ClearKeyRef() {
+	x.xxx_hidden_KeyRef = nil
+}
+
+func (x *FullKeyRef) ClearPolicy() {
+	x.xxx_hidden_Policy = nil
+}
+
+func (x *FullKeyRef) ClearAttestationStatement() {
+	x.xxx_hidden_AttestationStatement = nil
+}
+
+func (x *FullKeyRef) ClearPinCacheTtl() {
+	x.xxx_hidden_PinCacheTtl = nil
+}
+
+type FullKeyRef_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// KeyRef contains the minimal key reference to be able to request a signature from the hardware key.
+	KeyRef *KeyRef
+	// Policy describes the hardware key prompt policy (touch, pin, ...)
+	Policy *KeyPolicy
+	// AttestationStatement is the attestation statement for the hardware private key.
+	AttestationStatement *v1.AttestationStatement
+	// PINCacheTTL is how long hardware key prompts should cache the PIN for this key, if at all.
+	PinCacheTtl *durationpb.Duration
+}
+
+func (b0 FullKeyRef_builder) Build() *FullKeyRef {
+	m0 := &FullKeyRef{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_KeyRef = b.KeyRef
+	x.xxx_hidden_Policy = b.Policy
+	x.xxx_hidden_AttestationStatement = b.AttestationStatement
+	x.xxx_hidden_PinCacheTtl = b.PinCacheTtl
+	return m0
+}
+
 var File_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto protoreflect.FileDescriptor
 
 const file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc = "" +
 	"\n" +
-	";teleport/hardwarekeyagent/v1/hardwarekeyagent_service.proto\x12\x1cteleport.hardwarekeyagent.v1\x1a\x1egoogle/protobuf/duration.proto\"\r\n" +
+	";teleport/hardwarekeyagent/v1/hardwarekeyagent_service.proto\x12\x1cteleport.hardwarekeyagent.v1\x1a\x1egoogle/protobuf/duration.proto\x1a)teleport/attestation/v1/attestation.proto\"\r\n" +
 	"\vPingRequest\" \n" +
 	"\fPingResponse\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\"\x99\x02\n" +
@@ -905,7 +1614,35 @@ const file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc =
 	"\akey_ref\x18\x01 \x01(\v2$.teleport.hardwarekeyagent.v1.KeyRefR\x06keyRef\x12*\n" +
 	"\x11remote_public_key\x18\x02 \x01(\fR\x0fremotePublicKey\"3\n" +
 	"\fECDHResponse\x12#\n" +
-	"\rshared_secret\x18\x01 \x01(\fR\fsharedSecret*~\n" +
+	"\rshared_secret\x18\x01 \x01(\fR\fsharedSecret\"t\n" +
+	"\x14NewPrivateKeyRequest\x12\\\n" +
+	"\x12private_key_config\x18\x01 \x01(\v2..teleport.hardwarekeyagent.v1.PrivateKeyConfigR\x10privateKeyConfig\"\xc8\x02\n" +
+	"\x10PrivateKeyConfig\x12?\n" +
+	"\x06policy\x18\x01 \x01(\v2'.teleport.hardwarekeyagent.v1.KeyPolicyR\x06policy\x12\x1f\n" +
+	"\vcustom_slot\x18\x02 \x01(\tR\n" +
+	"customSlot\x12N\n" +
+	"\talgorithm\x18\x03 \x01(\x0e20.teleport.hardwarekeyagent.v1.SignatureAlgorithmR\talgorithm\x12C\n" +
+	"\bkey_info\x18\x04 \x01(\v2(.teleport.hardwarekeyagent.v1.NewKeyInfoR\akeyInfo\x12=\n" +
+	"\rpin_cache_ttl\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vpinCacheTtl\"\x84\x01\n" +
+	"\n" +
+	"NewKeyInfo\x12\x1d\n" +
+	"\n" +
+	"proxy_host\x18\x01 \x01(\tR\tproxyHost\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
+	"\fcluster_name\x18\x03 \x01(\tR\vclusterName\x12\x18\n" +
+	"\acommand\x18\x04 \x01(\tR\acommand\"U\n" +
+	"\tKeyPolicy\x12%\n" +
+	"\x0etouch_required\x18\x01 \x01(\bR\rtouchRequired\x12!\n" +
+	"\fpin_required\x18\x02 \x01(\bR\vpinRequired\"\xbd\x01\n" +
+	"\x15NewPrivateKeyResponse\x12P\n" +
+	"\x0fprivate_key_ref\x18\x01 \x01(\v2(.teleport.hardwarekeyagent.v1.FullKeyRefR\rprivateKeyRef\x12R\n" +
+	"\x10private_key_info\x18\x02 \x01(\v2(.teleport.hardwarekeyagent.v1.NewKeyInfoR\x0eprivateKeyInfo\"\xaf\x02\n" +
+	"\n" +
+	"FullKeyRef\x12=\n" +
+	"\akey_ref\x18\x01 \x01(\v2$.teleport.hardwarekeyagent.v1.KeyRefR\x06keyRef\x12?\n" +
+	"\x06policy\x18\x02 \x01(\v2'.teleport.hardwarekeyagent.v1.KeyPolicyR\x06policy\x12b\n" +
+	"\x15attestation_statement\x18\x03 \x01(\v2-.teleport.attestation.v1.AttestationStatementR\x14attestationStatement\x12=\n" +
+	"\rpin_cache_ttl\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\vpinCacheTtl*~\n" +
 	"\n" +
 	"PIVSlotKey\x12\x1c\n" +
 	"\x18PIV_SLOT_KEY_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -917,45 +1654,72 @@ const file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc =
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tHASH_NONE\x10\x01\x12\x0f\n" +
 	"\vHASH_SHA256\x10\x02\x12\x0f\n" +
-	"\vHASH_SHA512\x10\x032\xb9\x02\n" +
+	"\vHASH_SHA512\x10\x03*\x9a\x01\n" +
+	"\x12SignatureAlgorithm\x12#\n" +
+	"\x1fSIGNATURE_ALGORITHM_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19SIGNATURE_ALGORITHM_EC256\x10\x01\x12\x1f\n" +
+	"\x1bSIGNATURE_ALGORITHM_ED25519\x10\x02\x12\x1f\n" +
+	"\x1bSIGNATURE_ALGORITHM_RSA2048\x10\x032\xb5\x03\n" +
 	"\x17HardwareKeyAgentService\x12_\n" +
 	"\x04Ping\x12).teleport.hardwarekeyagent.v1.PingRequest\x1a*.teleport.hardwarekeyagent.v1.PingResponse\"\x00\x12\\\n" +
 	"\x04Sign\x12).teleport.hardwarekeyagent.v1.SignRequest\x1a'.teleport.hardwarekeyagent.v1.Signature\"\x00\x12_\n" +
-	"\x04ECDH\x12).teleport.hardwarekeyagent.v1.ECDHRequest\x1a*.teleport.hardwarekeyagent.v1.ECDHResponse\"\x00BdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1;hardwarekeyagentv1b\x06proto3"
+	"\x04ECDH\x12).teleport.hardwarekeyagent.v1.ECDHRequest\x1a*.teleport.hardwarekeyagent.v1.ECDHResponse\"\x00\x12z\n" +
+	"\rNewPrivateKey\x122.teleport.hardwarekeyagent.v1.NewPrivateKeyRequest\x1a3.teleport.hardwarekeyagent.v1.NewPrivateKeyResponse\"\x00BdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1;hardwarekeyagentv1b\x06proto3"
 
-var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_goTypes = []any{
-	(PIVSlotKey)(0),             // 0: teleport.hardwarekeyagent.v1.PIVSlotKey
-	(Hash)(0),                   // 1: teleport.hardwarekeyagent.v1.Hash
-	(*PingRequest)(nil),         // 2: teleport.hardwarekeyagent.v1.PingRequest
-	(*PingResponse)(nil),        // 3: teleport.hardwarekeyagent.v1.PingResponse
-	(*SignRequest)(nil),         // 4: teleport.hardwarekeyagent.v1.SignRequest
-	(*Signature)(nil),           // 5: teleport.hardwarekeyagent.v1.Signature
-	(*KeyRef)(nil),              // 6: teleport.hardwarekeyagent.v1.KeyRef
-	(*KeyInfo)(nil),             // 7: teleport.hardwarekeyagent.v1.KeyInfo
-	(*ECDHRequest)(nil),         // 8: teleport.hardwarekeyagent.v1.ECDHRequest
-	(*ECDHResponse)(nil),        // 9: teleport.hardwarekeyagent.v1.ECDHResponse
-	(*durationpb.Duration)(nil), // 10: google.protobuf.Duration
+	(PIVSlotKey)(0),                 // 0: teleport.hardwarekeyagent.v1.PIVSlotKey
+	(Hash)(0),                       // 1: teleport.hardwarekeyagent.v1.Hash
+	(SignatureAlgorithm)(0),         // 2: teleport.hardwarekeyagent.v1.SignatureAlgorithm
+	(*PingRequest)(nil),             // 3: teleport.hardwarekeyagent.v1.PingRequest
+	(*PingResponse)(nil),            // 4: teleport.hardwarekeyagent.v1.PingResponse
+	(*SignRequest)(nil),             // 5: teleport.hardwarekeyagent.v1.SignRequest
+	(*Signature)(nil),               // 6: teleport.hardwarekeyagent.v1.Signature
+	(*KeyRef)(nil),                  // 7: teleport.hardwarekeyagent.v1.KeyRef
+	(*KeyInfo)(nil),                 // 8: teleport.hardwarekeyagent.v1.KeyInfo
+	(*ECDHRequest)(nil),             // 9: teleport.hardwarekeyagent.v1.ECDHRequest
+	(*ECDHResponse)(nil),            // 10: teleport.hardwarekeyagent.v1.ECDHResponse
+	(*NewPrivateKeyRequest)(nil),    // 11: teleport.hardwarekeyagent.v1.NewPrivateKeyRequest
+	(*PrivateKeyConfig)(nil),        // 12: teleport.hardwarekeyagent.v1.PrivateKeyConfig
+	(*NewKeyInfo)(nil),              // 13: teleport.hardwarekeyagent.v1.NewKeyInfo
+	(*KeyPolicy)(nil),               // 14: teleport.hardwarekeyagent.v1.KeyPolicy
+	(*NewPrivateKeyResponse)(nil),   // 15: teleport.hardwarekeyagent.v1.NewPrivateKeyResponse
+	(*FullKeyRef)(nil),              // 16: teleport.hardwarekeyagent.v1.FullKeyRef
+	(*durationpb.Duration)(nil),     // 17: google.protobuf.Duration
+	(*v1.AttestationStatement)(nil), // 18: teleport.attestation.v1.AttestationStatement
 }
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_depIdxs = []int32{
 	1,  // 0: teleport.hardwarekeyagent.v1.SignRequest.hash:type_name -> teleport.hardwarekeyagent.v1.Hash
-	6,  // 1: teleport.hardwarekeyagent.v1.SignRequest.key_ref:type_name -> teleport.hardwarekeyagent.v1.KeyRef
-	7,  // 2: teleport.hardwarekeyagent.v1.SignRequest.key_info:type_name -> teleport.hardwarekeyagent.v1.KeyInfo
+	7,  // 1: teleport.hardwarekeyagent.v1.SignRequest.key_ref:type_name -> teleport.hardwarekeyagent.v1.KeyRef
+	8,  // 2: teleport.hardwarekeyagent.v1.SignRequest.key_info:type_name -> teleport.hardwarekeyagent.v1.KeyInfo
 	0,  // 3: teleport.hardwarekeyagent.v1.KeyRef.slot_key:type_name -> teleport.hardwarekeyagent.v1.PIVSlotKey
-	10, // 4: teleport.hardwarekeyagent.v1.KeyInfo.pin_cache_ttl:type_name -> google.protobuf.Duration
-	6,  // 5: teleport.hardwarekeyagent.v1.ECDHRequest.key_ref:type_name -> teleport.hardwarekeyagent.v1.KeyRef
-	2,  // 6: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:input_type -> teleport.hardwarekeyagent.v1.PingRequest
-	4,  // 7: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:input_type -> teleport.hardwarekeyagent.v1.SignRequest
-	8,  // 8: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.ECDH:input_type -> teleport.hardwarekeyagent.v1.ECDHRequest
-	3,  // 9: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:output_type -> teleport.hardwarekeyagent.v1.PingResponse
-	5,  // 10: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:output_type -> teleport.hardwarekeyagent.v1.Signature
-	9,  // 11: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.ECDH:output_type -> teleport.hardwarekeyagent.v1.ECDHResponse
-	9,  // [9:12] is the sub-list for method output_type
-	6,  // [6:9] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	17, // 4: teleport.hardwarekeyagent.v1.KeyInfo.pin_cache_ttl:type_name -> google.protobuf.Duration
+	7,  // 5: teleport.hardwarekeyagent.v1.ECDHRequest.key_ref:type_name -> teleport.hardwarekeyagent.v1.KeyRef
+	12, // 6: teleport.hardwarekeyagent.v1.NewPrivateKeyRequest.private_key_config:type_name -> teleport.hardwarekeyagent.v1.PrivateKeyConfig
+	14, // 7: teleport.hardwarekeyagent.v1.PrivateKeyConfig.policy:type_name -> teleport.hardwarekeyagent.v1.KeyPolicy
+	2,  // 8: teleport.hardwarekeyagent.v1.PrivateKeyConfig.algorithm:type_name -> teleport.hardwarekeyagent.v1.SignatureAlgorithm
+	13, // 9: teleport.hardwarekeyagent.v1.PrivateKeyConfig.key_info:type_name -> teleport.hardwarekeyagent.v1.NewKeyInfo
+	17, // 10: teleport.hardwarekeyagent.v1.PrivateKeyConfig.pin_cache_ttl:type_name -> google.protobuf.Duration
+	16, // 11: teleport.hardwarekeyagent.v1.NewPrivateKeyResponse.private_key_ref:type_name -> teleport.hardwarekeyagent.v1.FullKeyRef
+	13, // 12: teleport.hardwarekeyagent.v1.NewPrivateKeyResponse.private_key_info:type_name -> teleport.hardwarekeyagent.v1.NewKeyInfo
+	7,  // 13: teleport.hardwarekeyagent.v1.FullKeyRef.key_ref:type_name -> teleport.hardwarekeyagent.v1.KeyRef
+	14, // 14: teleport.hardwarekeyagent.v1.FullKeyRef.policy:type_name -> teleport.hardwarekeyagent.v1.KeyPolicy
+	18, // 15: teleport.hardwarekeyagent.v1.FullKeyRef.attestation_statement:type_name -> teleport.attestation.v1.AttestationStatement
+	17, // 16: teleport.hardwarekeyagent.v1.FullKeyRef.pin_cache_ttl:type_name -> google.protobuf.Duration
+	3,  // 17: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:input_type -> teleport.hardwarekeyagent.v1.PingRequest
+	5,  // 18: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:input_type -> teleport.hardwarekeyagent.v1.SignRequest
+	9,  // 19: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.ECDH:input_type -> teleport.hardwarekeyagent.v1.ECDHRequest
+	11, // 20: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.NewPrivateKey:input_type -> teleport.hardwarekeyagent.v1.NewPrivateKeyRequest
+	4,  // 21: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:output_type -> teleport.hardwarekeyagent.v1.PingResponse
+	6,  // 22: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:output_type -> teleport.hardwarekeyagent.v1.Signature
+	10, // 23: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.ECDH:output_type -> teleport.hardwarekeyagent.v1.ECDHResponse
+	15, // 24: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.NewPrivateKey:output_type -> teleport.hardwarekeyagent.v1.NewPrivateKeyResponse
+	21, // [21:25] is the sub-list for method output_type
+	17, // [17:21] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_init() }
@@ -968,8 +1732,8 @@ func file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc), len(file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   8,
+			NumEnums:      3,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

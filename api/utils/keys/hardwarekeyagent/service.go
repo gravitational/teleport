@@ -56,7 +56,44 @@ func NewService(agentClient hardwarekeyagentv1.HardwareKeyAgentServiceClient, fa
 
 // NewPrivateKey creates or retrieves a hardware private key for the given config.
 func (s *Service) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*hardwarekey.Signer, error) {
-	return s.fallbackService.NewPrivateKey(ctx, config)
+	// First, try to create the private key using the hardware key agent.
+	keyConfig, err := privateKeyConfigToProto(config)
+	if err != nil {
+		return nil, trace.Wrap(err, "encoding private key config from proto")
+	}
+
+	req := hardwarekeyagentv1.NewPrivateKeyRequest_builder{
+		PrivateKeyConfig: keyConfig,
+	}.Build()
+
+	resp, err := s.agentClient.NewPrivateKey(ctx, req)
+	if err != nil {
+		if s.fallbackService == nil {
+			return nil, trace.Wrap(err, "unable to create private key using hardware key agent, no fallback service available")
+		}
+		// Hardware key agent is too old and does not support private key generation.
+		if !trace.IsNotImplemented(err) {
+			slog.WarnContext(ctx, "Hardware key agent detected but unable to configure the private key, falling back to local signing", "error", err)
+		}
+		// Falling back to local.
+		// Note: once we fallback to local, the signer will be backed by the local service.
+		// This means the agent will not be used for subsequent signing with this private key
+		// in this execution of the client.
+		// This keeps backward compatibility with the previous behavior and makes sure the next signature hit the
+		// same service and benefit from the cached pin.
+		return s.fallbackService.NewPrivateKey(ctx, config)
+	}
+
+	// Hardware key agent successfully configured the private key.
+	// Crafting a signer backed by the agent.
+	keyRef, err := privateKeyRefFromProto(resp.GetPrivateKeyRef())
+	if err != nil {
+		return nil, trace.Wrap(err, "decoding private key ref from proto")
+	}
+
+	keyInfo := contextualKeyInfoFromProto(resp.GetPrivateKeyInfo())
+
+	return hardwarekey.NewSigner(s, &keyRef, keyInfo).WithContext(ctx), nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware

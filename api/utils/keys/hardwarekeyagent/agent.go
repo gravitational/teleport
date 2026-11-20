@@ -42,15 +42,19 @@ func NewClient(socketPath string, creds credentials.TransportCredentials) (hardw
 		return nil, trace.Wrap(err)
 	}
 
+	return NewClientWithDialer(func(ctx context.Context, addr string) (net.Conn, error) {
+		return new(net.Dialer).DialContext(ctx, "unix", socketPath)
+	}, creds)
+}
+
+func NewClientWithDialer(dialer func(context.Context, string) (net.Conn, error), creds credentials.TransportCredentials) (hardwarekeyagentv1.HardwareKeyAgentServiceClient, error) {
 	cc, err := grpc.NewClient("passthrough:",
 		grpc.WithTransportCredentials(creds),
 		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 		// The [grpc] library fails to resolve unix sockets on Windows, so
 		// we provide "passthrough:" to skip grpc's address resolution and
 		// a custom [net] dialer to connect to the socket.
-		grpc.WithContextDialer(func(_ context.Context, addr string) (net.Conn, error) {
-			return net.Dial("unix", socketPath)
-		}),
+		grpc.WithContextDialer(dialer),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -96,6 +100,37 @@ type agentService struct {
 	// the PIV slot has a self-signed metadata certificate used to identify PIV keys generated
 	// specifically for Teleport use.
 	knownKeyFn KnownHardwareKeyFn
+}
+
+// NewPrivateKey creates a hardware private key that satisfies the provided [config],
+// if one does not already exist, and returns the configured hardware key reference and info.
+func (s *agentService) NewPrivateKey(ctx context.Context, req *hardwarekeyagentv1.NewPrivateKeyRequest) (*hardwarekeyagentv1.NewPrivateKeyResponse, error) {
+	config, err := privateKeyConfigFromProto(req.GetPrivateKeyConfig())
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing private key config")
+	}
+
+	// Double check that the client didn't provide some bogus pin cache TTL.
+	if config.PINCacheTTL > constants.MaxPIVPINCacheTTL {
+		return nil, trace.BadParameter("pin_cache_ttl cannot be larger than %s", constants.MaxPIVPINCacheTTL)
+	}
+
+	signer, err := s.s.NewPrivateKey(ctx, config)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating new private key")
+	}
+
+	keyRef, err := privateKeyRefToProto(signer.Ref)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting private key ref")
+	}
+
+	keyInfo := contextualKeyInfoToProto(signer.KeyInfo)
+
+	return hardwarekeyagentv1.NewPrivateKeyResponse_builder{
+		PrivateKeyRef:  keyRef,
+		PrivateKeyInfo: keyInfo,
+	}.Build(), nil
 }
 
 // Sign the given digest with the specified hardware private key.

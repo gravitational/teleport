@@ -33,9 +33,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HardwareKeyAgentService_Ping_FullMethodName = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/Ping"
-	HardwareKeyAgentService_Sign_FullMethodName = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/Sign"
-	HardwareKeyAgentService_ECDH_FullMethodName = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/ECDH"
+	HardwareKeyAgentService_Ping_FullMethodName          = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/Ping"
+	HardwareKeyAgentService_Sign_FullMethodName          = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/Sign"
+	HardwareKeyAgentService_ECDH_FullMethodName          = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/ECDH"
+	HardwareKeyAgentService_NewPrivateKey_FullMethodName = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/NewPrivateKey"
 )
 
 // HardwareKeyAgentServiceClient is the client API for HardwareKeyAgentService service.
@@ -56,6 +57,9 @@ type HardwareKeyAgentServiceClient interface {
 	// ECDH performs an ECDH key exchange with the specified private key. Used for
 	// hpke encryption.
 	ECDH(ctx context.Context, in *ECDHRequest, opts ...grpc.CallOption) (*ECDHResponse, error)
+	// NewPrivateKey creates a hardware private key that satisfies the provided config,
+	// if one does not already exist, and returns a corresponding key information.
+	NewPrivateKey(ctx context.Context, in *NewPrivateKeyRequest, opts ...grpc.CallOption) (*NewPrivateKeyResponse, error)
 }
 
 type hardwareKeyAgentServiceClient struct {
@@ -96,6 +100,16 @@ func (c *hardwareKeyAgentServiceClient) ECDH(ctx context.Context, in *ECDHReques
 	return out, nil
 }
 
+func (c *hardwareKeyAgentServiceClient) NewPrivateKey(ctx context.Context, in *NewPrivateKeyRequest, opts ...grpc.CallOption) (*NewPrivateKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NewPrivateKeyResponse)
+	err := c.cc.Invoke(ctx, HardwareKeyAgentService_NewPrivateKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HardwareKeyAgentServiceServer is the server API for HardwareKeyAgentService service.
 // All implementations must embed UnimplementedHardwareKeyAgentServiceServer
 // for forward compatibility.
@@ -114,6 +128,9 @@ type HardwareKeyAgentServiceServer interface {
 	// ECDH performs an ECDH key exchange with the specified private key. Used for
 	// hpke encryption.
 	ECDH(context.Context, *ECDHRequest) (*ECDHResponse, error)
+	// NewPrivateKey creates a hardware private key that satisfies the provided config,
+	// if one does not already exist, and returns a corresponding key information.
+	NewPrivateKey(context.Context, *NewPrivateKeyRequest) (*NewPrivateKeyResponse, error)
 	mustEmbedUnimplementedHardwareKeyAgentServiceServer()
 }
 
@@ -132,6 +149,9 @@ func (UnimplementedHardwareKeyAgentServiceServer) Sign(context.Context, *SignReq
 }
 func (UnimplementedHardwareKeyAgentServiceServer) ECDH(context.Context, *ECDHRequest) (*ECDHResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ECDH not implemented")
+}
+func (UnimplementedHardwareKeyAgentServiceServer) NewPrivateKey(context.Context, *NewPrivateKeyRequest) (*NewPrivateKeyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method NewPrivateKey not implemented")
 }
 func (UnimplementedHardwareKeyAgentServiceServer) mustEmbedUnimplementedHardwareKeyAgentServiceServer() {
 }
@@ -209,6 +229,24 @@ func _HardwareKeyAgentService_ECDH_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HardwareKeyAgentService_NewPrivateKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NewPrivateKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HardwareKeyAgentServiceServer).NewPrivateKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HardwareKeyAgentService_NewPrivateKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HardwareKeyAgentServiceServer).NewPrivateKey(ctx, req.(*NewPrivateKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HardwareKeyAgentService_ServiceDesc is the grpc.ServiceDesc for HardwareKeyAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -227,6 +265,10 @@ var HardwareKeyAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ECDH",
 			Handler:    _HardwareKeyAgentService_ECDH_Handler,
+		},
+		{
+			MethodName: "NewPrivateKey",
+			Handler:    _HardwareKeyAgentService_NewPrivateKey_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

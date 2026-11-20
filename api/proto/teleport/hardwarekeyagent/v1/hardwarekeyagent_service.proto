@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.hardwarekeyagent.v1;
 
 import "google/protobuf/duration.proto";
+import "teleport/attestation/v1/attestation.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1;hardwarekeyagentv1";
 
@@ -34,6 +35,9 @@ service HardwareKeyAgentService {
   // ECDH performs an ECDH key exchange with the specified private key. Used for
   // hpke encryption.
   rpc ECDH(ECDHRequest) returns (ECDHResponse) {}
+  // NewPrivateKey creates a hardware private key that satisfies the provided config,
+  // if one does not already exist, and returns a corresponding key information.
+  rpc NewPrivateKey(NewPrivateKeyRequest) returns (NewPrivateKeyResponse) {}
 }
 
 // PingRequest is a request to Ping.
@@ -146,4 +150,88 @@ message ECDHRequest {
 message ECDHResponse {
   // SharedSecret is the raw ECDH shared secret.
   bytes shared_secret = 1;
+}
+
+// NewPrivateKeyRequest is a request to check if a private key exists with the proper configuration and create it otherwise.
+message NewPrivateKeyRequest {
+  // PrivateKeyConfig is the config of the desired key.
+  PrivateKeyConfig private_key_config = 1;
+}
+
+// PrivateKeyConfig describes the desired properties of a private key.
+message PrivateKeyConfig {
+  // Policy describes the hardware key prompt policy (touch, pin, ...)
+  KeyPolicy policy = 1;
+  // CustomSlot is a specific PIV slot to generate the hardware private key in.
+  // If unset, the default slot for the given policy will be used.
+  // Note: not reusing the PIVSlotKey enum because the custom slot can be null.
+  // Example values: "9a", "9b", "9c".
+  string custom_slot = 2;
+  // Algorithm is the key algorithm to use. Defaults to [AlgorithmEC256].
+  // [AlgorithmEd25519] is not supported by all hardware keys.
+  SignatureAlgorithm algorithm = 3;
+  // Contains ContextualKeyInfo
+  NewKeyInfo key_info = 4;
+  // PinCacheTtl is the amount of time that the PIN should be cached for
+  // PIN prompts associated with this key. A TTL of 0 means no PIN caching.
+  google.protobuf.Duration pin_cache_ttl = 6;
+}
+
+// NewKeyInfo contains the information about what the new key can be used for.
+// It matches [hardwarekey.ContextualKeyInfo] structure more closely than KeyInfo.
+message NewKeyInfo {
+  // ProxyHost is the root proxy hostname that the key is associated with.
+  string proxy_host = 1;
+  // Username is a Teleport username that the key is associated with.
+  // May be used to add context to PIN/touch prompts.
+  string username = 2;
+  // ClusterName is a Teleport cluster name that the key is associated with.
+  // May be used to add context to PIN/touch prompts.
+  string cluster_name = 3;
+  // Command is the command reported by the agent client which this agent key is being utilized to
+  // complete, e.g. `tsh ssh server01`.
+  string command = 4;
+}
+
+// KeyPolicy describes the hardware key prompt policy (touch, pin, ...)
+message KeyPolicy {
+  // TouchRequired is a client hint as to whether the hardware private key requires touch.
+  // The agent will use this to provide the ideal UX for the touch prompt. If this client
+  // hint is incorrect, touch will still be prompted.
+  bool touch_required = 1;
+  // PinRequired is a client hint as to whether the hardware private key requires PIN.
+  // The agent will use this to provide the ideal UX for the PIN prompt. If this client
+  // hint is incorrect, PIN will still be prompted for YubiKey versions >= 4.3.0, and
+  // failing with an auth error otherwise.
+  bool pin_required = 2;
+}
+
+// SignatureAlgorithm is a signature key algorithm option.
+enum SignatureAlgorithm {
+  SIGNATURE_ALGORITHM_UNSPECIFIED = 0;
+  SIGNATURE_ALGORITHM_EC256 = 1;
+  SIGNATURE_ALGORITHM_ED25519 = 2;
+  SIGNATURE_ALGORITHM_RSA2048 = 3;
+}
+
+// NewPrivateKeyResponse is the response for a private key request.
+// It contains a reference to the key and its information.
+message NewPrivateKeyResponse {
+  // PrivateKeyRef describes where the hardware key is.
+  FullKeyRef private_key_ref = 1;
+  // PrivateKeyInfo describes how the hardware key can be used.
+  NewKeyInfo private_key_info = 2;
+}
+
+// KeyRefV2 is a full key ref, including all the information needed to create a signer.
+// It is different from KeyRef which only contains information needed to identify a key when sending a signing request.
+message FullKeyRef {
+  // KeyRef contains the minimal key reference to be able to request a signature from the hardware key.
+  KeyRef key_ref = 1;
+  // Policy describes the hardware key prompt policy (touch, pin, ...)
+  KeyPolicy policy = 2;
+  // AttestationStatement is the attestation statement for the hardware private key.
+  attestation.v1.AttestationStatement attestation_statement = 3;
+  // PINCacheTTL is how long hardware key prompts should cache the PIN for this key, if at all.
+  google.protobuf.Duration pin_cache_ttl = 4;
 }

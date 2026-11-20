@@ -6876,7 +6876,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			UsingHSMOrKMS: cfg.AuthServer.keyStore.UsingHSMOrKMS(),
 			Cloud:         cfg.AuthServer.modules.Features().Cloud,
 		},
-		Modules: cfg.AuthServer.modules,
+		Modules:                cfg.AuthServer.modules,
+		OverridePIVCacheMaxTTL: cfg.AuthServer.UnstableFeatures().OverridePIVCacheTTL,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

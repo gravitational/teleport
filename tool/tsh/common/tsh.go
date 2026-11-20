@@ -895,28 +895,29 @@ const (
 	beamsIDEEnvVar            = "TELEPORT_BEAMS_IDE"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
-	siteEnvVar                = "TELEPORT_SITE"
-	userEnvVar                = "TELEPORT_USER"
-	addKeysToAgentEnvVar      = "TELEPORT_ADD_KEYS_TO_AGENT"
-	useLocalSSHAgentEnvVar    = "TELEPORT_USE_LOCAL_SSH_AGENT"
-	globalTshConfigEnvVar     = "TELEPORT_GLOBAL_TSH_CONFIG"
-	mfaModeEnvVar             = "TELEPORT_MFA_MODE"
-	mlockModeEnvVar           = "TELEPORT_MLOCK_MODE"
-	identityFileEnvVar        = "TELEPORT_IDENTITY_FILE"
-	gcloudSecretEnvVar        = "TELEPORT_GCLOUD_SECRET"
-	awsAccessKeyIDEnvVar      = "TELEPORT_AWS_ACCESS_KEY_ID"
-	awsSecretAccessKeyEnvVar  = "TELEPORT_AWS_SECRET_ACCESS_KEY"
-	awsRegionEnvVar           = "TELEPORT_AWS_REGION"
-	awsKeystoreEnvVar         = "TELEPORT_AWS_KEYSTORE"
-	awsWorkgroupEnvVar        = "TELEPORT_AWS_WORKGROUP"
-	awsLoginInteractive       = "TELEPORT_AWS_LOGIN_INTERACTIVE"
-	proxyKubeConfigEnvVar     = "TELEPORT_KUBECONFIG"
-	noResumeEnvVar            = "TELEPORT_NO_RESUME"
-	requestModeEnvVar         = "TELEPORT_REQUEST_MODE"
-	mcpClientConfigEnvVar     = "TELEPORT_MCP_CLIENT_CONFIG"
-	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
-	toolsCheckUpdateEnvVar    = "TELEPORT_TOOLS_CHECK_UPDATE"
-	proxyStatusOutputEnvVar   = "TELEPORT_PROXY_LOG_OUTPUT"
+	siteEnvVar                    = "TELEPORT_SITE"
+	userEnvVar                    = "TELEPORT_USER"
+	addKeysToAgentEnvVar          = "TELEPORT_ADD_KEYS_TO_AGENT"
+	useLocalSSHAgentEnvVar        = "TELEPORT_USE_LOCAL_SSH_AGENT"
+	globalTshConfigEnvVar         = "TELEPORT_GLOBAL_TSH_CONFIG"
+	mfaModeEnvVar                 = "TELEPORT_MFA_MODE"
+	mlockModeEnvVar               = "TELEPORT_MLOCK_MODE"
+	identityFileEnvVar            = "TELEPORT_IDENTITY_FILE"
+	gcloudSecretEnvVar            = "TELEPORT_GCLOUD_SECRET"
+	awsAccessKeyIDEnvVar          = "TELEPORT_AWS_ACCESS_KEY_ID"
+	awsSecretAccessKeyEnvVar      = "TELEPORT_AWS_SECRET_ACCESS_KEY"
+	awsRegionEnvVar               = "TELEPORT_AWS_REGION"
+	awsKeystoreEnvVar             = "TELEPORT_AWS_KEYSTORE"
+	awsWorkgroupEnvVar            = "TELEPORT_AWS_WORKGROUP"
+	awsLoginInteractive           = "TELEPORT_AWS_LOGIN_INTERACTIVE"
+	proxyKubeConfigEnvVar         = "TELEPORT_KUBECONFIG"
+	noResumeEnvVar                = "TELEPORT_NO_RESUME"
+	requestModeEnvVar             = "TELEPORT_REQUEST_MODE"
+	mcpClientConfigEnvVar         = "TELEPORT_MCP_CLIENT_CONFIG"
+	mcpConfigJSONFormatEnvVar     = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
+	toolsCheckUpdateEnvVar        = "TELEPORT_TOOLS_CHECK_UPDATE"
+	proxyStatusOutputEnvVar       = "TELEPORT_PROXY_LOG_OUTPUT"
+	disableHardwareKeyAgentEnvVar = "TELEPORT_DISABLE_HARDWARE_KEY_AGENT"
 
 	proxyStatusOutputDefault = "stderr"
 	proxyStatusOutputStdout  = "stdout"
@@ -1016,6 +1017,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
+	app.Flag("no-piv-agent", "When using Hardware keys, do not attempt to use a local PIV agent when available.").Hidden().Envar(disableHardwareKeyAgentEnvVar).BoolVar(&cf.disableHardwareKeyAgentClient)
 
 	app.Flag("ttl", "Minutes to live for a session.").Int32Var(&cf.MinsToLive)
 	app.Flag("identity", "Identity file.").Short('i').Envar(identityFileEnvVar).StringVar(&cf.IdentityFileIn)
@@ -2511,11 +2513,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		cf.DesiredRoles = ""
 	}
 
-	if os.Getenv(client.LoginAgentDirEnvVar) == "" {
-		// For login operations, we use the hardware key service directly instead of
-		// the agent; unless we're using the login agent which requires it.
-		cf.disableHardwareKeyAgentClient = true
-	} else {
+	if os.Getenv(client.LoginAgentDirEnvVar) != "" {
 		// Force authentication through the login agent rather than silently
 		// retaining an unrelated cached profile.
 		cf.ForceReauth = true

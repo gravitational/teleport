@@ -231,6 +231,12 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 	return y.sign(ctx, ref, keyInfo, s.getPrompt(), rand, digest, opts)
 }
 
+// IsPIVBuild returns whether the current build supports PIV.
+// Used to fail early.
+func IsPIVBuild() bool {
+	return true
+}
+
 // TODO(Joerger): Re-attesting the key every time we decode a hardware key signer is very resource
 // intensive. This cache is a stand-in solution for the problem, which was previously handled within
 // the YubiKeyPrivateKey cache that is being phased out with this change. In a follow up, the attested

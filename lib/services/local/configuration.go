@@ -60,6 +60,11 @@ func NewClusterConfigurationService(backend backend.Backend) (*ClusterConfigurat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Previous CaSD versions were validating the pin cache TTL, but we increased it.
+	// To avoid breaking clusters, all agents should be updated before setting a higher TTL.
+	// To prevent people from accidentally breaking their cluster, auth will continue to reject
+	// TTLs higher than 1h until v20. This can be explicitly disabled by setting the
+	// TELEPORT_UNSTABLE_INCREASE_PIN_CACHE_TTL feature flag in auth, after confirming every component got updated.
 
 	return &ClusterConfigurationService{
 		Backend: backend,

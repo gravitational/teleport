@@ -32,3 +32,9 @@ func NewYubiKeyService(prompt hardwarekey.Prompt) *hardwarekey.MockHardwareKeySe
 	mockedHardwareKeyService.SetPrompt(prompt)
 	return mockedHardwareKeyService
 }
+
+// IsPIVBuild returns whether the current build supports PIV.
+// Used to fail early.
+func IsPIVBuild() bool {
+	return false
+}

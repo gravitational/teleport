@@ -1733,6 +1733,11 @@ func (a *Server) ScopedAccess() services.ScopedAccess {
 	}
 }
 
+// UnstableFeatures returns the unstable features currently turned on in the auth.
+func (a *Server) UnstableFeatures() UnstableFeatures {
+	return a.unstableFeatures
+}
+
 // ScopedRoleReader returns a read-only scoped role client. This is here to satisfy interfaces
 // used by agent-side logic, which only has access to the ScopedRoleReader subset of the
 // broader ScopedAccess interface.
@@ -4600,7 +4605,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 // [proto.AuthServiceServer]. It is only meant to be called directly from within auth
 // initialization to seed the [types.AuthPreference] for brand new clusters.
 func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
-	if err := services.ValidateAuthPreference(p); err != nil {
+	if err := services.ValidateAuthPreference(p, constants.MaxPIVPINCacheTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

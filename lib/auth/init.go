@@ -503,6 +503,8 @@ type InitConfig struct {
 type UnstableFeatures struct {
 	// ReviewTraits allows the access_request reviewers to specify traits to grant to the user.
 	ReviewTraits bool
+	// OverridePIVCacheTTL overrides the default 1h PIV PIN cache TTL.
+	OverridePIVCacheTTL time.Duration
 }
 
 // Init instantiates and configures an instance of AuthServer

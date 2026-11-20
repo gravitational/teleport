@@ -52,6 +52,7 @@ type Signer struct {
 	service Service
 	Ref     *PrivateKeyRef
 	KeyInfo ContextualKeyInfo
+	ctx     context.Context
 }
 
 // NewSigner returns a [Signer] for the given service and ref.
@@ -62,6 +63,18 @@ func NewSigner(s Service, ref *PrivateKeyRef, keyInfo ContextualKeyInfo) *Signer
 		service: s,
 		Ref:     ref,
 		KeyInfo: keyInfo,
+		ctx:     context.Background(),
+	}
+}
+
+// WithContext returns a new [Signer] that uses the given context for Sign().
+// This is required if the signer is backed by a remote service such as a PIV agent.
+func (h *Signer) WithContext(ctx context.Context) *Signer {
+	return &Signer{
+		service: h.service,
+		Ref:     h.Ref,
+		KeyInfo: h.KeyInfo,
+		ctx:     ctx,
 	}
 }
 
@@ -72,7 +85,7 @@ func (h *Signer) Public() crypto.PublicKey {
 
 // Sign implements [crypto.Signer].
 func (h *Signer) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	return h.service.Sign(context.TODO(), h.Ref, h.KeyInfo, rand, digest, opts)
+	return h.service.Sign(h.ctx, h.Ref, h.KeyInfo, rand, digest, opts)
 }
 
 // GetAttestation returns the hardware private key attestation details.
@@ -273,10 +286,15 @@ type AgentKeyInfo struct {
 // SignatureAlgorithm is a signature key algorithm option.
 type SignatureAlgorithm int
 
+// New signature algorithm must also be added to the hardwarekeyagentv1.SignatureAlgorithm proto enum.
 const (
-	SignatureAlgorithmEC256 SignatureAlgorithm = iota + 1
+	SignatureAlgorithmUnspecified SignatureAlgorithm = iota
+	SignatureAlgorithmEC256
 	SignatureAlgorithmEd25519
 	SignatureAlgorithmRSA2048
+
+	// Constant to count the number of signature algorithms and detect a drift between the proto and the go enum.
+	SignatureAlgorithmCount int = iota
 )
 
 // KeyExchanger adapts a hardware key agent's KeyExchangerService to the

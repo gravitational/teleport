@@ -225,7 +225,7 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 	var alg piv.Algorithm
 	switch algorithm {
 	// Use ECDSA key by default.
-	case hardwarekey.SignatureAlgorithmEC256, 0:
+	case hardwarekey.SignatureAlgorithmEC256, hardwarekey.SignatureAlgorithmUnspecified:
 		alg = piv.AlgorithmEC256
 	case hardwarekey.SignatureAlgorithmEd25519:
 		// TODO(Joerger): Currently algorithms are only specified in tests, but some users pre-generate

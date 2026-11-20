@@ -19,9 +19,11 @@ package clusterconfigv1
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -81,6 +83,7 @@ type ServiceConfig struct {
 	ReadOnlyCache                 ReadOnlyCache
 	SignatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
 	Modules                       modules.Modules
+	OverridePIVCacheMaxTTL        time.Duration
 }
 
 // AccessGraphConfig contains the configuration about the access graph service
@@ -111,6 +114,7 @@ type Service struct {
 	readOnlyCache                 ReadOnlyCache
 	signatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
 	modules                       modules.Modules
+	maxPIVCacheTTL                time.Duration
 }
 
 // NewService validates the provided configuration and returns a [Service].
@@ -140,6 +144,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cfg.ReadOnlyCache = readOnlyCache
 	}
 
+	// TODO(hugoShaka): REMOVE in v20.0.0
+	maxPIVCacheTTL := time.Hour
+	if cfg.OverridePIVCacheMaxTTL > 0 {
+		if cfg.OverridePIVCacheMaxTTL > constants.MaxPIVPINCacheTTL {
+			return nil, trace.BadParameter("OverridePIVCacheMaxTTL must be less than or equal to %v", constants.MaxPIVPINCacheTTL)
+		}
+		maxPIVCacheTTL = cfg.OverridePIVCacheMaxTTL
+	}
+
 	return &Service{
 		cache:                         cfg.Cache,
 		backend:                       cfg.Backend,
@@ -150,6 +163,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		readOnlyCache:                 cfg.ReadOnlyCache,
 		signatureAlgorithmSuiteParams: cfg.SignatureAlgorithmSuiteParams,
 		modules:                       cfg.Modules,
+		maxPIVCacheTTL:                maxPIVCacheTTL,
 	}, nil
 }
 
@@ -209,7 +223,7 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateAuthPreference(req.GetAuthPreference()); err != nil {
+	if err := services.ValidateAuthPreference(req.GetAuthPreference(), s.maxPIVCacheTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -277,7 +291,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateAuthPreference(req.GetAuthPreference()); err != nil {
+	if err := services.ValidateAuthPreference(req.GetAuthPreference(), s.maxPIVCacheTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
