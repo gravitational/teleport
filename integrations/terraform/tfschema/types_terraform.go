@@ -11354,6 +11354,7 @@ func GenSchemaSAMLConnectorV2Resource(ctx context.Context) (github_com_hashicorp
 					Optional:    true,
 				},
 				"attributes_to_roles": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
+					Computed:    true,
 					Description: "AttributesToRoles is a list of mappings of attribute statements to roles.",
 					NestedObject: github_com_hashicorp_terraform_plugin_framework_resource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{
 						"name": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
@@ -11376,7 +11377,8 @@ func GenSchemaSAMLConnectorV2Resource(ctx context.Context) (github_com_hashicorp
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.String{github_com_hashicorp_terraform_plugin_framework_resource_schema_stringplanmodifier.UseNonNullStateForUnknown()},
 						},
 					}},
-					Required: true,
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseNonNullStateForUnknown()},
 				},
 				"audience": github_com_hashicorp_terraform_plugin_framework_resource_schema.StringAttribute{
 					Computed:      true,
@@ -11695,6 +11697,7 @@ func GenSchemaSAMLConnectorV2DataSource(ctx context.Context) (github_com_hashico
 					Optional:    true,
 				},
 				"attributes_to_roles": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
+					Computed:    true,
 					Description: "AttributesToRoles is a list of mappings of attribute statements to roles.",
 					NestedObject: github_com_hashicorp_terraform_plugin_framework_datasource_schema.NestedAttributeObject{Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{
 						"name": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
@@ -11714,7 +11717,7 @@ func GenSchemaSAMLConnectorV2DataSource(ctx context.Context) (github_com_hashico
 							Optional:    true,
 						},
 					}},
-					Required: true,
+					Optional: true,
 				},
 				"audience": github_com_hashicorp_terraform_plugin_framework_datasource_schema.StringAttribute{
 					Computed:    true,

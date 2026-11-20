@@ -141,12 +141,6 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 		})
 	}
 
-	if options.WithAttributesToRoles {
-		if len(sc.GetAttributesToRoles()) == 0 {
-			return trace.BadParameter("attributes_to_roles is empty, authorization with connector would never assign any roles")
-		}
-	}
-
 	if rg != nil {
 		for _, mapping := range sc.GetAttributesToRoles() {
 			for _, role := range mapping.Roles {
@@ -511,7 +505,7 @@ func UnmarshalSAMLConnectorWithValidationOptions(bytes []byte, validationOpts []
 
 // MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
 func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOption) ([]byte, error) {
-	if err := ValidateSAMLConnector(samlConnector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
+	if err := ValidateSAMLConnector(samlConnector, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

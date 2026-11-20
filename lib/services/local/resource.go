@@ -291,10 +291,6 @@ func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := gc.Validate(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	rev := gc.GetRevision()
 	value, err := services.MarshalGithubConnector(gc)
 	if err != nil {

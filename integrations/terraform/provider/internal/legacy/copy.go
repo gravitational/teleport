@@ -21,6 +21,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // deepCopyAttrValue returns a deep copy of the value.
@@ -36,4 +39,17 @@ func deepCopyAttrValue(ctx context.Context, value attr.Value) (attr.Value, error
 	}
 
 	return copied, nil
+}
+
+// planEmptyListWhenOmitted plans an empty list when a list is omitted from config.
+func planEmptyListWhenOmitted(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse, p path.Path) {
+	var config, plan types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, p, &config)...)
+	resp.Diagnostics.Append(resp.Plan.GetAttribute(ctx, p, &plan)...)
+
+	if resp.Diagnostics.HasError() || !config.IsNull() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, p, types.ListValueMust(plan.ElementType(ctx), []attr.Value{}))...)
 }

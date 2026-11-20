@@ -537,10 +537,6 @@ func (o *OIDCConnectorV3) Validate() error {
 		}
 	}
 
-	if len(o.GetClaimsToRoles()) == 0 {
-		return trace.BadParameter("claims_to_roles is empty, authorization with connector would never assign any roles")
-	}
-
 	return nil
 }
 

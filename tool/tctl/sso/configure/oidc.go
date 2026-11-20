@@ -152,7 +152,7 @@ func addOIDCCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	// commonly used flags
 	sub.Flag("preset", "Preset.").Short('p').EnumVar(&extra.chosenPreset, oidcPresets.getNames()...)
 	sub.Flag("name", "Connector name. Required, unless implied from preset.").Short('n').StringVar(&extra.connectorName)
-	sub.Flag("claims-to-roles", "Sets claim-to-roles mapping using format 'claim_name,claim_value,role1,role2,...'. Repeatable.").Short('r').Required().PlaceHolder("name,value,role1,role2,...").SetValue(flags.NewClaimsToRolesParser(&spec.ClaimsToRoles))
+	sub.Flag("claims-to-roles", "Sets claim-to-roles mapping using format 'claim_name,claim_value,role1,role2,...'. Repeatable.").Short('r').PlaceHolder("name,value,role1,role2,...").SetValue(flags.NewClaimsToRolesParser(&spec.ClaimsToRoles))
 	sub.Flag("display", "Sets the connector display name.").StringVar(&spec.Display)
 	sub.Flag("id", "OIDC app client ID.").PlaceHolder("ID").StringVar(&spec.ClientID)
 	sub.Flag("secret", "OIDC app client secret.").Required().PlaceHolder("SECRET").StringVar(&spec.ClientSecret)

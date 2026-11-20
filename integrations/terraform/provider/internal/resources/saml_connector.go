@@ -17,8 +17,12 @@
 package resources
 
 import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
+	tftypes "github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/gravitational/teleport/api/types"
 
@@ -54,9 +58,10 @@ func NewSAMLConnectorResourceType() tfdriver.ResourceType[types.SAMLConnectorV2,
 		Kind: types.KindSAMLConnector,
 		Name: "saml_connector",
 		Codec: tfdriver.ResourceCodecFuncs[types.SAMLConnectorV2]{
-			SchemaFunc:   tfschema.GenSchemaSAMLConnectorV2Resource,
-			FromPlanFunc: tfschema.CopySAMLConnectorV2FromTerraform,
-			ToStateFunc:  tfschema.CopySAMLConnectorV2ToTerraform,
+			SchemaFunc:     tfschema.GenSchemaSAMLConnectorV2Resource,
+			FromPlanFunc:   tfschema.CopySAMLConnectorV2FromTerraform,
+			ToStateFunc:    tfschema.CopySAMLConnectorV2ToTerraform,
+			ModifyPlanFunc: modifySAMLConnectorPlan,
 		},
 		Normalizer: tfdriver.CheckAndSetDefaults[types.SAMLConnectorV2](),
 		Identifier: tfdriver.NameIdentifierPolicy(
@@ -69,4 +74,44 @@ func NewSAMLConnectorResourceType() tfdriver.ResourceType[types.SAMLConnectorV2,
 			return connector.GetMetadata().Revision
 		},
 	}
+}
+
+// modifySAMLConnectorPlan modifies the SAML connector plan.
+// It sets `spec.attributes_to_roles` from the config so that omitting it clears existing mappings instead of keeping them.
+func modifySAMLConnectorPlan(ctx context.Context, config, plan tftypes.Object) (tftypes.Object, diag.Diagnostics) {
+	val := new(types.SAMLConnectorV2)
+
+	diags := tfschema.CopySAMLConnectorV2FromTerraform(ctx, config, val)
+	if diags.HasError() {
+		return plan, diags
+	}
+
+	const preserveUnknown = true
+	config, diags = tfschema.CopySAMLConnectorV2ToTerraformPreserveUnknown(ctx, val, &config, preserveUnknown)
+	if diags.HasError() {
+		return plan, diags
+	}
+
+	planSpec, planOK := plan.Attributes()["spec"].(tftypes.Object)
+	if !planOK || planSpec.IsNull() || planSpec.IsUnknown() {
+		return plan, nil
+	}
+
+	configSpec, configOK := config.Attributes()["spec"].(tftypes.Object)
+	if !configOK || configSpec.IsNull() || configSpec.IsUnknown() {
+		return plan, nil
+	}
+
+	specAttrs := planSpec.Attributes()
+	specAttrs["attributes_to_roles"] = configSpec.Attributes()["attributes_to_roles"]
+	spec, d := tftypes.ObjectValue(planSpec.AttributeTypes(ctx), specAttrs)
+	diags.Append(d...)
+	if diags.HasError() {
+		return plan, diags
+	}
+
+	attrs := plan.Attributes()
+	attrs["spec"] = spec
+
+	return tftypes.ObjectValue(plan.AttributeTypes(ctx), attrs)
 }

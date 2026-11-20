@@ -48,7 +48,6 @@ func addGithubCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	sub.Flag("name", "Connector name.").Default("github").Short('n').StringVar(&gh.connectorName)
 	sub.Flag("teams-to-roles", "Sets teams-to-roles mapping using format 'organization,name,role1,role2,...'. Repeatable.").
 		Short('r').
-		Required().
 		PlaceHolder("org,team,role1,role2,...").
 		SetValue(newTeamsToRolesParser(&spec.TeamsToRoles))
 	sub.Flag("display", "Sets the connector display name.").StringVar(&spec.Display)
