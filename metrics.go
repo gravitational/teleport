@@ -99,6 +99,9 @@ const (
 	// MetricTotalInstances provides an instance count
 	MetricTotalInstances = "total_instances"
 
+	// MetricInventoryInstanceServices provides a count of inventory connections advertising each service
+	MetricInventoryInstanceServices = "inventory_instance_services"
+
 	// MetricEnrolledInUpgrades provides total number of instances that advertise an upgrader.
 	MetricEnrolledInUpgrades = "enrolled_in_upgrades"
 

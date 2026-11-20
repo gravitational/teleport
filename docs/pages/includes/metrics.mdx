@@ -69,6 +69,7 @@
 | `teleport_ca_override_apply_seconds`                     | histogram | Teleport Auth       | Duration of applying certificate overrides to CA certificates.                                     |
 | `teleport_ca_override_read_seconds`                      | histogram | Teleport Auth       | Duration of reading and parsing CA overrides.                                                      |
 | `teleport_connected_resources`                           | gauge     | Teleport Auth       | Number and type of resources connected via keepalives.                                             |
+| `teleport_inventory_instance_services`                   | gauge     | Teleport Auth       | Number of Teleport instances connected to an Auth Service instance, labeled by each `service_name` they run (for example `Node`, `App`, `Db`). An instance running multiple services is counted once per service. |
 | `teleport_postgres_events_backend_write_requests`        | counter   | Postgres (Events)   | Number of write requests to postgres events, labeled with the request `status` (success or failure). |
 | `teleport_postgres_events_backend_batch_read_requests`   | counter   | Postgres (Events)   | Number of batch read requests to postgres events, labeled with the request `status` (success or failure). |
 | `teleport_postgres_events_backend_batch_delete_requests` | counter   | Postgres (Events)   | Number of batch delete requests to postgres events, labeled with the request `status` (success or failure). |

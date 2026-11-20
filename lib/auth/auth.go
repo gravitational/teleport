@@ -1291,6 +1291,15 @@ var (
 		},
 	)
 
+	inventoryInstanceServicesMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricInventoryInstanceServices,
+			Help:      "Number of instances connected to this auth server advertising each service.",
+		},
+		[]string{teleport.TagServiceName},
+	)
+
 	enrolledInUpgradesMetric = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
@@ -1346,7 +1355,7 @@ var (
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, userLoginCountPerClient, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
-		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
+		totalInstancesMetric, inventoryInstanceServicesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 		accessRequestsCreatedMetric,
 		registeredAgentsInstallMethod,
 		userCertificatesGeneratedMetric,
@@ -2548,6 +2557,12 @@ func (a *Server) updateAgentMetrics() {
 	})
 
 	totalInstancesMetric.Set(float64(imp.TotalInstances()))
+
+	// set every known service, including zeros, so that no series ever disappears
+	serviceCounts := a.inventory.ConnectedServiceCounts()
+	for _, service := range types.LocalServiceMappings() {
+		inventoryInstanceServicesMetric.WithLabelValues(string(service)).Set(float64(serviceCounts[service]))
+	}
 	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
