@@ -114,7 +114,7 @@ files_pid_filetrans(teleport_ssh_t, teleport_ssh_pid_t, file);
 
 allow teleport_ssh_t teleport_ssh_conf_t:file read_file_perms;
 allow teleport_ssh_t teleport_ssh_data_t:dir manage_dir_perms;
-allow teleport_ssh_t teleport_ssh_data_t:file manage_file_perms;
+allow teleport_ssh_t teleport_ssh_data_t:file { manage_file_perms map };
 allow teleport_ssh_t teleport_ssh_data_t:sock_file manage_sock_file_perms;
 allow teleport_ssh_t teleport_ssh_upgrade_data_t:dir manage_dir_perms;
 allow teleport_ssh_t teleport_ssh_upgrade_data_t:file manage_file_perms;
@@ -206,7 +206,7 @@ term_setattr_all_ttys(teleport_ssh_t);
 term_relabelto_all_ptys(teleport_ssh_t);
 term_use_ptmx(teleport_ssh_t);
 
-allow teleport_ssh_t devpts_t:chr_file { rw_chr_file_perms setattr };
+allow teleport_ssh_t devpts_t:chr_file { rw_chr_file_perms setattr relabelfrom relabelto };
 allow teleport_ssh_t self:capability { chown dac_read_search dac_override fowner fsetid setgid setuid sys_resource };
 
 fs_search_cgroup_dirs(teleport_ssh_t);
