@@ -144,17 +144,31 @@ int tracepoint__syscalls__sys_enter_execveat(struct syscall_trace_enter *tp)
     return enter_execve(filename, argv);
 }
 
+// Index of the return value of bprm_execve in the fexit context. This
+// is the number of arguments bprm_execve takes, which changed in 6.8
+// from (bprm, fd, filename, flags) to (bprm). Userspace sets this from
+// the kernel BTF before loading.
+volatile const u32 bprm_execve_ret_idx = 1;
+
 // fexit/bprm_execve is hit for both execve and execveat most of the
 // time, but an exec can fail before bprm_execve is called, hence the
 // need for exit_execve as well.
 SEC("fexit/bprm_execve")
-int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
+int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm)
 {
     struct inflight_exec_t *info = NULL;
     struct task_struct *task = bpf_get_current_task_btf();
     u32 session_id = task->sessionid;
     u8 *is_monitored = bpf_map_lookup_elem(&monitored_sessionids, &session_id);
     if (is_monitored == NULL) {
+        return 0;
+    }
+
+    // The return value isn't a fixed BPF_PROG argument as its position
+    // depends on the kernel version, so read it from the context.
+    int ret = 0;
+    if (bpf_probe_read_kernel(&ret, sizeof(ret), ctx + bprm_execve_ret_idx) < 0) {
+        bpf_printk("bprm_execve_exit: failed to read return code");
         return 0;
     }
 

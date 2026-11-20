@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/cilium/ebpf/rlimit"
@@ -71,9 +72,31 @@ func startExec(bufferSize int) (*exec, error) {
 		return nil, trace.WrapWithMessage(err, "Removing memlock")
 	}
 
-	var objs commandObjects
-	if err := loadCommandObjects(&objs, nil); err != nil {
+	// The command eBPF program reads the return value of bprm_execve
+	// from the fexit context, and its position depends on the number of
+	// arguments bprm_execve takes, which changed in 6.8. Check the
+	// arguments of bprm_execve; don't rely on the kernel version.
+	retIdx, err := findBprmExecveRetIdx()
+	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var objs commandObjects
+	spec, err := loadCommand()
+	if err != nil {
+		return nil, trace.Wrap(err, "reading command objects")
+	}
+
+	v, ok := spec.Variables[commandVarBprmExecveRetIdx]
+	if !ok {
+		return nil, trace.NotFound("bprm_execve_ret_idx not found in command objects")
+	}
+	if err := v.Set(retIdx); err != nil {
+		return nil, trace.Wrap(err, "setting bprm_execve_ret_idx")
+	}
+
+	if err := spec.LoadAndAssign(&objs, nil); err != nil {
+		return nil, trace.Wrap(err, "loading command objects")
 	}
 
 	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostCommandEvents)
@@ -138,6 +161,30 @@ func startExec(bufferSize int) (*exec, error) {
 	e.wg.Go(func() { sendEvents("command", e.bpfEvents, eventBuf) })
 
 	return e, nil
+}
+
+func findBprmExecveRetIdx() (uint32, error) {
+	const bprmExecveName = "bprm_execve"
+
+	kspec, err := btf.LoadKernelSpec()
+	if err != nil {
+		return 0, trace.Wrap(err, "loading kernel BTF spec")
+	}
+
+	var fn *btf.Func
+	if err := kspec.TypeByName(bprmExecveName, &fn); err != nil {
+		return 0, trace.Wrap(err, "finding %s", bprmExecveName)
+	}
+
+	proto, ok := fn.Type.(*btf.FuncProto)
+	if !ok || len(proto.Params) == 0 {
+		return 0, trace.BadParameter("unexpected %s signature in kernel BTF spec", bprmExecveName)
+	}
+	if len(proto.Params) != 4 && len(proto.Params) != 1 {
+		return 0, trace.BadParameter("unexpected %d parameters for %s in kernel BTF spec", len(proto.Params), bprmExecveName)
+	}
+
+	return uint32(len(proto.Params)), nil
 }
 
 func (e *exec) startSession(auditSessionID uint32) error {

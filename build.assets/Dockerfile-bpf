@@ -42,6 +42,6 @@ ENV GOPATH="/go" \
 ARG UID
 ARG GID
 RUN groupadd bpf --gid=$GID -o && \
-    useradd bpf --uid=$UID --gid=$GID --create-home --shell=/bin/sh
+    useradd bpf --uid=$UID --gid=$GID -o --create-home --shell=/bin/sh
 
 USER bpf

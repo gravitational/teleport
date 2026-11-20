@@ -571,8 +571,9 @@ bpf-bytecode:
 
 # bpf-up-to-date checks if the generated BPF bytecode is up to date.
 .PHONY: bpf-up-to-date
-bpf-up-to-date: must-start-clean/host bpf-bytecode
-	@if ! git diff --quiet; then \
+bpf-up-to-date: must-start-clean/host
+	$(MAKE) -C build.assets bpf-bytecode
+	@if [ -n "$$(git status --porcelain --untracked-files=all -- $$(find lib/bpf -name '*_bpfel.go' -o -name '*_bpfel.o'))" ]; then \
 		./build.assets/please-run.sh "bpf bytecode" "make -C build.assets bpf-bytecode"; \
 		exit 1; \
 	fi
@@ -1960,9 +1961,12 @@ icons-up-to-date: must-start-clean/host
 	fi
 
 # go-generate will execute `go generate` and generate go code.
+#
+# generated files in lib/bpf need to be built in a build container
+# and are checked by the bpf-up-to-date target.
 .PHONY: go-generate
 go-generate:
-	go generate ./lib/...
+	go generate -skip='github.com/cilium/ebpf/cmd/bpf2go' ./lib/...
 
 # go-generate-up-to-date checks if the generated code is up to date.
 .PHONY: go-generate-up-to-date

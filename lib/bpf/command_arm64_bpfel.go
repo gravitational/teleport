@@ -51,6 +51,7 @@ const (
 	commandProgTracepointSyscallsSysEnterExecveat = "tracepoint__syscalls__sys_enter_execveat"
 	commandProgTracepointSyscallsSysExitExecve    = "tracepoint__syscalls__sys_exit_execve"
 	commandProgTracepointSyscallsSysExitExecveat  = "tracepoint__syscalls__sys_exit_execveat"
+	commandVarBprmExecveRetIdx                    = "bprm_execve_ret_idx"
 	commandVarUnused                              = "unused"
 )
 
@@ -118,7 +119,8 @@ type commandMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type commandVariableSpecs struct {
-	Unused *ebpf.VariableSpec `ebpf:"unused"`
+	BprmExecveRetIdx *ebpf.VariableSpec `ebpf:"bprm_execve_ret_idx"`
+	Unused           *ebpf.VariableSpec `ebpf:"unused"`
 }
 
 // commandObjects contains all objects after they have been loaded into the kernel.
@@ -162,7 +164,8 @@ func (m *commandMaps) Close() error {
 //
 // It can be passed to loadCommandObjects or ebpf.CollectionSpec.LoadAndAssign.
 type commandVariables struct {
-	Unused *ebpf.Variable `ebpf:"unused"`
+	BprmExecveRetIdx *ebpf.Variable `ebpf:"bprm_execve_ret_idx"`
+	Unused           *ebpf.Variable `ebpf:"unused"`
 }
 
 // commandPrograms contains all programs after they have been loaded into the kernel.
