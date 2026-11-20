@@ -64,7 +64,18 @@ type BundleSet struct {
 // Stale returns a channel that will be closed when the BundleSet is stale
 // and a new BundleSet is available.
 func (b *BundleSet) Stale() <-chan struct{} {
+	if b == nil {
+		return nil
+	}
 	return b.stale
+}
+
+// NewStaleBundleSet returns a BundleSet that has already been replaced, for
+// testing consumers of BundleSet.
+func NewStaleBundleSet(local *spiffebundle.Bundle) *BundleSet {
+	stale := make(chan struct{})
+	close(stale)
+	return &BundleSet{Local: local, stale: stale}
 }
 
 // Clone returns a deep copy of the BundleSet.

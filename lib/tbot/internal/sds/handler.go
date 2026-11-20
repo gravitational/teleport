@@ -227,11 +227,6 @@ func (h *Handler) StreamSecrets(
 	)
 	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets stream finished")
 
-	bundleSet, err := h.trustBundleCache.GetBundleSet(ctx)
-	if err != nil {
-		return trace.Wrap(err, "getting trust bundle set")
-	}
-
 	// Push incoming messages into a chan for the main loop to handle
 	recvCh := make(chan *discoveryv3pb.DiscoveryRequest, 1)
 	recvErrCh := make(chan error, 1)
@@ -261,9 +256,10 @@ func (h *Handler) StreamSecrets(
 	// Track the last response and last request to allow us to handle ACK/NACK
 	// and versioning.
 	var (
-		lastResp *discoveryv3pb.DiscoveryResponse
-		lastReq  *discoveryv3pb.DiscoveryRequest
-		svids    []*workloadpb.X509SVID
+		lastResp  *discoveryv3pb.DiscoveryResponse
+		lastReq   *discoveryv3pb.DiscoveryRequest
+		svids     []*workloadpb.X509SVID
+		bundleSet *workloadidentity.BundleSet
 	)
 	for {
 		select {
@@ -348,6 +344,13 @@ func (h *Handler) StreamSecrets(
 			log.DebugContext(ctx, "Renewing SVIDs for StreamSecrets stream")
 			// Set svids to nil to fetching of fresh SVIDs
 			svids = nil
+		}
+
+		if bundleSet == nil {
+			bundleSet, err = h.trustBundleCache.GetBundleSet(ctx)
+			if err != nil {
+				return trace.Wrap(err, "getting trust bundle set")
+			}
 		}
 
 		// Fetch the SVIDs if necessary
