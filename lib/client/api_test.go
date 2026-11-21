@@ -1936,3 +1936,32 @@ func TestKeyRing_accessGraphHelpers(t *testing.T) {
 		require.GreaterOrEqual(t, tlsConfig.MinVersion, uint16(tls.VersionTLS12))
 	})
 }
+
+type mockMFAChecker map[string]bool
+
+func (m mockMFAChecker) IsMFARequired(_ context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	return &proto.IsMFARequiredResponse{Required: m[req.GetNode().GetNode()]}, nil
+}
+
+// TestNodeMFAChecks verifies that each node is checked individually, so that
+// a mix of MFA and non-MFA nodes gets the correct answer for every node.
+func TestNodeMFAChecks(t *testing.T) {
+	t.Parallel()
+
+	checker := mockMFAChecker{
+		"mfa-node":    true,
+		"no-mfa-node": false,
+	}
+	nodes := []TargetNode{
+		{Addr: "mfa-node:22"},
+		{Addr: "no-mfa-node:22"},
+		{Addr: "mfa-node:22"},
+	}
+
+	checks, err := nodeMFAChecks(t.Context(), checker, nodes, "root")
+	require.NoError(t, err)
+	require.Len(t, checks, len(nodes))
+	require.True(t, checks[0].Required)
+	require.False(t, checks[1].Required)
+	require.True(t, checks[2].Required)
+}

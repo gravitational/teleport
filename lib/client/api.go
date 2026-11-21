@@ -2897,6 +2897,27 @@ type roleGetter interface {
 	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
 }
 
+// nodeMFAChecks runs the MFA requirement check for each of the given nodes and
+// returns the results in the same order as nodes.
+func nodeMFAChecks(ctx context.Context, checker MFAChecker, nodes []TargetNode, login string) ([]*proto.IsMFARequiredResponse, error) {
+	checks := make([]*proto.IsMFARequiredResponse, 0, len(nodes))
+	for _, node := range nodes {
+		check, err := checker.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Node{
+				Node: &proto.NodeLogin{
+					Node:  nodeName(TargetNode{Addr: node.Addr}),
+					Login: login,
+				},
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		checks = append(checks, check)
+	}
+	return checks, nil
+}
+
 // commandLimit determines how many commands may be executed in parallel.
 // The limit will one of the following:
 //   - 1 if per session mfa is required
@@ -2963,20 +2984,16 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	)
 	defer span.End()
 
-	// Let's check if the first node requires mfa.
-	// If it's required, run commands sequentially to avoid
-	// race conditions and weird ux during mfa.
-	mfaRequiredCheck, err := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-		Target: &proto.IsMFARequiredRequest_Node{
-			Node: &proto.NodeLogin{
-				Node:  nodeName(TargetNode{Addr: nodes[0].Addr}),
-				Login: tc.Config.HostLogin,
-			},
-		},
-	})
+	// Each node may have different MFA requirements, so check every node
+	// individually. If any of them requires MFA, run commands sequentially to
+	// avoid race conditions and weird ux during mfa.
+	mfaChecks, err := nodeMFAChecks(ctx, clt.AuthClient, nodes, tc.Config.HostLogin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	anyMFARequired := slices.ContainsFunc(mfaChecks, func(c *proto.IsMFARequiredResponse) bool {
+		return c.Required
+	})
 
 	if tc.SSHLogDir != "" {
 		if err := os.MkdirAll(tc.SSHLogDir, 0o700); err != nil {
@@ -2987,8 +3004,8 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	resultsCh := make(chan execResult, len(nodes))
 
 	g, gctx := errgroup.WithContext(ctx)
-	cmdLimit := commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required)
-	log.DebugContext(ctx, "Applying command limit", "limit", cmdLimit, "mfa_required", mfaRequiredCheck.Required)
+	cmdLimit := commandLimit(ctx, clt.AuthClient, anyMFARequired)
+	log.DebugContext(ctx, "Applying command limit", "limit", cmdLimit, "mfa_required", anyMFARequired)
 	g.SetLimit(cmdLimit)
 
 	// Get the width of the terminal so we can wrap properly.
@@ -3017,7 +3034,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 		stderr = &sharedWriter{Writer: tc.Stderr}
 	}
 
-	for _, node := range nodes {
+	for i, node := range nodes {
 		g.Go(func() error {
 			ctx, span := tc.Tracer.Start(
 				gctx,
@@ -3034,7 +3051,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 				NodeDetails{
 					Addr:     node.Addr,
 					Cluster:  cluster,
-					MFACheck: mfaRequiredCheck,
+					MFACheck: mfaChecks[i],
 					hostname: node.Hostname,
 				},
 				tc.Config.HostLogin,
