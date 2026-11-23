@@ -231,6 +231,14 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserKind: PrehogUserKindFromEventKind(e.UserKind),
 		}
 
+	case *apievents.AppAccess:
+		return &AppAccessEvent{
+			UserName:       e.User,
+			UserKind:       PrehogUserKindFromEventKind(e.UserKind),
+			IdentitySource: e.IdentitySource,
+			BotInstanceId:  e.BotInstanceID,
+		}
+
 	case *apievents.SFTP:
 		return &SFTPEvent{
 			UserName: e.User,

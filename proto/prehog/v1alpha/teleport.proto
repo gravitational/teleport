@@ -995,6 +995,32 @@ message KubeRequestEvent {
   UserKind user_kind = 2;
 }
 
+// an app.access event. Each Application Service or Proxy process emits one at
+// most once an hour for each app session it authorizes access to, so a session
+// served by several processes, or by one that restarts, can produce more.
+//
+// PostHog event: tp.app.access
+message AppAccessEvent {
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.user_name
+  string user_name = 1;
+
+  // Indicates the kind of user (e.g. bot or human), if known.
+  UserKind user_kind = 2;
+
+  // where the client's identity came from: "user_cert" for the user
+  // certificate the client connected with, or "proxy" for an identity a Proxy
+  // forwarded
+  //
+  // PostHog property: tp.app.identity_source
+  string identity_source = 3;
+
+  // bot_instance_id is the anonymized instance id of the bot, if the user is
+  // a Bot.
+  string bot_instance_id = 4;
+}
+
 // an sftp event, represents a single operation on a file
 //
 // PostHog event: tp.sftp
@@ -2451,6 +2477,8 @@ message SubmitEventRequest {
     BeamsPublishedEvent beams_published = 125;
 
     BeamsUnpublishedEvent beams_unpublished = 126;
+
+    AppAccessEvent app_access = 128;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

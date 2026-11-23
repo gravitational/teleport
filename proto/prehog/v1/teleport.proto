@@ -155,6 +155,11 @@ message UserActivityRecord {
   uint64 session_summary_search_queries_with_filters = 28;
   // counter of linux.desktop.session.start events
   uint64 linux_desktop_sessions = 29;
+  // counter of app.access events. Each Application Service or Proxy process
+  // emits one at most once an hour for each app session it authorizes access
+  // to, so a session served by several processes, or by one that restarts, can
+  // produce more
+  uint64 app_accesses = 30;
 }
 
 // UserOrigin is the origin of a user account.
@@ -300,6 +305,8 @@ message BotInstanceActivityRecord {
   uint64 spiffe_svids_issued = 4;
   // counter of certificates issued for this user
   uint64 certificates_issued = 5;
+  // counter of app.access events, counted as in UserActivityRecord
+  uint64 app_accesses = 6;
 }
 
 // Used to record the issuance of a specific SPIFFE ID.

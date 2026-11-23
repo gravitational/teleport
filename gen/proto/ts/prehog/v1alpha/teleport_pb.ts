@@ -1673,6 +1673,48 @@ export interface KubeRequestEvent {
     userKind: UserKind;
 }
 /**
+ * an app.access event. Each Application Service or Proxy process emits one at
+ * most once an hour for each app session it authorizes access to, so a session
+ * served by several processes, or by one that restarts, can produce more.
+ *
+ * PostHog event: tp.app.access
+ *
+ * @generated from protobuf message prehog.v1alpha.AppAccessEvent
+ */
+export interface AppAccessEvent {
+    /**
+     * anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64
+     *
+     * PostHog property: tp.user_name
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * Indicates the kind of user (e.g. bot or human), if known.
+     *
+     * @generated from protobuf field: prehog.v1alpha.UserKind user_kind = 2;
+     */
+    userKind: UserKind;
+    /**
+     * where the client's identity came from: "user_cert" for the user
+     * certificate the client connected with, or "proxy" for an identity a Proxy
+     * forwarded
+     *
+     * PostHog property: tp.app.identity_source
+     *
+     * @generated from protobuf field: string identity_source = 3;
+     */
+    identitySource: string;
+    /**
+     * bot_instance_id is the anonymized instance id of the bot, if the user is
+     * a Bot.
+     *
+     * @generated from protobuf field: string bot_instance_id = 4;
+     */
+    botInstanceId: string;
+}
+/**
  * an sftp event, represents a single operation on a file
  *
  * PostHog event: tp.sftp
@@ -4571,6 +4613,12 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.BeamsUnpublishedEvent beams_unpublished = 126;
          */
         beamsUnpublished: BeamsUnpublishedEvent;
+    } | {
+        oneofKind: "appAccess";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AppAccessEvent app_access = 128;
+         */
+        appAccess: AppAccessEvent;
     } | {
         oneofKind: undefined;
     };
@@ -9475,6 +9523,77 @@ class KubeRequestEvent$Type extends MessageType<KubeRequestEvent> {
  */
 export const KubeRequestEvent = new KubeRequestEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class AppAccessEvent$Type extends MessageType<AppAccessEvent> {
+    constructor() {
+        super("prehog.v1alpha.AppAccessEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "user_kind", kind: "enum", T: () => ["prehog.v1alpha.UserKind", UserKind, "USER_KIND_"] },
+            { no: 3, name: "identity_source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "bot_instance_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AppAccessEvent>): AppAccessEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.userKind = 0;
+        message.identitySource = "";
+        message.botInstanceId = "";
+        if (value !== undefined)
+            reflectionMergePartial<AppAccessEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AppAccessEvent): AppAccessEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* prehog.v1alpha.UserKind user_kind */ 2:
+                    message.userKind = reader.int32();
+                    break;
+                case /* string identity_source */ 3:
+                    message.identitySource = reader.string();
+                    break;
+                case /* string bot_instance_id */ 4:
+                    message.botInstanceId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AppAccessEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* prehog.v1alpha.UserKind user_kind = 2; */
+        if (message.userKind !== 0)
+            writer.tag(2, WireType.Varint).int32(message.userKind);
+        /* string identity_source = 3; */
+        if (message.identitySource !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.identitySource);
+        /* string bot_instance_id = 4; */
+        if (message.botInstanceId !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.botInstanceId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AppAccessEvent
+ */
+export const AppAccessEvent = new AppAccessEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SFTPEvent$Type extends MessageType<SFTPEvent> {
     constructor() {
         super("prehog.v1alpha.SFTPEvent", [
@@ -14361,6 +14480,7 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 124, name: "beams_destroyed", kind: "message", oneof: "event", T: () => BeamsDestroyedEvent },
             { no: 125, name: "beams_published", kind: "message", oneof: "event", T: () => BeamsPublishedEvent },
             { no: 126, name: "beams_unpublished", kind: "message", oneof: "event", T: () => BeamsUnpublishedEvent },
+            { no: 128, name: "app_access", kind: "message", oneof: "event", T: () => AppAccessEvent },
             { no: 127, name: "agent_usage_evidence", kind: "message", T: () => AgentUsageEvidence }
         ]);
     }
@@ -15107,6 +15227,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         beamsUnpublished: BeamsUnpublishedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).beamsUnpublished)
                     };
                     break;
+                case /* prehog.v1alpha.AppAccessEvent app_access */ 128:
+                    message.event = {
+                        oneofKind: "appAccess",
+                        appAccess: AppAccessEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).appAccess)
+                    };
+                    break;
                 case /* prehog.v1alpha.AgentUsageEvidence agent_usage_evidence */ 127:
                     message.agentUsageEvidence = AgentUsageEvidence.internalBinaryRead(reader, reader.uint32(), options, message.agentUsageEvidence);
                     break;
@@ -15491,6 +15617,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.BeamsUnpublishedEvent beams_unpublished = 126; */
         if (message.event.oneofKind === "beamsUnpublished")
             BeamsUnpublishedEvent.internalBinaryWrite(message.event.beamsUnpublished, writer.tag(126, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AppAccessEvent app_access = 128; */
+        if (message.event.oneofKind === "appAccess")
+            AppAccessEvent.internalBinaryWrite(message.event.appAccess, writer.tag(128, WireType.LengthDelimited).fork(), options).join();
         /* prehog.v1alpha.AgentUsageEvidence agent_usage_evidence = 127; */
         if (message.agentUsageEvidence)
             AgentUsageEvidence.internalBinaryWrite(message.agentUsageEvidence, writer.tag(127, WireType.LengthDelimited).fork(), options).join();

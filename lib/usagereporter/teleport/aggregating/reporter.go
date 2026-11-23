@@ -193,6 +193,7 @@ func (r *Reporter) AnonymizeAndSubmit(_ context.Context, events ...usagereporter
 		case *usagereporter.UserLoginEvent,
 			*usagereporter.SessionStartEvent,
 			*usagereporter.KubeRequestEvent,
+			*usagereporter.AppAccessEvent,
 			*usagereporter.SFTPEvent,
 			*usagereporter.ResourceHeartbeatEvent,
 			*usagereporter.UserCertificateIssuedEvent,
@@ -554,6 +555,11 @@ Ingest:
 			}
 		case *usagereporter.KubeRequestEvent:
 			userRecord(te.UserName, te.UserKind).KubeRequests++
+		case *usagereporter.AppAccessEvent:
+			userRecord(te.UserName, te.UserKind).AppAccesses++
+			if te.BotInstanceId != "" {
+				botInstanceRecord(te.UserName, te.BotInstanceId).AppAccesses++
+			}
 		case *usagereporter.SFTPEvent:
 			userRecord(te.UserName, te.UserKind).SftpEvents++
 		case *usagereporter.ResourceHeartbeatEvent:

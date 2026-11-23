@@ -274,6 +274,15 @@ export interface UserActivityRecord {
      * @generated from protobuf field: uint64 linux_desktop_sessions = 29;
      */
     linuxDesktopSessions: bigint;
+    /**
+     * counter of app.access events. Each Application Service or Proxy process
+     * emits one at most once an hour for each app session it authorizes access
+     * to, so a session served by several processes, or by one that restarts, can
+     * produce more
+     *
+     * @generated from protobuf field: uint64 app_accesses = 30;
+     */
+    appAccesses: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -448,6 +457,12 @@ export interface BotInstanceActivityRecord {
      * @generated from protobuf field: uint64 certificates_issued = 5;
      */
     certificatesIssued: bigint;
+    /**
+     * counter of app.access events, counted as in UserActivityRecord
+     *
+     * @generated from protobuf field: uint64 app_accesses = 6;
+     */
+    appAccesses: bigint;
 }
 /**
  * Used to record the issuance of a specific SPIFFE ID.
@@ -976,7 +991,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 26, name: "access_graph_queries", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 27, name: "session_summary_search_queries", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 28, name: "session_summary_search_queries_with_filters", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 29, name: "linux_desktop_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 29, name: "linux_desktop_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 30, name: "app_accesses", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -1010,6 +1026,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.sessionSummarySearchQueries = 0n;
         message.sessionSummarySearchQueriesWithFilters = 0n;
         message.linuxDesktopSessions = 0n;
+        message.appAccesses = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -1105,6 +1122,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* uint64 linux_desktop_sessions */ 29:
                     message.linuxDesktopSessions = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 app_accesses */ 30:
+                    message.appAccesses = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1205,6 +1225,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* uint64 linux_desktop_sessions = 29; */
         if (message.linuxDesktopSessions !== 0n)
             writer.tag(29, WireType.Varint).uint64(message.linuxDesktopSessions);
+        /* uint64 app_accesses = 30; */
+        if (message.appAccesses !== 0n)
+            writer.tag(30, WireType.Varint).uint64(message.appAccesses);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1505,7 +1528,8 @@ class BotInstanceActivityRecord$Type extends MessageType<BotInstanceActivityReco
             { no: 2, name: "bot_user_name", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
             { no: 3, name: "bot_joins", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 4, name: "spiffe_svids_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 5, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 5, name: "certificates_issued", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 6, name: "app_accesses", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<BotInstanceActivityRecord>): BotInstanceActivityRecord {
@@ -1515,6 +1539,7 @@ class BotInstanceActivityRecord$Type extends MessageType<BotInstanceActivityReco
         message.botJoins = 0n;
         message.spiffeSvidsIssued = 0n;
         message.certificatesIssued = 0n;
+        message.appAccesses = 0n;
         if (value !== undefined)
             reflectionMergePartial<BotInstanceActivityRecord>(this, message, value);
         return message;
@@ -1538,6 +1563,9 @@ class BotInstanceActivityRecord$Type extends MessageType<BotInstanceActivityReco
                     break;
                 case /* uint64 certificates_issued */ 5:
                     message.certificatesIssued = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 app_accesses */ 6:
+                    message.appAccesses = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1566,6 +1594,9 @@ class BotInstanceActivityRecord$Type extends MessageType<BotInstanceActivityReco
         /* uint64 certificates_issued = 5; */
         if (message.certificatesIssued !== 0n)
             writer.tag(5, WireType.Varint).uint64(message.certificatesIssued);
+        /* uint64 app_accesses = 6; */
+        if (message.appAccesses !== 0n)
+            writer.tag(6, WireType.Varint).uint64(message.appAccesses);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

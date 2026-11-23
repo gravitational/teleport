@@ -430,8 +430,13 @@ type UserActivityRecord struct {
 	SessionSummarySearchQueriesWithFilters uint64 `protobuf:"varint,28,opt,name=session_summary_search_queries_with_filters,json=sessionSummarySearchQueriesWithFilters,proto3" json:"session_summary_search_queries_with_filters,omitempty"`
 	// counter of linux.desktop.session.start events
 	LinuxDesktopSessions uint64 `protobuf:"varint,29,opt,name=linux_desktop_sessions,json=linuxDesktopSessions,proto3" json:"linux_desktop_sessions,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// counter of app.access events. Each Application Service or Proxy process
+	// emits one at most once an hour for each app session it authorizes access
+	// to, so a session served by several processes, or by one that restarts, can
+	// produce more
+	AppAccesses   uint64 `protobuf:"varint,30,opt,name=app_accesses,json=appAccesses,proto3" json:"app_accesses,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UserActivityRecord) Reset() {
@@ -664,6 +669,13 @@ func (x *UserActivityRecord) GetSessionSummarySearchQueriesWithFilters() uint64 
 func (x *UserActivityRecord) GetLinuxDesktopSessions() uint64 {
 	if x != nil {
 		return x.LinuxDesktopSessions
+	}
+	return 0
+}
+
+func (x *UserActivityRecord) GetAppAccesses() uint64 {
+	if x != nil {
+		return x.AppAccesses
 	}
 	return 0
 }
@@ -985,8 +997,10 @@ type BotInstanceActivityRecord struct {
 	SpiffeSvidsIssued uint64 `protobuf:"varint,4,opt,name=spiffe_svids_issued,json=spiffeSvidsIssued,proto3" json:"spiffe_svids_issued,omitempty"`
 	// counter of certificates issued for this user
 	CertificatesIssued uint64 `protobuf:"varint,5,opt,name=certificates_issued,json=certificatesIssued,proto3" json:"certificates_issued,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// counter of app.access events, counted as in UserActivityRecord
+	AppAccesses   uint64 `protobuf:"varint,6,opt,name=app_accesses,json=appAccesses,proto3" json:"app_accesses,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BotInstanceActivityRecord) Reset() {
@@ -1050,6 +1064,13 @@ func (x *BotInstanceActivityRecord) GetSpiffeSvidsIssued() uint64 {
 func (x *BotInstanceActivityRecord) GetCertificatesIssued() uint64 {
 	if x != nil {
 		return x.CertificatesIssued
+	}
+	return 0
+}
+
+func (x *BotInstanceActivityRecord) GetAppAccesses() uint64 {
+	if x != nil {
+		return x.AppAccesses
 	}
 	return 0
 }
@@ -1656,7 +1677,7 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x0freporter_hostid\x18\x03 \x01(\fR\x0ereporterHostid\x129\n" +
 	"\n" +
 	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x127\n" +
-	"\arecords\x18\x05 \x03(\v2\x1d.prehog.v1.UserActivityRecordR\arecords\"\xa3\v\n" +
+	"\arecords\x18\x05 \x03(\v2\x1d.prehog.v1.UserActivityRecordR\arecords\"\xc6\v\n" +
 	"\x12UserActivityRecord\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\fR\buserName\x120\n" +
 	"\tuser_kind\x18\x0e \x01(\x0e2\x13.prehog.v1.UserKindR\buserKind\x12\x16\n" +
@@ -1690,7 +1711,8 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x14access_graph_queries\x18\x1a \x01(\x04R\x12accessGraphQueries\x12C\n" +
 	"\x1esession_summary_search_queries\x18\x1b \x01(\x04R\x1bsessionSummarySearchQueries\x12[\n" +
 	"+session_summary_search_queries_with_filters\x18\x1c \x01(\x04R&sessionSummarySearchQueriesWithFilters\x124\n" +
-	"\x16linux_desktop_sessions\x18\x1d \x01(\x04R\x14linuxDesktopSessions\"\x9b\x02\n" +
+	"\x16linux_desktop_sessions\x18\x1d \x01(\x04R\x14linuxDesktopSessions\x12!\n" +
+	"\fapp_accesses\x18\x1e \x01(\x04R\vappAccesses\"\x9b\x02\n" +
 	"\x16ResourcePresenceReport\x12\x1f\n" +
 	"\vreport_uuid\x18\x01 \x01(\fR\n" +
 	"reportUuid\x12!\n" +
@@ -1713,13 +1735,14 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x0freporter_hostid\x18\x03 \x01(\fR\x0ereporterHostid\x129\n" +
 	"\n" +
 	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x12>\n" +
-	"\arecords\x18\x05 \x03(\v2$.prehog.v1.BotInstanceActivityRecordR\arecords\"\xe5\x01\n" +
+	"\arecords\x18\x05 \x03(\v2$.prehog.v1.BotInstanceActivityRecordR\arecords\"\x88\x02\n" +
 	"\x19BotInstanceActivityRecord\x12&\n" +
 	"\x0fbot_instance_id\x18\x01 \x01(\fR\rbotInstanceId\x12\"\n" +
 	"\rbot_user_name\x18\x02 \x01(\fR\vbotUserName\x12\x1b\n" +
 	"\tbot_joins\x18\x03 \x01(\x04R\bbotJoins\x12.\n" +
 	"\x13spiffe_svids_issued\x18\x04 \x01(\x04R\x11spiffeSvidsIssued\x12/\n" +
-	"\x13certificates_issued\x18\x05 \x01(\x04R\x12certificatesIssued\"P\n" +
+	"\x13certificates_issued\x18\x05 \x01(\x04R\x12certificatesIssued\x12!\n" +
+	"\fapp_accesses\x18\x06 \x01(\x04R\vappAccesses\"P\n" +
 	"\x0eSPIFFEIDRecord\x12\x1b\n" +
 	"\tspiffe_id\x18\x01 \x01(\fR\bspiffeId\x12!\n" +
 	"\fsvids_issued\x18\x02 \x01(\rR\vsvidsIssued\"\x98\x02\n" +

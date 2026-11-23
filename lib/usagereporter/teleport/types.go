@@ -737,6 +737,24 @@ func (u *KubeRequestEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventR
 	}
 }
 
+// AppAccessEvent is an event emitted when an Application Service or Proxy
+// authorizes access to an app, at most once an hour for each app session.
+type AppAccessEvent prehogv1a.AppAccessEvent
+
+func (u *AppAccessEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	e := &prehogv1a.AppAccessEvent{
+		UserName:       a.AnonymizeString(u.UserName),
+		UserKind:       u.UserKind,
+		IdentitySource: u.IdentitySource,
+	}
+	if u.BotInstanceId != "" {
+		e.BotInstanceId = a.AnonymizeString(u.BotInstanceId)
+	}
+	return &prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AppAccess{AppAccess: e},
+	}
+}
+
 // SFTPEvent is an event emitted for each file operation in a SFTP connection.
 type SFTPEvent prehogv1a.SFTPEvent
 
