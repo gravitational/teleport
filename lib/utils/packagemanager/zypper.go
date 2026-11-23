@@ -45,6 +45,7 @@ type Zypper struct {
 type ZypperConfig struct {
 	logger       *slog.Logger
 	bins         BinariesLocation
+	runCommand   RunCommandFunc
 	fsRootPrefix string
 }
 
@@ -55,6 +56,10 @@ func (p *ZypperConfig) CheckAndSetDefaults() error {
 	}
 
 	p.bins.CheckAndSetDefaults()
+
+	if p.runCommand == nil {
+		p.runCommand = func(cmd *exec.Cmd) error { return cmd.Run() }
+	}
 
 	if p.fsRootPrefix == "" {
 		p.fsRootPrefix = "/"
@@ -86,7 +91,7 @@ func (pm *Zypper) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OS
 
 	pm.logger.InfoContext(ctx, "Trusting Teleport repository key", "command", "rpm --import "+ZypperPublicKeyEndpoint)
 	importPublicKeyCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--import", ZypperPublicKeyEndpoint)
-	importPublicKeyCMDOutput, err := importPublicKeyCMD.CombinedOutput()
+	importPublicKeyCMDOutput, err := combinedOutput(pm.runCommand, importPublicKeyCMD)
 	if err != nil {
 		return trace.Wrap(err, string(importPublicKeyCMDOutput))
 	}
@@ -96,7 +101,7 @@ func (pm *Zypper) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OS
 	repoLocation := fmt.Sprintf("%s%s/%s/Teleport/%%{_arch}/%s/teleport.repo", zypperRepoEndpoint, linuxInfo.ID, versionID, repoChannel)
 	pm.logger.InfoContext(ctx, "Building rpm metadata for Teleport repo", "command", "rpm --eval "+repoLocation)
 	rpmEvalTeleportRepoCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--eval", repoLocation)
-	rpmEvalTeleportRepoCMDOutput, err := rpmEvalTeleportRepoCMD.CombinedOutput()
+	rpmEvalTeleportRepoCMDOutput, err := combinedOutput(pm.runCommand, rpmEvalTeleportRepoCMD)
 	if err != nil {
 		return trace.Wrap(err, string(rpmEvalTeleportRepoCMDOutput))
 	}
@@ -105,14 +110,14 @@ func (pm *Zypper) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OS
 	repoURL := strings.TrimSpace(string(rpmEvalTeleportRepoCMDOutput))
 	pm.logger.InfoContext(ctx, "Adding repository metadata", "command", "zypper --non-interactive addrepo "+repoURL)
 	zypperAddRepoCMD := exec.CommandContext(ctx, pm.bins.Zypper, "--non-interactive", "addrepo", repoURL)
-	zypperAddRepoCMDOutput, err := zypperAddRepoCMD.CombinedOutput()
+	zypperAddRepoCMDOutput, err := combinedOutput(pm.runCommand, zypperAddRepoCMD)
 	if err != nil {
 		return trace.Wrap(err, string(zypperAddRepoCMDOutput))
 	}
 
 	pm.logger.InfoContext(ctx, "Refresh public keys", "command", "zypper --gpg-auto-import-keys refresh")
 	zypperRefreshKeysCMD := exec.CommandContext(ctx, pm.bins.Zypper, "--gpg-auto-import-keys", "refresh")
-	zypperRefreshKeysCMDOutput, err := zypperRefreshKeysCMD.CombinedOutput()
+	zypperRefreshKeysCMDOutput, err := combinedOutput(pm.runCommand, zypperRefreshKeysCMD)
 	if err != nil {
 		return trace.Wrap(err, string(zypperRefreshKeysCMDOutput))
 	}
@@ -139,7 +144,7 @@ func (pm *Zypper) InstallPackages(ctx context.Context, packageList []PackageVers
 
 	pm.logger.InfoContext(ctx, "Installing", "command", "zypper "+strings.Join(installArgs, " "))
 	installPackagesCMD := exec.CommandContext(ctx, pm.bins.Zypper, installArgs...)
-	installPackagesCMDOutput, err := installPackagesCMD.CombinedOutput()
+	installPackagesCMDOutput, err := combinedOutput(pm.runCommand, installPackagesCMD)
 	if err != nil {
 		return trace.Wrap(err, string(installPackagesCMDOutput))
 	}

@@ -50,6 +50,7 @@ type YUM struct {
 type YUMConfig struct {
 	logger       *slog.Logger
 	bins         BinariesLocation
+	runCommand   RunCommandFunc
 	fsRootPrefix string
 }
 
@@ -60,6 +61,10 @@ func (p *YUMConfig) CheckAndSetDefaults() error {
 	}
 
 	p.bins.CheckAndSetDefaults()
+
+	if p.runCommand == nil {
+		p.runCommand = func(cmd *exec.Cmd) error { return cmd.Run() }
+	}
 
 	if p.fsRootPrefix == "" {
 		p.fsRootPrefix = "/"
@@ -89,7 +94,7 @@ func (pm *YUM) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 
 	pm.logger.InfoContext(ctx, "Installing yum-utils", "command", "yum install -y yum-utils")
 	installYumUtilsCMD := exec.CommandContext(ctx, pm.bins.Yum, "install", "-y", "yum-utils")
-	installYumUtilsCMDOutput, err := installYumUtilsCMD.CombinedOutput()
+	installYumUtilsCMDOutput, err := combinedOutput(pm.runCommand, installYumUtilsCMD)
 	if err != nil {
 		return trace.Wrap(err, string(installYumUtilsCMDOutput))
 	}
@@ -99,7 +104,7 @@ func (pm *YUM) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 	repoLocation := fmt.Sprintf("%s%s/%s/Teleport/%%{_arch}/%s/teleport.repo", yumRepoEndpoint, distroID, versionID, repoChannel)
 	pm.logger.InfoContext(ctx, "Building rpm metadata for Teleport repo", "command", "rpm --eval "+repoLocation)
 	rpmEvalTeleportRepoCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--eval", repoLocation)
-	rpmEvalTeleportRepoCMDOutput, err := rpmEvalTeleportRepoCMD.CombinedOutput()
+	rpmEvalTeleportRepoCMDOutput, err := combinedOutput(pm.runCommand, rpmEvalTeleportRepoCMD)
 	if err != nil {
 		return trace.Wrap(err, string(rpmEvalTeleportRepoCMDOutput))
 	}
@@ -109,7 +114,7 @@ func (pm *YUM) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 
 	pm.logger.InfoContext(ctx, "Adding repository metadata", "command", "yum-config-manager --add-repo "+repoURL)
 	yumAddRepoCMD := exec.CommandContext(ctx, pm.bins.YumConfigManager, "--add-repo", repoURL)
-	yumAddRepoCMDOutput, err := yumAddRepoCMD.CombinedOutput()
+	yumAddRepoCMDOutput, err := combinedOutput(pm.runCommand, yumAddRepoCMD)
 	if err != nil {
 		return trace.Wrap(err, string(yumAddRepoCMDOutput))
 	}
@@ -137,7 +142,7 @@ func (pm *YUM) InstallPackages(ctx context.Context, packageList []PackageVersion
 	pm.logger.InfoContext(ctx, "Installing", "command", "yum "+strings.Join(installArgs, " "))
 
 	installPackagesCMD := exec.CommandContext(ctx, pm.bins.Yum, installArgs...)
-	installPackagesCMDOutput, err := installPackagesCMD.CombinedOutput()
+	installPackagesCMDOutput, err := combinedOutput(pm.runCommand, installPackagesCMD)
 	if err != nil {
 		return trace.Wrap(err, string(installPackagesCMDOutput))
 	}

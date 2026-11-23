@@ -26,7 +26,13 @@ import (
 )
 
 // PackageManagerForSystem returns the PackageManager for the current detected linux distro.
-func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, binariesLocation BinariesLocation, aptPubKeyEndpoint string) (PackageManager, error) {
+func PackageManagerForSystem(
+	osRelease *linux.OSRelease,
+	fsRootPrefix string,
+	binariesLocation BinariesLocation,
+	runCommand RunCommandFunc,
+	aptPubKeyEndpoint string,
+) (PackageManager, error) {
 	aptWellKnownIDs := []string{"debian", "ubuntu"}
 	legacyAPT := []string{"xenial", "trusty"}
 
@@ -40,6 +46,7 @@ func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, bi
 			pm, err := NewAPTLegacy(&APTConfig{
 				fsRootPrefix:         fsRootPrefix,
 				bins:                 binariesLocation,
+				runCommand:           runCommand,
 				aptPublicKeyEndpoint: aptPubKeyEndpoint,
 			})
 			if err != nil {
@@ -51,6 +58,7 @@ func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, bi
 		pm, err := NewAPT(&APTConfig{
 			fsRootPrefix:         fsRootPrefix,
 			bins:                 binariesLocation,
+			runCommand:           runCommand,
 			aptPublicKeyEndpoint: aptPubKeyEndpoint,
 		})
 		if err != nil {
@@ -62,6 +70,7 @@ func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, bi
 		pm, err := NewYUM(&YUMConfig{
 			fsRootPrefix: fsRootPrefix,
 			bins:         binariesLocation,
+			runCommand:   runCommand,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -72,6 +81,7 @@ func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, bi
 		pm, err := NewZypper(&ZypperConfig{
 			fsRootPrefix: fsRootPrefix,
 			bins:         binariesLocation,
+			runCommand:   runCommand,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

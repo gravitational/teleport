@@ -90,7 +90,7 @@ func (a *AutoDiscoverNodeInstaller) runSystemctlCommand(ctx context.Context, arg
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
-	err := cmd.Run()
+	err := a.runCommand(cmd)
 	if err != nil {
 		// Prefer the context error when present so callers can distinguish user- or
 		// timeout-driven cancellation from systemctl execution failures.

@@ -16,6 +16,21 @@
 
 package packagemanager
 
+import (
+	"bytes"
+	"os/exec"
+)
+
+// RunCommandFunc runs cmd. Tests replace it to fake the binaries.
+type RunCommandFunc func(cmd *exec.Cmd) error
+
+func combinedOutput(run RunCommandFunc, cmd *exec.Cmd) ([]byte, error) {
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	err := run(cmd)
+	return out.Bytes(), err
+}
+
 // BinariesLocation contains all the required external binaries used when installing teleport.
 // Used for testing.
 type BinariesLocation struct {

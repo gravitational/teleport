@@ -66,6 +66,7 @@ type APTConfig struct {
 	aptPublicKeyEndpoint string
 	fsRootPrefix         string
 	bins                 BinariesLocation
+	runCommand           RunCommandFunc
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -79,6 +80,10 @@ func (p *APTConfig) CheckAndSetDefaults() error {
 	}
 
 	p.bins.CheckAndSetDefaults()
+
+	if p.runCommand == nil {
+		p.runCommand = func(cmd *exec.Cmd) error { return cmd.Run() }
+	}
 
 	if p.fsRootPrefix == "" {
 		p.fsRootPrefix = "/"
@@ -142,7 +147,7 @@ func (pm *APT) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 		pm.logger.InfoContext(ctx, "Trusting Teleport repository key", "command", "apt-key add -")
 		aptKeyAddCMD := exec.CommandContext(ctx, pm.bins.AptKey, "add", "-")
 		aptKeyAddCMD.Stdin = bytes.NewReader(publicKey)
-		aptKeyAddCMDOutput, err := aptKeyAddCMD.CombinedOutput()
+		aptKeyAddCMDOutput, err := combinedOutput(pm.runCommand, aptKeyAddCMD)
 		if err != nil {
 			return trace.Wrap(err, string(aptKeyAddCMDOutput))
 		}
@@ -162,7 +167,7 @@ func (pm *APT) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 
 	pm.logger.InfoContext(ctx, "Updating apt sources", "command", "apt-get update")
 	updateReposCMD := exec.CommandContext(ctx, pm.bins.AptGet, "update")
-	updateReposCMDOutput, err := updateReposCMD.CombinedOutput()
+	updateReposCMDOutput, err := combinedOutput(pm.runCommand, updateReposCMD)
 	if err != nil {
 		return trace.Wrap(err, string(updateReposCMDOutput))
 	}
@@ -189,7 +194,7 @@ func (pm *APT) InstallPackages(ctx context.Context, packageList []PackageVersion
 	pm.logger.InfoContext(ctx, "Installing", "command", "apt-get "+strings.Join(installArgs, " "))
 
 	installPackagesCMD := exec.CommandContext(ctx, pm.bins.AptGet, installArgs...)
-	installPackagesCMDOutput, err := installPackagesCMD.CombinedOutput()
+	installPackagesCMDOutput, err := combinedOutput(pm.runCommand, installPackagesCMD)
 	if err != nil {
 		return trace.Wrap(err, string(installPackagesCMDOutput))
 	}

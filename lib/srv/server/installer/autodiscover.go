@@ -19,6 +19,7 @@
 package installer
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -131,6 +132,10 @@ type AutoDiscoverNodeInstallerConfig struct {
 	// binariesLocation contain the location of each required binary.
 	// Used for testing.
 	binariesLocation packagemanager.BinariesLocation
+
+	// runCommand runs the package manager, teleport and systemctl commands.
+	// Used for testing.
+	runCommand packagemanager.RunCommandFunc
 
 	// imdsProviders contains the Cloud Instance Metadata providers.
 	// Used for testing.
@@ -283,6 +288,10 @@ func NewAutoDiscoverNodeInstaller(cfg *AutoDiscoverNodeInstallerConfig) (*AutoDi
 			}
 			return state.String()
 		}
+	}
+
+	if ti.runCommand == nil {
+		ti.runCommand = func(cmd *exec.Cmd) error { return cmd.Run() }
 	}
 
 	if ti.journal == nil {
@@ -590,9 +599,11 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 		"args", teleportNodeConfigureArgs,
 	)
 	teleportNodeConfigureCmd := exec.CommandContext(ctx, ani.binariesLocation.Teleport, teleportNodeConfigureArgs...)
-	teleportNodeConfigureCmdOutput, err := teleportNodeConfigureCmd.CombinedOutput()
-	if err != nil {
-		return trace.Wrap(err, string(teleportNodeConfigureCmdOutput))
+	var teleportNodeConfigureCmdOutput bytes.Buffer
+	teleportNodeConfigureCmd.Stdout = &teleportNodeConfigureCmdOutput
+	teleportNodeConfigureCmd.Stderr = &teleportNodeConfigureCmdOutput
+	if err := ani.runCommand(teleportNodeConfigureCmd); err != nil {
+		return trace.Wrap(err, teleportNodeConfigureCmdOutput.String())
 	}
 
 	defer func() {
@@ -679,7 +690,7 @@ func (ani *AutoDiscoverNodeInstaller) installTeleportFromRepo(ctx context.Contex
 		"version_id", linuxInfo.VersionID,
 	)
 
-	packageManager, err := packagemanager.PackageManagerForSystem(linuxInfo, ani.fsRootPrefix, ani.binariesLocation, ani.aptPublicKeyEndpoint)
+	packageManager, err := packagemanager.PackageManagerForSystem(linuxInfo, ani.fsRootPrefix, ani.binariesLocation, ani.runCommand, ani.aptPublicKeyEndpoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
