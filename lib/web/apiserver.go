@@ -2003,6 +2003,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		}
 		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 		response.Auth.LoadAllCAs = loadAllCAs
+		response.Auth.DefaultSessionTTL = cap.GetDefaultSessionTTL()
 		response.Auth.Local.Name = connectorName // echo connector queried by caller
 		return response, nil
 	}
@@ -2020,6 +2021,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 				response.Auth = oidcSettings(oidcConnectors[index], cap, h.cfg.Modules)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 				response.Auth.LoadAllCAs = loadAllCAs
+				response.Auth.DefaultSessionTTL = cap.GetDefaultSessionTTL()
 				return response, nil
 			}
 		}
@@ -2034,6 +2036,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 				response.Auth = samlSettings(samlConnectors[index], cap, h.cfg.Modules)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 				response.Auth.LoadAllCAs = loadAllCAs
+				response.Auth.DefaultSessionTTL = cap.GetDefaultSessionTTL()
 				return response, nil
 			}
 		}
@@ -2048,6 +2051,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 				response.Auth = githubSettings(githubConnectors[index], cap, h.cfg.Modules)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 				response.Auth.LoadAllCAs = loadAllCAs
+				response.Auth.DefaultSessionTTL = cap.GetDefaultSessionTTL()
 				return response, nil
 			}
 		}
