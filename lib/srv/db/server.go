@@ -1446,10 +1446,12 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		Participants: []types.Participant{{
 			User:    sessionCtx.Identity.Username,
 			Cluster: sessionCtx.Identity.OriginClusterName,
+			Scope:   sessionCtx.Identity.ScopePin.GetScope(),
 		}},
-		HostUser: sessionCtx.Identity.Username,
-		Created:  s.cfg.Clock.Now(),
-		HostID:   sessionCtx.HostID,
+		HostUser:      sessionCtx.Identity.Username,
+		HostUserScope: sessionCtx.Identity.ScopePin.GetScope(),
+		Created:       s.cfg.Clock.Now(),
+		HostID:        sessionCtx.HostID,
 	}
 
 	s.log.DebugContext(ctx, "Creating session tracker.", "session", sessionCtx.ID)

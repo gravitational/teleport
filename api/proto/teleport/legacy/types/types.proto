@@ -7523,6 +7523,14 @@ message SessionTrackerSpecV1 {
 
   // InitialCommand is the command that was executed to start this session.
   repeated string InitialCommand = 23 [(gogoproto.jsontag) = "initial_command,omitempty"];
+
+  // The scope of the target host identified by HostID.
+  // An empty value indicates an unscoped host.
+  string target_host_scope = 24;
+
+  // The pinned scope associated with HostUser.
+  // An empty value indicates an unscoped user.
+  string host_user_scope = 25;
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
@@ -7558,6 +7566,10 @@ message Participant {
 
   // Cluster is the cluster name the user is authenticated against.
   string Cluster = 5 [(gogoproto.jsontag) = "cluster,omitempty"];
+
+  // The participant's pinned scope.
+  // An empty value indicates an unscoped participant.
+  string scope = 6;
 }
 
 // UIConfigV1 represents the configuration for the web UI served by the proxy service

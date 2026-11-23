@@ -4351,16 +4351,42 @@ func serializeSessions(sessions []types.SessionTracker, format string, w io.Writ
 }
 
 func printSessions(output io.Writer, sessions []types.SessionTracker) {
-	table := asciitable.MakeTable([]string{"ID", "Kind", "Created", "User", "Target", "Address"})
-	for _, s := range sessions {
-		table.AddRow([]string{
-			s.GetSessionID(),
-			string(s.GetSessionKind()),
-			humanize.Time(s.GetCreated()),
-			s.GetHostUser(),
-			target(s),
-			address(s),
-		})
+	var withUserScope, withTargetScope bool
+	for _, session := range sessions {
+		withUserScope = withUserScope || session.GetHostUserScope() != ""
+		withTargetScope = withTargetScope || session.GetTargetHostScope() != ""
+		if withUserScope && withTargetScope {
+			break
+		}
+	}
+
+	columns := []string{"ID", "Kind", "Created", "User"}
+	if withUserScope {
+		columns = append(columns, "User Scope")
+	}
+	columns = append(columns, "Target")
+	if withTargetScope {
+		columns = append(columns, "Target Scope")
+	}
+	columns = append(columns, "Address")
+
+	table := asciitable.MakeTable(columns)
+	for _, session := range sessions {
+		row := []string{
+			session.GetSessionID(),
+			string(session.GetSessionKind()),
+			humanize.Time(session.GetCreated()),
+			session.GetHostUser(),
+		}
+		if withUserScope {
+			row = append(row, session.GetHostUserScope())
+		}
+		row = append(row, target(session))
+		if withTargetScope {
+			row = append(row, session.GetTargetHostScope())
+		}
+		row = append(row, address(session))
+		table.AddRow(row)
 	}
 
 	tableOutput := table.AsBuffer().String()

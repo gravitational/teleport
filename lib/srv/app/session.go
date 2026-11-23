@@ -375,12 +375,15 @@ func (c *ConnectionsHandler) createTracker(sess *sessionChunk, identity *tlsca.I
 		Participants: []types.Participant{{
 			User:    identity.Username,
 			Cluster: identity.OriginClusterName,
+			Scope:   identity.ScopePin.GetScope(),
 		}},
-		HostUser:     identity.Username,
-		Created:      c.cfg.Clock.Now(),
-		AppName:      appName, // app name is only present in RouteToApp for CLI sessions
-		AppSessionID: identity.RouteToApp.SessionID,
-		HostID:       c.cfg.HostID,
+		HostUser:        identity.Username,
+		HostUserScope:   identity.ScopePin.GetScope(),
+		TargetHostScope: c.cfg.TargetHostScope,
+		Created:         c.cfg.Clock.Now(),
+		AppName:         appName, // app name is only present in RouteToApp for CLI sessions
+		AppSessionID:    identity.RouteToApp.SessionID,
+		HostID:          c.cfg.HostID,
 	}
 
 	c.log.DebugContext(c.closeContext, "Creating tracker for session chunk", "session", sess.id)

@@ -86,6 +86,9 @@ type ConnectionsHandlerConfig struct {
 	// HostID is the id of the host where this application agent is running.
 	HostID string
 
+	// TargetHostScope is the scope of the host where this application agent is running.
+	TargetHostScope string
+
 	// AuthClient is a client directly connected to the Auth server.
 	AuthClient authclient.ClientI
 

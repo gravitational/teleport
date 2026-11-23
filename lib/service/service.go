@@ -7522,6 +7522,7 @@ func (process *TeleportProcess) initApps() {
 			TLSConfig:         tlsConfig,
 			CipherSuites:      process.Config.CipherSuites,
 			HostID:            conn.HostUUID(),
+			TargetHostScope:   scopePin.GetScope(),
 			Emitter:           asyncEmitter,
 			ConnectionMonitor: connMonitor,
 			ServiceComponent:  teleport.ComponentApp,

@@ -1175,6 +1175,15 @@ func (c *ServerContext) recordWithBPF() bool {
 	return len(eventsMapFromSSHAccessPermit(c.Identity.AccessPermit)) > 0
 }
 
+// GetScope returns the scope the identity is pinned to, or an empty string for
+// an unscoped identity.
+func (id *IdentityContext) GetScope() string {
+	if id == nil || id.UnmappedIdentity == nil {
+		return ""
+	}
+	return id.UnmappedIdentity.ScopePin.GetScope()
+}
+
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	userKind := apievents.UserKind_USER_KIND_HUMAN
 	if id.BotName != "" {

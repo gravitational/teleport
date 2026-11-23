@@ -1361,10 +1361,12 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		Participants: []types.Participant{{
 			User:    id.Username,
 			Cluster: id.OriginClusterName,
+			Scope:   id.ScopePin.GetScope(),
 		}},
-		HostUser: id.Username,
-		Created:  s.cfg.Clock.Now(),
-		HostID:   s.cfg.Heartbeat.HostUUID,
+		HostUser:      id.Username,
+		HostUserScope: id.ScopePin.GetScope(),
+		Created:       s.cfg.Clock.Now(),
+		HostID:        s.cfg.Heartbeat.HostUUID,
 	}
 
 	s.cfg.Logger.DebugContext(ctx, "Creating session tracker", "session_id", sessionID)

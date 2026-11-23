@@ -1018,6 +1018,7 @@ func (s *session) join(ctx context.Context, p *party, emitJoinEvent bool) error 
 		Cluster:    p.Ctx.Identity.GetIdentity().OriginClusterName,
 		Mode:       string(p.Mode),
 		LastActive: time.Now().UTC(),
+		Scope:      p.Ctx.scope(),
 	}
 	if err := s.tracker.AddParticipant(s.forwarder.ctx, participant); err != nil {
 		return trace.Wrap(err)
@@ -1473,7 +1474,9 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		ClusterName:       s.ctx.teleportCluster.name,
 		KubernetesCluster: s.ctx.kubeClusterName,
 		HostUser:          p.Ctx.User.GetName(),
+		HostUserScope:     s.ctx.scope(),
 		HostPolicies:      policySet,
+		TargetHostScope:   s.forwarder.cfg.GetScope(),
 		Login:             "root",
 		Created:           s.forwarder.cfg.Clock.Now(),
 		Reason:            s.reason,

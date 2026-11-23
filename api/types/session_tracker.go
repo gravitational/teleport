@@ -128,6 +128,12 @@ type SessionTracker interface {
 	// Things like RBAC policies are determined from this user.
 	GetHostUser() string
 
+	// GetHostUserScope returns the pinned scope of the host user.
+	GetHostUserScope() string
+
+	// GetTargetHostScope returns the scope of the target host.
+	GetTargetHostScope() string
+
 	// GetHostPolicySets returns a list of policy sets held by the host user at the time of session creation.
 	// This a subset of a role that contains some versioning and naming information in addition to the require policies
 	GetHostPolicySets() []*SessionTrackerPolicySet
@@ -322,6 +328,16 @@ func (s *SessionTrackerV1) GetDatabaseName() string {
 // Things like RBAC policies are determined from this user.
 func (s *SessionTrackerV1) GetHostUser() string {
 	return s.Spec.HostUser
+}
+
+// GetHostUserScope returns the pinned scope of the host user.
+func (s *SessionTrackerV1) GetHostUserScope() string {
+	return s.Spec.HostUserScope
+}
+
+// GetTargetHostScope returns the scope of the target host.
+func (s *SessionTrackerV1) GetTargetHostScope() string {
+	return s.Spec.TargetHostScope
 }
 
 // UpdatePresence updates presence timestamp of a participant.

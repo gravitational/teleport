@@ -527,6 +527,13 @@ func (c authContext) String() string {
 	return fmt.Sprintf("user: %v, users: %v, groups: %v, teleport cluster: %v, kube cluster: %v", c.User.GetName(), c.kubeUsers, c.kubeGroups, c.teleportCluster.name, c.kubeClusterName)
 }
 
+func (c authContext) scope() string {
+	if c.ScopedContext == nil || c.Identity == nil {
+		return ""
+	}
+	return c.Identity.GetIdentity().ScopePin.GetScope()
+}
+
 func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context

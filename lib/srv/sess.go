@@ -2248,6 +2248,7 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 		Cluster:    p.originCluster,
 		Mode:       string(p.mode),
 		LastActive: time.Now().UTC(),
+		Scope:      p.scope(),
 	}
 	if err := s.tracker.AddParticipant(s.serverCtx, participant); err != nil {
 		return trace.Wrap(err)
@@ -2286,6 +2287,13 @@ type party struct {
 	lastActive    time.Time
 	mode          types.SessionParticipantMode
 	closeOnce     sync.Once
+}
+
+func (p *party) scope() string {
+	if p == nil || p.ctx == nil {
+		return ""
+	}
+	return p.ctx.Identity.GetScope()
 }
 
 func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx *ServerContext) *party {
@@ -2356,6 +2364,17 @@ func (p *party) closeUnderSessionLock() error {
 	return err
 }
 
+func (s *session) targetHostScope() string {
+	if s == nil || s.scx == nil || s.scx.srv == nil {
+		return ""
+	}
+	server := s.scx.srv.GetInfo()
+	if server == nil {
+		return ""
+	}
+	return server.GetScope()
+}
+
 // trackSession creates a new session tracker for the ssh session.
 // While ctx is open, the session tracker's expiration will be extended
 // on an interval until the session tracker is closed.
@@ -2366,16 +2385,18 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		initialCommand = []string{execRequest.GetCommand()}
 	}
 	trackerSpec := types.SessionTrackerSpecV1{
-		SessionID:    s.id.String(),
-		Kind:         string(types.SSHSessionKind),
-		State:        types.SessionState_SessionStatePending,
-		Hostname:     s.serverMeta.ServerHostname,
-		Address:      s.scx.srv.ID(),
-		ClusterName:  s.scx.ClusterName,
-		Login:        s.login,
-		HostUser:     teleportUser,
-		HostPolicies: policySet,
-		Created:      s.registry.clock.Now().UTC(),
+		SessionID:       s.id.String(),
+		Kind:            string(types.SSHSessionKind),
+		State:           types.SessionState_SessionStatePending,
+		Hostname:        s.serverMeta.ServerHostname,
+		Address:         s.scx.srv.ID(),
+		ClusterName:     s.scx.ClusterName,
+		Login:           s.login,
+		HostUser:        teleportUser,
+		HostUserScope:   s.scx.Identity.GetScope(),
+		HostPolicies:    policySet,
+		TargetHostScope: s.targetHostScope(),
+		Created:         s.registry.clock.Now().UTC(),
 		Participants: []types.Participant{
 			{
 				ID:         p.id.String(),
@@ -2383,6 +2404,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 				Cluster:    p.originCluster,
 				Mode:       string(p.mode),
 				LastActive: s.registry.clock.Now().UTC(),
+				Scope:      p.scope(),
 			},
 		},
 		HostID:         s.registry.Srv.HostUUID(),
