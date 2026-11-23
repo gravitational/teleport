@@ -862,7 +862,14 @@ function Build-Tbot {
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tbot..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags "grpcnotrace kustomize_disable_go_plugin_support" -trimpath -ldflags "-s -w $BuildTypeLDFlags $KubectlLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tbot"
+        # tbot is built without cgo, matching the Makefile.
+        $PreviousCgoEnabled = $env:CGO_ENABLED
+        $env:CGO_ENABLED = "0"
+        try {
+            go build -tags "grpcnotrace kustomize_disable_go_plugin_support" -trimpath -ldflags "-s -w $BuildTypeLDFlags $KubectlLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tbot"
+        } finally {
+            $env:CGO_ENABLED = $PreviousCgoEnabled
+        }
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }

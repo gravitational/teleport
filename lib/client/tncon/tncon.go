@@ -1,4 +1,4 @@
-//go:build windows && cgo
+//go:build windows
 
 /*
  * Teleport
@@ -20,21 +20,13 @@
 
 package tncon
 
-/*
-#include <windows.h>
-#include <stdlib.h>
-#include <synchapi.h>
-#include "tncon.h"
-*/
-import "C"
-
 import (
 	"fmt"
 	"io"
 	"sync"
-	"unsafe"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
 )
 
 // A buffer of 100 should provide ample buffer to hold several VT
@@ -50,16 +42,14 @@ var (
 
 	running           bool = false
 	runningMutex      sync.Mutex
-	runningQuitHandle C.HANDLE
+	runningQuitHandle windows.Handle
 )
 
 func SequenceReader() io.Reader {
 	return sequenceBuffer
 }
 
-//export writeSequence
-func writeSequence(addr *C.char, len C.int) {
-	bytes := C.GoBytes(unsafe.Pointer(addr), len)
+func writeSequence(bytes []byte) {
 	sequenceBuffer.Write(bytes)
 }
 
@@ -74,7 +64,6 @@ func SubcribeResizeEvents() chan struct{} {
 	return ch
 }
 
-//export notifyResizeEvent
 func notifyResizeEvent() {
 	resizeEventSubscribersMutex.Lock()
 	defer resizeEventSubscribersMutex.Unlock()
@@ -87,8 +76,8 @@ func notifyResizeEvent() {
 // readInputContinuous is a blocking call that continuously reads console
 // input events. Events will be emitted via channels to subscribers. This
 // function returns when stdin is closed, or the quit event is triggered.
-func readInputContinuous(quitHandle C.HANDLE) error {
-	C.ReadInputContinuous(quitHandle)
+func readInputContinuous(quitHandle windows.Handle) error {
+	readConsoleEvents(quitHandle)
 
 	// Close the sequenceBuffer (terminal stdin)
 	if err := sequenceBuffer.Close(); err != nil {
@@ -110,9 +99,9 @@ func readInputContinuous(quitHandle C.HANDLE) error {
 	running = false
 
 	// Close the quit event handle.
-	if runningQuitHandle != nil {
-		C.CloseHandle(runningQuitHandle)
-		runningQuitHandle = nil
+	if runningQuitHandle != 0 {
+		windows.CloseHandle(runningQuitHandle)
+		runningQuitHandle = 0
 	}
 
 	return nil
@@ -137,8 +126,13 @@ func Start() error {
 		return fmt.Errorf("a tncon session is already active")
 	}
 
+	quitHandle, err := windows.CreateEvent(nil, 1 /* manual reset */, 0 /* not signaled */, nil)
+	if err != nil {
+		return trace.Wrap(err, "creating tncon quit event")
+	}
+
 	running = true
-	runningQuitHandle = C.CreateEventA(nil, C.TRUE, C.FALSE, nil)
+	runningQuitHandle = quitHandle
 
 	// Adding a buffer increases the speed of reads by a great amount,
 	// since waiting on channel sends is the main chokepoint. Without
@@ -158,7 +152,46 @@ func Stop() {
 	runningMutex.Lock()
 	defer runningMutex.Unlock()
 
-	if running && runningQuitHandle != nil {
-		C.SetEvent(runningQuitHandle)
+	if running && runningQuitHandle != 0 {
+		windows.SetEvent(runningQuitHandle)
+	}
+}
+
+// readConsoleEvents reads console input events until stdin closes or the quit
+// event is set. Key events are written to the sequence buffer and window
+// resize events are sent to subscribers.
+func readConsoleEvents(quitHandle windows.Handle) {
+	input, err := windows.GetStdHandle(windows.STD_INPUT_HANDLE)
+	if err != nil {
+		return
+	}
+
+	var (
+		decoder keyDecoder
+		records [16]inputRecord
+	)
+	for {
+		event, err := windows.WaitForMultipleObjects([]windows.Handle{input, quitHandle}, false, windows.INFINITE)
+		if err != nil || event != windows.WAIT_OBJECT_0 {
+			// The quit event was set or the wait failed.
+			return
+		}
+
+		var count uint32
+		if err := readConsoleInput(input, &records[0], uint32(len(records)), &count); err != nil {
+			return
+		}
+
+		for _, record := range records[:count] {
+			switch record.EventType {
+			case windows.WINDOW_BUFFER_SIZE_EVENT:
+				notifyResizeEvent()
+			case windows.KEY_EVENT:
+				key := record.KeyEvent
+				if bytes := decoder.decode(key.KeyDown != 0, key.VirtualKeyCode, key.UnicodeChar); bytes != nil {
+					writeSequence(bytes)
+				}
+			}
+		}
 	}
 }
