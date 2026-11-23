@@ -293,13 +293,14 @@ const StyledButton = styled.button`
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
+  display: flex;
+  align-items: center;
   background: transparent;
   font-size: 12px;
-  border-bottom: 1px solid ${theme.colors.spotBackground[0]};
+  border-bottom: 1px solid ${theme.colors.interactive.tonal.neutral[1]};
   min-height: 32px;
 
   /* displays ellipsis for longer string value */
-  display: inline-block;
   text-align: left;
   max-width: 450px;
   overflow: hidden;

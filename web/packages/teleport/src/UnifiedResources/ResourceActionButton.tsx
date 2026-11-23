@@ -101,7 +101,7 @@ const NodeConnect = ({ node }: { node: Node }) => {
 
   return (
     <MenuLogin
-      width="123px"
+      width="133px"
       inputType={MenuInputType.FILTER}
       textTransform={'none'}
       alignButtonWidthToMenu
@@ -148,7 +148,7 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
   return (
     <MenuLogin
-      width="123px"
+      width="133px"
       inputType={MenuInputType.FILTER}
       textTransform="none"
       alignButtonWidthToMenu
@@ -218,7 +218,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
 
     return (
       <AwsLaunchButton
-        width="123px"
+        width="133px"
         awsRoles={awsConsoleOrIdentityCenterRoles}
         getLaunchUrl={getAwsLaunchUrl}
         isAwsIdentityCenterApp={isAwsIdentityCenterApp}
@@ -229,7 +229,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     return (
       <ButtonBorder
         disabled
-        width="123px"
+        width="133px"
         size="small"
         title="Cloud apps cannot be launched by the browser"
         textTransform="none"
@@ -297,7 +297,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
   return (
     <ButtonBorder
       as="a"
-      width="123px"
+      width="133px"
       size="small"
       target="_blank"
       href={launchUrl}
@@ -321,7 +321,7 @@ function DatabaseConnect({ database }: { database: Database }) {
     <>
       <ButtonBorder
         textTransform="none"
-        width="123px"
+        width="133px"
         size="small"
         onClick={() => {
           setOpen(true);
@@ -356,7 +356,7 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
   return (
     <>
       <ButtonBorder
-        width="123px"
+        width="133px"
         textTransform="none"
         size="small"
         onClick={() => setOpen(true)}
@@ -390,7 +390,7 @@ function GitServerConnect({ gitServer }: { gitServer: GitServer }) {
     <>
       <ButtonBorder
         textTransform="none"
-        width="123px"
+        width="133px"
         size="small"
         onClick={() => {
           setOpen(true);
@@ -419,7 +419,7 @@ function TcpAppConnect({ app }: { app: App }) {
     <>
       <ButtonBorder
         textTransform="none"
-        width="123px"
+        width="133px"
         size="small"
         onClick={() => setOpen(true)}
       >
@@ -441,7 +441,7 @@ function LLMAppConnect({ app }: { app: App }) {
     <>
       <ButtonBorder
         textTransform="none"
-        width="123px"
+        width="133px"
         size="small"
         onClick={() => setOpen(true)}
       >
@@ -463,7 +463,7 @@ function MCPAppConnect({ app }: { app: App }) {
     <>
       <ButtonBorder
         textTransform="none"
-        width="123px"
+        width="133px"
         size="small"
         onClick={() => setOpen(true)}
       >
@@ -535,7 +535,7 @@ function makeSamlAppLoginWithMenuButton(
       return (
         <MenuLoginWithActionMenu
           getLoginItems={() => makeSamlAppLoginOptions(launchUrls)}
-          menuWidth="100px"
+          menuWidth="133px"
           onSelect={() => {}} // login item rendered as <a> link for saml apps.
           buttonText="Log In"
           size="small"
@@ -552,7 +552,7 @@ function makeSamlAppLoginWithMenuButton(
   return (
     <ButtonWithMenu
       text="Log In"
-      buttonWidth="100px"
+      buttonWidth="133px"
       size="small"
       target="_blank"
       href={ssoUrl}
@@ -587,7 +587,7 @@ function makeSamlAppLoginButton(
     if (launchUrls.length > 1) {
       return (
         <MenuLogin
-          width="100px"
+          width="133px"
           inputType={MenuInputType.NONE}
           onSelect={() => {}} // login item rendered as <a> link for saml apps.
           textTransform="none"
@@ -612,7 +612,7 @@ function makeSamlAppLoginButton(
   return (
     <ButtonBorder
       as="a"
-      width="100px"
+      width="133px"
       size="small"
       target="_blank"
       href={ssoUrl}

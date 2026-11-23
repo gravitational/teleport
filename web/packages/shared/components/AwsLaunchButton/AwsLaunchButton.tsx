@@ -202,10 +202,10 @@ type Props = {
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
   font-size: 12px;
-  border-bottom: 1px solid ${theme.colors.spotBackground[0]};
+  border-bottom: 1px solid ${theme.colors.interactive.tonal.neutral[1]};
   min-height: 32px;
   &:hover {
-    background: ${theme.colors.spotBackground[0]};
+    background: ${theme.colors.interactive.tonal.neutral[1]};
     color: ${theme.colors.text.main};
   }
 
