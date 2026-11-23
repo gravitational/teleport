@@ -255,7 +255,37 @@ func TestPingDefaultSessionTTL(t *testing.T) {
 			_, err = authServer.UpsertAuthPreference(ctx, cap)
 			require.NoError(t, err)
 
-			connector, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{
+			mustCreateRole(t, ctx, env, "access")
+			oidc, err := types.NewOIDCConnector("test-oidc", types.OIDCConnectorSpecV3{
+				IssuerURL:    "https://idp.example.com",
+				ClientID:     "test-client",
+				ClientSecret: "test-secret",
+				RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+				ClaimsToRoles: []types.ClaimMapping{{
+					Claim: "group",
+					Value: "developers",
+					Roles: []string{"access"},
+				}},
+			})
+			require.NoError(t, err)
+			_, err = authServer.UpsertOIDCConnector(ctx, oidc)
+			require.NoError(t, err)
+
+			saml, err := types.NewSAMLConnector("test-saml", types.SAMLConnectorSpecV2{
+				Issuer:                   "https://idp.example.com",
+				SSO:                      "https://idp.example.com/sso",
+				AssertionConsumerService: "https://proxy.example.com/v1/webapi/saml/acs",
+				AttributesToRoles: []types.AttributeMapping{{
+					Name:  "group",
+					Value: "developers",
+					Roles: []string{"access"},
+				}},
+			})
+			require.NoError(t, err)
+			_, err = authServer.UpsertSAMLConnector(ctx, saml)
+			require.NoError(t, err)
+
+			github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{
 				TeamsToRoles: []types.TeamRolesMapping{{
 					Organization: "example",
 					Team:         "developers",
@@ -263,23 +293,32 @@ func TestPingDefaultSessionTTL(t *testing.T) {
 				}},
 			})
 			require.NoError(t, err)
-			_, err = authServer.UpsertGithubConnector(ctx, connector)
+			_, err = authServer.UpsertGithubConnector(ctx, github)
 			require.NoError(t, err)
 
 			clt := env.proxies[0].newClient(t)
-			for _, connectorName := range []string{
-				"", constants.Local, constants.PasswordlessConnector,
-				constants.HeadlessConnector, connector.GetName(),
+			for _, tc := range []struct {
+				connectorName string
+				wantType      string
+			}{
+				{"", constants.Local},
+				{constants.Local, constants.Local},
+				{constants.PasswordlessConnector, constants.Local},
+				{constants.HeadlessConnector, constants.Local},
+				{oidc.GetName(), constants.OIDC},
+				{saml.GetName(), constants.SAML},
+				{github.GetName(), constants.Github},
 			} {
-				t.Run(connectorName, func(t *testing.T) {
+				t.Run(cmp.Or(tc.connectorName, "default"), func(t *testing.T) {
 					endpoint := clt.Endpoint("webapi", "ping")
-					if connectorName != "" {
-						endpoint = clt.Endpoint("webapi", "ping", connectorName)
+					if tc.connectorName != "" {
+						endpoint = clt.Endpoint("webapi", "ping", tc.connectorName)
 					}
 					resp, err := clt.Get(ctx, endpoint, nil)
 					require.NoError(t, err)
 					var pingResp webclient.PingResponse
 					require.NoError(t, json.Unmarshal(resp.Bytes(), &pingResp))
+					require.Equal(t, tc.wantType, pingResp.Auth.Type)
 					require.Equal(t, types.Duration(ttl), pingResp.Auth.DefaultSessionTTL)
 				})
 			}
