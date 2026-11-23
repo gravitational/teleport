@@ -103,14 +103,14 @@ Teleport Enterprise customers can download the custom FIPS package from their
 [Teleport account](https://teleport.sh). Look for `Linux 64-bit (FedRAMP/FIPS)`.
 
 
-$ curl https://cdn.teleport.dev/teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz.sha256
+$ curl https://cdn.teleport.dev/teleport-ent-v(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz.sha256
 <checksum> <filename>
-$ curl -O https://cdn.teleport.dev/teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
+$ curl -O https://cdn.teleport.dev/teleport-ent-v(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
 
 # Verify that the checksums match
-$ shasum -a 256 teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
+$ shasum -a 256 teleport-ent-v(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
 
-$ tar -xvf teleport-ent-(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
+$ tar -xvf teleport-ent-v(= teleport.version =)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
 $ cd teleport-ent
 $ sudo ./install
 ```
