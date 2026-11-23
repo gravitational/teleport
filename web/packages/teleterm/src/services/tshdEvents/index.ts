@@ -109,7 +109,7 @@ async function createServer(
  *
  * See the JSDoc for TshdEventContextBridgeService for more details.
  */
-function createService(logger: Logger): {
+export function createService(logger: Logger): {
   service: apiService.ITshdEventsService;
   setupTshdEventContextBridgeService: (
     listener: TshdEventContextBridgeService
@@ -152,6 +152,10 @@ function createService(logger: Logger): {
     });
 
     const onRequestCancelled = (callback: () => void) => {
+      if (call.cancelled) {
+        callback();
+        return;
+      }
       call.on('cancelled', callback);
     };
 
