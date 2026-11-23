@@ -655,15 +655,18 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 		// If reloading at the new version fails, revert and reload again.
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 		if ok := revertConfig(ctx); ok {
+			var reloadErr error
 			for i, p := range pg {
-				err := p.Reload(ctx, forceRestart[i])
-				if err != nil {
-					u.Log.ErrorContext(ctx, "Failed to reload after reverting.", errorKey, err, "service", pg.Name())
-					u.Log.ErrorContext(ctx, "Installation likely broken.")
-					return trace.Wrap(err, "failed to start system package version of Teleport")
+				if reloadErr = p.Reload(ctx, forceRestart[i]); reloadErr != nil {
+					break
 				}
 			}
-			u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
+			if reloadErr != nil {
+				u.Log.ErrorContext(ctx, "Failed to reload after reverting.", errorKey, reloadErr, "service", pg.Name())
+				u.Log.ErrorContext(ctx, "Installation likely broken.")
+			} else {
+				u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
+			}
 		}
 		return trace.Wrap(err, "failed to start system package version of Teleport")
 	}
@@ -1209,13 +1212,17 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 		// If reloading Teleport at the new version fails, revert and reload.
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 		if ok := revertConfig(ctx); ok {
+			var reloadErr error
 			for i, p := range pg {
-				if err := p.Reload(ctx, processActive[i]); err != nil {
-					u.Log.ErrorContext(ctx, "Failed to reload services after reverting. Installation likely broken.", errorKey, err)
-					return trace.Wrap(err, "failed to start new version %s of Teleport", target)
+				if reloadErr = p.Reload(ctx, processActive[i]); reloadErr != nil {
+					break
 				}
 			}
-			u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
+			if reloadErr != nil {
+				u.Log.ErrorContext(ctx, "Failed to reload services after reverting. Installation likely broken.", errorKey, reloadErr)
+			} else {
+				u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
+			}
 		}
 		return trace.Wrap(err, "failed to start new version %s of Teleport", target)
 	}
