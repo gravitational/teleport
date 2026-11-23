@@ -74,6 +74,19 @@ test('groups overage error path shows groups overage error', () => {
   ).toBeInTheDocument();
 });
 
+test('unavailable error path shows unavailable error', () => {
+  render(
+    <MemoryRouter initialEntries={[cfg.routes.loginErrorUnavailable]}>
+      <LoginFailed />
+    </MemoryRouter>
+  );
+  expect(
+    screen.getByText(
+      'Your SSO login succeeded, but Teleport was unable to complete the process. This may be a temporary problem; if it continues, contact your Teleport administrator.'
+    )
+  ).toBeInTheDocument();
+});
+
 test('unhandled error path shows generic error', () => {
   render(
     <MemoryRouter initialEntries={['/web/msg/error/login/some_unhandled_path']}>

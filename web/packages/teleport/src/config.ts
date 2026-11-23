@@ -172,6 +172,7 @@ const ossRoutes = {
   loginErrorCallback: '/web/msg/error/login/callback',
   loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
   loginErrorUnauthorized: '/web/msg/error/login/auth',
+  loginErrorUnavailable: '/web/msg/error/login/unavailable',
   loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
   scopePicker: '/web/scope_picker',
   samlSloFailed: '/web/msg/error/slo',

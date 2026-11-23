@@ -34,6 +34,9 @@ export function LoginFailed() {
       <Route path={cfg.routes.loginErrorUnauthorized}>
         <LoginFailedComponent message="You are not authorized. Please contact your Teleport administrator." />
       </Route>
+      <Route path={cfg.routes.loginErrorUnavailable}>
+        <LoginFailedComponent message="Your SSO login succeeded, but Teleport was unable to complete the process. This may be a temporary problem; if it continues, contact your Teleport administrator." />
+      </Route>
       <Route path={cfg.routes.loginErrorEntraIDGroupsOverage}>
         <LoginFailedComponent message="Your account is a member of more than 150 Entra ID groups. Please contact your SSO administrator to configure Graph API access on the Teleport SAML connector." />
       </Route>

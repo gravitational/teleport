@@ -493,6 +493,10 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 		if err := emitter.EmitAuditEvent(ctx, event); err != nil {
 			logger.WarnContext(ctx, "Failed to emit GitHub login failed event", "error", err)
 		}
+		if IsWrappedWebSessionCreationError(err) {
+			logger.WarnContext(ctx, "Failed to create web session", "error", err)
+			return nil, trace.Wrap(ErrWebSessionCreationFailed)
+		}
 		return nil, trace.Wrap(err)
 	}
 	event.Code = events.UserSSOLoginCode

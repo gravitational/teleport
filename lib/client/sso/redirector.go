@@ -64,6 +64,10 @@ const (
 	// LoginFailedRedirectURL is the default redirect URL when an SSO error was encountered.
 	LoginFailedRedirectURL = "/web/msg/error/login"
 
+	// LoginFailedUnavailableRedirectURL is a redirect URL when an SSO login succeeded at the
+	//  IdP, but Teleport could not complete the flow.
+	LoginFailedUnavailableRedirectURL = "/web/msg/error/login/unavailable"
+
 	// LoginFailedBadCallbackRedirectURL is a redirect URL when an SSO error specific to
 	// auth connector's callback was encountered.
 	LoginFailedBadCallbackRedirectURL = "/web/msg/error/login/callback"

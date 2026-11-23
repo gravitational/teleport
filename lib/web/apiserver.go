@@ -138,6 +138,10 @@ const (
 	// callback URL in tsh login.
 	SSOLoginFailureInvalidRedirect = "Failed to login due to a disallowed callback URL. Please check Teleport's log for more details."
 
+	// webSessionCreationFailedMessage is shown to users when their credentials
+	// were valid but Teleport could not create the web session.
+	webSessionCreationFailedMessage = "Teleport was unable to complete your login. This may be a temporary problem; please try again later or contact your Teleport administrator."
+
 	// webUIFlowLabelKey is a label that may be added to resources
 	// created via the web UI, indicating which flow the resource was created on.
 	// This label is used for enhancing UX in the web app, by showing icons related,
@@ -2675,6 +2679,9 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		if errors.Is(err, auth.ErrGithubNoRoles) {
 			return sso.LoginFailedUnauthorizedRedirectURL
 		}
+		if errors.Is(err, auth.ErrWebSessionCreationFailed) {
+			return sso.LoginFailedUnavailableRedirectURL
+		}
 
 		return sso.LoginFailedBadCallbackRedirectURL
 	}
@@ -3087,6 +3094,12 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		// return policy error as is to help direct user.
 		if keys.IsPrivateKeyPolicyError(err) {
 			return nil, trace.Wrap(err)
+		}
+		// If the user's credentials were valid but Teleport could not create the web session
+		// (e.g. the backend is unavailable), return a more accurate error than the generic
+		// "invalid credentials".
+		if errors.Is(err, auth.ErrWebSessionCreationFailed) {
+			return nil, trace.ConnectionProblem(err, "%s", webSessionCreationFailedMessage)
 		}
 		// Obscure all other errors.
 		return nil, trace.AccessDenied("invalid credentials")
@@ -3580,6 +3593,12 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	// backend.
 	case errors.Is(err, types.ErrNonExistingRoleAssigned):
 		return nil, trace.Wrap(err)
+
+	// The user's credentials were valid but Teleport could not create the web session
+	// (e.g. the backend is unavailable), return a more accurate error than the
+	// generic "invalid credentials".
+	case errors.Is(err, auth.ErrWebSessionCreationFailed):
+		return nil, trace.ConnectionProblem(err, "%s", webSessionCreationFailedMessage)
 
 	// Obscure all other errors.
 	case err != nil:

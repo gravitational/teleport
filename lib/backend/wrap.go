@@ -40,6 +40,9 @@ type Wrapper struct {
 	// readErr if set, will result in an error returned
 	// on every read operation
 	readErr error
+	// writeErr if set, will result in an error returned
+	// on every write operation
+	writeErr error
 }
 
 // NewWrapper returns a new Wrapper.
@@ -68,6 +71,22 @@ func (s *Wrapper) SetReadError(err error) {
 	s.readErr = err
 }
 
+// GetWriterror returns error to be returned by
+// write backend operations
+func (s *Wrapper) GetWriteError() error {
+	s.RLock()
+	defer s.RUnlock()
+	return s.writeErr
+}
+
+// SetWriteError sets error to be returned by write backend operations that
+// modify data, including deletes and lease keep-alives
+func (s *Wrapper) SetWriteError(err error) {
+	s.Lock()
+	defer s.Unlock()
+	s.writeErr = err
+}
+
 // GetRange returns query range
 func (s *Wrapper) GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
 	if err := s.GetReadError(); err != nil {
@@ -82,22 +101,34 @@ func (s *Wrapper) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item,
 
 // Create creates item if it does not exist
 func (s *Wrapper) Create(ctx context.Context, i Item) (*Lease, error) {
+	if err := s.GetWriteError(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return s.backend.Create(ctx, i)
 }
 
 // Put puts value into backend (creates if it does not
 // exists, updates it otherwise)
 func (s *Wrapper) Put(ctx context.Context, i Item) (*Lease, error) {
+	if err := s.GetWriteError(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return s.backend.Put(ctx, i)
 }
 
 // Update updates value in the backend
 func (s *Wrapper) Update(ctx context.Context, i Item) (*Lease, error) {
+	if err := s.GetWriteError(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return s.backend.Update(ctx, i)
 }
 
 // ConditionalUpdate updates value in the backend if revisions match.
 func (s *Wrapper) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error) {
+	if err := s.GetWriteError(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return s.backend.ConditionalUpdate(ctx, i)
 }
 
@@ -112,35 +143,56 @@ func (s *Wrapper) Get(ctx context.Context, key Key) (*Item, error) {
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
 func (s *Wrapper) CompareAndSwap(ctx context.Context, expected Item, replaceWith Item) (*Lease, error) {
+	if err := s.GetWriteError(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return s.backend.CompareAndSwap(ctx, expected, replaceWith)
 }
 
 // PutBatch puts multiple values into backend.
 func (s *Wrapper) PutBatch(ctx context.Context, items []Item) ([]string, error) {
+	if err := s.GetWriteError(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return PutBatch(ctx, s.backend, items)
 }
 
 // Delete deletes item by key
 func (s *Wrapper) Delete(ctx context.Context, key Key) error {
+	if err := s.GetWriteError(); err != nil {
+		return trace.Wrap(err)
+	}
 	return s.backend.Delete(ctx, key)
 }
 
 // DeleteBatch deletes multiple items from the backend.
 func (s *Wrapper) DeleteBatch(ctx context.Context, keys []Key) error {
+	if err := s.GetWriteError(); err != nil {
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(DeleteBatch(ctx, s.backend, keys))
 }
 
 // ConditionalDelete deletes item by key if revisions match.
 func (s *Wrapper) ConditionalDelete(ctx context.Context, key Key, revision string) error {
+	if err := s.GetWriteError(); err != nil {
+		return trace.Wrap(err)
+	}
 	return s.backend.ConditionalDelete(ctx, key, revision)
 }
 
 // DeleteRange deletes range of items
 func (s *Wrapper) DeleteRange(ctx context.Context, startKey, endKey Key) error {
+	if err := s.GetWriteError(); err != nil {
+		return trace.Wrap(err)
+	}
 	return s.backend.DeleteRange(ctx, startKey, endKey)
 }
 
 func (s *Wrapper) AtomicWrite(ctx context.Context, condacts []ConditionalAction) (revision string, err error) {
+	if err := s.GetWriteError(); err != nil {
+		return "", trace.Wrap(err)
+	}
 	return s.backend.AtomicWrite(ctx, condacts)
 }
 
@@ -149,6 +201,9 @@ func (s *Wrapper) AtomicWrite(ctx context.Context, condacts []ConditionalAction)
 // some backends may ignore expires based on the implementation
 // in case if the lease managed server side
 func (s *Wrapper) KeepAlive(ctx context.Context, lease Lease, expires time.Time) error {
+	if err := s.GetWriteError(); err != nil {
+		return trace.Wrap(err)
+	}
 	return s.backend.KeepAlive(ctx, lease, expires)
 }
 

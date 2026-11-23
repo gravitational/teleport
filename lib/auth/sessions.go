@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -55,28 +56,72 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// webSessionCreationFailedMessage identifies a login that failed because the web session
+// could not be created. This message is matched across the gRPC boundary and must not be
+// changed as this will break compatibility between versions.
+const webSessionCreationFailedMessage = "Teleport encountered an internal error while completing the login"
+
+// ErrWebSessionCreationFailed is returned when a user's login succeeded but
+// Teleport could not create the web session (e.g. because the backend was
+// slow or unavailable).
+var ErrWebSessionCreationFailed = &trace.CompareFailedError{Message: webSessionCreationFailedMessage}
+
+// wrappedWebSessionCreationError wraps a transient web session creation failure.
+type wrappedWebSessionCreationError struct {
+	cause error
+}
+
+func (e *wrappedWebSessionCreationError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *wrappedWebSessionCreationError) Unwrap() error {
+	return e.cause
+}
+
+// IsWrappedWebSessionCreationError reports whether err is a failure to create a web session
+// from an otherwise successful login.
+func IsWrappedWebSessionCreationError(err error) bool {
+	_, ok := errors.AsType[*wrappedWebSessionCreationError](err)
+	return ok
+}
+
 type NewWebSessionRequest = sessionreq.NewWebSessionRequest
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
+	start := a.clock.Now()
 	session, _, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, wrapWebSessionErr(err, "preparing web session", a.clock.Since(start))
 	}
 
 	err = a.upsertWebSession(ctx, session)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, wrapWebSessionErr(err, "saving web session to the backend", a.clock.Since(start))
 	}
 
 	// Issue and assign the DeviceWebToken, but never persist it with the
 	// session.
 	if req.CreateDeviceWebToken {
-		if err := a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent, req.LoginMaxTouchPoints); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent, req.LoginMaxTouchPoints)
 	}
 
 	return session, nil
+}
+
+func wrapWebSessionErr(err error, step string, elapsed time.Duration) error {
+	elapsed = elapsed.Round(time.Millisecond)
+	sessionErr := &wrappedWebSessionCreationError{cause: err}
+	switch {
+	case errors.Is(err, context.Canceled):
+		return trace.Wrap(sessionErr, "%s: canceled after %v", step, elapsed)
+	case errors.Is(err, context.DeadlineExceeded):
+		return trace.Wrap(sessionErr, "%s: timed out after %v", step, elapsed)
+	case trace.IsConnectionProblem(err), trace.IsLimitExceeded(err):
+		return trace.Wrap(sessionErr, "%s: failed after %v", step, elapsed)
+	}
+
+	return trace.Wrap(err)
 }
 
 func (a *Server) augmentSessionForDeviceTrust(
@@ -84,10 +129,10 @@ func (a *Server) augmentSessionForDeviceTrust(
 	session types.WebSession,
 	loginIP, userAgent string,
 	maxTouchPoints int,
-) error {
+) {
 	// IP and user agent are mandatory for device web authentication.
 	if loginIP == "" || userAgent == "" {
-		return nil
+		return
 	}
 
 	// Create the device trust DeviceWebToken.
@@ -109,8 +154,6 @@ func (a *Server) augmentSessionForDeviceTrust(
 			Token: webToken.GetToken(),
 		})
 	}
-
-	return nil
 }
 
 func (a *Server) calculateTrustedDeviceMode(

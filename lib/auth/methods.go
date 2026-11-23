@@ -784,6 +784,13 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		Scope:                req.Scope,
 	})
 	if err != nil {
+		if IsWrappedWebSessionCreationError(err) {
+			a.logger.WarnContext(ctx, "Failed to create web session",
+				"user", user.GetName(),
+				"error", err,
+			)
+			return nil, trace.Wrap(ErrWebSessionCreationFailed)
+		}
 		return nil, trace.Wrap(err)
 	}
 
