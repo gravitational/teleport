@@ -45,8 +45,10 @@ var (
 		// additional default restrictions
 		"object-src": {"'none'"},
 		"img-src":    {"'self'", "data:", "blob:"},
-		"style-src":  {"'self'", "'unsafe-inline'"},
+		"style-src":  {"'self'"},
 	}
+	// The Web UI uses CSS-in-JS and therefore needs to allow 'unsafe-inline' for style-src.
+	inlineStyleSrc     = CSPMap{"style-src": {"'unsafe-inline'"}}
 	defaultFontSrc     = CSPMap{"font-src": {"'self'", "data:"}}
 	defaultConnectSrc  = CSPMap{"connect-src": {"'self'", "wss:"}}
 	wasmSecurityPolicy = CSPMap{"script-src": {"'self'", "'wasm-unsafe-eval'"}}
@@ -155,7 +157,7 @@ const (
 )
 
 func getIndexContentSecurityPolicy(options ...cspOption) CSPMap {
-	cspMaps := []CSPMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc}
+	cspMaps := []CSPMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc, inlineStyleSrc}
 	for _, option := range options {
 		switch option {
 		case withWASM:
