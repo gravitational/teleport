@@ -175,6 +175,23 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 	}, conn)
 }
 
+// MonitorConnLocks is [ConnectionMonitor.MonitorConn] for a connection that
+// only locks may end, such as one that carries requests for many users. It
+// applies no idle timeout or certificate expiry.
+func (c *ConnectionMonitor) MonitorConnLocks(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
+	authPref, err := c.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return ctx, conn, trace.Wrap(err)
+	}
+	identity := authzCtx.Identity.GetIdentity()
+	return c.monitorConn(ctx, monitorParams{
+		lockTargets:       authzCtx.LockTargets(),
+		lockingMode:       authzCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		teleportUser:      identity.Username,
+		originClusterName: identity.OriginClusterName,
+	}, conn)
+}
+
 // MonitorConnScoped is the scoped-identity variant of [ConnectionMonitor.MonitorConn].
 func (c *ConnectionMonitor) MonitorConnScoped(ctx context.Context, sessionCtx *authz.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error) {
 	if sessionCtx == nil {

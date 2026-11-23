@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"log/slog"
 	"net"
 	"net/http"
@@ -70,9 +69,26 @@ func (h *requestIdentityHandler) accepts(user authz.IdentityGetter) bool {
 	return ok && proxy.Role == types.RoleProxy
 }
 
-// handleConnection serves a connection from a Proxy that forwards a client
-// identity with each request.
-func (h *requestIdentityHandler) handleConnection(ctx context.Context, conn net.Conn) error {
+// handleConnection serves a connection from a forwarding Proxy. A Proxy needs
+// nothing from Auth to forward any user's identity, so this is where a lock on
+// a compromised Proxy takes effect. A Proxy's authorization can only change
+// through a lock, so the monitor closes the connection on one.
+func (h *requestIdentityHandler) handleConnection(ctx context.Context, conn net.Conn, proxy authz.IdentityGetter) error {
+	authCtx, err := h.c.cfg.Authorizer.AuthorizeScoped(authz.ContextWithUser(ctx, proxy))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// accepts admits only a Proxy's unscoped built-in role.
+	proxyCtx, ok := authCtx.UnscopedContext()
+	if !ok {
+		return trace.AccessDenied("forwarding Proxy has a scoped identity")
+	}
+	// The monitor returns the tracking connection under TLS, which carries
+	// ciphertext, so the server keeps reading from conn.
+	ctx, _, err = h.c.cfg.ConnectionMonitor.MonitorConnLocks(ctx, proxyCtx, conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(h.c.handleHTTPApp(ctx, h.httpServer, conn))
 }
 
@@ -111,12 +127,9 @@ func (h *requestIdentityHandler) admit(next http.Handler) http.Handler {
 	})
 }
 
-// check checks that the Proxy that sent a request may still forward identities,
-// and that the forwarded identity and client address are valid.
+// check checks that a request's forwarded identity and client address are
+// valid.
 func (h *requestIdentityHandler) check(r *http.Request) error {
-	if err := h.authorizeProxy(r); err != nil {
-		return trace.Wrap(err)
-	}
 	user, err := authz.UserFromContext(r.Context())
 	if err != nil {
 		return trace.Wrap(err)
@@ -125,20 +138,6 @@ func (h *requestIdentityHandler) check(r *http.Request) error {
 		return trace.Wrap(err)
 	}
 	_, err = forwardedClientIP(r)
-	return trace.Wrap(err)
-}
-
-// authorizeProxy authorizes the Proxy that sent a request, including checking
-// it against locks, as Auth does on each of its calls. A Proxy needs nothing
-// from Auth to forward any user's identity, so this is where a lock on a
-// compromised Proxy takes effect. The context now holds the forwarded identity,
-// so this reads the Proxy's identity from the connection again.
-func (h *requestIdentityHandler) authorizeProxy(r *http.Request) error {
-	proxy, err := h.c.authMiddleware.GetUser(r.Context(), *r.TLS)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = h.c.cfg.Authorizer.AuthorizeScoped(authz.ContextWithUser(r.Context(), proxy))
 	return trace.Wrap(err)
 }
 
@@ -216,12 +215,12 @@ func (h *requestIdentityHandler) chunkConfig(req authorizedRequest) (chunkConfig
 	}
 	// The Proxy defines the session ID. We guard against a bug on the Proxy
 	// that produces conflicting session IDs by combining the session ID with a
-	// SHA256 of the identity.
-	encoded, err := json.Marshal(identity)
+	// SHA256 of the forwarded identity, as the Proxy encoded it.
+	encoded, err := authz.ForwardedIdentityFromContext(req.r.Context())
 	if err != nil {
 		return chunkConfig{}, trace.Wrap(err)
 	}
-	digest := sha256.Sum256(encoded)
+	digest := sha256.Sum256([]byte(encoded))
 	expires := h.c.cfg.Clock.Now().Add(common.MaxSessionChunkDuration)
 	return chunkConfig{
 		key:        identity.RouteToApp.SessionID + "/" + hex.EncodeToString(digest[:]),

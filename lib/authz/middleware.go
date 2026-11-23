@@ -137,6 +137,9 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx = ContextWithClientSrcAddr(ctx, clientSrcAddr)
 	}
 	ctx = ContextWithUser(ctx, user)
+	if impersonateUser != "" {
+		ctx = ContextWithForwardedIdentity(ctx, impersonateUser)
+	}
 	r = r.WithContext(ctx)
 	// set remote address to the one that was passed in the header
 	// this is needed because impersonation reuses the same connection

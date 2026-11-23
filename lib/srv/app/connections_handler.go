@@ -67,6 +67,7 @@ import (
 // session controls dictate so.
 type ConnMonitor interface {
 	MonitorConnScoped(ctx context.Context, scopedCtx *authz.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error)
+	MonitorConnLocks(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ConnectionsHandlerConfig is the configuration for a ConnectionsHandler.
@@ -738,7 +739,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 	// For every other connection, connIdentityHandler takes it from the
 	// client certificate.
 	if c.acceptsForwardedIdentity() && c.requestIdentityHandler.accepts(user) {
-		return trace.Wrap(c.requestIdentityHandler.handleConnection(ctx, tlsConn))
+		return trace.Wrap(c.requestIdentityHandler.handleConnection(ctx, tlsConn, user))
 	}
 	return trace.Wrap(c.connIdentityHandler.handleConnection(ctx, tlsConn, user))
 }

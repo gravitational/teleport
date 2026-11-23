@@ -1589,6 +1589,11 @@ const (
 
 	// contextConn is a connection in the context associated with the request
 	contextConn contextKey = "teleport-connection"
+
+	// contextForwardedIdentity is the encoded identity a Proxy forwarded in
+	// the TeleportImpersonateUserHeader, which the contextUser was decoded from.
+	// Holds a string.
+	contextForwardedIdentity contextKey = "teleport-forwarded-identity"
 )
 
 // WithDelegator alias for backwards compatibility
@@ -1971,6 +1976,25 @@ func UserCertificateFromContext(ctx context.Context) (*x509.Certificate, error) 
 		return nil, trace.BadParameter("user certificate was not found in the context")
 	}
 	return cert, nil
+}
+
+// ContextWithForwardedIdentity returns the context with the encoded identity a
+// Proxy forwarded embedded.
+func ContextWithForwardedIdentity(ctx context.Context, encoded string) context.Context {
+	return context.WithValue(ctx, contextForwardedIdentity, encoded)
+}
+
+// ForwardedIdentityFromContext returns the encoded identity a Proxy forwarded,
+// exactly as the Proxy sent it.
+func ForwardedIdentityFromContext(ctx context.Context) (string, error) {
+	if ctx == nil {
+		return "", trace.BadParameter("context is nil")
+	}
+	encoded, ok := ctx.Value(contextForwardedIdentity).(string)
+	if !ok {
+		return "", trace.BadParameter("forwarded identity was not found in the context")
+	}
+	return encoded, nil
 }
 
 // ContextWithClientSrcAddr returns the context with the address embedded.
