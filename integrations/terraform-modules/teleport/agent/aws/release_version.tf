@@ -5,5 +5,5 @@
 locals {
   # module_version is updated by gen/update-version.sh for each release.
   # tflint-ignore: terraform_unused_declarations
-  module_version = "19.0.0-prealpha.2"
+  module_version = "19.0.0"
 }

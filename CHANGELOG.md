@@ -1,29 +1,72 @@
 # Changelog
 
-## 19.0.0 (xx/xx/26)
+## 19.0.0 (11/23/26)
 
-** Not yet released **
+Teleport 19 brings the following new features and improvements:
 
-### Breaking changes and deprecations
+* Amazon Aurora DSQL Cluster State Backend
+* Audit Log Reliability Improvements
+* Principal Selection for SSH and AWS Access Requests
+* In-band Per-Session MFA for SSH
+* Windows Agent
+* Fine-grained Web Application Access
 
-#### Audit log
+### Features
+
+### Amazon Aurora DSQL Cluster State Backend
+
+Teleport 19 supports using Amazon Aurora DSQL as a backend for cluster state.
+
+#### Audit Log Reliability Improvements
+
+Teleport 19 provides improved audit log stability and durability in the face of
+failure scenarios like control plane, networking issues and agent restarts.
+
+#### Principal Selection for SSH and AWS Access Requests
+
+Teleport 19 allows users to request specific principals in just-in-time requests
+for SSH nodes and AWS accounts in web UI and CLI. This support will be extended
+to other resource types in future releases.
+
+#### In-Band Per-Session MFA for SSH
+
+Teleport 19 supports in-band MFA for SSH sessions, moving MFA checks into
+session establishment so challenges are bound to the specific session. This
+removes per-session MFA SSH certificates and reduces MFA bypass risk.
+
+#### Windows Agent
+
+Teleport 19 ships with a Windows-native agent, allowing users to run the Windows
+desktop service natively on Windows hosts. The agent works with Teleport's
+managed updates, and supports the full set of Teleport RDP functionality. No
+other protocols are supported.
+
+#### Fine-grained Web Application Access
+
+Teleport 19 roles are able to specify fine-grained access controls for web
+applications. These new access rules determine which URL paths and HTTP methods
+are allowed.
+
+### Breaking Changes and Deprecations
+
+#### Audit Log
 
 Teleport 19 introduces an improved audit log that by default writes audit events
 to the agent's disk until they are successfully delivered to the audit system
 backend. This can result in additional disk usage when audit events are syncing
 to the auth server.
 
-This change moves writes from memory to disk. This can result in sensitive
-data, including PII, being written to disk. We recommend enabling
-[session recording encryption](https://goteleport.com/docs/enroll-resources/server-access/guides/encrypted-session-recordings/),
+This change moves writes from memory to disk. This can result in sensitive data,
+including PII, being written to disk. We recommend enabling [session recording
+encryption](https://goteleport.com/docs/enroll-resources/server-access/guides/encrypted-session-recordings/),
 as this will encrypt both session recordings and audit events.
 
 Audit events will be encrypted on disk if and only if session recording
 encryption is enabled.
 
 To keep the audit queue in memory instead of on disk, add the following to
-`teleport.yaml`. Audit events that have not yet been delivered are lost if
-the process exits.
+teleport.yaml. Audit events that have not yet been delivered are lost if the
+process exits.
 
 ```yaml
 teleport:
@@ -36,105 +79,103 @@ back to the Teleport 18 in-memory audit event path, which drops events when
 delivery to the Auth Service falls behind. This variable will be removed in a
 future release.
 
-#### Kubernetes proxy subresource access
+#### Kubernetes Proxy Subresource Access
 
 Access to the Kubernetes API server proxy subresources
 (`pods/{name}/proxy/{path}`, `services/{name}/proxy/{path}`, and
-`nodes/{name}/proxy/{path}`) now requires the new `proxy` verb in
-`kubernetes_resources`. Previously these endpoints were authorized as
-the `get` verb. Roles that use the Kubernetes API server proxy must
-add `"proxy"` to the relevant `verbs` list.
+`nodes/{name}/proxy/{path}`) now requires the new proxy verb in
+`kubernetes_resources`. Previously these endpoints were authorized as the get
+verb. Roles that use the Kubernetes API server proxy must add "proxy" to the
+relevant verbs list.
 
 #### macOS 13
 
 The minimum version of macOS required to run Teleport or associated client tools
 is now macOS 13 (Ventura).
 
-#### Stricter application validation
+#### Stricter Application Validation
 
-The application service now applies stricter naming rules on every
-write path (static config in `teleport.yaml`, the dynamic API via
-`tctl create`, the Terraform provider, the Kubernetes operator,
-direct API calls, and apps registered by existing agents). The
-change is backwards compatible apart from three cases:
+The application service now applies stricter naming rules on every write path
+(static config in teleport.yaml, the dynamic API via tctl create, the Terraform
+provider, the Kubernetes operator, direct API calls, and apps registered by
+existing agents). The change is backwards compatible apart from three cases:
 
-- Names in `teleport.yaml` static config must now be a valid DNS
-  label (lowercase alphanumeric and `-`, max 63 chars). Update the
-  config before upgrading.
-- `public_addr` values that remain unroutable after normalization
-  (IP addresses, IDN Unicode, trailing dots, underscores) are
-  rejected. The affected app drops from the registry until
-  corrected.
-- Duplicate `name` entries in the `app_service.apps` block of a
-  single agent's `teleport.yaml` now fail validation at startup.
-  Previously, the second entry silently overwrote the first, so
-  only one of the two apps was actually served. Deduplicate the
-  config before upgrading. The check is per-agent; multiple agents
-  heartbeating the same app name remain supported for load
-  balancing.
+* Names in `teleport.yaml` static config must now be a valid DNS label (lowercase
+  alphanumeric and -, max 63 chars). Update the config before upgrading.
+* `public_addr` values that remain unroutable after normalization (IP addresses,
+  IDN Unicode, trailing dots, underscores) are rejected. The affected app drops
+  from the registry until corrected.
+* Duplicate name entries in the `app_service.apps` block of a single agent's
+  teleport.yaml now fail validation at startup. Previously, the second entry
+  silently overwrote the first, so only one of the two apps was actually served.
+  Deduplicate the config before upgrading. The check is per-agent; multiple
+  agents heartbeating the same app name remain supported for load balancing.
 
-Rolling upgrades are supported: older-agent heartbeats are
-normalized so previously valid names still pass.
+Rolling upgrades are supported: older-agent heartbeats are normalized so
+previously valid names still pass.
 
-Static configs with two apps that route to the same effective FQDN
-(either the same explicit `public_addr`, or one app's
-`<name>.<proxy_public_addr>` default colliding with another app's
-`public_addr`) are now rejected at startup. Previously Teleport
-accepted the config and routed non-deterministically. The check uses
-this agent's `proxy_service.public_addr`; apps served via another
+Static configs with two apps that route to the same effective FQDN (either the
+same explicit `public_addr`, or one app's `<name>.<proxy_public_addr>`
+default colliding with another app's `public_addr`) are now rejected at startup.
+Previously Teleport accepted the config and routed non-deterministically. The
+check uses this agent's `proxy_service.public_addr`; apps served via another
 proxy's public address in a multi-proxy cluster are not checked.
 
 #### Application Access JWT expiry
 
 The JWT that the Application Service sends to upstream apps in the
-`Teleport-Jwt-Assertion` header now expires at most ten minutes after
-it's issued, rather than when the user's app certificate expires. A
-session's requests get a new JWT every five minutes. Upstream apps that
-validate the JWT on each request are unaffected, provided their clocks
-are within five minutes of the Application Service's. Apps that cache
-the JWT for later use, or end their own session when the JWT expires,
-may see failed requests or shorter sessions.
+Teleport-Jwt-Assertion header now expires at most ten minutes after it's issued,
+rather than when the user's app certificate expires. A session's requests get a
+new JWT every five minutes. Upstream apps that validate the JWT on each request
+are unaffected, provided their clocks are within five minutes of the Application
+Service's. Apps that cache the JWT for later use, or end their own session when
+the JWT expires, may see failed requests or shorter sessions.
 
-To restore the previous behavior, start your Application Service
-instances with the `TELEPORT_UNSTABLE_APP_JWT_EXPIRES_WITH_CERT=yes`
-environment variable. This flag will be removed in a future release.
+To restore the previous behavior, start your Application Service instances with
+the `TELEPORT_UNSTABLE_APP_JWT_EXPIRES_WITH_CERT=yes` environment variable.
+This flag will be removed in a future release.
 
-#### CLI --help Output Improvements
+#### CLI `--help` Output Improvements
 
 In the past, Teleport CLI programs printed all subcommands, subcommands'
-subcommands, and so on, when the `--help` option was specified. Additionally,
-the output was written to stderr, rather than stdout. `--help` output now
-goes to stdout, and contains info on only one level of subcommands. Affected
-programs include `teleport`, `tsh`, `tctl`, `tbot`, and `teleport-update`.
+subcommands, and so on, when the `--help` option was specified. Additionally, the
+output was written to stderr, rather than stdout. `--help` output now goes to
+stdout, and contains info on only one level of subcommands. Affected programs
+include teleport, tsh, tctl, tbot, and teleport-update.
 
 #### AWS OIDC integrations using S3 bucket as public key storage
 
-AWS OIDC integrations that store public keys in an S3 bucket are now disabled by default.
-No action is needed if you do not use AWS OIDC integrations, or if your integrations already use the cluster's public endpoint.
+AWS OIDC integrations that store public keys in an S3 bucket are now disabled by
+default. No action is needed if you do not use AWS OIDC integrations, or if your
+integrations already use the cluster's public endpoint.
 
-To check, run `tctl get integrations --format=yaml` and inspect `spec.aws_oidc.issuer_s3_uri` for each `aws-oidc` integration.
-An absent or empty field means the integration is unaffected, and no action is needed.
+To check, run tctl get integrations `--format=yaml` and inspect
+`spec.aws_oidc.issuer_s3_uri` for each AWS OIDC integration. An absent or empty
+field means the integration is unaffected, and no action is needed.
 
-Before upgrading, migrate affected integrations to use the cluster's public endpoint as the issuer:
+Before upgrading, migrate affected integrations to use the cluster's public
+endpoint as the issuer:
 
-- **Web UI:** Edit the integration, select **Reconfigure**, run the generated command in AWS CloudShell, and save the integration.
+* Web UI: Edit the integration, select Reconfigure, run the generated command in
+  AWS CloudShell, and save the integration.
 
 After migrating, run `tctl integrations test <name>` to verify the integration.
 
-To temporarily continue using an S3 issuer in v19, start all Auth Service instances with `TELEPORT_UNSTABLE_LEGACY_S3_AWSOIDC_ISSUER=true`.
-Support for S3 issuers and this environment variable will be removed in v20.
+To temporarily continue using an S3 issuer in v19, start all Auth Service
+instances with `TELEPORT_UNSTABLE_LEGACY_S3_AWSOIDC_ISSUER=true`. Support for
+S3 issuers and this environment variable will be removed in v20.
 
 #### Proxy Service CLI flag `--insecure-no-tls` removed
 
-In v19.0.0, the `--insecure-no-tls` flag for `teleport start` was removed. If the
-flag is specified, `teleport start` will exit with an error, regardless of which
-services are enabled.
+In Teleport v19, the `--insecure-no-tls` flag for teleport start was removed. If
+the flag is specified, teleport start will exit with an error, regardless of
+which services are enabled.
 
 This flag configured the Proxy Service's public listener to run without TLS
 (i.e. no encryption/plaintext). We have removed this CLI flag because this
 deployment architecture is not supported and is insecure.
 
-If you currently operate the Proxy Service with the `--insecure-no-tls` flag you
+If you currently operate the Proxy Service with the ``--insecure-no-tls` flag you
 will need to make configuration changes prior to upgrading to v19.
 
 Once the `--insecure-no-tls` flag is removed, the Proxy Service will use the
@@ -152,21 +193,71 @@ Service's `web_listen_addr` over HTTPS instead of plaintext HTTP. If the Proxy
 Service is using a self-signed certificate, the load balancer will also need to
 trust that certificate or skip verification of it.
 
-For more information on Proxy Service configuration, see the
-[Teleport Networking Reference](docs/pages/reference/deployment/networking.mdx)
-and the [Teleport Proxy Service Reference](docs/pages/reference/deployment/config.mdx#proxy-service).
+For more information on Proxy Service configuration, see the [Teleport
+Networking
+Reference](https://github.com/gravitational/core/blob/branch/v19/docs/pages/reference/deployment/networking.mdx)
+and the [Teleport Proxy Service
+Reference](https://github.com/gravitational/core/blob/branch/v19/docs/pages/reference/deployment/config.mdx#proxy-service).
 
 For further assistance with this change, reach out to Teleport Support.
 
-### Deprecation notice for Access Monitoring
+#### Terraform Provider Improved Consistency
 
-The Access Monitoring feature in Teleport Identity Governance is
-deprecated as of Teleport 19. Its functionality is now available
-in Teleport Identity Security through Identity Activity Center and
-the new Identity Security CLI.
+Starting with v19, the Teleport Terraform provider differentiates between unset
+values, zero values, and default values.
 
-The Access Monitoring UI will be removed in a future 19.x release,
-and the `tctl` commands and backend will be removed in Teleport 20.
+This offers better drift detection, consistency, and resolves some issues where
+a previously set field could not be unset.
+
+After updating to v19 Terraform may realize resources previously drifted and
+will try to correct the drifts. You must validate the plan before applying to
+prevent unintended behaviour changes if you were relying on an undetected drift.
+
+Some ambiguous or undefined values are no longer supported and might cause
+perpetual drift or inconsistencies.
+
+In most cases, you can unset the value to let Terraform use the default.
+
+```hcl
+resource "teleport_session_recording_config" "example" {
+  version = "v2"
+  # explicit value set
+  spec = {
+    mode = "Node"
+  }
+}
+resource "teleport_session_recording_config" "example" {
+  version = "v2"
+  # No value set, uses the default ("Node")
+  # Terraform is still aware that the value will be defaulted to "Node"
+  # It would detect a drift if this were to change server-side.
+  spec = {
+  }
+}
+resource "teleport_session_recording_config" "example" {
+  version = "v2"
+  # Now illegal, the value is explicitely set to the default placeholder.
+  # Teleport will replace "" with the default, but TF will see a drift between
+  # the user explicit requirement, and what is created in Teleport.
+  # Plan will fail.
+  spec = {
+    mode = ""
+  }
+}
+```
+
+As those ambiguous and inconsistent cases are identified and reported, the
+Terraform provider will be modified to offer more actionable error messages and
+a better user experience.
+
+#### Deprecation Notice for Access Monitoring
+
+The Access Monitoring feature in Teleport Identity Governance is deprecated as
+of Teleport v19. Its functionality is now available in Teleport Identity
+Security through Identity Activity Center and the new Identity Security CLI.
+
+The Access Monitoring UI will be removed in a future 19.x release, and the tctl
+commands and backend will be removed in Teleport v20.
 
 ## 18.5.0 (12/04/25)
 
