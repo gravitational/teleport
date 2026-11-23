@@ -38,7 +38,7 @@ skip-session-types = []
 ca = <Var name="/home/bob/event-handler" />/ca.crt
 cert = <Var name="/home/bob/event-handler" />/client.crt
 key = <Var name="/home/bob/event-handler" />/client.key
-url = "https://fluentd.example.com:8888/test.log"
+url = "https://fluentd.example.com:8888/events.log"
 session-url = "https://fluentd.example.com:8888/session"
 
 [teleport]
@@ -82,14 +82,14 @@ eventHandler:
 
 teleport:
   address: <Var name="teleport.example.com:443" />
-  identitySecretName: teleport-event-handler-identity
+  identitySecretName: teleport-plugin-event-handler-identity
   identitySecretPath: identity
 
 fluentd:
   url: "https://fluentd.fluentd.svc.cluster.local/events.log"
-  sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session.log"
+  sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session"
   certificate:
-    secretName: "teleport-event-handler-client-tls"
+    secretName: "teleport-plugin-event-handler-client-tls"
     caPath: "ca.crt"
     certPath: "client.crt"
     keyPath: "client.key"
