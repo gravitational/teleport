@@ -392,6 +392,11 @@ type ConfigTesting struct {
 	// SessionRecordingOpenFile overrides how the SSH service opens session recording files so tests can simulate
 	// disk failures on a single process.
 	SessionRecordingOpenFile utils.OpenFileWithFlagsFunc
+
+	// LoginShell overrides the login shell used by the SSH service for
+	// sessions, so tests don't depend on the shell configured for the user
+	// running them.
+	LoginShell string
 }
 
 // DatabaseCADownloader downloads CA certificates for cloud-hosted databases.
