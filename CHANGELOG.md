@@ -1,5 +1,32 @@
 # Changelog
 
+## 19.0.1 (11/23/26)
+
+* Improved the error messages shown and logged when a login fails because Teleport could not create the web session, for example, because the backend is slow or unavailable.
+* Fixed panic that could occur in tbot Workload Identity SDS handler triggered by trust bundle rotations.
+* Allow creation of SSO connectors without role-mappings.
+* Introduce new prometheus metrics: `teleport_inventory_instance_services`.
+* Fixed large tool call responses from streamable HTTP MCP servers failing with a 429 error.
+* Refined scheduled Access Request timing controls and date, time, and duration displays in the Web UI.
+* Fixed an issue that caused screen corruption when multiple Windows desktop sessions are running simultaneously in Teleport Connect.
+* Added support for scoped Azure and GCP cloud console apps.
+* Fixed SSO MFA redirect loop issue in service provider initiated SAML IdP login.
+* Deprecated `actions` in role rules. Actions are no longer evaluated and are ignored if set.
+* Fixed SAML IdP login for SSO users where login redirection link was broken during device authentication flow.
+* Fixed the `tbot` Application Access Proxy only forwarding the last header value for each header key in the response from the upstream service.
+* Fixes an issue in AWS Identity Center integration where Access List member updates may not be immediately reflected in Identity Center.
+* Fixed `teleport-msteams validate` panicking, and the MS Teams plugin crashing when updating Access Requests created before max duration support.
+* Improved reliability of access request plugins when broadcasting high-volume notifications.
+* Fix SSO login failures when AWS Cognito is Federated to an upstream IdP.
+* Fixed a Kubernetes `deny` rule with `name: "*"` scoped to a namespace blocking listing of cluster-wide resources such as nodes and CRDs.
+* Added support for configuring the WorkloadIdentity `spec.spiffe.jwt.extra_claims` field to the Terraform provider.
+* Linux desktop sessions can now be summarized.
+* Improved `teleport-update uninstall` error messages.
+* Fixed an issue with MySQL database user provisioning that prevented concurrent MySQL sessions when using  automatic database user provisioning.
+* Added `beam.created` event to the audit log.
+* Fixed MCP tool-list responses dropping fields.
+* Reduced the load on the Auth Service when app services start in clusters with many app servers.
+
 ## 19.0.0 (11/23/26)
 
 Teleport 19 brings the following new features and improvements:
