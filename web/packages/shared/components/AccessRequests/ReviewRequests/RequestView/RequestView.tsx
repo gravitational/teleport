@@ -231,7 +231,7 @@ export function RequestView({
                   state={request.state}
                   mr={3}
                   px={3}
-                  style={{ fontWeight: 'bold' }}
+                  style={{ fontWeight: 'bold', flexShrink: 0 }}
                 />
                 <H3 style={{ minWidth: 0 }}>
                   <Flex flexWrap="wrap" alignItems="baseline">
