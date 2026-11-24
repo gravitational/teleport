@@ -41,6 +41,11 @@ import (
 // sets no deadline once the handshake is done.
 const routeFreeResolveTimeout = 10 * time.Second
 
+// routeFreeCandidatesCacheTTL is how long the resolver caches an address's
+// candidate app servers. Finding them matches and copies every app server in
+// the cluster, which is too much for each new connection on large clusters.
+const routeFreeCandidatesCacheTTL = agentRouterCacheTTL
+
 // routeFreeResolverConfig holds what resolving a connection to an app takes.
 // NewRouteFreeHandler fills it from RouteFreeConfig.
 type routeFreeResolverConfig struct {
@@ -72,6 +77,7 @@ type routeFreeResolver struct {
 	clusterGetter reversetunnelclient.ClusterGetter
 	proxyDNSNames []string
 	logger        *slog.Logger
+	candidates    *utils.FnCache
 }
 
 // newRouteFreeResolver returns a resolver for cfg's cluster, or an error when cfg
@@ -88,6 +94,10 @@ func newRouteFreeResolver(cfg routeFreeResolverConfig) (*routeFreeResolver, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	candidates, err := newCandidatesCache()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &routeFreeResolver{
 		clusterName:   cfg.clusterName,
 		authorizer:    authorizer,
@@ -95,7 +105,44 @@ func newRouteFreeResolver(cfg routeFreeResolverConfig) (*routeFreeResolver, erro
 		clusterGetter: cfg.clusterGetter,
 		proxyDNSNames: ProxyDNSNames(cfg.proxyPublicAddrs, cfg.clusterName),
 		logger:        cfg.logger,
+		candidates:    candidates,
 	}, nil
+}
+
+// newCandidatesCache returns the cache of each address's candidate app servers.
+// A failed lookup isn't kept, so the next connection looks again.
+func newCandidatesCache() (*utils.FnCache, error) {
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:             routeFreeCandidatesCacheTTL,
+		CleanupInterval: routeFreeCandidatesCacheTTL,
+		ReloadOnErr:     true,
+	})
+	return cache, trace.Wrap(err)
+}
+
+// candidatesKey identifies an address's candidate app servers in a cluster.
+type candidatesKey struct {
+	clusterName string
+	sni         string
+}
+
+// candidatesFor returns sni's candidate app servers in cluster, from the cache
+// that connections to the same address share. Callers must not modify them.
+func (r *routeFreeResolver) candidatesFor(ctx context.Context, cluster reversetunnelclient.Cluster, sni string) ([]types.AppServer, error) {
+	// Keyed as matchSNI reads the name, so spellings of one address share an
+	// entry.
+	host, ok := normalizeHostname(sni)
+	if !ok {
+		return nil, nil
+	}
+	key := candidatesKey{clusterName: cluster.GetName(), sni: host}
+	servers, err := r.candidates.Get(ctx, key, func(ctx context.Context) ([]types.AppServer, error) {
+		// The cache loads with its own context, which has no deadline.
+		ctx, cancel := context.WithTimeout(ctx, routeFreeResolveTimeout)
+		defer cancel()
+		return candidatesForSNI(ctx, cluster, r.proxyDNSNames, host)
+	})
+	return servers, trace.Wrap(err)
 }
 
 // resolvedApp is what resolving a connection found: the app server it reaches,
@@ -115,7 +162,7 @@ func (r *routeFreeResolver) resolve(ctx context.Context, cert *x509.Certificate,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := candidatesForSNI(ctx, cluster, r.proxyDNSNames, sni)
+	servers, err := r.candidatesFor(ctx, cluster, sni)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
