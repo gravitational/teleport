@@ -252,7 +252,7 @@ func (r *roundTripperWithLogger) RoundTrip(req *http.Request) (*http.Response, e
 	}
 
 	if req.TLS != nil {
-		r.logger.InfoContext(req.Context(), "Round trip completed",
+		r.logger.Log(req.Context(), logutils.TraceLevel, "Round trip completed",
 			slog.String("method", req.Method),
 			slog.Any("url", logutils.StringerAttr(req.URL)),
 			slog.Int("code", rsp.StatusCode),
@@ -265,7 +265,7 @@ func (r *roundTripperWithLogger) RoundTrip(req *http.Request) (*http.Response, e
 			),
 		)
 	} else {
-		r.logger.InfoContext(req.Context(), "Round trip completed",
+		r.logger.Log(req.Context(), logutils.TraceLevel, "Round trip completed",
 			"method", req.Method,
 			"url", logutils.StringerAttr(req.URL),
 			"code", rsp.StatusCode,
