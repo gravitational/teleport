@@ -167,6 +167,9 @@ const (
 	// MetricBackendWatcherQueues is a metric with backend watcher queues sizes
 	MetricBackendWatcherQueues = "backend_watcher_queues_total"
 
+	// MetricBackendWatcherClosed counts backend watchers closed by the buffer, labeled by reason
+	MetricBackendWatcherClosed = "backend_watcher_closed_total"
+
 	// MetricBackendRequests measures count of backend requests
 	MetricBackendRequests = "backend_requests"
 
@@ -364,6 +367,9 @@ const (
 
 	// TagCacheComponent is a prometheus label for the cache component
 	TagCacheComponent = "cache_component"
+
+	// TagReason is a prometheus label for the reason an event occurred
+	TagReason = "reason"
 
 	// TagType is a prometheus label for type of resource or tunnel connected
 	TagType = "type"

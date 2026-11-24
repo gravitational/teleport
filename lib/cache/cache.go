@@ -96,6 +96,16 @@ var (
 		},
 		[]string{teleport.TagCacheComponent},
 	)
+
+	cacheResetTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "reset_total",
+			Help:      "Number of times the cache was reset.",
+		},
+		[]string{teleport.TagCacheComponent, teleport.TagReason},
+	)
 )
 
 // isHighVolumeResource returns true if a resource kind is a cached resource
@@ -959,10 +969,10 @@ func New(config Config) (*Cache, error) {
 		cacheStaleEventsReceived,
 		cacheHealth,
 		cacheLastReset,
+		cacheResetTotal,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	ctx, cancel := context.WithCancel(config.Context)
 	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:     time.Second,
@@ -1155,13 +1165,14 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 	}()
 	timer := time.NewTimer(c.Config.WatcherInitTimeout)
 	for {
-		err := c.fetchAndWatch(ctx, retry, timer)
+		reason, err := c.fetchAndWatch(ctx, retry, timer)
 		c.setInitError(err)
 		if c.isClosing() {
 			return
 		}
 		if err != nil {
-			c.Logger.WarnContext(ctx, "Re-init the cache on error", "error", err)
+			cacheResetTotal.WithLabelValues(c.target, reason).Inc()
+			c.Logger.WarnContext(ctx, "Re-init the cache on error", "error", err, "reason", reason)
 		}
 
 		// events cache should be closed as well
@@ -1195,6 +1206,28 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 		return
 	}
 }
+
+const (
+	// resetReasonDisconnected is a reset reason reported when the cache's watch stream was closed by the upstream
+	// for any reason. This can mean the upstream cache has been reset, the upstream cache has been disconnected from the backend,
+	// the upstream cache has been closed, or the backend buffer closed the watcher because the cache did not keep up.
+	resetReasonDisconnected = "disconnected"
+	// resetReasonUpstreamTimeout is a reset reason reported when the upstream watcher did not send an OpInit event
+	// within the watcher init timeout.
+	resetReasonUpstreamTimeout = "upstream_timeout"
+	// resetReasonUpstreamUnavailable is a reset reason reported when a watcher could not be created against the
+	// upstream.
+	resetReasonUpstreamUnavailable = "upstream_unavailable"
+	// resetReasonFetchFailed is a reset reason reported when fetching the initial state of the cached resources
+	// from the upstream failed.
+	resetReasonFetchFailed = "fetch_failed"
+	// resetReasonInternal is a reset reason reported when the cache failed for any other reason that should
+	// be investigated by logs.
+	resetReasonInternal = "internal"
+	// resetReasonClosing is a reset reason reported when the cache is closing and the update loop is exiting.
+	// This should not actually be reported to the metrics, so it does not add to the cardinality.
+	resetReasonClosing = "closing"
+)
 
 // fetchAndWatch keeps cache up to date by replaying
 // events and syncing local cache storage.
@@ -1231,7 +1264,7 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	have skipped 1 and 2, but in the absence of such mechanism in Dynamo
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
-func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
+func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) (string, error) {
 	cacheLastReset.WithLabelValues(c.target).SetToCurrentTime()
 	requestKinds := c.Config.Watches
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
@@ -1243,7 +1276,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	})
 	if err != nil {
 		c.notify(c.ctx, Event{Type: WatcherFailed})
-		return trace.Wrap(err)
+		return resetReasonUpstreamUnavailable, trace.Wrap(err)
 	}
 	defer watcher.Close()
 
@@ -1274,12 +1307,12 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	// by receiving init event first.
 	select {
 	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
+		return resetReasonDisconnected, trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 	case <-c.ctx.Done():
-		return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
+		return resetReasonClosing, trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
-			return trace.BadParameter("expected init event, got %v instead", event.Type)
+			return resetReasonInternal, trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
 		if watchStatus, ok := event.Resource.(types.WatchStatus); ok {
 			confirmedKinds = watchStatus.GetKinds()
@@ -1289,7 +1322,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 			confirmedKinds = requestKinds
 		}
 	case <-timer.C:
-		return trace.ConnectionProblem(nil, "timeout waiting for watcher init")
+		return resetReasonUpstreamTimeout, trace.ConnectionProblem(nil, "timeout waiting for watcher init")
 	}
 
 	fetchAndApplyStart := time.Now()
@@ -1313,7 +1346,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 
 	apply, err := c.fetch(ctx, confirmedKindsMap)
 	if err != nil {
-		return trace.Wrap(err)
+		return resetReasonFetchFailed, trace.Wrap(err)
 	}
 
 	// if the watcher signals that it's already done there's no point in
@@ -1322,9 +1355,9 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	// for its backend watcher
 	select {
 	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
+		return resetReasonDisconnected, trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 	case <-c.ctx.Done():
-		return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
+		return resetReasonClosing, trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 	default:
 	}
 
@@ -1333,7 +1366,9 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	c.setReadStatus(false, nil)
 	err = apply(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		// apply cannot fail in normal conditions, flag as internal reason if this happens as it means we have
+		// a collection bug.
+		return resetReasonInternal, trace.Wrap(err)
 	}
 
 	// apply was successful; cache is now readable.
@@ -1389,12 +1424,12 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	for {
 		select {
 		case <-watcher.Done():
-			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
+			return resetReasonDisconnected, trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 		case <-c.ctx.Done():
-			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
+			return resetReasonClosing, trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case <-relativeExpiryInterval.Next():
 			if err := c.performRelativeNodeExpiry(ctx); err != nil {
-				return trace.Wrap(err)
+				return resetReasonInternal, trace.Wrap(err)
 			}
 			c.notify(ctx, Event{Type: RelativeExpiry})
 		case event := <-watcher.Events():
@@ -1435,7 +1470,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 			}
 
 			if err := c.processEvent(ctx, event); err != nil {
-				return trace.Wrap(err)
+				return resetReasonInternal, trace.Wrap(err)
 			}
 			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
 		}

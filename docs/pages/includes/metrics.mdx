@@ -66,6 +66,7 @@
 | `teleport_backend_connections_acquired`                  | gauge     | Backend         | Number of pool connections currently in use. PostgreSQL backend only.|
 | `teleport_backend_read_connection_hold_seconds`          | histogram | Backend         | Duration a pool connection was held by read operations, per attempt, labeled with the `result` (`success` or `failure`). PostgreSQL backend only.|
 | `teleport_backend_write_connection_hold_seconds`         | histogram | Backend         | Duration a pool connection was held by write operations, per attempt, labeled with the `result` (`success` or `failure`). PostgreSQL backend only.|
+| `teleport_backend_watcher_closed_total`                  | counter   | Backend         | Number of backend watchers closed by the event buffer.                                                 |
 | `teleport_ca_override_apply_seconds`                     | histogram | Teleport Auth       | Duration of applying certificate overrides to CA certificates.                                     |
 | `teleport_ca_override_read_seconds`                      | histogram | Teleport Auth       | Duration of reading and parsing CA overrides.                                                      |
 | `teleport_connected_resources`                           | gauge     | Teleport Auth       | Number and type of resources connected via keepalives.                                             |
@@ -383,6 +384,7 @@ The `operation` and `result` labels break down into the following values:
 | `teleport_build_info` | gauge | Teleport | Provides build information of Teleport including gitref (git describe --long --tags), Go version, and Teleport version. The value of this gauge will always be 1. |
 | `teleport_breaker_connector_executions_total` | counter | Teleport | Number of requests to the Teleport Auth Service API that go through a circuit breaker done by Teleport services, labeled by `role` of the connector (almost always `Instance`), `state` of the associated circuit breaker and `success` as interpreted by the breaker. |
 | `teleport_cache_events` | counter | Teleport | Number of events received by a Teleport service cache. Teleport's Auth Service, Proxy Service, and other services cache incoming events related to their service. |
+| `teleport_cache_reset_total` | counter | Teleport | Number of times the cache was reset. |
 | `teleport_cache_stale_events` | counter | Teleport | Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend. |
 | `tx` | counter | Teleport | Number of bytes transmitted during an SSH connection. |
 

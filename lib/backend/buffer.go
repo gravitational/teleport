@@ -201,7 +201,15 @@ func (c *CircularBuffer) emit(r Event) {
 	c.fanOutEvent(r)
 }
 
+const closedReasonOverflow = "overflow"
+
+// watcherClosedOverflow counts the number of watchers closed due to buffer overflow.
+// It is constructed at init time because `WithLabelValues` can be surprisingly expensive and as such we avoid calling it
+// in hot paths.
+var watcherClosedOverflow = backendmetrics.WatcherClosed.WithLabelValues(closedReasonOverflow)
+
 func (c *CircularBuffer) fanOutEvent(r Event) {
+
 	var watchersToDelete []*BufferWatcher
 	c.watchers.walkPath(r.Item.Key.String(), func(watcher *BufferWatcher) {
 		if watcher.MetricComponent != "" {
@@ -216,6 +224,7 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 		c.logger.WarnContext(context.Background(), "Closing watcher, buffer overflow", "watcher", logutils.StringerAttr(watcher), "events", len(watcher.eventsC), "backlog", watcher.backlogLen())
 		watcher.closeWatcher()
 		c.watchers.rm(watcher)
+		watcherClosedOverflow.Inc()
 	}
 }
 

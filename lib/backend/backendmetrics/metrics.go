@@ -46,6 +46,14 @@ var (
 		},
 		[]string{teleport.ComponentLabel},
 	)
+	WatcherClosed = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBackendWatcherClosed,
+			Help:      "Number of backend watchers closed by the event buffer.",
+		},
+		[]string{teleport.TagReason},
+	)
 	WriteRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: teleport.MetricBackendWriteRequests,
@@ -317,7 +325,7 @@ var (
 // with the provided [prometheus.Registerer].
 func RegisterCollectors(reg prometheus.Registerer) error {
 	return trace.Wrap(metrics.RegisterCollectors(reg,
-		Watchers, WatcherQueues, Requests, WriteRequests,
+		Watchers, WatcherQueues, WatcherClosed, Requests, WriteRequests,
 		WriteRequestsFailed, BatchWriteRequests, BatchWriteRequestsFailed, ReadRequests,
 		ReadRequestsFailed, BatchReadRequests, BatchReadRequestsFailed, WriteLatencies,
 		WriteRequestsFailedPrecondition,
