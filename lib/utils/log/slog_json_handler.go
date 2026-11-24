@@ -163,3 +163,11 @@ func (j *SlogJSONHandler) Handle(ctx context.Context, r slog.Record) error {
 	addTracingContextToRecord(ctx, &r)
 	return j.JSONHandler.Handle(ctx, r)
 }
+
+func (j *SlogJSONHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &SlogJSONHandler{JSONHandler: j.JSONHandler.WithAttrs(attrs).(*slog.JSONHandler)}
+}
+
+func (j *SlogJSONHandler) WithGroup(name string) slog.Handler {
+	return &SlogJSONHandler{JSONHandler: j.JSONHandler.WithGroup(name).(*slog.JSONHandler)}
+}
