@@ -1125,9 +1125,18 @@ function Write-Version-Objects {
 
     Write-Host "Generating version info files for Windows artifacts"
 
-    # install go-winres (v0.3.3)
-    go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e
-    $GoWinres = Join-Path -Path $(go env GOPATH) -ChildPath "bin\go-winres.exe"
+    $GoWinresModule = Join-Path $TeleportSourceDirectory "build.assets\tools\go-winres"
+    $PreviousGoWork = $env:GOWORK
+    $env:GOWORK = "off"
+    try {
+        $GoWinres = go -C $GoWinresModule tool -n go-winres
+        $GoWinresExitCode = $LastExitCode
+    } finally {
+        $env:GOWORK = $PreviousGoWork
+    }
+    if ($GoWinresExitCode -ne 0) {
+        exit $GoWinresExitCode
+    }
 
     $Year = (Get-Date).Year
 
