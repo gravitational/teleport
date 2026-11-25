@@ -13,7 +13,7 @@ resource "teleport_provision_token" "example" {
   }
 
   spec = {
-    roles = ["Node", "Auth"]
+    roles = ["Node", "App"]
   }
 }
 

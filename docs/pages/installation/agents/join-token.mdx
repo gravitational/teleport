@@ -172,9 +172,10 @@ auth_service:
   tokens:
     # This static token allows new hosts to join the cluster as "proxy" or "node"
     - 'proxy,node:secret-token-value'
-    # A token can also be stored in a file. In this example the token for adding
-    # new Auth Service instances are stored in /path/to/tokenfile
-    - 'auth:/path/to/tokenfile'
+    # A token can also be stored in a file. In this example, the token that
+    # allows new hosts to join the cluster as "app" or "db" is stored in
+    # /path/to/tokenfile
+    - 'app,db:/path/to/tokenfile'
 ```
 
 </details>

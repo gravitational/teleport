@@ -337,7 +337,7 @@ auth_service:
   # tokens of 32+ byte length.
   tokens:
     - 'proxy,node:xxxxx'
-    - 'auth:yyyy'
+    - 'app,db:yyyy'
 
   # Optional configuration for session recording.
   session_recording_config:
