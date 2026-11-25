@@ -1,0 +1,171 @@
+---
+title: Configure the Okta Integration using Terraform
+description: Describes how to configure Okta for the Teleport Okta integration using Terraform.
+sidebar_label: Terraform
+sidebar_position: 5
+tags:
+ - how-to
+ - infrastructure-as-code
+ - identity-governance
+ - privileged-access
+enterprise: Identity Governance
+page_type: how-to
+---
+
+In this guide, you will use Terraform to configure the Okta side of the
+Teleport Okta integration, and then finish enrolling the integration with the
+guided flow in the Teleport Web UI.
+
+If you are new to the Teleport Okta integration, start by reading [how the
+integration works](./okta.mdx#how-it-works).
+
+## How it works
+
+The `okta-integration` Terraform module creates the following Okta resources:
+
+- A SAML 2.0 app that Teleport uses for SSO, with the Okta groups you choose
+  assigned to it. This replaces the Okta steps of the [Guided Okta SSO
+  Integration](./guided-sso.mdx).
+- An API Services app that Teleport uses to call the Okta API for [user
+  sync](./user-sync.mdx) and [application and group
+  sync](./app-and-group-sync.mdx). Teleport authenticates to Okta with a JWT
+  signed by its Okta key, and Okta fetches the public key from the
+  `/.well-known/jwks-okta` endpoint of the Teleport Proxy Service.
+- A custom admin role and a resource set that limit which Okta users, groups,
+  and apps Teleport can access, assigned to the API Services app.
+
+<Admonition type="warning" title="SCIM provisioning">
+The Terraform module doesn't configure SCIM provisioning. Okta doesn't allow
+enabling provisioning on a custom SAML app through its API, so you must enable
+it in the Okta Admin Console. Follow the [Okta SCIM
+Integration](./scim-integration.mdx) guide after you complete this guide.
+</Admonition>
+
+## Prerequisites
+
+- Teleport Identity Governance enabled for your Teleport cluster.
+- An Okta organization with a super administrator account. Creating a custom
+  admin role, a resource set, and an admin role assignment for an app requires
+  super administrator permissions.
+- Terraform installed on your workstation.
+- The Teleport Proxy Service must be reachable from Okta, so Okta can fetch the
+  Teleport JWKS. See [Private Teleport clusters](#private-teleport-clusters) if
+  it isn't.
+
+## Step 1/3. Prepare Terraform
+
+Clone the Teleport Okta integration example module, which is available in the
+Teleport GitHub
+[repository](https://github.com/gravitational/teleport/tree/master/examples/terraform/okta-integration).
+The module is based on the `okta`
+[provider](https://registry.terraform.io/providers/okta/okta/latest/docs). The
+provider reads Okta credentials from your environment, for example:
+
+```code
+$ export OKTA_API_TOKEN=...
+```
+
+## Step 2/3. Configure and apply
+
+The module expects at least the following input variables:
+
+- `okta_org_name`: Okta organization name, e.g., `dev-123456` for
+  `dev-123456.okta.com`.
+- `okta_base_url`: Okta organization domain, e.g., `okta.com` or
+  `oktapreview.com`. Defaults to `okta.com`.
+- `proxy_service_address`: Teleport Proxy Service host, e.g.,
+  `example.teleport.sh`.
+- `group_names`: Okta groups whose members can log in to Teleport. Only users
+  assigned to the SAML app, directly or through these groups, are synced to
+  Teleport.
+
+You can see other accepted variables in the module's
+[variables.tf](https://github.com/gravitational/teleport/blob/master/examples/terraform/okta-integration/variables.tf).
+Create a `tfvars` file with your inputs:
+
+```code
+$ cat > variables.auto.tfvars << EOF
+okta_org_name         = "..."
+okta_base_url         = "..."
+proxy_service_address = "..."
+group_names           = ["..."]
+EOF
+```
+
+Then apply the configuration:
+
+```code
+$ terraform init
+$ terraform plan
+$ terraform apply
+```
+
+Once the changes are applied, the module produces the following outputs, which
+you will need in the next step:
+
+- `saml_metadata_url`: Metadata URL of the Okta SAML app.
+- `okta_org_url`: URL of your Okta organization.
+- `api_app_client_id`: Client ID of the Okta API Services app.
+
+To print them again later, run `terraform output`.
+
+<Admonition type="note" title="Bidirectional Okta sync">
+By default, Okta integration is one-way and syncs Okta groups as read-only
+Access Lists. When enabling bidirectional sync on Teleport integration to let
+Teleport make changes in Okta (for example to request access to Okta apps with
+Access Requests), flip the `enable_bidirectional_sync` flag to `true` in your
+terraform config and re-apply.
+</Admonition>
+
+## Step 3/3. Enroll the integration in Teleport
+
+<Admonition type="note" title="Teleport IaC">
+Teleport Okta integration can't currently be installed via infrastructure-as-code
+but you can configure the [SAML connector](../../../reference/infrastructure-as-code/teleport-resources/saml-connector-v2.mdx)
+with Terraform.
+</Admonition>
+
+Finish the integration in the guided flow, using the module outputs instead of
+creating apps in the Okta Admin Console:
+
+1. In the Teleport Web UI, navigate to **Add New** -> **Integration** and select
+   the **Okta** tile.
+1. Follow the SSO setup flow to create a new connector. Use `saml_metadata_url`
+   from Terraform output. The SAML is created by terraform, so skip the Okta app
+   configuration steps described in the [Guided Okta SSO Integration](./guided-sso.mdx).
+1. When setting up User Sync, use `api_app_client_id` from Terraform output.
+   The module creates the API Services app and configures it to trust the
+   Teleport JWKS URL, so skip Steps 1 and 2 of the [User Sync](./user-sync.mdx)
+   guide.
+1. In the app and group sync, set default Access List owners and, optionally,
+   filters. See [Application and Group Sync](./app-and-group-sync.mdx).
+1. Optionally enable SCIM provisioning by following the [Okta SCIM Integration](./scim-integration.mdx)
+   guide. The Terraform module doesn't configure SCIM, so you must set it up in
+   the Okta Admin Console.
+
+## Private Teleport clusters
+
+If Okta can't reach the Teleport Proxy Service, replace `jwks_uri` in the
+`okta_app_oauth.teleport_okta_integration_api` resource with a [jwks](https://registry.terraform.io/providers/okta/okta/latest/docs/resources/app_oauth#jwks-1)
+block that holds the public key shown under **If your cluster is private** in
+the user sync step of the guided flow, and apply the configuration again.
+
+```hcl
+resource "okta_app_oauth" "teleport_okta_integration_api" {
+
+  # Remove jwks_uri and add one jwks block for each key in the key set.
+  jwks {
+    kty = "EC"
+    kid = "..."
+    x   = "..."
+    y   = "..."
+  }
+
+}
+```
+
+## Next steps
+
+- Configure [SCIM provisioning](./scim-integration.mdx).
+- Review the [Okta integration reference](./reference.mdx).
+- Learn how to [manage integration components](./okta.mdx#managing-integration-components).
