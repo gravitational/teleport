@@ -325,7 +325,7 @@ func (c *ScopedAccessChecker) assignments() iter.Seq[scopedRoleAssignment] {
 	}
 }
 
-// aggregateRoleSet is a temporary workaround to get summing support working for scoped methds that fallback
+// aggregateRoleSet is a temporary workaround to get summing support working for scoped methods that fallback
 // to unscoped logic. Future changes will make the scopedCompatChecker itself summed, and do away with the
 // need for this helper.
 func (c *ScopedAccessChecker) aggregateRoleSet() RoleSet {

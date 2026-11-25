@@ -1368,6 +1368,7 @@ type ScopedRoleApp struct {
 	xxx_hidden_ResourcesExpressions  []string               `protobuf:"bytes,8,rep,name=resources_expressions,json=resourcesExpressions,proto3"`
 	xxx_hidden_Gcp                   *ScopedRoleApp_GCP     `protobuf:"bytes,9,opt,name=gcp,proto3"`
 	xxx_hidden_Azure                 *ScopedRoleApp_Azure   `protobuf:"bytes,10,opt,name=azure,proto3"`
+	xxx_hidden_Mcp                   *ScopedRoleApp_MCP     `protobuf:"bytes,11,opt,name=mcp,proto3"`
 	XXX_raceDetectHookData           protoimpl.RaceDetectHookData
 	XXX_presence                     [1]uint32
 	unknownFields                    protoimpl.UnknownFields
@@ -1473,6 +1474,13 @@ func (x *ScopedRoleApp) GetAzure() *ScopedRoleApp_Azure {
 	return nil
 }
 
+func (x *ScopedRoleApp) GetMcp() *ScopedRoleApp_MCP {
+	if x != nil {
+		return x.xxx_hidden_Mcp
+	}
+	return nil
+}
+
 func (x *ScopedRoleApp) SetLabels(v []*v11.Label) {
 	x.xxx_hidden_Labels = &v
 }
@@ -1487,7 +1495,7 @@ func (x *ScopedRoleApp) SetClientIdleTimeout(v string) {
 
 func (x *ScopedRoleApp) SetDisconnectExpiredCert(v bool) {
 	x.xxx_hidden_DisconnectExpiredCert = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 10)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 11)
 }
 
 func (x *ScopedRoleApp) SetLock(v *Lock) {
@@ -1512,6 +1520,10 @@ func (x *ScopedRoleApp) SetGcp(v *ScopedRoleApp_GCP) {
 
 func (x *ScopedRoleApp) SetAzure(v *ScopedRoleApp_Azure) {
 	x.xxx_hidden_Azure = v
+}
+
+func (x *ScopedRoleApp) SetMcp(v *ScopedRoleApp_MCP) {
+	x.xxx_hidden_Mcp = v
 }
 
 func (x *ScopedRoleApp) HasDisconnectExpiredCert() bool {
@@ -1549,6 +1561,13 @@ func (x *ScopedRoleApp) HasAzure() bool {
 	return x.xxx_hidden_Azure != nil
 }
 
+func (x *ScopedRoleApp) HasMcp() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Mcp != nil
+}
+
 func (x *ScopedRoleApp) ClearDisconnectExpiredCert() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
 	x.xxx_hidden_DisconnectExpiredCert = false
@@ -1568,6 +1587,10 @@ func (x *ScopedRoleApp) ClearGcp() {
 
 func (x *ScopedRoleApp) ClearAzure() {
 	x.xxx_hidden_Azure = nil
+}
+
+func (x *ScopedRoleApp) ClearMcp() {
+	x.xxx_hidden_Mcp = nil
 }
 
 type ScopedRoleApp_builder struct {
@@ -1613,6 +1636,8 @@ type ScopedRoleApp_builder struct {
 	Gcp *ScopedRoleApp_GCP
 	// Azure contains the Azure configuration for the scoped role.
 	Azure *ScopedRoleApp_Azure
+	// MCP contains the MCP configuration for the scoped role.
+	Mcp *ScopedRoleApp_MCP
 }
 
 func (b0 ScopedRoleApp_builder) Build() *ScopedRoleApp {
@@ -1623,7 +1648,7 @@ func (b0 ScopedRoleApp_builder) Build() *ScopedRoleApp {
 	x.xxx_hidden_LabelExpression = b.LabelExpression
 	x.xxx_hidden_ClientIdleTimeout = b.ClientIdleTimeout
 	if b.DisconnectExpiredCert != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 10)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 11)
 		x.xxx_hidden_DisconnectExpiredCert = *b.DisconnectExpiredCert
 	}
 	x.xxx_hidden_Lock = b.Lock
@@ -1632,6 +1657,7 @@ func (b0 ScopedRoleApp_builder) Build() *ScopedRoleApp {
 	x.xxx_hidden_ResourcesExpressions = b.ResourcesExpressions
 	x.xxx_hidden_Gcp = b.Gcp
 	x.xxx_hidden_Azure = b.Azure
+	x.xxx_hidden_Mcp = b.Mcp
 	return m0
 }
 
@@ -2906,6 +2932,68 @@ func (b0 ScopedRoleApp_Azure_builder) Build() *ScopedRoleApp_Azure {
 	return m0
 }
 
+// MCP specifies the MCP configuration for the scoped role.
+type ScopedRoleApp_MCP struct {
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Tools []string               `protobuf:"bytes,1,rep,name=tools,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ScopedRoleApp_MCP) Reset() {
+	*x = ScopedRoleApp_MCP{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScopedRoleApp_MCP) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScopedRoleApp_MCP) ProtoMessage() {}
+
+func (x *ScopedRoleApp_MCP) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ScopedRoleApp_MCP) GetTools() []string {
+	if x != nil {
+		return x.xxx_hidden_Tools
+	}
+	return nil
+}
+
+func (x *ScopedRoleApp_MCP) SetTools(v []string) {
+	x.xxx_hidden_Tools = v
+}
+
+type ScopedRoleApp_MCP_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Tools defines the list of tools allowed for this role. Each entry
+	// can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular
+	// expression (must start with '^' and end with '$'). If the list is empty, no
+	// tools are allowed.
+	Tools []string
+}
+
+func (b0 ScopedRoleApp_MCP_builder) Build() *ScopedRoleApp_MCP {
+	m0 := &ScopedRoleApp_MCP{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Tools = b.Tools
+	return m0
+}
+
 var File_teleport_scopes_access_v1_role_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
@@ -2973,7 +3061,7 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x10label_expression\x18\b \x01(\tR\x0flabelExpressionB\x1a\n" +
 	"\x18_disconnect_expired_cert\"N\n" +
 	"\x1aScopedRoleWorkloadIdentity\x120\n" +
-	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\"\xea\x05\n" +
+	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\"\xc7\x06\n" +
 	"\rScopedRoleApp\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12)\n" +
 	"\x10label_expression\x18\x02 \x01(\tR\x0flabelExpression\x12.\n" +
@@ -2985,7 +3073,8 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x15resources_expressions\x18\b \x03(\tR\x14resourcesExpressions\x12>\n" +
 	"\x03gcp\x18\t \x01(\v2,.teleport.scopes.access.v1.ScopedRoleApp.GCPR\x03gcp\x12D\n" +
 	"\x05azure\x18\n" +
-	" \x01(\v2..teleport.scopes.access.v1.ScopedRoleApp.AzureR\x05azure\x1a\"\n" +
+	" \x01(\v2..teleport.scopes.access.v1.ScopedRoleApp.AzureR\x05azure\x12>\n" +
+	"\x03mcp\x18\v \x01(\v2,.teleport.scopes.access.v1.ScopedRoleApp.MCPR\x03mcp\x1a\"\n" +
 	"\x03AWS\x12\x1b\n" +
 	"\trole_arns\x18\x01 \x03(\tR\broleArns\x1a0\n" +
 	"\x03GCP\x12)\n" +
@@ -2993,7 +3082,9 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x05Azure\x12\x1e\n" +
 	"\n" +
 	"identities\x18\x01 \x03(\tR\n" +
-	"identitiesB\x1a\n" +
+	"identities\x1a\x1b\n" +
+	"\x03MCP\x12\x14\n" +
+	"\x05tools\x18\x01 \x03(\tR\x05toolsB\x1a\n" +
 	"\x18_disconnect_expired_cert\"\xfb\x02\n" +
 	"\vAppResource\x12\x14\n" +
 	"\x05paths\x18\x01 \x03(\tR\x05paths\x12\x18\n" +
@@ -3053,7 +3144,7 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x05verbs\x18\x04 \x03(\tR\x05verbs\x12\x1b\n" +
 	"\tapi_group\x18\x05 \x01(\tR\bapiGroupBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),                 // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),             // 1: teleport.scopes.access.v1.ScopedRoleSpec
@@ -3077,12 +3168,13 @@ var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRoleApp_AWS)(nil),          // 19: teleport.scopes.access.v1.ScopedRoleApp.AWS
 	(*ScopedRoleApp_GCP)(nil),          // 20: teleport.scopes.access.v1.ScopedRoleApp.GCP
 	(*ScopedRoleApp_Azure)(nil),        // 21: teleport.scopes.access.v1.ScopedRoleApp.Azure
-	nil,                                // 22: teleport.scopes.access.v1.AppResourceUnsafe.EncodedEntry
-	(*v1.Metadata)(nil),                // 23: teleport.header.v1.Metadata
-	(*v11.Label)(nil),                  // 24: teleport.label.v1.Label
+	(*ScopedRoleApp_MCP)(nil),          // 22: teleport.scopes.access.v1.ScopedRoleApp.MCP
+	nil,                                // 23: teleport.scopes.access.v1.AppResourceUnsafe.EncodedEntry
+	(*v1.Metadata)(nil),                // 24: teleport.header.v1.Metadata
+	(*v11.Label)(nil),                  // 25: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	23, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	24, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	3,  // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
 	10, // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
@@ -3093,31 +3185,32 @@ var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
 	2,  // 8: teleport.scopes.access.v1.ScopedRoleSpec.evaluation:type_name -> teleport.scopes.access.v1.ScopedRoleEvaluation
 	16, // 9: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
 	17, // 10: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
-	24, // 11: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	25, // 11: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
 	11, // 12: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
 	14, // 13: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
 	15, // 14: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
 	16, // 15: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
 	17, // 16: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
-	24, // 17: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
+	25, // 17: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
 	18, // 18: teleport.scopes.access.v1.ScopedRoleKube.resources:type_name -> teleport.scopes.access.v1.KubeResource
 	17, // 19: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
-	24, // 20: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity.labels:type_name -> teleport.label.v1.Label
-	24, // 21: teleport.scopes.access.v1.ScopedRoleApp.labels:type_name -> teleport.label.v1.Label
+	25, // 20: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity.labels:type_name -> teleport.label.v1.Label
+	25, // 21: teleport.scopes.access.v1.ScopedRoleApp.labels:type_name -> teleport.label.v1.Label
 	17, // 22: teleport.scopes.access.v1.ScopedRoleApp.lock:type_name -> teleport.scopes.access.v1.Lock
 	19, // 23: teleport.scopes.access.v1.ScopedRoleApp.aws:type_name -> teleport.scopes.access.v1.ScopedRoleApp.AWS
 	8,  // 24: teleport.scopes.access.v1.ScopedRoleApp.resources:type_name -> teleport.scopes.access.v1.AppResource
 	20, // 25: teleport.scopes.access.v1.ScopedRoleApp.gcp:type_name -> teleport.scopes.access.v1.ScopedRoleApp.GCP
 	21, // 26: teleport.scopes.access.v1.ScopedRoleApp.azure:type_name -> teleport.scopes.access.v1.ScopedRoleApp.Azure
-	9,  // 27: teleport.scopes.access.v1.AppResource.allow_unsafe:type_name -> teleport.scopes.access.v1.AppResourceUnsafe
-	22, // 28: teleport.scopes.access.v1.AppResourceUnsafe.encoded:type_name -> teleport.scopes.access.v1.AppResourceUnsafe.EncodedEntry
-	12, // 29: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
-	13, // 30: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
-	31, // [31:31] is the sub-list for method output_type
-	31, // [31:31] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	22, // 27: teleport.scopes.access.v1.ScopedRoleApp.mcp:type_name -> teleport.scopes.access.v1.ScopedRoleApp.MCP
+	9,  // 28: teleport.scopes.access.v1.AppResource.allow_unsafe:type_name -> teleport.scopes.access.v1.AppResourceUnsafe
+	23, // 29: teleport.scopes.access.v1.AppResourceUnsafe.encoded:type_name -> teleport.scopes.access.v1.AppResourceUnsafe.EncodedEntry
+	12, // 30: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
+	13, // 31: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
+	32, // [32:32] is the sub-list for method output_type
+	32, // [32:32] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -3139,7 +3232,7 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

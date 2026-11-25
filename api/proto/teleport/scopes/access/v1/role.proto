@@ -304,6 +304,18 @@ message ScopedRoleApp {
     // Identities specifies the Azure identities to allow for this scoped role.
     repeated string identities = 1;
   }
+
+  // MCP contains the MCP configuration for the scoped role.
+  MCP mcp = 11;
+
+  // MCP specifies the MCP configuration for the scoped role.
+  message MCP {
+    // Tools defines the list of tools allowed for this role. Each entry
+    // can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular
+    // expression (must start with '^' and end with '$'). If the list is empty, no
+    // tools are allowed.
+    repeated string tools = 1;
+  }
 }
 
 // AppResource is one rule under a scoped role's app.resources. It allows

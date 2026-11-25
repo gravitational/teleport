@@ -828,7 +828,7 @@ func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppToke
 			return "", trace.BadParameter("scoped app token request is missing the app name")
 		}
 		issuer = scopedapp.JWTAppTokenIssuer(ca.GetClusterName(), req.Scope)
-		audience = scopedapp.JWTAppTokenAudience(req.Scope, req.AppName)
+		audience = scopedapp.AppTokenAudience(req.Scope, req.AppName)
 	}
 
 	token, err := privateKey.Sign(jwt.SignParams{

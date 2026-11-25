@@ -255,6 +255,9 @@ type ReadProxyAccessPoint interface {
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
+
 	// GetApplication returns a scoped or unscoped application by name.
 	GetApplication(ctx context.Context, req *presencev1.GetApplicationRequest) (types.Application, error)
 

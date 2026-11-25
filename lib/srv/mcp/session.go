@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
@@ -45,7 +44,7 @@ type SessionCtx struct {
 	// ClientConn is the incoming client connection.
 	ClientConn net.Conn
 	// AuthCtx is the authorization context.
-	AuthCtx *authz.Context
+	AuthCtx *authz.ScopedContext
 	// App is the MCP server application being accessed.
 	App types.Application
 	// Identity is the user identity.
@@ -98,13 +97,9 @@ func (c *SessionCtx) checkAndSetDefaults() error {
 	return nil
 }
 
-func (c *SessionCtx) getAccessState(authPref types.AuthPreference) services.AccessState {
-	state := c.AuthCtx.Checker.GetAccessState(authPref)
-	state.MFAVerified = c.Identity.IsMFAVerified()
-	state.EnableDeviceVerification = true
-	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&c.Identity.DeviceExtensions)
-	state.IsBot = c.Identity.IsBot()
-	return state
+func (c *SessionCtx) getAccessState(ctx context.Context, authPrefGetter services.AuthPreferenceGetter) (services.AccessState, error) {
+	state, err := c.AuthCtx.CheckerContext.AccessStateFromTLSIdentity(ctx, &c.Identity, authPrefGetter)
+	return state, trace.Wrap(err)
 }
 
 type sessionHandlerConfig struct {
@@ -176,14 +171,16 @@ func newSessionHandler(cfg sessionHandlerConfig) (*sessionHandler, error) {
 }
 
 func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string) error {
-	authPref, err := s.accessPoint.GetAuthPreference(ctx)
+	state, err := s.getAccessState(ctx, s.accessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	matcher := &services.MCPToolMatcher{
 		Name: toolName,
 	}
-	err = s.AuthCtx.Checker.CheckAccess(s.App, s.getAccessState(authPref), matcher)
+	_, err = s.AuthCtx.CheckerContext.Decision(ctx, s.App.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.App().CheckAccessToApp(s.App, state, matcher)
+	})
 	return trace.Wrap(err)
 }
 

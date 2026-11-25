@@ -47,14 +47,14 @@ const (
 // servers. This MCP server is in-memory only and uses stdio transport. Access
 // to this MCP server is the same as any other MCP server (`tsh`, RBAC, audit
 // events, etc.).
-func NewDemoServerApp() (types.Application, error) {
+func NewDemoServerApp(scope string) (types.Application, error) {
 	app, err := types.NewAppV3(types.Metadata{
 		Name:        DemoServerName,
 		Labels:      map[string]string{types.TeleportInternalResourceType: types.DemoResource},
 		Description: "A demo MCP server that shows current user and session information",
 	}, types.AppSpecV3{
 		URI: fmt.Sprintf("%s://%s", types.SchemeMCPStdio, DemoServerName),
-	}, "")
+	}, scope)
 
 	return app, trace.Wrap(err)
 }

@@ -19,6 +19,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -29,6 +30,7 @@ import (
 	apiscopes "github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
@@ -51,7 +53,7 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 	return oidc.OpenIDConfigurationForIssuer(issuer, issuer+OIDCJWKWURI), nil
 }
 
-// scopedOpenidConfiguration serves the OIDC discovery document of a scoped AWS OIDC
+// scopedIntegrationOpenidConfiguration currently serves the OIDC discovery document of a scoped AWS OIDC
 // integration at <issuer>/.well-known/openid-configuration, where the issuer path is
 // /scope/<scope segments>/<integration name> (see awsoidc.ScopedIssuerPath).
 //
@@ -59,9 +61,9 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 // the path and resolves an exact integration.
 // It serves a document only when the scoped AWS OIDC integration exists.
 // Every other path under /scope/ returns a 404.
-func (h *Handler) scopedOpenidConfiguration(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
+func (h *Handler) scopedIntegrationOpenidConfiguration(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
 	// Parse the escaped path so an encoded slash (%2F) cannot pose as a scope separator.
-	scope, name, ok := parseScopedDiscoveryPath(r.URL.EscapedPath())
+	scope, name, ok := parseScopedDiscoveryPath(r.URL.EscapedPath(), awsoidc.ScopedIssuerPrefix)
 	if !ok {
 		return nil, trace.NotFound("not found")
 	}
@@ -96,16 +98,15 @@ func (h *Handler) scopedOpenidConfiguration(_ http.ResponseWriter, r *http.Reque
 }
 
 // parseScopedDiscoveryPath splits a scoped discovery request path,
-// /scope/<scope segments>/<integration name>/.well-known/openid-configuration, into the
-// integration's scope and name. The last segment is the name and any earlier segments
-// form the scope.
-func parseScopedDiscoveryPath(requestPath string) (scope, name string, ok bool) {
+// <prefix>/<scope segments>/<name>/.well-known/openid-configuration, into a scope and resource name.
+// The last segment is the resource name and any earlier segments form the scope
+func parseScopedDiscoveryPath(requestPath, prefix string) (scope, name string, ok bool) {
 	issuerPath, found := strings.CutSuffix(requestPath, openIDConfigurationSuffix)
 	if !found {
 		return "", "", false
 	}
 
-	rest, found := strings.CutPrefix(issuerPath, awsoidc.ScopedIssuerPrefix+"/")
+	rest, found := strings.CutPrefix(issuerPath, prefix+"/")
 	if !found {
 		return "", "", false
 	}
@@ -125,6 +126,54 @@ func parseScopedDiscoveryPath(requestPath string) (scope, name string, ok bool) 
 	}
 
 	return scope, name, true
+}
+
+// scopedAppOpenidConfiguration serves the OIDC discovery document of the OIDC ID tokens of a scoped MCP app
+// at <issuer>/.well-known/openid-configuration, where the issuer path is
+// /apps/scope/<scope segments>/<app name> (see scopedapp.OIDCAppTokenIssuerPath).
+//
+// It serves a document only when an MCP app with that scope and name exists.
+// Every other path under /apps/scope/ returns a 404.
+func (h *Handler) scopedAppOpenidConfiguration(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
+	// Parse the escaped path so an encoded slash (%2F) cannot pose as a scope separator.
+	scope, name, ok := parseScopedDiscoveryPath(r.URL.EscapedPath(), scopedapp.OIDCAppTokenIssuerPrefix)
+	if !ok {
+		return nil, trace.NotFound("not found")
+	}
+	if !h.hasScopedMCPApp(r.Context(), scope, name) {
+		return nil, trace.NotFound("not found")
+	}
+
+	issuerPath, err := scopedapp.OIDCAppTokenIssuerPath(scope, name)
+	if err != nil {
+		return nil, trace.NotFound("not found")
+	}
+	issuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, issuerPath)
+	if err != nil {
+		return nil, trace.NotFound("not found")
+	}
+
+	// The signing keys are the cluster-wide OIDC IdP CA key set, so the document points
+	// at the existing cluster JWKS endpoint rather than a per-app path.
+	clusterIssuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
+	if err != nil {
+		return nil, trace.NotFound("not found")
+	}
+	return oidc.OpenIDConfigurationForIssuer(issuer, clusterIssuer+OIDCJWKWURI), nil
+}
+
+// hasScopedMCPApp reports whether an app server serves the MCP app with the given scope and name.
+func (h *Handler) hasScopedMCPApp(ctx context.Context, scope, name string) bool {
+	for server, err := range h.cfg.AccessPoint.RangeApplicationServersWithName(ctx, name) {
+		if err != nil {
+			h.logger.DebugContext(ctx, "Failed to look up app servers for OIDC discovery", "error", err)
+			return false
+		}
+		if app := server.GetApp(); app.GetScope() == scope && app.IsMCP() {
+			return true
+		}
+	}
+	return false
 }
 
 // jwksOIDC returns all public keys used to sign JWT tokens for this cluster.

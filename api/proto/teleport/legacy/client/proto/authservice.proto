@@ -2397,11 +2397,21 @@ message PaginatedResource {
   // Principals holds the resource's principals, one entry per dimension
   // (e.g., SSH logins, AWS role ARNs), split into granted and requestable.
   repeated ResourcePrincipalSet Principals = 18 [(gogoproto.jsontag) = "principals,omitempty"];
+  // MCPTools holds the MCP tools the user may use.
+  MCPToolPermissions mcp_tools = 19;
 
   reserved 4;
   reserved "KubeService";
   reserved 11;
   reserved "AppServerOrSAMLIdPServiceProvider";
+}
+
+// MCPToolPermissions contains the MCP tools a user may use for an MCP app.
+message MCPToolPermissions {
+  // Allowed holds the patterns of allowed tools.
+  repeated string allowed = 1;
+  // Denied holds the patterns of denied tools.
+  repeated string denied = 2;
 }
 
 // ResourcePrincipalSet is one principal dimension of a resource.

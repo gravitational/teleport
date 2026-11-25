@@ -83,8 +83,8 @@ type resourceHandler interface {
 
 // ServiceConfig is the config for Service.
 type ServiceConfig struct {
-	// Authorizer is the authorizer to use.
-	Authorizer authz.Authorizer
+	// ScopedAuthorizer is the scoped authorizer used to authorize scoped users.
+	ScopedAuthorizer authz.ScopedAuthorizer
 	// Backend is the backend for user external credentials.
 	Backend services.UserExternalCredentials
 	// Logger is the slog logger.
@@ -130,8 +130,8 @@ type Service struct {
 
 // NewService creates a new UserExternalCredentialService.
 func NewService(cfg ServiceConfig) (*Service, error) {
-	if cfg.Authorizer == nil {
-		return nil, trace.BadParameter("authorizer is required")
+	if cfg.ScopedAuthorizer == nil {
+		return nil, trace.BadParameter("scoped authorizer is required")
 	}
 	if cfg.Backend == nil {
 		return nil, trace.BadParameter("backend is required")
@@ -225,11 +225,11 @@ func (s *Service) getResourceHandler(resourceKind string) (resourceHandler, erro
 
 // GetUserExternalCredentials retrieves the caller's credentials.
 func (s *Service) GetUserExternalCredentials(ctx context.Context, _ *pb.GetUserExternalCredentialsRequest) (*pb.GetUserExternalCredentialsResponse, error) {
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !authz.IsLocalUser(*authCtx) {
+	if !authz.ScopedIsLocalUser(authCtx) {
 		return nil, trace.AccessDenied("only users can get user external credentials")
 	}
 
@@ -242,7 +242,7 @@ func (s *Service) GetUserExternalCredentials(ctx context.Context, _ *pb.GetUserE
 	}.Build(), nil
 }
 
-func (s *Service) getUserExternalCredentials(ctx context.Context, authCtx *authz.Context) (*pb.UserExternalCredentials, error) {
+func (s *Service) getUserExternalCredentials(ctx context.Context, authCtx *authz.ScopedContext) (*pb.UserExternalCredentials, error) {
 	identity := authCtx.Identity.GetIdentity()
 	keyID, err := userexternalcredentials.KeyIDFromIdentity(&identity)
 	if err != nil {
@@ -255,11 +255,11 @@ func (s *Service) getUserExternalCredentials(ctx context.Context, authCtx *authz
 // ListUserExternalCredentials returns a page of credentials matching the
 // filter. The user field in the filter is required.
 func (s *Service) ListUserExternalCredentials(ctx context.Context, req *pb.ListUserExternalCredentialsRequest) (*pb.ListUserExternalCredentialsResponse, error) {
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !authz.IsLocalUser(*authCtx) {
+	if !authz.ScopedIsLocalUser(authCtx) {
 		return nil, trace.AccessDenied("only users can list user external credentials")
 	}
 	identity := authCtx.Identity.GetIdentity()
@@ -297,11 +297,11 @@ func (s *Service) DecryptUserExternalCredential(ctx context.Context, req *pb.Dec
 	}
 
 	// Only Proxy is allowed for decrypt.
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+	if !authCtx.HasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("only proxies can decrypt user external credentials")
 	}
 
@@ -355,11 +355,11 @@ func (s *Service) RefreshOAuthTokens(ctx context.Context, req *pb.RefreshOAuthTo
 		return nil, trace.BadParameter("missing auth_encrypted_refresh_token")
 	}
 
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !authz.IsLocalUser(*authCtx) {
+	if !authz.ScopedIsLocalUser(authCtx) {
 		return nil, trace.AccessDenied("only users can refresh user external credentials")
 	}
 	identity := authCtx.Identity.GetIdentity()
@@ -382,7 +382,13 @@ func (s *Service) RefreshOAuthTokens(ctx context.Context, req *pb.RefreshOAuthTo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := handler.CheckAccess(ctx, authCtx, payload.ResourceName); err != nil {
+	// Git servers and OAuth Proxy integrations are not scoped resources.
+	// TODO(williamo) - when/if we support scoped oauth or github integrations, this will need to change.
+	unscopedCtx, ok := authCtx.UnscopedContext()
+	if !ok {
+		return nil, trace.Wrap(services.ErrScopedIdentity, "refreshing %s credentials", payload.ResourceKind)
+	}
+	if err := handler.CheckAccess(ctx, unscopedCtx, payload.ResourceName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -413,11 +419,11 @@ func (s *Service) RefreshOAuthTokens(ctx context.Context, req *pb.RefreshOAuthTo
 // SyncUserExternalCredentials syncs credentials to a target session by
 // re-encrypting with the target's public key.
 func (s *Service) SyncUserExternalCredentials(ctx context.Context, req *pb.SyncUserExternalCredentialsRequest) (*pb.SyncUserExternalCredentialsResponse, error) {
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !authz.IsLocalUser(*authCtx) {
+	if !authz.ScopedIsLocalUser(authCtx) {
 		return nil, trace.AccessDenied("only users can sync user external credentials")
 	}
 	identity := authCtx.Identity.GetIdentity()
@@ -482,7 +488,7 @@ func (s *Service) verifyUserCertificate(ctx context.Context, certDER []byte) (*t
 	return identity, nil
 }
 
-func (s *Service) isOAuthTokenReadyForRefresh(ctx context.Context, authCtx *authz.Context, payload *credentialencryption.Payload) (bool, error) {
+func (s *Service) isOAuthTokenReadyForRefresh(ctx context.Context, authCtx *authz.ScopedContext, payload *credentialencryption.Payload) (bool, error) {
 	session, err := s.getUserExternalCredentials(ctx, authCtx)
 	if err != nil {
 		return false, trace.Wrap(err, "getting user external credentials")

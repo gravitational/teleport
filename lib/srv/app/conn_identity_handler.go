@@ -133,15 +133,9 @@ func (h *connIdentityHandler) handleConnection(ctx context.Context, conn *tls.Co
 		return trace.Wrap(h.handleTCPApp(ctx, conn, &identity, app))
 
 	case app.IsMCP():
-		// TODO (williamo/scopes): change this to a scoped context when we
-		// support MCP.
-		unscopedAuthCtx, ok := sessionCtx.Context.UnscopedContext()
-		if !ok {
-			return trace.AccessDenied("MCP application access is not supported for scoped identities")
-		}
 		sessionCtx := mcp.SessionCtx{
 			ClientConn:      conn,
-			AuthCtx:         unscopedAuthCtx,
+			AuthCtx:         sessionCtx.Context,
 			App:             app,
 			UserCertificate: userCert,
 		}

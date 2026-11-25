@@ -853,10 +853,11 @@ func DeduplicateApps(apps []Application) []Application {
 
 // DeduplicatedApps iterates deduplicated apps by combination of app scope,
 // name, and public address. This is the iter.Seq version of DeduplicateApps.
-func DeduplicatedApps(apps iter.Seq[Application]) iter.Seq[Application] {
+// T may be any type that is an Application, so callers keep their own type.
+func DeduplicatedApps[T Application](apps iter.Seq[T]) iter.Seq[T] {
 	type key struct{ scope, name, addr string }
 	seen := make(map[key]struct{})
-	return func(yield func(Application) bool) {
+	return func(yield func(T) bool) {
 		for app := range apps {
 			key := key{app.GetScope(), app.GetName(), app.GetPublicAddr()}
 			if _, ok := seen[key]; ok {

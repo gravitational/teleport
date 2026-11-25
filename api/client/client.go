@@ -4168,6 +4168,35 @@ func (c *Client) RangeApplications(ctx context.Context, req *presencepb.ListAppl
 	return clientutils.RangeResources(ctx, req.GetPageToken(), "", pageFn, types.Application.GetName)
 }
 
+// RangeApplicationServersWithName returns an iterator over the scoped and unscoped application
+// servers of the application with the given name.
+func (c *Client) RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error] {
+	if appName == "" {
+		return func(yield func(types.AppServer, error) bool) {
+			yield(nil, trace.BadParameter("missing application name"))
+		}
+	}
+
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]types.AppServer, string, error) {
+		resp, err := c.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType:        types.KindAppServer,
+			Namespace:           defaults.Namespace,
+			PredicateExpression: fmt.Sprintf("name == %q", appName),
+			Limit:               int32(pageSize),
+			StartKey:            pageToken,
+		})
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		servers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return servers, resp.NextKey, nil
+	}
+	return clientutils.Resources(ctx, pageFn)
+}
+
 // DeleteApplication deletes a scoped or unscoped application by name.
 //
 // Note that application resources here refers to "dynamically-added"
@@ -5213,6 +5242,14 @@ func convertResourcePrincipalSets(sets []*proto.ResourcePrincipalSet) []types.Re
 	return out
 }
 
+// convertMCPToolPermissions converts the MCP tools of a paginated resource.
+func convertMCPToolPermissions(tools *proto.MCPToolPermissions) *types.MCPToolPermissions {
+	if tools == nil {
+		return nil
+	}
+	return &types.MCPToolPermissions{Allowed: tools.Allowed, Denied: tools.Denied}
+}
+
 // convertEnrichedResource extracts the resource and any enriched information from the
 // PaginatedResource returned from the rpc ListUnifiedResources.
 func convertEnrichedResource(resource *proto.PaginatedResource) (*types.EnrichedResource, error) {
@@ -5233,7 +5270,7 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetUserGroup(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, Principals: convertResourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, Principals: convertResourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest, MCPTools: convertMCPToolPermissions(resource.McpTools)}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetGitServer(); r != nil {
@@ -5367,7 +5404,7 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 			}
 
-			out.Resources = append(out.Resources, &types.EnrichedResource{ResourceWithLabels: resource, Logins: respResource.Logins, Principals: convertResourcePrincipalSets(respResource.Principals)})
+			out.Resources = append(out.Resources, &types.EnrichedResource{ResourceWithLabels: resource, Logins: respResource.Logins, Principals: convertResourcePrincipalSets(respResource.Principals), MCPTools: convertMCPToolPermissions(respResource.McpTools)})
 		}
 
 		out.NextKey = resp.NextKey
@@ -5458,6 +5495,31 @@ func GetAllResources[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 	req.Limit = int32(defaults.DefaultChunkSize)
 	for {
 		page, err := GetResourcePage[T](ctx, clt, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out = append(out, page.Resources...)
+
+		if page.NextKey == "" || len(page.Resources) == 0 {
+			break
+		}
+
+		req.StartKey = page.NextKey
+	}
+
+	return out, nil
+}
+
+// GetAllEnrichedResources is like [GetAllResources], but returns the resources with the information the
+// request asks to enrich them with, e.g. the logins with IncludeLogins.
+func GetAllEnrichedResources(ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) ([]*types.EnrichedResource, error) {
+	var out []*types.EnrichedResource
+
+	// Set the limit to the default size.
+	req.Limit = int32(defaults.DefaultChunkSize)
+	for {
+		page, err := GetEnrichedResourcePage(ctx, clt, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -2129,6 +2129,19 @@ func ScopedIsCurrentUser(scopedContext *ScopedContext, username string) bool {
 	return isLocal && scopedContext.User.GetName() == username
 }
 
+// ScopedIsLocalUser checks if the scoped identity is a local user.
+func ScopedIsLocalUser(scopedContext *ScopedContext) bool {
+	if scopedContext == nil {
+		return false
+	}
+	if scopedContext.unscopedContext != nil {
+		return IsLocalUser(*scopedContext.unscopedContext)
+	}
+
+	_, ok := scopedContext.Identity.(LocalUser)
+	return ok
+}
+
 // ScopedIsLocalOrRemoteService checks if the scoped identity is either a local or
 // remote service, for scoped or unscoped agents alike. This is the
 // scoped aware counterpart to [IsLocalOrRemoteService].

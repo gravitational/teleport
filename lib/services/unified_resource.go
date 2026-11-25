@@ -1233,11 +1233,17 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 		resourceKind = r.GetKind()
 	}
 
-	var logins []string
+	var (
+		logins   []string
+		mcpTools *proto.MCPToolPermissions
+	)
 	resource := r
 	if enriched, ok := r.(*types.EnrichedResource); ok {
 		resource = enriched.ResourceWithLabels
 		logins = enriched.Logins
+		if enriched.MCPTools != nil {
+			mcpTools = &proto.MCPToolPermissions{Allowed: enriched.MCPTools.Allowed, Denied: enriched.MCPTools.Denied}
+		}
 	}
 
 	switch resourceKind {
@@ -1261,7 +1267,7 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}, Logins: logins, RequiresRequest: requiresRequest}
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}, Logins: logins, McpTools: mcpTools, RequiresRequest: requiresRequest}
 	case types.KindNode:
 		srv, ok := resource.(*types.ServerV2)
 		if !ok {

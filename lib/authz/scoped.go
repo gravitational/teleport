@@ -364,13 +364,18 @@ func (s *ScopedContext) AgentOwnedResourceAction(scope, hostID string, systemRol
 	if !isAgent {
 		return trace.BadParameter("no agent identity after confirming that request context is BuiltinRole (this is a bug)")
 	}
-	// For now, agents must also check that
+	// For now, agents must also check that the host ID matches the server ID
 	if hostID != serverID {
 		return trace.AccessDenied("resource host ID %+q does not match agent identity ID %+q", hostID, serverID)
 	}
 
+	return trace.Wrap(s.CheckAgentScope(scope))
+}
+
+// CheckAgentScope checks that the agent identity's scope matches the scope of the resource.
+func (s *ScopedContext) CheckAgentScope(scope string) error {
 	agentScope := s.Identity.GetIdentity().GetAgentScope()
-	// Unscoped agents must be only allowed to delete unscoped resources.
+	// Unscoped agents must be only allowed to act on unscoped resources.
 	// Scoped pinned agents must have matching agent and resource scopes.
 	// TODO (williamo/scopes): We most likely will relax this rule in the future.
 	if agentScope == "" && scope == "" {
@@ -381,7 +386,6 @@ func (s *ScopedContext) AgentOwnedResourceAction(scope, hostID string, systemRol
 	}
 
 	return trace.AccessDenied("agent scope %+q does not match resource scope %+q", agentScope, scope)
-
 }
 
 // ScopedSessionControls exposes the per-protocol session controls (idle

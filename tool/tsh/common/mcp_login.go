@@ -144,7 +144,7 @@ func (c *mcpLoginCommand) run() error {
 		return trace.Wrap(err)
 	}
 	if c.applyAppOAuthDefaults(ctx, app) {
-		fmt.Fprintf(c.cf.Stdout(), "Using OAuth settings configured for MCP server %q.\n", app.GetName())
+		fmt.Fprintf(c.cf.Stdout(), "Using OAuth settings configured for MCP server %q.\n", mcpServerName(app))
 	}
 	credsPath, err := mcpOAuthTokenPath(c.cf.HomePath, tc.WebProxyHost(), tc.Username, tc.SiteName, c.cf.AppSQN)
 	if err != nil {
@@ -241,13 +241,13 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 		cfg.Stderr = io.Discard
 	}
 	if types.GetMCPServerTransportType(cfg.App.GetURI()) != types.MCPTransportHTTP {
-		return trace.BadParameter("MCP server %q does not use HTTP transport; OAuth login only applies to HTTP MCP servers", cfg.App.GetName())
+		return trace.BadParameter("MCP server %q does not use HTTP transport; OAuth login only applies to HTTP MCP servers", mcpServerName(cfg.App))
 	}
 	appOAuth := appMCPOAuthConfig(cfg.App)
 	if appOAuth.Mode == types.MCPOAuthModeNotRequired {
 		// because oauth_mode defaults to "not specified", this means that an admin has specifically set
 		// to "not required" here, which would mean they are preventing oauth from happening so we can stop trying from here
-		fmt.Fprintf(cfg.Stdout, "MCP server %q is configured as not using OAuth, so OAuth login is not required.\n", cfg.App.GetName())
+		fmt.Fprintf(cfg.Stdout, "MCP server %q is configured as not using OAuth, so OAuth login is not required.\n", mcpServerName(cfg.App))
 		return nil
 	}
 	resourceURI := cfg.App.GetURI()
@@ -300,7 +300,7 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 		// OAuth always logs in.
 		if _, err := fetchAdvertisedMCPOAuthScopes(ctx, httpClient, oauthBaseURL); err != nil {
 			logger.DebugContext(ctx, "Failed to fetch OAuth protected resource metadata", "error", err)
-			fmt.Fprintf(cfg.Stdout, "MCP server %q accepted an unauthenticated request and publishes no OAuth protected resource metadata, so OAuth login is not required.\n", cfg.App.GetName())
+			fmt.Fprintf(cfg.Stdout, "MCP server %q accepted an unauthenticated request and publishes no OAuth protected resource metadata, so OAuth login is not required.\n", mcpServerName(cfg.App))
 			return nil
 		}
 	}
@@ -322,7 +322,7 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 	clientID, clientSecret := cfg.ClientID, cfg.ClientSecret
 	var registrationMetadata *mcpclienttransport.AuthServerMetadata
 	if clientID == "" {
-		fmt.Fprintf(cfg.Stdout, "Registering OAuth client %q for MCP server %q...\n", defaultMCPOAuthClientName, cfg.App.GetName())
+		fmt.Fprintf(cfg.Stdout, "Registering OAuth client %q for MCP server %q...\n", defaultMCPOAuthClientName, mcpServerName(cfg.App))
 		discoveryHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{HTTPClient: httpClient})
 		discoveryHandler.SetBaseURL(oauthBaseURL)
 		registrationMetadata, err = getMCPOAuthServerMetadata(ctx, discoveryHandler)
@@ -331,12 +331,12 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 		}
 		clientID, clientSecret, err = registerMCPOAuthClient(ctx, registrationMetadata, httpClient, redirectURI, scopes)
 		if err != nil {
-			return wrapMCPClientRegistrationError(err, cfg.App.GetName())
+			return wrapMCPClientRegistrationError(err, mcpServerName(cfg.App))
 		}
 	} else if cfg.Automatic {
-		fmt.Fprintf(cfg.Stdout, "Reusing the stored OAuth client and callback address for MCP server %q...\n", cfg.App.GetName())
+		fmt.Fprintf(cfg.Stdout, "Reusing the stored OAuth client and callback address for MCP server %q...\n", mcpServerName(cfg.App))
 	} else {
-		fmt.Fprintf(cfg.Stdout, "Using pre-registered OAuth client for MCP server %q...\n", cfg.App.GetName())
+		fmt.Fprintf(cfg.Stdout, "Using pre-registered OAuth client for MCP server %q...\n", mcpServerName(cfg.App))
 	}
 
 	tokenStore := mcpclienttransport.NewMemoryTokenStore()
@@ -471,9 +471,9 @@ func runMCPOAuthLogin(ctx context.Context, cfg mcpOAuthLoginConfig) error {
 	}
 	fmt.Fprintf(cfg.Stdout, "Authorization complete. Tokens stored in %v.\n", cfg.CredentialsPath)
 	if cfg.Automatic {
-		fmt.Fprintf(cfg.Stdout, "MCP server %q is ready; continuing the connection.\n", cfg.App.GetName())
+		fmt.Fprintf(cfg.Stdout, "MCP server %q is ready; continuing the connection.\n", mcpServerName(cfg.App))
 	} else {
-		fmt.Fprintf(cfg.Stdout, "MCP server %q is ready — restart your MCP clients if already running.\n", cfg.App.GetName())
+		fmt.Fprintf(cfg.Stdout, "MCP server %q is ready — restart your MCP clients if already running.\n", mcpServerName(cfg.App))
 	}
 	return nil
 }

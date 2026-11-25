@@ -137,6 +137,22 @@ spec:
                           to value cluster wide auth preference if not set.'
                         type: string
                     type: object
+                  mcp:
+                    description: MCP contains the MCP configuration for the scoped
+                      role.
+                    nullable: true
+                    properties:
+                      tools:
+                        description: Tools defines the list of tools allowed for this
+                          role. Each entry can be a literal string, a glob pattern
+                          (e.g. "prefix_*"), or a regular expression (must start with
+                          '^' and end with '$'). If the list is empty, no tools are
+                          allowed.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   resources:
                     description: Resources is a list of rules controlling access to
                       an app's resources on each HTTP request.  This version does

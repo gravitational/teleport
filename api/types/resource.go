@@ -154,6 +154,16 @@ type EnrichedResource struct {
 	// an access request to access. This is done during `ListUnifiedResources` when
 	// searchAsRoles is true
 	RequiresRequest bool
+	// MCPTools holds the MCP tools the user may use.
+	MCPTools *MCPToolPermissions
+}
+
+// MCPToolPermissions describes the MCP tools a user may use for an MCP app.
+type MCPToolPermissions struct {
+	// Allowed holds the patterns of allowed tools.
+	Allowed []string
+	// Denied holds the patterns of denied tools.
+	Denied []string
 }
 
 // ResourcePrincipalSet is one principal dimension of a resource.

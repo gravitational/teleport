@@ -179,6 +179,17 @@ func GenSchemaScopedRoleResource(ctx context.Context) (github_com_hashicorp_terr
 							Description: "Lock configures the role's locking behavior for app sessions. If empty, the defaults block value (or global default) applies.",
 							Optional:    true,
 						},
+						"mcp": github_com_hashicorp_terraform_plugin_framework_resource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_resource_schema.Attribute{"tools": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListAttribute{
+								Computed:      true,
+								Description:   "Tools defines the list of tools allowed for this role. Each entry can be a literal string, a glob pattern (e.g. \"prefix_*\"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.",
+								ElementType:   github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_resource_schema_planmodifier.List{github_com_hashicorp_terraform_plugin_framework_resource_schema_listplanmodifier.UseNonNullStateForUnknown()},
+							}},
+							Description: "MCP contains the MCP configuration for the scoped role.",
+							Optional:    true,
+						},
 						"resources": github_com_hashicorp_terraform_plugin_framework_resource_schema.ListNestedAttribute{
 							Computed:    true,
 							Description: "Resources is a list of rules controlling access to an app's resources on each HTTP request.  This version does not implement app.resources on scoped roles and rejects a scoped role that sets it to a non-empty list. An empty list is the same as leaving the field unset. The field is declared so that version skew or a rollback cannot silently drop it and widen a role's access.",
@@ -752,6 +763,16 @@ func GenSchemaScopedRoleDataSource(ctx context.Context) (github_com_hashicorp_te
 								Optional:    true,
 							}},
 							Description: "Lock configures the role's locking behavior for app sessions. If empty, the defaults block value (or global default) applies.",
+							Optional:    true,
+						},
+						"mcp": github_com_hashicorp_terraform_plugin_framework_datasource_schema.SingleNestedAttribute{
+							Attributes: map[string]github_com_hashicorp_terraform_plugin_framework_datasource_schema.Attribute{"tools": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListAttribute{
+								Computed:    true,
+								Description: "Tools defines the list of tools allowed for this role. Each entry can be a literal string, a glob pattern (e.g. \"prefix_*\"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.",
+								ElementType: github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Optional:    true,
+							}},
+							Description: "MCP contains the MCP configuration for the scoped role.",
 							Optional:    true,
 						},
 						"resources": github_com_hashicorp_terraform_plugin_framework_datasource_schema.ListNestedAttribute{
@@ -3162,6 +3183,51 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 																				t = (v.ValueString())
 																			}
 																			obj.Identities[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attributes()["mcp"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.app.mcp"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.mcp", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Mcp = nil
+												if !v.IsNull() && !v.IsUnknown() {
+													tf := v
+													obj.Mcp = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleApp_MCP{}
+													obj := obj.Mcp
+													{
+														a, ok := tf.Attributes()["tools"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedRole.spec.app.mcp.tools"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.mcp.tools", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.Tools = make([]string, len(v.Elements()))
+																if !v.IsNull() && !v.IsUnknown() {
+																	for k, a := range v.Elements() {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.app.mcp.tools", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.IsNull() && !v.IsUnknown() {
+																				t = (v.ValueString())
+																			}
+																			obj.Tools[k] = t
 																		}
 																	}
 																}
@@ -5674,6 +5740,78 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																	}
 																}()
 																attrs["azure"] = v
+															}
+														}
+													}
+													{
+														attrType, ok := attrType.AttributeTypes()["mcp"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedRole.spec.app.mcp"})
+														} else {
+															attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.mcp", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																existing := attrs["mcp"]
+																v := func() github_com_hashicorp_terraform_plugin_framework_attr.Value {
+																	if preserveUnknown && existing != nil && existing.IsUnknown() {
+																		return github_com_hashicorp_terraform_plugin_framework_types.ObjectUnknown(attrType.AttributeTypes())
+																	} else {
+																		if obj.Mcp == nil {
+																			return github_com_hashicorp_terraform_plugin_framework_types.ObjectNull(attrType.AttributeTypes())
+																		} else {
+																			obj := obj.Mcp
+																			attrs := make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(attrType.AttributeTypes()))
+																			v, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																			if ok && v.Attributes() != nil {
+																				attrs = v.Attributes()
+																			}
+																			{
+																				attrType, ok := attrType.AttributeTypes()["tools"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"ScopedRole.spec.app.mcp.tools"})
+																				} else {
+																					attrType, ok := attrType.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.app.mcp.tools", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																						existing := attrs["tools"]
+																						if preserveUnknown && existing != nil && existing.IsUnknown() {
+																							v = github_com_hashicorp_terraform_plugin_framework_types.ListUnknown(attrType.ElementType())
+																						} else {
+																							oldElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Tools))
+																							c, ok := existing.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																							if ok && c.Elements() != nil {
+																								oldElems = c.Elements()
+																							}
+																							elems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Tools))
+																							copy(elems, oldElems)
+																							for k, a := range obj.Tools {
+																								var v github_com_hashicorp_terraform_plugin_framework_attr.Value
+																								existing := elems[k]
+																								if preserveUnknown && existing != nil && existing.IsUnknown() {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringUnknown()
+																								} else {
+																									v = github_com_hashicorp_terraform_plugin_framework_types.StringValue(string(a))
+																								}
+																								elems[k] = v
+																							}
+																							result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ListValue(attrType.ElementType(), elems)
+																							diags.Append(resultDiags...)
+																							v = result
+																						}
+																						attrs["tools"] = v
+																					}
+																				}
+																			}
+																			result, resultDiags := github_com_hashicorp_terraform_plugin_framework_types.ObjectValue(attrType.AttributeTypes(), attrs)
+																			diags.Append(resultDiags...)
+																			return result
+																		}
+																	}
+																}()
+																attrs["mcp"] = v
 															}
 														}
 													}

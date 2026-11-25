@@ -2626,8 +2626,14 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		case match:
 			if req.IncludeLogins {
 				var checkableResource services.AccessCheckable = resource
+				var mcpTools *types.MCPToolPermissions
 				if appServer, ok := resource.(types.AppServer); ok {
 					checkableResource = appServer.GetApp()
+					if appServer.GetApp().IsMCP() {
+						res := resourceChecker.EnumerateMCPTools(appServer.GetApp())
+						allowed, denied := res.ToEntities()
+						mcpTools = &types.MCPToolPermissions{Allowed: allowed, Denied: denied}
+					}
 				}
 
 				logins, err := resourceChecker.GetAllowedLoginsForResource(checkableResource)
@@ -2641,6 +2647,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				resource = &types.EnrichedResource{
 					ResourceWithLabels: resource,
 					Logins:             logins,
+					MCPTools:           mcpTools,
 				}
 			}
 			resp.Resources = append(resp.Resources, resource)
@@ -2813,6 +2820,10 @@ func (c *scopedResourceChecker) GetAllowedLoginsForResource(
 
 	case types.Application:
 		// The allowed logins for apps are the AWS IAM role ARNs the identity may assume.
+		// if the application isn't an aws console, return early with no role arns
+		if !res.IsAWSConsole() {
+			return nil, nil
+		}
 		appScope := cmp.Or(res.GetScope(), apiscopes.Root)
 
 		var roleARNs []string
@@ -2844,8 +2855,12 @@ func (a *ScopedServerWithRoles) enrichAppServerWithLogins(ctx context.Context, r
 		return resource
 	}
 
+	var logins []string
+	var err error
 	checker := &scopedResourceChecker{ctx: ctx, scopedContext: *a.scopedContext}
-	logins, err := checker.GetAllowedLoginsForResource(appServer.GetApp())
+	// we only collect the allowed logins when the app is an aws console
+
+	logins, err = checker.GetAllowedLoginsForResource(appServer.GetApp())
 	if err != nil {
 		a.authServer.logger.WarnContext(ctx, "Unable to determine logins for resource",
 			"error", err,
@@ -2854,10 +2869,43 @@ func (a *ScopedServerWithRoles) enrichAppServerWithLogins(ctx context.Context, r
 		)
 	}
 
-	return &types.EnrichedResource{
+	enriched := &types.EnrichedResource{
 		ResourceWithLabels: resource,
 		Logins:             logins,
 	}
+	if app := appServer.GetApp(); app.IsMCP() {
+		tools, err := a.scopedMCPTools(ctx, app)
+		if err != nil {
+			a.authServer.logger.WarnContext(ctx, "Unable to determine MCP tools for resource",
+				"error", err,
+				"resource", appServer.GetName(),
+				"scope", appServer.GetScope(),
+			)
+		} else {
+			enriched.MCPTools = tools
+		}
+	}
+	return enriched
+}
+
+// scopedMCPTools returns the MCP tools of app the scoped identity may call.
+func (a *ScopedServerWithRoles) scopedMCPTools(ctx context.Context, app types.Application) (*types.MCPToolPermissions, error) {
+	var allowedTools []string
+	for checker, err := range a.scopedContext.CheckerContext.CheckersForResourceScope(ctx, cmp.Or(app.GetScope(), apiscopes.Root)) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := checker.App().CanAccessApp(app); err != nil {
+			continue
+		}
+		tools := checker.App().EnumerateMCPTools(app)
+		// scoped roles have no denied tools.
+		allowed, _ := tools.ToEntities()
+		allowedTools = append(allowedTools, allowed...)
+	}
+	allowedTools = apiutils.Deduplicate(allowedTools)
+
+	return &types.MCPToolPermissions{Allowed: allowedTools}, nil
 }
 
 // createOktaRequestableResourceChecker creates [oktaRequestableResoruceChecker].
@@ -3048,8 +3096,14 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			}
 
 			var checkableResource services.AccessCheckable = r
+			var mcpTools *types.MCPToolPermissions
 			if appServer, ok := r.(types.AppServer); ok {
 				checkableResource = appServer.GetApp()
+				if appServer.GetApp().IsMCP() {
+					res := resourceChecker.EnumerateMCPTools(appServer.GetApp())
+					allowed, denied := res.ToEntities()
+					mcpTools = &types.MCPToolPermissions{Allowed: allowed, Denied: denied}
+				}
 			}
 
 			logins, err := resourceChecker.GetAllowedLoginsForResource(checkableResource)
@@ -3060,7 +3114,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 				)
 			}
 
-			return &types.EnrichedResource{ResourceWithLabels: r, Logins: logins}, nil
+			return &types.EnrichedResource{ResourceWithLabels: r, Logins: logins, MCPTools: mcpTools}, nil
 		},
 	}
 

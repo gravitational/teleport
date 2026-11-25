@@ -2249,6 +2249,10 @@ type ClientI interface {
 	// with the scoped or unscoped integration named in the request.
 	GenerateAWSOIDCToken(ctx context.Context, req *integrationv1.GenerateAWSOIDCTokenRequest) (string, error)
 
+	// RangeApplicationServersWithName returns an iterator over the scoped and
+	// unscoped application servers of the application with the given name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
+
 	// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
 	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
 

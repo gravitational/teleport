@@ -6964,7 +6964,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	gitserverv1pb.RegisterGitServerServiceServer(server, gitServerService)
 
 	userExternalCredentialService, err := userexternalcredentialsv1.NewService(userexternalcredentialsv1.ServiceConfig{
-		Authorizer:        cfg.Authorizer,
+		ScopedAuthorizer:  cfg.ScopedAuthorizer,
 		Backend:           cfg.AuthServer.Services,
 		Encryptor:         cfg.AuthServer.credentialEncryptor,
 		Cache:             cfg.AuthServer.Cache,
@@ -7068,7 +7068,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	issuancev1pb.RegisterIssuanceServiceServer(server, issuanceSvc)
 
 	appIssuanceSvc, err := appv1.NewIssuanceService(appv1.IssuanceServiceConfig{
-		Authorizer: cfg.Authorizer,
+		Authorizer: cfg.ScopedAuthorizer,
 		Cache:      cfg.AuthServer.Cache,
 		KeyStore:   cfg.AuthServer.GetKeyStore(),
 	})

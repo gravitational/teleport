@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/label"
 	"github.com/gravitational/teleport/lib/traits"
+	"github.com/gravitational/teleport/lib/utils"
 	gcputils "github.com/gravitational/teleport/lib/utils/gcp"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -987,6 +988,10 @@ func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
 		return trace.Wrap(err)
 	}
 
+	if err := validateAppMCPBlock(app.GetMcp()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -1040,6 +1045,24 @@ func validateAppAzureBlock(az *scopedaccessv1.ScopedRoleApp_Azure) error {
 		}
 		if !azureIdentityPattern.MatchString(id) {
 			return trace.BadParameter("has invalid azure.identities entry: %v", id)
+		}
+	}
+
+	return nil
+}
+
+func validateAppMCPBlock(mcp *scopedaccessv1.ScopedRoleApp_MCP) error {
+	for _, tool := range mcp.GetTools() {
+		if err := ScopedValidateTemplate(tool); err != nil {
+			return trace.BadParameter("has invalid mcp.tools entry: %v", err)
+		}
+		if strings.Contains(tool, "{{") {
+			// Any value containing "{{" was either validated or rejected by ScopedValidateTemplate.
+			continue
+		}
+		// Compile the entry the same way tools are matched at access time.
+		if _, err := utils.CompileExpression(tool); err != nil {
+			return trace.BadParameter("has invalid mcp.tools entry %q: %v", tool, err)
 		}
 	}
 
@@ -1145,6 +1168,11 @@ func filterInvalidTemplatesFromRole(spec *scopedaccessv1.ScopedRoleSpec, failFas
 
 	// filter invalid Azure identities templates
 	if err := handleErrs(filterInvalidTemplates(spec.GetApp().GetAzure().GetIdentities, spec.GetApp().GetAzure().SetIdentities)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// filter invalid MCP tools templates
+	if err := handleErrs(filterInvalidTemplates(spec.GetApp().GetMcp().GetTools, spec.GetApp().GetMcp().SetTools)...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

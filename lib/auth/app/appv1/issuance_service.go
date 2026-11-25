@@ -20,7 +20,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/x509"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -29,14 +28,14 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	appv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/app/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/jwt"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/services"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -46,7 +45,7 @@ import (
 // Cache is the subset of cached reads required by the app issuance service.
 type Cache interface {
 	GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error)
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	ListAppServersForHost(ctx context.Context, req *presencev1.ListAppServersForHostRequest) ([]*types.AppServerV3, string, error)
 	services.AuthorityGetter
 	services.ClusterNameGetter
 	services.ProxyGetter
@@ -55,7 +54,7 @@ type Cache interface {
 // IssuanceServiceConfig is the config for [IssuanceService].
 type IssuanceServiceConfig struct {
 	// Authorizer is the authorizer to use.
-	Authorizer authz.Authorizer
+	Authorizer authz.ScopedAuthorizer
 	// Cache is the cache used to fetch resources.
 	Cache Cache
 	// KeyStore is used to sign JWT tokens.
@@ -68,7 +67,7 @@ type IssuanceServiceConfig struct {
 type IssuanceService struct {
 	appv1.UnimplementedAppIssuanceServiceServer
 
-	authorizer authz.Authorizer
+	authorizer authz.ScopedAuthorizer
 	cache      Cache
 	keyStore   *keystore.Manager
 	clock      clockwork.Clock
@@ -102,12 +101,7 @@ func NewIssuanceService(cfg IssuanceServiceConfig) (*IssuanceService, error) {
 // IssueAppOIDCToken issues a JWT signed by the cluster's OIDC IdP CA for an
 // active application session.
 func (s *IssuanceService) IssueAppOIDCToken(ctx context.Context, req *appv1.IssueAppOIDCTokenRequest) (*appv1.IssueAppOIDCTokenResponse, error) {
-	callerHostID, err := s.authorizeAppService(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	identity, err := s.getIdentity(ctx, req)
+	callerHostID, identity, err := s.authorizeAppService(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,7 +117,7 @@ func (s *IssuanceService) IssueAppOIDCToken(ctx context.Context, req *appv1.Issu
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	issuer, err := oidc.IssuerForCluster(ctx, s.cache)
+	issuer, err := s.getOIDCTokenIssuer(ctx, appServer.GetApp())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -151,19 +145,30 @@ func (s *IssuanceService) IssueAppOIDCToken(ctx context.Context, req *appv1.Issu
 	return appv1.IssueAppOIDCTokenResponse_builder{Token: token}.Build(), nil
 }
 
-func (s *IssuanceService) authorizeAppService(ctx context.Context) (string, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+// authorizeAppService authorizes an app service to issue a token for the
+// identity of the request, and returns the caller's host ID and the identity.
+func (s *IssuanceService) authorizeAppService(ctx context.Context, req *appv1.IssueAppOIDCTokenRequest) (string, *tlsca.Identity, error) {
+	authCtx, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", nil, trace.Wrap(err)
 	}
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleApp)) {
-		return "", trace.AccessDenied("this request can be only executed by the app service")
+	if !authCtx.HasBuiltinRole(types.RoleApp) {
+		return "", nil, trace.AccessDenied("this request can be only executed by the app service")
 	}
-	builtin, ok := authCtx.Identity.(authz.BuiltinRole)
+	serverID, ok := authCtx.LocalServerID()
 	if !ok {
-		return "", trace.AccessDenied("this request can be only executed by the app service")
+		return "", nil, trace.AccessDenied("this request can be only executed by the app service")
 	}
-	return builtin.GetServerID(), nil
+
+	identity, err := s.getIdentity(ctx, req)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAgentScope(identity.RouteToApp.Scope); err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+	return serverID, identity, nil
 }
 
 func (s *IssuanceService) getIdentity(ctx context.Context, req *appv1.IssueAppOIDCTokenRequest) (*tlsca.Identity, error) {
@@ -273,54 +278,62 @@ func (s *IssuanceService) getIdentityFromAppSession(ctx context.Context, session
 }
 
 func (s *IssuanceService) getAppServer(ctx context.Context, identity *tlsca.Identity, callerHostID string) (types.AppServer, error) {
-	// Prefer app name for lookup when available and fallback to public address.
-	var predicate string
-	switch {
-	case identity.RouteToApp.Name != "":
-		predicate = fmt.Sprintf(`name == %q`, identity.RouteToApp.Name)
-	case identity.RouteToApp.PublicAddr != "":
-		predicate = fmt.Sprintf(`resource.spec.public_addr == %q`, identity.RouteToApp.PublicAddr)
-	default:
-		return nil, trace.BadParameter("app session identity missing both app name and public address")
+	route := identity.RouteToApp
+	// route.Name should always be populated past v19
+	if route.Name == "" {
+		return nil, trace.BadParameter("app session identity missing the app name")
 	}
 
-	s.logger.DebugContext(ctx, "Looking up app server", "predicate", predicate, "caller_host_id", callerHostID)
-
-	for appServer, err := range clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.AppServer, string, error) {
-		resp, err := s.cache.ListResources(ctx, proto.ListResourcesRequest{
-			Namespace:           apidefaults.Namespace,
-			ResourceType:        types.KindAppServer,
-			PredicateExpression: predicate,
-			Limit:               int32(pageSize),
-			StartKey:            pageToken,
-		})
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		servers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		return servers, resp.NextKey, nil
+	// TODO (williamo): look into also adding the app name in the ListAppServersForHostRequest.
+	for server, err := range clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*types.AppServerV3, string, error) {
+		return s.cache.ListAppServersForHost(ctx, presencev1.ListAppServersForHostRequest_builder{
+			HostId:    callerHostID,
+			Scope:     route.Scope,
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+		}.Build())
 	}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if appServer.GetHostID() == callerHostID {
-			return appServer, nil
+
+		if server.GetApp().GetName() == route.Name {
+			return server, nil
 		}
+
 	}
-	return nil, trace.NotFound("application %q not found for app service %q", cmp.Or(identity.RouteToApp.Name, identity.RouteToApp.PublicAddr), callerHostID)
+	return nil, trace.NotFound("application %q not found for app service %q", cmp.Or(route.Name, route.PublicAddr), callerHostID)
+}
+
+// getOIDCTokenIssuer returns the issuer of OIDC tokens for the app. Unscoped
+// apps use the cluster issuer. Scoped apps each have their own issuer, so a
+// relying party that trusts one app's issuer rejects tokens minted for any
+// other app.
+func (s *IssuanceService) getOIDCTokenIssuer(ctx context.Context, app types.Application) (string, error) {
+	if app.GetScope() == "" {
+		issuer, err := oidc.IssuerForCluster(ctx, s.cache)
+		return issuer, trace.Wrap(err)
+	}
+	issuerPath, err := scopedapp.OIDCAppTokenIssuerPath(app.GetScope(), app.GetName())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	issuer, err := oidc.IssuerForCluster(ctx, s.cache, issuerPath)
+	return issuer, trace.Wrap(err)
 }
 
 // getOIDCTokenAudience verifies the app may have OIDC tokens issued for it and
 // returns the audience to be used. This check ensures that the audience of the
 // JWT token always starts with specific schema so it won't collide with
 // consumers like AWS/Azure OIDC integrations.
+// Scoped MCP apps receive an audience in the form of <scope>/<app-name>.
 func getOIDCTokenAudience(app types.Application) (string, error) {
 	switch types.GetMCPServerTransportType(app.GetURI()) {
 	case types.MCPTransportHTTP, types.MCPTransportSSE:
-		return app.GetURI(), nil
+		if app.GetScope() == "" {
+			return app.GetURI(), nil
+		}
+		return scopedapp.AppTokenAudience(app.GetScope(), app.GetName()), nil
 	}
 	return "", trace.BadParameter("application protocol does not support OIDC token signing")
 }

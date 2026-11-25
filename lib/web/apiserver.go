@@ -1286,7 +1286,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/.well-known/openid-configuration", h.WithLimiter(h.openidConfiguration))
 	// Unauthenticated access to the OpenID Configuration of scoped AWS OIDC integrations, served
 	// at /scope/<scope-segment>/<integration-name>/.well-known/openid-configuration (RFD 0309).
-	h.GET("/scope/*rest", h.WithLimiter(h.scopedOpenidConfiguration))
+	h.GET("/scope/*rest", h.WithLimiter(h.scopedIntegrationOpenidConfiguration))
+	// Unauthenticated access to the OpenID Configuration of the OIDC ID tokens of scoped MCP apps,
+	// served at /apps/scope/<scope-segments>/<app-name>/.well-known/openid-configuration.
+	h.GET("/apps/scope/*rest", h.WithLimiter(h.scopedAppOpenidConfiguration))
 	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
 	h.GET("/webapi/thumbprint", h.WithLimiter(h.thumbprint))
 

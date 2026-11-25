@@ -108,6 +108,10 @@ func applyAppBlock(src *scopedaccessv1.ScopedRoleApp, dst *types.RoleConditions)
 	if azure := src.GetAzure(); azure != nil {
 		dst.AzureIdentities = azure.GetIdentities()
 	}
+
+	if mcp := src.GetMcp(); mcp != nil {
+		dst.MCP = &types.MCPPermissions{Tools: mcp.GetTools()}
+	}
 }
 
 // applyWorkloadIdentityBlock writes/converts the relevant subset of the scoped role's workload_identity

@@ -65,6 +65,14 @@ func (c *AppAccessChecker) GetAWSRoleARNs(target types.Application) ([]string, e
 	return c.checker.scopedCompatChecker.GetAllowedLoginsForResource(target)
 }
 
+// EnumerateMCPTools returns the MCP tools of the given app allowed by this checker.
+func (c *AppAccessChecker) EnumerateMCPTools(target types.Application) EnumerationResult {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.EnumerateMCPTools(target)
+	}
+	return c.checker.scopedCompatChecker.EnumerateMCPTools(target)
+}
+
 // AdjustClientIdleTimeout determines the app client idle timeout to apply. The supplied argument must be
 // the globally defined most-permissive value. For scoped identities, the most restrictive non-zero value
 // across all roles is selected (app.client_idle_timeout takes precedence over defaults.client_idle_timeout).

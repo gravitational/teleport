@@ -60,7 +60,7 @@ func (s *Service) ExchangeMCPOAuthCode(ctx context.Context, req *pb.ExchangeMCPO
 		return nil, trace.BadParameter("missing app_uri")
 	}
 
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -120,7 +120,7 @@ func (s *Service) ExchangeMCPOAuthCode(ctx context.Context, req *pb.ExchangeMCPO
 
 // checkMCPAppAccess runs before we call the token endpoint because the caller
 // chooses that endpoint.
-func (s *Service) checkMCPAppAccess(ctx context.Context, authCtx *authz.Context, sqn scopes.QualifiedName, uri, clientID string) error {
+func (s *Service) checkMCPAppAccess(ctx context.Context, authCtx *authz.ScopedContext, sqn scopes.QualifiedName, uri, clientID string) error {
 	for server, err := range s.cfg.Cache.RangeApplicationServersWithName(ctx, sqn.Name) {
 		if err != nil {
 			return trace.Wrap(err)
@@ -134,7 +134,9 @@ func (s *Service) checkMCPAppAccess(ctx context.Context, authCtx *authz.Context,
 			return trace.AccessDenied("no access to MCP server %q", sqn)
 		}
 		// not checking MFA here, we check it when connecting to the app
-		if err := authCtx.Checker.CheckAccess(app, services.AccessState{MFAVerified: true}); err != nil {
+		if _, err := authCtx.CheckerContext.Decision(ctx, app.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return trace.Wrap(checker.App().CanAccessApp(app))
+		}); err != nil {
 			return trace.AccessDenied("no access to MCP server %q", sqn)
 		}
 		if app.GetURI() != uri {
@@ -152,11 +154,11 @@ func (s *Service) checkMCPAppAccess(ctx context.Context, authCtx *authz.Context,
 // GetMCPOAuthAccessToken returns the plaintext access token for the certificate's
 // user and the app it's routed to.
 func (s *Service) GetMCPOAuthAccessToken(ctx context.Context, req *pb.GetMCPOAuthAccessTokenRequest) (*pb.GetMCPOAuthAccessTokenResponse, error) {
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+	if !authCtx.HasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("only proxies can get MCP OAuth access tokens")
 	}
 	identity, err := s.verifyUserCertificate(ctx, req.GetUserCertificate())

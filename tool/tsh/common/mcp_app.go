@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"iter"
 	"net/http"
 	"slices"
 	"strings"
@@ -36,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/scopes"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/iterutils"
@@ -96,9 +96,8 @@ func newMCPConfigCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConfigComma
 // mcpListCommand implements `tsh mcp ls` command.
 type mcpListCommand struct {
 	*kingpin.CmdClause
-	cf            *CLIConf
-	accessChecker services.AccessChecker
-	mcpServers    []types.Application
+	cf         *CLIConf
+	mcpServers []mcpServerWithDetails
 }
 
 func (c *mcpListCommand) run() error {
@@ -125,34 +124,45 @@ func (c *mcpListCommand) fetch() error {
 	}
 	defer clusterClient.Close()
 
-	c.accessChecker, err = makeAccessChecker(ctx, tc, clusterClient.AuthClient)
+	c.mcpServers, err = fetchMCPServersWithTools(ctx, tc, clusterClient.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	c.mcpServers, err = fetchMCPServers(ctx, tc, clusterClient.AuthClient)
+	// TODO(williamo): DELETE IN v20.0.0, Auth servers return the allowed tools.
+	// Auth servers that don't return the allowed tools (older v18 releases)
+	// don't support scoped MCP access either, so only unscoped users need the
+	// tools computed from their roles. Scoped identities can't read their roles.
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	missingTools := slices.ContainsFunc(c.mcpServers, func(s mcpServerWithDetails) bool { return s.Permissions == nil })
+	if profile.ScopePin == nil && missingTools {
+		accessChecker, err := makeAccessChecker(ctx, tc, clusterClient.AuthClient)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for i := range c.mcpServers {
+			c.mcpServers[i].maybeSetToolsFromRoles(accessChecker)
+		}
 	}
 	return nil
 }
 
 func (c *mcpListCommand) print() error {
-	mcpServers := iterutils.Map(func(app types.Application) mcpServerWithDetails {
-		return newMCPServerWithDetails(app, c.accessChecker)
-	}, slices.Values(c.mcpServers))
-
 	switch c.cf.Format {
 	case "", teleport.Text:
 		if c.cf.Verbose {
-			return trace.Wrap(printMCPServersInVerboseText(c.cf.Stdout(), mcpServers))
+			return trace.Wrap(printMCPServersInVerboseText(c.cf.Stdout(), c.mcpServers))
 		}
-		return trace.Wrap(printMCPServersInText(c.cf.Stdout(), mcpServers))
+		return trace.Wrap(printMCPServersInText(c.cf.Stdout(), c.mcpServers))
 
 	case teleport.JSON:
-		return trace.Wrap(common.PrintJSONIndent(c.cf.Stdout(), slices.Collect(mcpServers)))
+		return trace.Wrap(common.PrintJSONIndent(c.cf.Stdout(), c.mcpServers))
 	case teleport.YAML:
-		return trace.Wrap(common.PrintYAML(c.cf.Stdout(), slices.Collect(mcpServers)))
+		return trace.Wrap(common.PrintYAML(c.cf.Stdout(), c.mcpServers))
 
 	default:
 		return trace.BadParameter("unsupported format %q", c.cf.Format)
@@ -181,10 +191,7 @@ func fetchMCPServers(ctx context.Context, tc *client.TeleportClient, auth apicli
 	)
 	defer span.End()
 
-	filter := tc.ResourceFilter(types.KindAppServer)
-	filter.PredicateExpression = withMCPServerAppFilter(filter.PredicateExpression)
-
-	appServers, err := apiclient.GetAllResources[types.AppServer](ctx, auth, filter)
+	appServers, err := apiclient.GetAllResources[types.AppServer](ctx, auth, mcpServersFilter(tc))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -193,6 +200,44 @@ func fetchMCPServers(ctx context.Context, tc *client.TeleportClient, auth apicli
 		types.DeduplicatedApps(types.AppServers(appServers).Applications()),
 		types.CompareResourceByNames,
 	), nil
+}
+
+// fetchMCPServersWithTools returns the MCP servers the user can access with
+// their allowed tools, as returned by the Auth server.
+func fetchMCPServersWithTools(ctx context.Context, tc *client.TeleportClient, auth apiclient.GetResourcesClient) ([]mcpServerWithDetails, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"fetchMCPServersWithTools",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	filter := mcpServersFilter(tc)
+	filter.IncludeLogins = true
+	resources, err := apiclient.GetAllEnrichedResources(ctx, auth, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mcpServers := iterutils.Map(func(r *types.EnrichedResource) mcpServerWithDetails {
+		return newMCPServerWithDetails(r.ResourceWithLabels.(types.AppServer).GetApp(), r.MCPTools)
+	}, slices.Values(resources))
+
+	// Several app servers can serve the same app, keep one entry per app.
+	return slices.SortedFunc(types.DeduplicatedApps(mcpServers), types.CompareResourceByNames), nil
+}
+
+// mcpServerName returns the name MCP servers and could be a scope qualified name.
+func mcpServerName(app types.Application) string {
+	return scopes.QualifiedName{Name: app.GetName(), Scope: app.GetScope()}.String()
+}
+
+// mcpServersFilter returns the request listing the MCP servers the user can
+// access, filtered by the user's search, labels and query.
+func mcpServersFilter(tc *client.TeleportClient) *proto.ListResourcesRequest {
+	filter := tc.ResourceFilter(types.KindAppServer)
+	filter.PredicateExpression = withMCPServerAppFilter(filter.PredicateExpression)
+	return filter
 }
 
 func withMCPServerAppFilter(predicateExpression string) string {
@@ -208,31 +253,43 @@ type mcpServerWithDetails struct {
 	// Use a real type for inline.
 	*types.AppV3
 
-	Permissions struct {
-		MCP struct {
-			Tools struct {
-				Allowed []string `json:"allowed"`
-				Denied  []string `json:"denied,omitempty"`
-			} `json:"tools"`
-		} `json:"mcp"`
-	} `json:"permissions"`
+	// Permissions is nil when the Auth server didn't return the allowed tools.
+	Permissions *mcpPermissions `json:"permissions"`
 }
 
-func (a *mcpServerWithDetails) updateToolsPermissions(accessChecker services.AccessChecker) {
-	if accessChecker == nil {
-		return
-	}
-
-	mcpTools := accessChecker.EnumerateMCPTools(a.AppV3)
-	a.Permissions.MCP.Tools.Allowed, a.Permissions.MCP.Tools.Denied = mcpTools.ToEntities()
+type mcpPermissions struct {
+	MCP struct {
+		Tools struct {
+			Allowed []string `json:"allowed"`
+			Denied  []string `json:"denied,omitempty"`
+		} `json:"tools"`
+	} `json:"mcp"`
 }
 
-func newMCPServerWithDetails(app types.Application, accessChecker services.AccessChecker) mcpServerWithDetails {
+// newMCPServerWithDetails returns the app with the allowed tools returned by
+// the Auth server. tools is nil when the Auth server didn't return them.
+func newMCPServerWithDetails(app types.Application, tools *types.MCPToolPermissions) mcpServerWithDetails {
 	a := mcpServerWithDetails{
 		AppV3: app.Copy(),
 	}
-	a.updateToolsPermissions(accessChecker)
+	if tools != nil {
+		a.Permissions = &mcpPermissions{}
+		a.Permissions.MCP.Tools.Allowed, a.Permissions.MCP.Tools.Denied = tools.Allowed, tools.Denied
+	}
 	return a
+}
+
+// maybeSetToolsFromRoles computes the allowed tools from the user's roles when
+// the Auth server didn't return them.
+//
+// TODO(williamo): DELETE IN v20.0.0, Auth servers return the allowed tools.
+func (a *mcpServerWithDetails) maybeSetToolsFromRoles(accessChecker services.AccessChecker) {
+	if a.Permissions != nil {
+		return
+	}
+	mcpTools := accessChecker.EnumerateMCPTools(a.AppV3)
+	a.Permissions = &mcpPermissions{}
+	a.Permissions.MCP.Tools.Allowed, a.Permissions.MCP.Tools.Denied = mcpTools.ToEntities()
 }
 
 type mcpListRBACPrinter struct {
@@ -240,8 +297,14 @@ type mcpListRBACPrinter struct {
 }
 
 func (p *mcpListRBACPrinter) formatAllowedTools(mcpServer mcpServerWithDetails) string {
-	allowed := common.FormatAllowedEntities(mcpServer.Permissions.MCP.Tools.Allowed, mcpServer.Permissions.MCP.Tools.Denied)
-	if len(mcpServer.Permissions.MCP.Tools.Allowed) == 0 {
+	// Permissions is nil when the Auth server failed to compute the tools of a
+	// scoped MCP server, show it as no tools.
+	permissions := mcpPermissions{}
+	if mcpServer.Permissions != nil {
+		permissions = *mcpServer.Permissions
+	}
+	allowed := common.FormatAllowedEntities(permissions.MCP.Tools.Allowed, permissions.MCP.Tools.Denied)
+	if len(permissions.MCP.Tools.Allowed) == 0 {
 		allowed += " [!]"
 		p.showFootnote = true
 	}
@@ -254,18 +317,19 @@ func (p *mcpListRBACPrinter) maybePrintFootnote(w io.Writer) error {
 	}
 	_, err := fmt.Fprintf(w, `[!] Warning: you do not have access to any tools on the MCP server.
 Please contact your Teleport administrator to ensure your Teleport role has
-appropriate 'allow.mcp.tools' set. For details on MCP access RBAC, see:
+appropriate 'allow.mcp.tools' set or scoped role has 'app.mcp.tools' set.
+For details on MCP access RBAC, see:
 https://goteleport.com/docs/enroll-resources/mcp-access/rbac/
 `)
 	return trace.Wrap(err)
 }
 
-func printMCPServersInText(w io.Writer, mcpServers iter.Seq[mcpServerWithDetails]) error {
+func printMCPServersInText(w io.Writer, mcpServers []mcpServerWithDetails) error {
 	var rows [][]string
 	var rbacPrinter mcpListRBACPrinter
-	for mcpServer := range mcpServers {
+	for _, mcpServer := range mcpServers {
 		rows = append(rows, []string{
-			mcpServer.GetName(),
+			mcpServerName(mcpServer),
 			mcpServer.GetDescription(),
 			types.GetMCPServerTransportType(mcpServer.GetURI()),
 			rbacPrinter.formatAllowedTools(mcpServer),
@@ -279,13 +343,13 @@ func printMCPServersInText(w io.Writer, mcpServers iter.Seq[mcpServerWithDetails
 	return trace.Wrap(rbacPrinter.maybePrintFootnote(w))
 }
 
-func printMCPServersInVerboseText(w io.Writer, mcpServers iter.Seq[mcpServerWithDetails]) error {
+func printMCPServersInVerboseText(w io.Writer, mcpServers []mcpServerWithDetails) error {
 	t := asciitable.MakeTable([]string{"Name", "Description", "Type", "Labels", "Command", "Args", "Allowed Tools"})
 	var rbacPrinter mcpListRBACPrinter
-	for mcpServer := range mcpServers {
+	for _, mcpServer := range mcpServers {
 		mcpSpec := cmp.Or(mcpServer.GetMCP(), &types.MCP{})
 		t.AddRow([]string{
-			mcpServer.GetName(),
+			mcpServerName(mcpServer),
 			mcpServer.GetDescription(),
 			types.GetMCPServerTransportType(mcpServer.GetURI()),
 			common.FormatLabels(mcpServer.GetAllLabels(), true),
@@ -398,7 +462,7 @@ func (c *mcpConfigCommand) fetch() error {
 
 func (c *mcpConfigCommand) addMCPServersToConfig(config mcpConfig) error {
 	for _, app := range c.mcpServerApps {
-		name := scopes.QualifiedName{Name: app.GetName(), Scope: app.GetScope()}.String()
+		name := mcpServerName(app)
 		localName := mcpServerAppConfigPrefix + name
 		args := []string{"mcp", "connect", name}
 		args = c.maybeAddAutoReconnect(args)

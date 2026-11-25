@@ -214,8 +214,10 @@ func validateApp(app types.Application) error {
 		return trace.BadParameter("scoped applications do not support dynamic labels")
 	}
 
-	if app.IsMCP() {
-		return trace.BadParameter("scoped applications do not support stdio MCP servers")
+	// Scoped MCP apps only support HTTP schemes.
+	// Stdio and SSE mcp apps will be deprecated in the future for unscoped apps.
+	if app.IsStdioMCP() || (app.IsMCP() && types.GetMCPServerTransportType(app.GetURI()) != types.MCPTransportHTTP) {
+		return trace.BadParameter("scoped MCP applications only support the streamable HTTP transport (%s:// or %s://)", types.SchemeMCPHTTP, types.SchemeMCPHTTPS)
 	}
 
 	if app.IsLLM() {
