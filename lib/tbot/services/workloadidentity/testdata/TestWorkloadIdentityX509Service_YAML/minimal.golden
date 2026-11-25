@@ -1,5 +1,0 @@
-type: workload-identity-x509
-selector:
-  name: my-workload-identity
-destination:
-  type: memory

@@ -1,4 +1,0 @@
-Proxy                 Cluster SSH Server ID Hostname      Address    Labels         
---------------------- ------- ------------- ------------- ---------- -------------- 
-proxy.example.com:443 root    unscoped-uuid unscoped-host 1.2.3.4:22 env=production 
-

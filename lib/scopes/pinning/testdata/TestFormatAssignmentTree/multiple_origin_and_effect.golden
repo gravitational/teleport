@@ -1,9 +1,0 @@
-├── / (root)
-│   ├── /staging - /::staging-reader, /::staging-test
-│   ├── /staging/east - /::staging-east-debug
-│   └── /staging/west - /::staging-west-debug
-├── /staging
-│   ├── /staging/east - /staging::staging-user
-│   └── /staging/west - /staging::staging-auditor, /staging::staging-editor
-└── /staging/west
-    └── /staging/west - /staging/west::staging-west-test

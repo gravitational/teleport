@@ -1,8 +1,0 @@
-type: ssh_host
-destination:
-  type: memory
-principals:
-  - host.example.com
-ca_type: user
-credential_ttl: 1m0s
-renewal_interval: 30s
