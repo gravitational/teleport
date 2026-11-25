@@ -1,0 +1,131 @@
+name: Build OSS
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+concurrency:
+  group: build-oss-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v6
+
+      - name: Determine Toolchain Versions and cache paths
+        run: |
+          echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
+          echo RUST_VERSION=$(make -s -C build.assets print-rust-version) >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)" >> $GITHUB_ENV
+
+      - name: Print versions
+        run: |
+          echo "make: $(make --version)"
+          echo "node: ${NODE_VERSION}"
+          echo "rust: ${RUST_VERSION}"
+
+      - name: Install Node Toolchain
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        run: |
+          corepack enable pnpm
+
+      - name: Install Go Toolchain
+        uses: actions/setup-go@v7
+        with:
+          cache: false
+          go-version-file: go.mod
+
+      - name: Build API
+        run: cd api && go build ./...
+
+      - name: Install wasm-deps
+        run: make ensure-wasm-deps
+
+      - name: Build
+        run: make TELEPORT_UPDATE_DEV_BUILD=1 binaries
+
+  build-macos:
+    name: Build Mac OS
+    runs-on: macos-15-xlarge
+
+    permissions:
+      contents: read
+
+    steps:
+      # This is necessary on macos arm64 runners because the .cache and
+      # .config dirs on the runner are owned by root not the "runner" user.
+      - name: Fix home dir perms
+        run: sudo chown -R $(id -u):$(id -g) $HOME/.cache $HOME/.config
+
+      - name: Checkout Teleport
+        uses: actions/checkout@v6
+
+      - name: Determine Toolchain Versions and cache paths
+        run: |
+          echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
+          echo RUST_VERSION=$(make -s -C build.assets print-rust-version) >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)" >> $GITHUB_ENV
+
+      - name: Print versions
+        run: |
+          echo "make: $(make --version)"
+          echo "node: ${NODE_VERSION}"
+          echo "rust: ${RUST_VERSION}"
+
+      - name: Install Node Toolchain
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        run: |
+          corepack enable pnpm
+
+      - name: Install Go Toolchain
+        uses: actions/setup-go@v7
+        with:
+          cache: false
+          go-version-file: go.mod
+
+      - name: Install wasm-deps
+        run: make ensure-wasm-deps
+
+      - name: Build
+        run: make binaries
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-2022-16core
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          cache: false
+          go-version-file: go.mod
+
+      - name: Build
+        shell: bash
+        run: |
+          export OS="windows"
+          make build/tsh build/tctl build/tbot
