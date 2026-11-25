@@ -30,6 +30,9 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 	if d == nil {
 		return trace.BadParameter("device is nil")
 	}
+	if d.Spec == nil {
+		return trace.BadParameter("missing spec")
+	}
 
 	// Assign defaults:
 	// - Kind = device
