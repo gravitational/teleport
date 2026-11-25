@@ -1653,6 +1653,8 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'webassets/**'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-ignore 'api/**' \
+		-ignore 'integrations/terraform/**' \
+		-ignore 'integrations/terraform-mwi/**' \
 		-f $(CURDIR)/build.assets/LICENSE.header
 ADDLICENSE_APACHE2_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-l apache
@@ -1663,11 +1665,13 @@ ADDLICENSE = go run github.com/google/addlicense@v1.0.0
 lint-license:
 	$(ADDLICENSE) $(ADDLICENSE_AGPL3_ARGS) -check * 2>/dev/null
 	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) -check api/* 2>/dev/null
+	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) -check integrations/terraform/* integrations/terraform-mwi/* 2>/dev/null
 
 .PHONY: fix-license
 fix-license:
 	$(ADDLICENSE) $(ADDLICENSE_AGPL3_ARGS) * 2>/dev/null
 	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) api/* 2>/dev/null
+	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) integrations/terraform/* integrations/terraform-mwi/* 2>/dev/null
 
 # This rule updates version files and Helm snapshots based on the Makefile
 # VERSION variable.
