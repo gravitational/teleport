@@ -96,10 +96,8 @@ func appMatchesPublicAddr(app readonly.Application, publicAddr string) bool {
 	return app.GetPublicAddr() == publicAddr
 }
 
-// normalizeHostname returns name as Teleport stores and assembles addresses,
-// lowercase and without a trailing dot, so that an SNI and a request's host
-// compare as the same name. It refuses a non-ASCII name: SNIs and HTTP hosts
-// are ASCII, and lowercasing a non-ASCII name can turn it into an app's
+// normalizeHostname returns name lowercase and without a trailing dot. It
+// refuses a non-ASCII name, since lowercasing one can turn it into an app's
 // address.
 func normalizeHostname(name string) (string, bool) {
 	if strings.ContainsFunc(name, func(r rune) bool { return r >= utf8.RuneSelf }) {
@@ -108,18 +106,15 @@ func normalizeHostname(name string) (string, bool) {
 	return strings.TrimRight(strings.ToLower(name), "."), true
 }
 
-// matchSNI matches an app server in clusterName when sni, a connection's SNI,
-// is the address that AssembleAppFQDN gives clients for its app under one of
-// proxyDNSNames, or an unscoped app's public address. Unlike ResolveFQDN, it
-// matches no other name, and never a Proxy DNS name itself.
+// matchSNI matches an app server whose app is addressed at sni: under one of
+// proxyDNSNames, or at an unscoped app's public address. It never matches a
+// Proxy DNS name itself.
 func matchSNI(sni, clusterName string, proxyDNSNames []string) Matcher {
 	proxyDNSNames = sniProxyDNSNames(proxyDNSNames)
 	isProxyDNSName := func(host string) bool {
 		return slices.Contains(proxyDNSNames, host)
 	}
-	// RFC 6066 forbids a trailing dot in an SNI, which makes no difference to a
-	// name. As ValidateApp does for public addresses, keep the Proxy's own names
-	// from reaching an app.
+	// The Proxy's own names never reach an app.
 	host, ok := normalizeHostname(sni)
 	if !ok || isProxyDNSName(host) {
 		return func(readonly.AppServer) bool { return false }
@@ -130,8 +125,6 @@ func matchSNI(sni, clusterName string, proxyDNSNames []string) Matcher {
 	return func(server readonly.AppServer) bool {
 		app := server.GetApp()
 		if app.GetScope() != "" {
-			// Unlike AssembleAppFQDN, appMatchesPublicAddr rejects a label that
-			// isn't hash-shaped before hashing, and hashes once.
 			return underProxy && appMatchesPublicAddr(app, host)
 		}
 		// An agent that can't find an app's public address leaves it empty.
@@ -253,11 +246,8 @@ func ResolveFQDN(
 	return nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
 }
 
-// sniProxyDNSNames returns the Proxy's DNS names as a client sends them in an
-// SNI: with no port or trailing dot, as lowercase ASCII. Unlike app addresses,
-// the Proxy's aren't validated, so they may be absolute or IDNs, which
-// ValidateApp normalizes the same way. A name with no ASCII form is dropped,
-// since no SNI can carry it.
+// sniProxyDNSNames returns names as a client sends them in an SNI: lowercase
+// ASCII, with no port or trailing dot. It drops a name with no ASCII form.
 func sniProxyDNSNames(names []string) []string {
 	normalized := make([]string, 0, len(names))
 	for _, name := range names {
@@ -270,14 +260,8 @@ func sniProxyDNSNames(names []string) []string {
 	return normalized
 }
 
-// candidatesForSNI returns the servers in cluster, the Proxy's own, of the apps
-// that sni may reach, in sortAppServers order so that any choice among them is
-// the same everywhere. Scoped apps come first, so a caller that takes the first
-// candidate it may access falls back to an unscoped app at a scoped app's
-// address only when it can't reach the scoped one, as ResolveFQDN does. Each
-// agent labels its own copy of an app, so every copy is kept. Unlike
-// ResolveFQDN, it checks no access, picks nothing and looks in no other
-// cluster.
+// candidatesForSNI returns cluster's app servers whose app sni addresses, in
+// sortAppServers order, which puts scoped apps first. It doesn't check access.
 func candidatesForSNI(ctx context.Context, cluster reversetunnelclient.Cluster, proxyDNSNames []string, sni string) ([]types.AppServer, error) {
 	servers, err := MatchUnshuffled(ctx, cluster, matchSNI(sni, cluster.GetName(), proxyDNSNames))
 	if err != nil {

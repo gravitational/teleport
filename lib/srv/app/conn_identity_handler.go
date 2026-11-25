@@ -37,7 +37,7 @@ import (
 )
 
 // connIdentityHandler serves connections authenticated with a client's
-// route-bound App certificate. The certificate routes the whole connection to
+// App certificate. The certificate routes the whole connection to
 // one app, so the handler monitors each connection rather than each request.
 type connIdentityHandler struct {
 	c *ConnectionsHandler
@@ -47,8 +47,8 @@ type connIdentityHandler struct {
 	mcpServer  *mcp.Server
 }
 
-// newConnIdentityHandler creates the handler for route-bound connections, with
-// a server for each app protocol.
+// newConnIdentityHandler creates the handler for connections whose client
+// certificate carries the identity, with a server for each app protocol.
 func newConnIdentityHandler(c *ConnectionsHandler) (_ *connIdentityHandler, err error) {
 	h := &connIdentityHandler{c: c}
 
@@ -77,7 +77,7 @@ func newConnIdentityHandler(c *ConnectionsHandler) (_ *connIdentityHandler, err 
 }
 
 // handleConnection serves a connection authenticated with a client's
-// route-bound App certificate. The certificate routes to one app, so it
+// App certificate. The certificate routes to one app, so it
 // authorizes and monitors the whole connection for that app, then serves it
 // with the server for the app's protocol. TCP and MCP connections are served
 // before it returns. HTTP ones are served after, by an http.Server.

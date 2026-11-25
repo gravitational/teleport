@@ -32,20 +32,14 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// recordingGroupPrefix keeps recording group IDs apart from other digests of a
-// certificate, and versions how they're derived.
+// recordingGroupPrefix separates recording group IDs from other digests of a
+// certificate, and versions them.
 const recordingGroupPrefix = "teleport-app-route-recording-v1"
 
-// newRoutedIdentity returns the identity the Proxy forwards with each request
-// it sends to app on behalf of the client certificate cert. It's the
-// certificate's identity with an app route added, so every other claim,
-// including a scope pin, stays the client's own.
-//
-// cert must be a client certificate the Proxy verified in the TLS handshake.
-// newRoutedIdentity doesn't verify it, but it rejects a user of another cluster,
-// as authz.Middleware.GetUser does, since the Proxy also trusts other clusters'
-// User CAs.
-func newRoutedIdentity(cert *x509.Certificate, clusterName string, app types.Application) (authz.LocalUser, error) {
+// newForwardedIdentity returns cert's identity with a route to app, which the
+// Proxy forwards with each request to app. It doesn't verify cert, and it
+// rejects a user of another cluster.
+func newForwardedIdentity(cert *x509.Certificate, clusterName string, app types.Application) (authz.LocalUser, error) {
 	identity, err := tlsca.IdentityFromCert(cert)
 	if err != nil {
 		return authz.LocalUser{}, trace.Wrap(err)
@@ -61,25 +55,22 @@ func newRoutedIdentity(cert *x509.Certificate, clusterName string, app types.App
 	}
 	identity.RouteToApp.SessionID = recordingGroupID(cert, identity.RouteToApp)
 	user := authz.LocalUser{Username: identity.Username, Identity: *identity}
-	// The Application Service rejects an identity that fails this, such as one
-	// with a Kubernetes route.
+	// The Application Service would reject an identity that fails this.
 	if err := appauthz.ValidateForwardedIdentity(user, clusterName); err != nil {
 		return authz.LocalUser{}, trace.Wrap(err)
 	}
 	return user, nil
 }
 
-// recordingGroupID returns the recording group ID of requests to route made
-// with cert. It's the same on every Proxy and connection, and a renewed
-// certificate starts a new group. The prefix has a fixed length and DER encodes
-// its own, so only the route's fields need lengths to keep them apart.
+// recordingGroupID derives a session ID from cert and route.
 func recordingGroupID(cert *x509.Certificate, route tlsca.RouteToApp) string {
 	data := append([]byte(recordingGroupPrefix), cert.Raw...)
+	// Length-prefixed, so that different routes can't give the same input.
 	for _, field := range []string{route.ClusterName, route.Scope, route.Name, route.PublicAddr} {
 		data = binary.AppendUvarint(data, uint64(len(field)))
 		data = append(data, field...)
 	}
-	// Version 8 is the RFC 9562 version for contents the implementation
-	// chooses. The prefix already keeps these digests apart, so the space is nil.
+	// Version 8 is RFC 9562's version for implementation-defined contents. The
+	// prefix already keeps these digests apart, so the namespace is nil.
 	return uuid.NewHash(sha256.New(), uuid.Nil, data, 8).String()
 }

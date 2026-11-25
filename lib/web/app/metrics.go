@@ -38,22 +38,14 @@ import (
 const metricsSubsystem = "proxy_app"
 
 const (
-	// routeFreeAccepted is the result of a route-free connection that may
-	// reach the app it resolved to.
-	routeFreeAccepted = "accepted"
-	// routeFreeError is the result of a route-free connection refused for a
-	// reason that has no [common.AppErrorCode]. It differs from a forwarding
-	// error, since requests on the connection carry it too.
-	routeFreeError = "admission-error"
-
-	// The path label of a request: route-free for a connection whose
-	// certificate names no app, and route-bound for an app session.
-	pathRouteFree  = "route-free"
-	pathRouteBound = "route-bound"
+	sniRouteAccepted = "accepted"
+	// sniRouteError is the result of an SNI-route connection refused without an
+	// app error code.
+	sniRouteError = "admission-error"
 
 	// Results that a client also sees as an app error code use the code, so
 	// the same failure has one name across metrics and responses. The
-	// exception is agents-unreachable, which a route-free client sees as
+	// exception is agents-unreachable, which an SNI-route client sees as
 	// no-capable-replica.
 	refusedMisdirected       = string(common.AppErrorCodeAuthorityMismatch)
 	refusedNotImplemented    = "not-implemented"
@@ -75,40 +67,40 @@ const (
 // accessMetrics counts the App connections the Proxy accepts or refuses, and
 // how long it takes to decide.
 type accessMetrics struct {
-	routeFreeConnections       *prometheus.CounterVec
-	routeFreeActiveConnections *prometheus.GaugeVec
-	routeFreeAdmissionDuration prometheus.Histogram
+	sniRouteConnections       *prometheus.CounterVec
+	sniRouteActiveConnections *prometheus.GaugeVec
+	sniRouteAdmissionDuration prometheus.Histogram
 }
 
 func newAccessMetrics(reg *metrics.Registry) (*accessMetrics, error) {
 	reg = reg.Wrap(metricsSubsystem)
 	m := &accessMetrics{
-		routeFreeConnections: prometheus.NewCounterVec(prometheus.CounterOpts{
+		sniRouteConnections: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: reg.Namespace(),
 			Subsystem: reg.Subsystem(),
-			Name:      "route_free_connections_total",
-			Help:      "Number of route-free App connections the Proxy accepted or refused, by result (accepted, the app error code of a refusal, or admission-error) and by the protocol the client negotiated (h2 or http/1.1).",
+			Name:      "sni_route_connections_total",
+			Help:      "Number of SNI-route App connections the Proxy accepted or refused, by result (accepted, the app error code of a refusal, or admission-error) and by the protocol the client negotiated (h2 or http/1.1).",
 		}, []string{"result", "protocol"}),
-		routeFreeActiveConnections: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		sniRouteActiveConnections: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: reg.Namespace(),
 			Subsystem: reg.Subsystem(),
-			Name:      "route_free_active_connections",
-			Help:      "Number of open route-free App connections that the Proxy accepted, by the protocol the client negotiated (h2 or http/1.1).",
+			Name:      "sni_route_active_connections",
+			Help:      "Number of open SNI-route App connections that the Proxy accepted, by the protocol the client negotiated (h2 or http/1.1).",
 		}, []string{"protocol"}),
-		routeFreeAdmissionDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+		sniRouteAdmissionDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: reg.Namespace(),
 			Subsystem: reg.Subsystem(),
-			Name:      "route_free_admission_duration_seconds",
-			Help:      "Time the Proxy took to resolve a route-free App connection to an app and authorize it, whether it accepted or refused the connection.",
+			Name:      "sni_route_admission_duration_seconds",
+			Help:      "Time the Proxy took to resolve an SNI-route App connection's route and authorize it, whether it accepted or refused the connection.",
 			// 1ms to about 16s, past the 10s resolution timeout, since reads
 			// that miss the Proxy's caches can take seconds under load.
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 15),
 		}),
 	}
 	err := errors.Join(
-		reg.Register(m.routeFreeConnections),
-		reg.Register(m.routeFreeActiveConnections),
-		reg.Register(m.routeFreeAdmissionDuration),
+		reg.Register(m.sniRouteConnections),
+		reg.Register(m.sniRouteActiveConnections),
+		reg.Register(m.sniRouteAdmissionDuration),
 	)
 	return m, trace.Wrap(err, "registering App access metrics")
 }
@@ -129,8 +121,8 @@ func newHandlerMetrics(reg *metrics.Registry) (*handlerMetrics, error) {
 			Namespace: reg.Namespace(),
 			Subsystem: reg.Subsystem(),
 			Name:      "requests_total",
-			Help:      "Number of App requests the Proxy served, by path (route-free or route-bound) and result: forwarded, canceled, error, agents-unreachable, or why the Proxy answered the request itself, which is an app error code where one exists.",
-		}, []string{"path", "result"}),
+			Help:      "Number of App requests the Proxy served, by route (sni or app-session) and result: forwarded, canceled, error, agents-unreachable, or why the Proxy answered the request itself, which is an app error code where one exists.",
+		}, []string{"route", "result"}),
 		sharedDial:  newDialMetrics(reg, "shared_transport", "the shared transport", "A request that fails over dials each agent it tries."),
 		sessionDial: newDialMetrics(reg, "session_transport", "app session transports for HTTP and TCP apps", "A dial that fails over dials each agent it tries."),
 	}
@@ -142,10 +134,21 @@ func newHandlerMetrics(reg *metrics.Registry) (*handlerMetrics, error) {
 	return m, trace.Wrap(err, "registering App handler metrics")
 }
 
-// countRequest counts an app request on path with result. Every app request
+// The route label of a request: where its app route came from.
+const (
+	routeSNI        = "sni"
+	routeAppSession = "app-session"
+)
+
+// countRequest counts an app request on route with result. Every app request
 // is counted once, where its result is decided.
-func (m *handlerMetrics) countRequest(path, result string) {
-	m.requests.WithLabelValues(path, result).Inc()
+func (m *handlerMetrics) countRequest(route, result string) {
+	m.requestsWith(route, result).Inc()
+}
+
+// requestsWith returns the counter of route's requests with result.
+func (m *handlerMetrics) requestsWith(route, result string) prometheus.Counter {
+	return m.requests.WithLabelValues(route, result)
 }
 
 // dialMetrics counts a transport's dials to agents, and the connections they
@@ -204,22 +207,21 @@ func dialResult(err error) string {
 	}
 }
 
-// routeFreeResult returns the result label of a route-free connection that
-// admission refused with err, or accepted if err is nil.
-func routeFreeResult(err error) string {
+// sniRouteResult returns the result label of an SNI-route admission that
+// returned err.
+func sniRouteResult(err error) string {
 	if err == nil {
-		return routeFreeAccepted
+		return sniRouteAccepted
 	}
 	if code, ok := appauthz.ForwardedErrorCode(err); ok {
 		return string(code)
 	}
-	return routeFreeError
+	return sniRouteError
 }
 
-// routeFreeProtocol returns the protocol label of a route-free connection with
-// handshake state. The web listener serves HTTP/1.1 to a client that
-// negotiates no protocol.
-func routeFreeProtocol(state tls.ConnectionState) string {
+// sniRouteProtocol returns the protocol label of an SNI-route connection: h2,
+// or http/1.1 for any other protocol.
+func sniRouteProtocol(state tls.ConnectionState) string {
 	if state.NegotiatedProtocol == "h2" {
 		return "h2"
 	}
@@ -249,8 +251,8 @@ func sharedForwardResult(err error) string {
 	}
 }
 
-// sessionForwardResult returns the result label of a route-bound request that
-// an app session's transport handled with err.
+// sessionForwardResult returns the result label of a request on the app
+// session route that an app session's transport handled with err.
 func sessionForwardResult(err error) string {
 	switch {
 	case err == nil:

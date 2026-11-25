@@ -73,7 +73,7 @@ type HandlerConfig struct {
 	// Only available for AWS OIDC Integrations.
 	IntegrationAppHandler ServerHandler
 	// GetConnTLSCertificate returns the Proxy's RoleProxy certificate, with
-	// which it forwards route-free App requests to agents.
+	// which it forwards SNI-route App requests to agents.
 	GetConnTLSCertificate utils.GetCertificateFunc
 	// GetConnTLSRoots returns the local cluster's Host CA, which signs agents'
 	// certificates.
@@ -140,16 +140,16 @@ type Handler struct {
 	// TELEPORT_UNSTABLE_DISABLE_DBSC.
 	dbscDisabled bool
 
-	// externalWebPorts are the ports a request on a route-free connection may
-	// name.
+	// externalWebPorts are the ports a request on an SNI-route connection
+	// may name.
 	externalWebPorts []string
 
-	// agentForwarder forwards requests on route-free connections to the agents
-	// that serve their apps.
+	// agentForwarder forwards requests on SNI-route connections to the
+	// agents that serve their apps.
 	agentForwarder http.Handler
 
 	// metrics are shared by the agent transports, every app session's
-	// transport, and the route-free requests the handler serves.
+	// transport, and the SNI-route requests the handler serves.
 	metrics *handlerMetrics
 }
 
@@ -231,7 +231,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 
 // ServeHTTP hands the request to the request router.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// The Proxy decided what a route-free connection may reach when it took
+	// The Proxy decided what an SNI-route connection may reach when it took
 	// the connection, so none of the router's app session handling applies to
 	// its requests.
 	if conn, ok := resolvedConnFromRequest(r); ok {
@@ -341,13 +341,13 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 	// Reject (or, in report-only mode, log) cross-site WebSocket upgrades
 	// before forwarding to the application (CSWSH protection).
 	if err := h.guardCrossSiteWebSocket(r); err != nil {
-		h.metrics.countRequest(pathRouteBound, crossSiteWebSocketResult)
+		h.metrics.countRequest(routeAppSession, crossSiteWebSocketResult)
 		return trace.Wrap(err)
 	}
 
 	servers, err := session.tr.c.appServers.forChecks(r.Context())
 	if err != nil {
-		h.metrics.countRequest(pathRouteBound, noAgentResult)
+		h.metrics.countRequest(routeAppSession, noAgentResult)
 		// Resolution errors can carry internal details such as backend addresses, so they are logged rather than
 		// written to the client. Any of them leaves no app server to forward to, so the client is answered as when no
 		// app server can be reached.
@@ -366,7 +366,7 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 	}
 
 	if redirectURI != "" {
-		h.metrics.countRequest(pathRouteBound, redirectedResult)
+		h.metrics.countRequest(routeAppSession, redirectedResult)
 		http.Redirect(w, r, redirectURI, http.StatusFound)
 		return nil
 	}

@@ -60,13 +60,13 @@ func ForAppServer(g appServerInfoGetter) *componentfeaturesv1.ComponentFeatures 
 func SupportsAppForwardedIdentityV1(app types.Application) bool {
 	switch {
 	case app.GetCloud() != "" || app.IsAWSConsole():
-		// Cloud apps need the upstream identity carried in a route-bound certificate, such as the AWS role ARN.
+		// Cloud apps need the upstream identity carried in an app certificate, such as the AWS role ARN.
 		return false
 	case app.GetIntegration() != "":
 		// The Proxy serves integration-backed apps itself, using the integration's credentials.
 		return false
 	case app.GetClientCertMode() != types.AppClientCertModeDisabled:
-		// Managed upstream client certificates are issued from the original route-bound user certificate.
+		// Managed upstream client certificates are issued from the original app certificate.
 		return false
 	case app.Origin() == types.OriginOkta:
 		// The Proxy redirects Okta apps to Okta instead of forwarding them.

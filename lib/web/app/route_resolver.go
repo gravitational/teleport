@@ -36,19 +36,15 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// routeFreeResolveTimeout bounds how long resolution waits on reads that miss the
-// Proxy's caches, such as a stale app server watcher's refresh. The ALPN router
-// sets no deadline once the handshake is done.
-const routeFreeResolveTimeout = 10 * time.Second
+// routeResolveTimeout bounds how long resolving a route may take.
+const routeResolveTimeout = 10 * time.Second
 
-// routeFreeCandidatesCacheTTL is how long the resolver caches an address's
-// candidate app servers. Finding them matches and copies every app server in
-// the cluster, which is too much for each new connection on large clusters.
-const routeFreeCandidatesCacheTTL = agentRouterCacheTTL
+// routeCandidatesCacheTTL is how long the resolver caches an address's
+// candidate app servers, which are costly to find on a large cluster.
+const routeCandidatesCacheTTL = agentRouterCacheTTL
 
-// routeFreeResolverConfig holds what resolving a connection to an app takes.
-// NewRouteFreeHandler fills it from RouteFreeConfig.
-type routeFreeResolverConfig struct {
+// routeResolverConfig configures a routeResolver.
+type routeResolverConfig struct {
 	clusterName      string
 	authorizerOpts   authz.AuthorizerOpts
 	clusterGetter    reversetunnelclient.ClusterGetter
@@ -56,7 +52,7 @@ type routeFreeResolverConfig struct {
 	logger           *slog.Logger
 }
 
-func (c *routeFreeResolverConfig) checkAndSetDefaults() error {
+func (c *routeResolverConfig) checkAndSetDefaults() error {
 	if c.clusterName == "" {
 		return trace.BadParameter("missing cluster name")
 	}
@@ -69,8 +65,9 @@ func (c *routeFreeResolverConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// routeFreeResolver resolves a connection to the app it may reach.
-type routeFreeResolver struct {
+// routeResolver resolves a connection's route: the app its SNI names that its
+// certificate may access.
+type routeResolver struct {
 	clusterName   string
 	authorizer    authz.ScopedAuthorizer
 	appAuthorizer appauthz.Authorizer
@@ -80,15 +77,13 @@ type routeFreeResolver struct {
 	candidates    *utils.FnCache
 }
 
-// newRouteFreeResolver returns a resolver for cfg's cluster, or an error when cfg
-// can't resolve connections in it. The authorizer it builds holds a cache that
-// every candidate app's authorization then shares, so a Proxy builds one
-// resolver and keeps it.
-func newRouteFreeResolver(cfg routeFreeResolverConfig) (*routeFreeResolver, error) {
+// newRouteResolver returns a resolver for cfg.
+func newRouteResolver(cfg routeResolverConfig) (*routeResolver, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	opts := cfg.authorizerOpts
+	// Only roles can require a trusted device, as on the Application Service.
 	opts.DeviceAuthorization.DisableGlobalMode = true
 	authorizer, err := authz.NewScopedAuthorizer(opts)
 	if err != nil {
@@ -98,7 +93,7 @@ func newRouteFreeResolver(cfg routeFreeResolverConfig) (*routeFreeResolver, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &routeFreeResolver{
+	return &routeResolver{
 		clusterName:   cfg.clusterName,
 		authorizer:    authorizer,
 		appAuthorizer: appauthz.Authorizer{Logger: cfg.logger, AuthPreferenceGetter: cfg.authorizerOpts.AccessPoint},
@@ -110,11 +105,11 @@ func newRouteFreeResolver(cfg routeFreeResolverConfig) (*routeFreeResolver, erro
 }
 
 // newCandidatesCache returns the cache of each address's candidate app servers.
-// A failed lookup isn't kept, so the next connection looks again.
+// It doesn't keep a failed lookup.
 func newCandidatesCache() (*utils.FnCache, error) {
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:             routeFreeCandidatesCacheTTL,
-		CleanupInterval: routeFreeCandidatesCacheTTL,
+		TTL:             routeCandidatesCacheTTL,
+		CleanupInterval: routeCandidatesCacheTTL,
 		ReloadOnErr:     true,
 	})
 	return cache, trace.Wrap(err)
@@ -126,11 +121,10 @@ type candidatesKey struct {
 	sni         string
 }
 
-// candidatesFor returns sni's candidate app servers in cluster, from the cache
-// that connections to the same address share. Callers must not modify them.
-func (r *routeFreeResolver) candidatesFor(ctx context.Context, cluster reversetunnelclient.Cluster, sni string) ([]types.AppServer, error) {
-	// Keyed as matchSNI reads the name, so spellings of one address share an
-	// entry.
+// candidatesFor returns sni's candidate app servers in cluster, from the cache.
+// Callers must not modify them.
+func (r *routeResolver) candidatesFor(ctx context.Context, cluster reversetunnelclient.Cluster, sni string) ([]types.AppServer, error) {
+	// Keyed by the normalized name, so spellings of one address share an entry.
 	host, ok := normalizeHostname(sni)
 	if !ok {
 		return nil, nil
@@ -138,26 +132,25 @@ func (r *routeFreeResolver) candidatesFor(ctx context.Context, cluster reversetu
 	key := candidatesKey{clusterName: cluster.GetName(), sni: host}
 	servers, err := r.candidates.Get(ctx, key, func(ctx context.Context) ([]types.AppServer, error) {
 		// The cache loads with its own context, which has no deadline.
-		ctx, cancel := context.WithTimeout(ctx, routeFreeResolveTimeout)
+		ctx, cancel := context.WithTimeout(ctx, routeResolveTimeout)
 		defer cancel()
 		return candidatesForSNI(ctx, cluster, r.proxyDNSNames, host)
 	})
 	return servers, trace.Wrap(err)
 }
 
-// resolvedApp is what resolving a connection found: the app server it reaches,
-// the identity the Proxy forwards to it, and what the connection controls of
-// the role that granted access need.
+// resolvedApp is a resolved route: the app server, the identity to forward to
+// it, and the session context for the connection's controls.
 type resolvedApp struct {
 	server     types.AppServer
 	identity   authz.LocalUser
 	sessionCtx *authz.ScopedSessionContext
 }
 
-// resolve returns the first of sni's candidate app servers with an app that
-// cert's identity may access, so the same certificate reaches the same app on
-// every connection.
-func (r *routeFreeResolver) resolve(ctx context.Context, cert *x509.Certificate, sni string) (*resolvedApp, error) {
+// resolve returns the first of sni's candidate app servers whose app cert may
+// access. The candidates' order is fixed, so a certificate always gets the same
+// app.
+func (r *routeResolver) resolve(ctx context.Context, cert *x509.Certificate, sni string) (*resolvedApp, error) {
 	cluster, err := r.clusterGetter.Cluster(ctx, r.clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -170,21 +163,19 @@ func (r *routeFreeResolver) resolve(ctx context.Context, cert *x509.Certificate,
 	var errs []error
 	for _, server := range servers {
 		app := server.GetApp()
-		// Agents usually hold equal copies of an app, and authorizing a copy
-		// costs far more than comparing two. A copy equal to one that already
-		// failed would fail too, whichever of its fields authorization reads.
+		// Skip copies of an app that already failed, since they'd fail too.
 		if slices.ContainsFunc(failed, app.IsEqual) {
 			continue
 		}
 		resolved, err := r.authorize(ctx, cert, app)
 		if err != nil {
-			r.logger.DebugContext(ctx, "Route-free App resolution denied a candidate app",
+			r.logger.DebugContext(ctx, "SNI-route App resolution denied a candidate app",
 				"app", app.GetName(), "scope", app.GetScope(), "host_id", server.GetHostID(), "error", err)
 			failed = append(failed, app)
 			errs = append(errs, err)
 			continue
 		}
-		r.logger.DebugContext(ctx, "Resolved a route-free App connection",
+		r.logger.DebugContext(ctx, "Resolved an App connection's route",
 			"app", app.GetName(), "scope", app.GetScope(), "host_id", server.GetHostID())
 		resolved.server = server
 		return resolved, nil
@@ -192,11 +183,10 @@ func (r *routeFreeResolver) resolve(ctx context.Context, cert *x509.Certificate,
 	return nil, accessError(errs)
 }
 
-// authorize checks that the identity cert would carry to app may access it, as
-// the Application Service checks each request, and returns that identity with
-// the session controls of the role that granted access.
-func (r *routeFreeResolver) authorize(ctx context.Context, cert *x509.Certificate, app types.Application) (*resolvedApp, error) {
-	user, err := newRoutedIdentity(cert, r.clusterName, app)
+// authorize checks that cert's identity, routed to app, may access app, and
+// returns that identity with its session context.
+func (r *routeResolver) authorize(ctx context.Context, cert *x509.Certificate, app types.Application) (*resolvedApp, error) {
+	user, err := newForwardedIdentity(cert, r.clusterName, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -215,11 +205,10 @@ func (r *routeFreeResolver) authorize(ctx context.Context, cert *x509.Certificat
 	}, nil
 }
 
-// accessError picks, from the candidates' errors, the one that tells a client
-// most: per-session MFA, then a trusted device, then an app type this path
-// can't serve. Otherwise it's the first error, or access denied when no app
-// answers to the address. Discovery is checked first, so these come only from
-// apps the client may discover.
+// accessError returns the candidates' error that tells the client most:
+// per-session MFA, then a trusted device, then an unsupported app type, then
+// the first error. With no candidates, it's access denied. Each error comes
+// from an app the client may discover, so none reveals another app.
 func accessError(errs []error) error {
 	for _, target := range []error{services.ErrSessionMFARequired, services.ErrTrustedDeviceRequired, appauthz.ErrUnsupportedApplicationType} {
 		for _, err := range errs {

@@ -83,7 +83,7 @@ type agentRouter struct {
 }
 
 // newAgentForwarder returns the forwarder for requests whose context holds a
-// routed identity and the client's address. Its cache of capable app servers
+// forwarded identity and the client's address. Its cache of capable app servers
 // stops with ctx.
 func newAgentForwarder(ctx context.Context, cfg agentRouterConfig) (*reverseproxy.Forwarder, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
@@ -107,7 +107,7 @@ func newAgentForwarder(ctx context.Context, cfg agentRouterConfig) (*reverseprox
 func (r *agentRouter) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := r.roundTrip(req)
 	result := sharedForwardResult(err)
-	r.cfg.agents.cfg.metrics.countRequest(pathRouteFree, result)
+	r.cfg.agents.cfg.metrics.countRequest(routeSNI, result)
 	// The forwarder logs the error too, but without the app or the client, and
 	// at Error for a client that gave up.
 	if err != nil && result != canceledResult {
@@ -135,11 +135,11 @@ func (r *agentRouter) logFailure(req *http.Request, result string, err error) {
 
 func (r *agentRouter) roundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
-	// Failing these checks is a Proxy bug, since the Proxy sets the routed
+	// Failing these checks is a Proxy bug, since the Proxy sets the forwarded
 	// identity.
 	user, err := authz.UserFromContext(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err, "request has no routed identity")
+		return nil, trace.Wrap(err, "request has no forwarded identity")
 	}
 	route := user.GetIdentity().RouteToApp
 	// The transports reach only this cluster's agents.
@@ -192,8 +192,8 @@ func (r *agentRouter) roundTrip(req *http.Request) (*http.Response, error) {
 // capableAppServers returns the route's app servers whose agents can serve it
 // with a forwarded identity, in the rendezvous order of the route's recording
 // group. It fails with appauthz.ErrUnsupportedApplicationType if this Proxy
-// can't forward the app, such as after it became an app type that needs a
-// route-bound certificate.
+// can't forward the app, such as after it became an app type that needs an
+// app certificate.
 func (r *agentRouter) capableAppServers(ctx context.Context, route tlsca.RouteToApp) ([]types.AppServer, error) {
 	key := routeKey{clusterName: route.ClusterName, name: route.Name, publicAddr: route.PublicAddr}
 	servers, err := r.cache.Get(ctx, key, func(ctx context.Context) ([]types.AppServer, error) {

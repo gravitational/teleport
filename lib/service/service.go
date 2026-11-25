@@ -5537,7 +5537,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if routeFreeApps, _ := apiutils.ParseBool(os.Getenv(appcommon.AppForwardedIdentityEnvVar)); routeFreeApps {
+	if sniRouteApps, _ := apiutils.ParseBool(os.Getenv(appcommon.AppForwardedIdentityEnvVar)); sniRouteApps {
 		logger.WarnContext(process.ExitContext(), "TELEPORT_UNSTABLE_APP_FORWARDED_IDENTITY is set. The Proxy takes App connections whose certificate does not include a RouteToApp. This is not ready for production use.")
 	}
 	alpnRouter, reverseTunnelALPNRouter, appHandlers := setupALPNRouter(listeners, serverTLSConfig, cfg, conn.ClusterName())
@@ -6097,11 +6097,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		// Route-free App connections reach apps over the reverse tunnel. The
-		// ALPN router doesn't serve before the web service is built, so every
-		// web connection meets the route-free App handler.
+		// SNI-route App connections reach apps over the reverse tunnel.
+		// The ALPN router doesn't serve before the web service is built, so
+		// every web connection meets the SNI route handler.
 		if tsrv != nil && appHandlers.web != nil {
-			routeFree, err := webapp.NewRouteFreeHandler(webapp.RouteFreeConfig{
+			sniRoute, err := webapp.NewSNIRouteHandler(webapp.SNIRouteConfig{
 				Next:              appHandlers.webListener,
 				ClusterName:       clusterName,
 				AuthorizerOpts:    authorizerOpts,
@@ -6114,7 +6114,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			appHandlers.web.Set(routeFree.HandleConnection)
+			appHandlers.web.Set(sniRoute.HandleConnection)
 		}
 
 		webServer, err = web.NewServer(web.ServerConfig{
@@ -7060,7 +7060,7 @@ func (process *TeleportProcess) setupALPNTLSConfigForWeb(tlsConfig *tls.Config, 
 type alpnAppHandlers struct {
 	httpsTunnel *webapp.HTTPSTunnelHandler
 	// web takes the web listener's connections. It hands them straight to the
-	// web listener until the route-free App handler is set in front of it.
+	// web listener until the SNI route handler is set in front of it.
 	web *alpnproxy.ConnectionHandlerWrapper
 	// webListener hands a connection to the web listener.
 	webListener alpnproxy.ConnectionHandler
@@ -7111,7 +7111,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 
 	if !cfg.Proxy.DisableWebService {
 		webWrapper := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
-		// The web service sets the route-free App handler in front of the web
+		// The web service sets the SNI route handler in front of the web
 		// listener once it can build it.
 		appHandlers.web = &alpnproxy.ConnectionHandlerWrapper{}
 		appHandlers.web.Set(webWrapper.HandleConnection)
@@ -7129,7 +7129,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 
 		// tlsConfigWeb is set later via SetTLSConfig as it's not available yet.
 		// Tunneled connections go straight to the web listener, not through
-		// the route-free App handler, since their outer certificate is what
+		// the SNI route handler, since their outer certificate is what
 		// serves them.
 		appHandlers.httpsTunnel = webapp.NewHTTPSTunnelHandler(webWrapper.HandleConnection, clusterName)
 		router.Add(alpnproxy.HandlerDecs{

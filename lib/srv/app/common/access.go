@@ -38,9 +38,9 @@ import (
 // accessDedupTTL is how long one app.access emission suppresses another for the same app session.
 const accessDedupTTL = time.Hour
 
-// AppForwardedIdentityEnvVar turns on RFD 0341's route-free App path, in both
-// the Proxy and the Application Service. It is temporary, and goes with the
-// path's gates when the feature ships.
+// AppForwardedIdentityEnvVar turns on RFD 0341: the Proxy's SNI route, and the
+// Application Service accepting the identities it forwards. It is temporary,
+// and goes with the gates when the feature ships.
 const AppForwardedIdentityEnvVar = "TELEPORT_UNSTABLE_APP_FORWARDED_IDENTITY"
 
 // AppAccessIdentitySource is the app.access identity_source: where a client's identity came from.

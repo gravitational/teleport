@@ -208,8 +208,8 @@ const maxForwardedIdentityAge = time.Duration(1<<53) - 24*time.Hour
 // connection may outlive the certificate its identity came from.
 func (h *requestIdentityHandler) chunkConfig(req authorizedRequest) (chunkConfig, error) {
 	identity := req.authCtx.Identity.GetIdentity()
-	// A zero NotBefore is too long ago, and one in the future fails as a
-	// route-bound certificate's would at the TLS handshake.
+	// A zero NotBefore is too long ago, and one in the future fails as an
+	// app certificate's would at the TLS handshake.
 	if age := h.c.cfg.Clock.Since(identity.NotBefore); age < 0 || age > maxForwardedIdentityAge {
 		return chunkConfig{}, trace.Errorf("forwarded identity's NotBefore %v is in the future or too long ago for exact event indexes", identity.NotBefore)
 	}
@@ -226,8 +226,8 @@ func (h *requestIdentityHandler) chunkConfig(req authorizedRequest) (chunkConfig
 		key:        identity.RouteToApp.SessionID + "/" + hex.EncodeToString(digest[:]),
 		expires:    expires,
 		jwtExpires: expires.Add(jwtExpiryMargin),
-		// As on the route-bound path, every chunk of the session counts event
-		// indexes from the source certificate's NotBefore.
+		// As for a connection that carries the identity, every chunk of the
+		// session counts event indexes from the source certificate's NotBefore.
 		startTime: identity.NotBefore,
 	}, nil
 }

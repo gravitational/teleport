@@ -57,7 +57,7 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 			if errors.As(err, new(sessionUnavailableError)) {
 				result = forwardErrorResult
 			}
-			h.metrics.countRequest(pathRouteBound, result)
+			h.metrics.countRequest(routeAppSession, result)
 			// If a certificate-backed app session expires on a reused
 			// connection, ask the client to reconnect with fresh credentials.
 			// Cookie/browser clients have no certificate and use the launcher

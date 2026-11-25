@@ -161,10 +161,11 @@ func newTransport(c *transportConfig) (*transport, error) {
 	return t, nil
 }
 
-// RoundTrip forwards r and counts the route-bound request's result.
+// RoundTrip forwards r and counts the result of a request on the app session
+// route.
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	resp, err := t.roundTrip(r)
-	t.c.metrics.countRequest(pathRouteBound, sessionForwardResult(err))
+	t.c.metrics.countRequest(routeAppSession, sessionForwardResult(err))
 	return resp, err
 }
 

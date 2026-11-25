@@ -46,46 +46,40 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// RouteFreeConfig holds what a RouteFreeHandler needs.
-type RouteFreeConfig struct {
-	// Next hands a connection to the Proxy's web listener, which serves every
-	// web connection.
+// SNIRouteConfig configures an SNIRouteHandler.
+type SNIRouteConfig struct {
+	// Next serves every connection the handler passes on.
 	Next func(ctx context.Context, conn net.Conn) error
 	// ClusterName is the name of the local cluster.
 	ClusterName string
-	// AuthorizerOpts build the authorizer for the identity resolution forwards
-	// to each candidate app, checking that identity's locks and source IP
-	// pinning. It ignores the global device_trust.mode toggle, as the
-	// Application Service's authorizer does, since Auth issues App certificates
-	// without checking it, so only roles can require a trusted device.
+	// AuthorizerOpts configure the authorizer that checks access to each
+	// candidate app.
 	AuthorizerOpts authz.AuthorizerOpts
 	// ClusterGetter finds the local cluster's app servers.
 	ClusterGetter reversetunnelclient.ClusterGetter
-	// ProxyPublicAddrs are the Proxy's public addresses, under whose hosts
-	// apps are addressed.
+	// ProxyPublicAddrs are the Proxy's public addresses, which apps are
+	// addressed under.
 	ProxyPublicAddrs []utils.NetAddr
-	// ClusterFeatures reads the Proxy's cached cluster features. Their App
-	// Access entitlement gates this path, as it gates the app sessions Auth
-	// creates for route-bound certificates.
+	// ClusterFeatures returns the cluster's features, whose App Access
+	// entitlement the handler checks.
 	ClusterFeatures func() proto.Features
-	// ConnectionMonitor closes a connection when a lock, the granting role's
-	// client_idle_timeout or disconnect_expired_cert says it must.
+	// ConnectionMonitor applies a connection's controls, such as locks and idle
+	// timeouts.
 	ConnectionMonitor ConnMonitor
 	// MetricsRegistry is where the handler registers its metrics. When nil,
 	// they are created but not registered.
 	MetricsRegistry *metrics.Registry
 }
 
-// ConnMonitor installs the connection controls of the role that granted access
-// to the app a connection resolved to.
+// ConnMonitor applies a role's connection controls to a connection.
 type ConnMonitor interface {
 	MonitorConnScoped(ctx context.Context, sessionCtx *authz.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error)
 }
 
-// CheckAndSetDefaults checks that c holds everything a RouteFreeHandler needs.
-func (c *RouteFreeConfig) CheckAndSetDefaults() error {
+// CheckAndSetDefaults checks c and sets its defaults.
+func (c *SNIRouteConfig) CheckAndSetDefaults() error {
 	if c.Next == nil {
-		return trace.BadParameter("missing web listener")
+		return trace.BadParameter("missing Next")
 	}
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing cluster name")
@@ -102,37 +96,31 @@ func (c *RouteFreeConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// RouteFreeHandler takes the Proxy's web connections ahead of the web
-// listener, and decides what the connections whose client certificate does
-// not include a RouteToApp may reach.
-type RouteFreeHandler struct {
-	// enabled is whether this Proxy serves route-free App connections at all.
-	// We can remove this and the env var when we ship to production.
-	enabled bool
-	auth    *authz.Middleware
-	// next hands a connection to the web listener.
+// SNIRouteHandler resolves an App connection's route from its SNI when its
+// certificate has no RouteToApp, and passes every connection on to next.
+type SNIRouteHandler struct {
+	// enabled is whether the handler resolves any routes.
+	enabled         bool
+	auth            *authz.Middleware
 	next            func(ctx context.Context, conn net.Conn) error
-	resolver        *routeFreeResolver
+	resolver        *routeResolver
 	clusterFeatures func() proto.Features
 	connMonitor     ConnMonitor
 	metrics         *accessMetrics
 }
 
-// NewRouteFreeHandler returns a handler that passes every connection on to
-// cfg.Next. It wraps none unless common.AppForwardedIdentityEnvVar is set.
-//
-// A Proxy builds the handler whether or not the env var is set, so it fails
-// only on a config the Proxy could never have meant.
-func NewRouteFreeHandler(cfg RouteFreeConfig) (*RouteFreeHandler, error) {
+// NewSNIRouteHandler returns a handler for cfg. It resolves no routes unless
+// common.AppForwardedIdentityEnvVar is set.
+func NewSNIRouteHandler(cfg SNIRouteConfig) (*SNIRouteHandler, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resolver, err := newRouteFreeResolver(routeFreeResolverConfig{
+	resolver, err := newRouteResolver(routeResolverConfig{
 		clusterName:      cfg.ClusterName,
 		authorizerOpts:   cfg.AuthorizerOpts,
 		clusterGetter:    cfg.ClusterGetter,
 		proxyPublicAddrs: cfg.ProxyPublicAddrs,
-		logger:           slog.With(teleport.ComponentKey, "alpn:app-route-free"),
+		logger:           slog.With(teleport.ComponentKey, "alpn:app-sni-route"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -142,7 +130,7 @@ func NewRouteFreeHandler(cfg RouteFreeConfig) (*RouteFreeHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 	enabled, _ := apiutils.ParseBool(os.Getenv(common.AppForwardedIdentityEnvVar))
-	return &RouteFreeHandler{
+	return &SNIRouteHandler{
 		enabled: enabled,
 		auth: &authz.Middleware{
 			ClusterName:   cfg.ClusterName,
@@ -156,27 +144,23 @@ func NewRouteFreeHandler(cfg RouteFreeConfig) (*RouteFreeHandler, error) {
 	}, nil
 }
 
-// HandleConnection passes conn to the web listener, which serves every web
-// connection so that all their requests pass the same middleware. A
-// route-free connection goes in a wrapper that carries what the Proxy decided
-// it may reach.
-func (h *RouteFreeHandler) HandleConnection(ctx context.Context, conn net.Conn) error {
+// HandleConnection passes conn on to next. An SNI-route connection goes in a
+// wrapper that carries what the Proxy decided it may reach.
+func (h *SNIRouteHandler) HandleConnection(ctx context.Context, conn net.Conn) error {
 	if state, ok := h.accepts(ctx, conn); ok {
 		conn = h.wrap(ctx, conn, state)
 	}
 	if err := h.next(ctx, conn); err != nil {
-		// The ALPN router closes only the connection it accepted, which would
-		// leave a resolved connection's monitor running.
+		// Closing the wrapper also stops its connection monitor.
 		conn.Close()
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// accepts reports whether conn is a route-free App connection. If it is,
-// accepts returns its handshake state, which holds exactly one peer
-// certificate, the client's, since GetUser rejects intermediaries.
-func (h *RouteFreeHandler) accepts(ctx context.Context, conn net.Conn) (tls.ConnectionState, bool) {
+// accepts reports whether the Proxy resolves conn's route from its SNI, and
+// returns conn's handshake state if it does.
+func (h *SNIRouteHandler) accepts(ctx context.Context, conn net.Conn) (tls.ConnectionState, bool) {
 	if !h.enabled {
 		return tls.ConnectionState{}, false
 	}
@@ -185,35 +169,33 @@ func (h *RouteFreeHandler) accepts(ctx context.Context, conn net.Conn) (tls.Conn
 		return tls.ConnectionState{}, false
 	}
 	state := tlsConn.ConnectionState()
-	if !h.isRouteFree(ctx, state) {
+	if !h.takesSNIRoute(ctx, state) {
 		return tls.ConnectionState{}, false
 	}
 	return state, true
 }
 
-// wrap resolves the route-free connection conn to an app, installs that app's
-// connection controls, and returns the connection the web listener serves for
-// it. ctx holds the client's address, which source IP pinning checks.
-func (h *RouteFreeHandler) wrap(ctx context.Context, conn net.Conn, state tls.ConnectionState) *resolvedConn {
+// wrap admits conn and returns it wrapped with the result, recording the
+// admission in the metrics.
+func (h *SNIRouteHandler) wrap(ctx context.Context, conn net.Conn, state tls.ConnectionState) *resolvedConn {
 	start := time.Now()
 	identity, monitored, err := h.admit(ctx, conn, state)
-	h.metrics.routeFreeAdmissionDuration.Observe(time.Since(start).Seconds())
-	protocol := routeFreeProtocol(state)
-	h.metrics.routeFreeConnections.WithLabelValues(routeFreeResult(err), protocol).Inc()
+	h.metrics.sniRouteAdmissionDuration.Observe(time.Since(start).Seconds())
+	protocol := sniRouteProtocol(state)
+	h.metrics.sniRouteConnections.WithLabelValues(sniRouteResult(err), protocol).Inc()
 	if err != nil {
 		return &resolvedConn{Conn: conn, state: state, err: err}
 	}
 	return &resolvedConn{
-		Conn:     newGaugedConn(monitored, h.metrics.routeFreeActiveConnections.WithLabelValues(protocol)),
+		Conn:     newGaugedConn(monitored, h.metrics.sniRouteActiveConnections.WithLabelValues(protocol)),
 		state:    state,
 		identity: identity,
 	}
 }
 
-// admit resolves the connection with handshake state to the app it may reach,
-// and returns the identity it forwards with the connection that conn's
-// controls monitor.
-func (h *RouteFreeHandler) admit(ctx context.Context, conn net.Conn, state tls.ConnectionState) (authz.LocalUser, net.Conn, error) {
+// admit resolves the connection's route and applies its connection controls.
+// It returns the identity to forward and the monitored connection.
+func (h *SNIRouteHandler) admit(ctx context.Context, conn net.Conn, state tls.ConnectionState) (authz.LocalUser, net.Conn, error) {
 	resolved, err := h.resolve(ctx, state)
 	if err != nil {
 		return authz.LocalUser{}, nil, trace.Wrap(err)
@@ -225,37 +207,31 @@ func (h *RouteFreeHandler) admit(ctx context.Context, conn net.Conn, state tls.C
 	return resolved.identity, monitored, nil
 }
 
-// resolve resolves the connection with handshake state to the app it may
-// reach.
-func (h *RouteFreeHandler) resolve(ctx context.Context, state tls.ConnectionState) (*resolvedApp, error) {
-	ctx, cancel := context.WithTimeout(ctx, routeFreeResolveTimeout)
+// resolve resolves the connection's route and checks the App Access
+// entitlement.
+func (h *SNIRouteHandler) resolve(ctx context.Context, state tls.ConnectionState) (*resolvedApp, error) {
+	ctx, cancel := context.WithTimeout(ctx, routeResolveTimeout)
 	defer cancel()
 	resolved, err := h.resolver.resolve(ctx, state.PeerCertificates[0], state.ServerName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// The entitlement is checked last, after every check that depends on the
-	// client, so that an unlicensed cluster doesn't hide a denial the client
-	// can act on.
+	// Checked last, so that it doesn't hide a denial the client can act on.
 	if err := checkEntitlement(h.clusterFeatures()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return resolved, nil
 }
 
-// monitor installs the connection controls of the role that granted access,
-// which close conn when a lock, its idle timeout or its certificate's expiry
-// says they must. The web listener reads through the connection monitor
-// returns, so its reads count as client activity, and closing it stops the
-// monitor.
-func (h *RouteFreeHandler) monitor(ctx context.Context, conn net.Conn, sessionCtx *authz.ScopedSessionContext) (net.Conn, error) {
+// monitor applies the connection controls of the role that granted access,
+// and returns the connection to read through.
+func (h *SNIRouteHandler) monitor(ctx context.Context, conn net.Conn, sessionCtx *authz.ScopedSessionContext) (net.Conn, error) {
 	_, monitored, err := h.connMonitor.MonitorConnScoped(ctx, sessionCtx, conn)
 	return monitored, trace.Wrap(err)
 }
 
-// checkEntitlement fails if the cluster's license disables App Access. App
-// Access is enabled on every license by default, so a missing entitlement
-// deliberately fails open.
+// checkEntitlement fails if the cluster's license disables App Access. A
+// license missing the entitlement is allowed, since App Access is on by default.
 func checkEntitlement(features proto.Features) error {
 	if entitlement, ok := features.GetEntitlements()[string(entitlements.App)]; ok && !entitlement.GetEnabled() {
 		return trace.AccessDenied("this Teleport cluster is not licensed for application access, please contact the cluster administrator")
@@ -263,8 +239,9 @@ func checkEntitlement(features proto.Features) error {
 	return nil
 }
 
-// isRouteFree reports whether state belongs to a route-free app connection
-func (h *RouteFreeHandler) isRouteFree(ctx context.Context, state tls.ConnectionState) bool {
+// takesSNIRoute reports whether the Proxy resolves a connection's route from
+// its SNI: when its certificate has no RouteToApp and belongs to a local user.
+func (h *SNIRouteHandler) takesSNIRoute(ctx context.Context, state tls.ConnectionState) bool {
 	if len(state.PeerCertificates) == 0 {
 		return false
 	}
@@ -272,9 +249,7 @@ func (h *RouteFreeHandler) isRouteFree(ctx context.Context, state tls.Connection
 	if err != nil || identity.RouteToApp != (tlsca.RouteToApp{}) {
 		return false
 	}
-	// Web/API dispatch serves certificates restricted to another service, such
-	// as Access Graph and Git. Checking here also keeps GetUser from logging
-	// each one as rejected.
+	// A certificate restricted to another service isn't for an App connection.
 	if len(identity.Usage) != 0 && !slices.Equal(identity.Usage, []string{teleport.UsageAppsOnly}) {
 		return false
 	}
@@ -282,34 +257,29 @@ func (h *RouteFreeHandler) isRouteFree(ctx context.Context, state tls.Connection
 	if err != nil {
 		return false
 	}
-	// Built-in roles, agents and users of other clusters keep today's path.
 	_, ok := user.(authz.LocalUser)
 	return ok
 }
 
-// resolvedConn is a route-free connection as the web listener serves it, with
-// what the Proxy decided when it took the connection. It is built once and
-// never changed, and every request on the connection reads it.
+// resolvedConn is a connection on the SNI route, with the result of its
+// admission. It doesn't change after it's built.
 type resolvedConn struct {
 	net.Conn
-	// state is the handshake state of the *tls.Conn underneath.
 	state tls.ConnectionState
-	// identity is the identity the Proxy forwards for every request on the
-	// connection, routed to the app it resolved to. It is unset when err is.
+	// identity is the identity forwarded with each request. It's unset when
+	// err is set.
 	identity authz.LocalUser
-	// err is why the connection may reach no app.
+	// err is why admission denied the connection.
 	err error
 }
 
-// ConnectionState returns the connection's handshake state. net/http serves
-// HTTP/2 only to a connection that has one, and sets each request's TLS from
-// it, so requests on c look like any other with a client certificate.
+// ConnectionState returns the connection's handshake state, which net/http
+// needs to serve HTTP/2 and to set each request's TLS.
 func (c *resolvedConn) ConnectionState() tls.ConnectionState {
 	return c.state
 }
 
-// clientUser returns the username of the client's certificate, which is set
-// even when the connection may reach no app.
+// clientUser returns the username in the client's certificate.
 func (c *resolvedConn) clientUser() string {
 	if len(c.state.PeerCertificates) == 0 {
 		return ""
@@ -317,15 +287,12 @@ func (c *resolvedConn) clientUser() string {
 	return c.state.PeerCertificates[0].Subject.CommonName
 }
 
-// NetConn returns the connection c wraps, as tls.Conn.NetConn does, so that
-// the ingress metrics find the *tls.Conn.
+// NetConn returns the connection c wraps.
 func (c *resolvedConn) NetConn() net.Conn {
 	return c.Conn
 }
 
-// CloseWrite half-closes the connection underneath, which net/http does before
-// closing a connection whose request body it didn't read, so that the client
-// reads the response before the connection resets.
+// CloseWrite half-closes the connection underneath.
 func (c *resolvedConn) CloseWrite() error {
 	closer, ok := findConn[interface{ CloseWrite() error }](c.Conn)
 	if !ok {
@@ -334,8 +301,8 @@ func (c *resolvedConn) CloseWrite() error {
 	return trace.Wrap(closer.CloseWrite())
 }
 
-// resolvedConnFromRequest returns the route-free connection r arrived on, which
-// the web server puts in every request's context.
+// resolvedConnFromRequest returns the SNI-route connection r arrived on, if
+// any.
 func resolvedConnFromRequest(r *http.Request) (*resolvedConn, bool) {
 	conn, err := authz.ConnFromContext(r.Context())
 	if err != nil {
@@ -344,9 +311,8 @@ func resolvedConnFromRequest(r *http.Request) (*resolvedConn, bool) {
 	return findConn[*resolvedConn](conn)
 }
 
-// findConn returns the first connection of type T in the chain of wrappers
-// that conn heads, which it follows through NetConn. The depth cap guards
-// against a wrapper that returns itself.
+// findConn returns the first connection of type T among conn and the
+// connections it wraps. It gives up after 10, in case a wrapper returns itself.
 func findConn[T any](conn net.Conn) (T, bool) {
 	for range 10 {
 		if found, ok := conn.(T); ok {
@@ -362,71 +328,67 @@ func findConn[T any](conn net.Conn) (T, bool) {
 	return zero, false
 }
 
-// serveResolved forwards a request that arrived on the route-free connection
-// conn to the app the connection resolved to, or refuses it. A denied
-// connection's first response closes it, and so does a misdirected request's on
-// HTTP/1. For a response with Connection: close, the HTTP/2 server sends
-// GOAWAY, so HTTP/2 refuses only a misdirected stream.
+// serveResolved forwards a request on the SNI-route connection conn to the
+// connection's app, or refuses it.
 func (h *Handler) serveResolved(w http.ResponseWriter, r *http.Request, conn *resolvedConn) {
 	if conn.err != nil {
-		h.metrics.countRequest(pathRouteFree, routeFreeResult(conn.err))
+		h.metrics.countRequest(routeSNI, sniRouteResult(conn.err))
 		w.Header().Set("Connection", "close")
 		code, ok := appauthz.WriteForwardedError(w, r, conn.err)
 		if !ok {
 			status := trace.ErrorToCode(conn.err)
 			http.Error(w, http.StatusText(status), status)
 		}
-		h.logger.WarnContext(r.Context(), "Rejected a route-free App connection", "code", code,
+		h.logger.WarnContext(r.Context(), "Rejected an SNI-route App connection", "code", code,
 			"user", conn.clientUser(), "sni", conn.state.ServerName,
 			"client_addr", conn.RemoteAddr(), "error", conn.err)
 		return
 	}
-	// Checked before the authority, since a 421 would send the client to a new
-	// connection that would refuse the request too.
+	// Checked before the authority, since a 421 would only send the client to a
+	// new connection that refuses the request too.
 	if r.Method == http.MethodConnect || (isUpgrade(r) && !upgradesOnlyToWebSocket(r)) {
-		h.metrics.countRequest(pathRouteFree, refusedNotImplemented)
+		h.metrics.countRequest(routeSNI, refusedNotImplemented)
 		http.Error(w, "This connection serves HTTP requests and WebSocket upgrades only.", http.StatusNotImplemented)
-		h.logger.DebugContext(r.Context(), "Refused a request a route-free App connection doesn't serve",
+		h.logger.DebugContext(r.Context(), "Refused a request an SNI-route App connection doesn't serve",
 			"method", r.Method, "upgrade", r.Header.Get("Upgrade"), "client_addr", conn.RemoteAddr())
 		return
 	}
 	if !authorityMatches(r.Host, conn.state.ServerName, h.externalWebPorts) {
-		h.metrics.countRequest(pathRouteFree, refusedMisdirected)
+		h.metrics.countRequest(routeSNI, refusedMisdirected)
+		// Only on HTTP/1. On HTTP/2 the header makes the server send GOAWAY and
+		// shut the connection down, but only this stream is misdirected.
 		if r.ProtoMajor == 1 {
 			w.Header().Set("Connection", "close")
 		}
 		w.Header().Set(common.TeleportAppErrorCodeHeader, string(common.AppErrorCodeAuthorityMismatch))
 		http.Error(w, "This connection serves another host. Open a new connection to the host this request names.", http.StatusMisdirectedRequest)
-		h.logger.DebugContext(r.Context(), "Refused a misdirected request on a route-free App connection",
+		h.logger.DebugContext(r.Context(), "Refused a misdirected request on an SNI-route App connection",
 			"host", r.Host, "sni", conn.state.ServerName, "client_addr", conn.RemoteAddr())
 		return
 	}
-	// The connection's address is the one source IP pinning checked, which the
-	// X-Forwarded-For middleware may have replaced in r.RemoteAddr.
+	// Forward the address admission checked, which X-Forwarded-For may have
+	// replaced in r.RemoteAddr.
 	ctx := authz.ContextWithUser(r.Context(), conn.identity)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
 	h.agentForwarder.ServeHTTP(w, r.WithContext(ctx))
 }
 
 // isUpgrade reports whether r asks to switch protocols, as
-// httputil.ReverseProxy decides it, from every Connection field.
+// httputil.ReverseProxy decides it.
 func isUpgrade(r *http.Request) bool {
 	return httpguts.HeaderValuesContainsToken(r.Header["Connection"], "upgrade") && r.Header.Get("Upgrade") != ""
 }
 
-// upgradesOnlyToWebSocket reports whether r offers WebSocket as its only
-// protocol, since the upstream may switch to any protocol it's offered.
+// upgradesOnlyToWebSocket reports whether WebSocket is the only protocol r
+// offers, since the upstream may switch to any protocol it's offered.
 func upgradesOnlyToWebSocket(r *http.Request) bool {
 	upgrade := r.Header["Upgrade"]
 	return len(upgrade) == 1 && strings.EqualFold(strings.TrimSpace(upgrade[0]), "websocket")
 }
 
-// authorityMatches reports whether hostport, a request's host, names the
-// route-free connection's host, sni. It accepts no alias, only the SNI's own
-// name, with no port or one of ports, the Proxy's external web ports. Pinning
-// keeps a client that reuses one connection for several hosts, such as one
-// that coalesces HTTP/2 connections, from sending another app's requests to
-// the connection's app.
+// authorityMatches reports whether hostport, a request's host, is sni with no
+// port or one of ports. This keeps a client that reuses a connection for
+// several hosts from sending another app's requests on it.
 func authorityMatches(hostport, sni string, ports []string) bool {
 	// No SNI is an IP literal, so the first colon starts the port.
 	host, port, _ := strings.Cut(hostport, ":")
@@ -441,11 +403,8 @@ func authorityMatches(hostport, sni string, ports []string) bool {
 	return port == "" || slices.Contains(ports, port)
 }
 
-// externalWebPorts returns the ports of addrs, the Proxy's public addresses,
-// on which clients reach its web listener. Each has a port, since a public
-// address without one takes the web listener's. A Proxy with no public address
-// is reached on webAddr, its web listener, as its apps are addressed under the
-// cluster name.
+// externalWebPorts returns the ports of addrs, the Proxy's public addresses, or
+// of webAddr when there are none.
 func externalWebPorts(addrs []utils.NetAddr, webAddr utils.NetAddr) []string {
 	var ports []string
 	for _, addr := range addrs {
