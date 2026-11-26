@@ -129,9 +129,10 @@ spec:
   allow:
     # List of node labels a user will be allowed to connect to:
     node_labels:
+      'environment': ['test', 'stage']
       # Regular expressions are also supported, for example, the equivalent
       # of the list example above can be expressed as:
-      'environment': '^test|staging$'
+      # 'environment': '^(test|stage)$'
 
     kubernetes_labels:
       # User can access any region in us-west, e.g. us-west-1, us-west-2

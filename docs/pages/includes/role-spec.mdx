@@ -164,8 +164,7 @@ spec:
       # Teleport uses Go's regular expression syntax:
       # https://github.com/google/re2/wiki/Syntax
       # The list example above can be expressed as:
-      # 'region': '^us-west-1|eu-central-1$'
-      'reg': '^us-west-1|eu-central-1$'
+      # 'region': '^(us-west-1|eu-central-1)$'
 
     # List of host groups the created user will be added to. Any that don't
     # already exist are created. Only applies when create_host_user_mode
@@ -210,8 +209,10 @@ spec:
       # Regular expressions start with ^ and end with $.
       # Teleport uses Go's regular expression syntax:
       # https://github.com/google/re2/wiki/Syntax
+      # A list of exact regions:
+      # 'region': ['us-west-1', 'eu-central-1']
       # The list example above can be expressed as:
-      # 'region': '^us-west-1|eu-central-1$'
+      # 'region': '^(us-west-1|eu-central-1)$'
       'cluster_name': '^us.*\.example\.com$'
 
     # kubernetes_resources indicates the Kubernetes resources that a user with
@@ -297,8 +298,10 @@ spec:
       # Regular expressions start with ^ and end with $.
       # Teleport uses Go's regular expression syntax:
       # https://github.com/google/re2/wiki/Syntax
+      # A list of exact regions:
+      # 'region': ['us-west-1', 'eu-central-1']
       # The list example above can be expressed as:
-      # 'region': '^us-west-1|eu-central-1$'
+      # 'region': '^(us-west-1|eu-central-1)$'
       'cluster_name': '^us.*\.example\.com$'
 
     # group_labels: a user with this role will be given permissions to the

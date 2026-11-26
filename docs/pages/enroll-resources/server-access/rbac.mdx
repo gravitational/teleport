@@ -51,7 +51,7 @@ spec:
       # regular expressions start with ^ and end with $
       # Teleport uses Go's regexp syntax (https://github.com/google/re2/wiki/Syntax)
       # the list example above can be expressed as:
-      'region': '^us-west-1|eu-central-1$'
+      # 'region': '^(us-west-1|eu-central-1)$'
 
     # List of host groups the created user will be added to. Any that don't
     # already exist are created. Only applies when create_host_user_mode

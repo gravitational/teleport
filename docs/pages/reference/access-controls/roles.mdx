@@ -227,14 +227,14 @@ spec:
   allow:
     node_labels:
       # literal strings:
-      'environment': 'test'
+      # 'environment': 'test'
       # the wildcard ('*') means "any node"
       '*': '*'
       # a list of alternative options:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
-      'environment': '^test|staging$'
+      # 'environment': '^(test|staging)$'
 ```
 
 ### Label expressions
